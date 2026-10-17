@@ -253,6 +253,7 @@ export function createSky(scene, renderer) {
         // A soft blue city-glow band at night, inspired by the Frutiger night references.
         col += vec3(0.018, 0.070, 0.18) * exp(-abs(h) * 16.0) * uCityGlow;
 
+        float cloudCover = 0.0;
         // Lightweight cartoon take on the WebGPU volumetric-cloud reference:
         // a flat world-space cloud plane projected into the sky, with two FBM
         // layers, soft thresholds and restrained underside shading. This keeps
@@ -265,6 +266,7 @@ export function createSky(scene, renderer) {
           float n = n1 * 0.68 + n2 * 0.32;
           float cover = smoothstep(0.47, 0.60, n);
           cover *= smoothstep(0.015, 0.13, h);
+          cloudCover = cover * uCloudAmount;
           float underside = smoothstep(0.30, 0.72, n2);
           vec3 cloud = mix(uCloudColor * 0.78, uCloudColor * 1.06, underside);
           col = mix(col, cloud, cover * uCloudAmount * 0.92);
@@ -272,6 +274,20 @@ export function createSky(scene, renderer) {
 
         float s = max(dot(d, uSunDir), 0.0);
         col += uSunColor * (pow(s, 420.0) * 1.7 + pow(s, 14.0) * 0.16) * uSunStrength;
+
+        // Soft Aero sun spokes. These live in the dome, so they stay behind the
+        // meadow silhouettes and cannot wash the foreground. Clouds mask them.
+        vec3 sunRight = cross(uSunDir, vec3(0.0, 1.0, 0.0));
+        sunRight = length(sunRight) > 1e-4 ? normalize(sunRight) : vec3(1.0, 0.0, 0.0);
+        vec3 sunUp = normalize(cross(sunRight, uSunDir));
+        float ang = atan(dot(d, sunUp), dot(d, sunRight));
+        float spokes = .55
+          + .25 * sin(ang * 19.0 + uCloudTime * .11)
+          + .20 * sin(ang * 37.0 - uCloudTime * .07 + sin(ang * 5.0 + 1.3) * 2.0);
+        float rayBroad = pow(s, 3.5) * pow(max(spokes, 0.0), 1.4);
+        float rayFine = pow(s, 18.0) * pow(max(spokes, 0.0), 7.0);
+        col += uSunColor * (rayBroad * .085 + rayFine * .20) * uSunStrength * (1.0 - cloudCover * .55);
+
         // gentle warm horizon band
         col += uSunColor * exp(-abs(h) * 13.0) * 0.035 * uSunStrength;
         gl_FragColor = vec4(col, 1.0);
@@ -477,6 +493,7 @@ export function createSky(scene, renderer) {
     get night() { return nightValue; },
     get fogColor() { return fogCol; },
     get sunVisible() { return Math.max(0, sunDir.y) > 0.005; },
+    get sunDir() { return sunDir.clone(); },
     get moonVisible() { return Math.max(0, moonDir.y) > 0.005; },
     get mist() {
       if (mistOverride !== null) return mistOverride;

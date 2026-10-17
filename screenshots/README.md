@@ -45,6 +45,7 @@ optional-effects checks.
 | `34_effects_full.webp` | Full effects: Soft plus high-tier GTAO contact AO |
 | `35_effects_night.webp` | Full effects at night; villa lamps, fireflies and bears with bloom/AO |
 | `36_effects_control.webp` | Meadow-detail Effects selector (Off/Soft/Full) open with the scene live |
+| `37_godrays.webp` | clear-sky check of the dome-animated sun shafts at 15:30 with clouds hidden for visibility |
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
 the stable circular-pass reading was **32.1 ms / 565 calls / 3.67 M triangles**.

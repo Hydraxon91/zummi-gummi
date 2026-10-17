@@ -4042,6 +4042,7 @@ window.__gummy = {
     };
   },
   setTime(h){ if (!sky) return null; sky.setAuto(false); sky.setTime(+h); if (worlds.field){ worlds.field.time=sky.hours; worlds.field.auto=false; } syncAeroUI(true); return sky.hours; },
+  sun(){ return sky ? { dir: sky.sunDir, visible: sky.sunVisible, hours: sky.hours } : null; },
   setMap(id){ requestMapSwitch(id); return activeWorld.mapId; },
   navPath(x0,z0,x1,z1){ if (!field) return null; return field.nav.findPath(x0,z0,x1,z1); },
   navDebug(on){ if (!field) return null; field.navDebug.visible = on === undefined ? !field.navDebug.visible : !!on; return field.navDebug.visible; },

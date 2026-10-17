@@ -100,7 +100,7 @@ rig and soft-body solver stay.
 | **3b ✅** | **3b.0 hop pose/takeoff polish** (level crouch/air target with a small forward lean, upright takeoff gate, transient AI reset, per-bear hop-pace range (inherited in Phase 5)); hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | AI hops stay close to upright through takeoff, apex and landing; player throws still tumble freely; bees can sting, bears avoid hives below the threshold, health regenerates, hurt/tired bears return home and recover, with no death |
 | **4 ✅** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection/bonds, **door-level home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit a villa doorway; MSN-style statuses update |
 | **5 ✅** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
-| **6a core ✅** | **Effects pass before optimization:** gentle color grade, restrained thresholded bloom, SMAA and high-tier GTAO contact AO; true god rays and dynamic sun shadow maps deferred | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
+| **6a core ✅** | **Effects pass before optimization:** gentle color grade, restrained thresholded bloom, SMAA, high-tier GTAO contact AO, cloud-masked sky-dome sun shafts; true screen-space/canopy god rays and dynamic sun shadow maps deferred | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
 | **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
 | **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
@@ -185,10 +185,12 @@ rig and soft-body solver stay.
   stay stable. Studio remains on the direct renderer. The stack preserves the
   existing transmission and planar-reflection passes, uses half-resolution AO
   and bloom, and exposes `setEffects` / `effectsState` / `setEffectsBloom` /
-  `setEffectsExposure` for headless checks. The post stack tone-maps sky/cloud
-  materials that bypass ACES in the direct path, so the optional tiers have a
-  slightly softer sky. True god rays and dynamic sun shadow maps are deferred
-  until a measured comparison against the baked/contact-shadow baseline.
+  `setEffectsExposure` for headless checks. The sky dome also adds cloud-masked,
+  animated **sun shafts** weighted toward low sun; these live behind the meadow
+  silhouettes and add no post pass. The post stack tone-maps sky/cloud materials
+  that bypass ACES in the direct path, so the optional tiers have a slightly
+  softer sky. True screen-space/canopy god rays and dynamic sun shadow maps are
+  deferred until a measured comparison against the baked/contact-shadow baseline.
 - **Next:** add voluntary pond play/swimming, then the Phase 6b effects/profile
   pass.
 - **Studio modelling track queued (parallel, required):** author the Studio
@@ -388,9 +390,10 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **The composer uses SMAA rather than multisampled AO targets.** A multisampled
   composer target plus GTAO produced an unreliable/black headless path; SMAA is
   the stable path. Re-test MSAA on hardware before changing this.
-- **True god rays and dynamic sun shadow maps remain deferred.** The existing
-  baked/blob shadows and planar reflection already carry the stylized depth; add
-  these only after a measured comparison, not as a default.
+- **Sky-dome sun shafts are present, but true screen-space/canopy god rays and
+  dynamic sun shadow maps remain deferred.** The dome shafts are cloud-masked and
+  cheap; screen-space shafts need depth/mask work and a measured comparison
+  against the baked/blob-shadow baseline, not a default.
 - **Effect timing is not a final frame-rate claim.** The headless effect probe is
   noisy and GPU-async; Phase 6b must profile Off/Soft/Full at 6/20/40 bears and
   record the method before committing to defaults.
@@ -470,8 +473,11 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Full:** adds GTAO contact AO on the high quality tiers, with half-resolution
   AO targets and Poisson denoise. It is deliberately opt-in because GTAO is the
   expensive tier; the quality governor can fall back to Soft/Off.
-- **Deferred:** true screen-space god rays and dynamic sun shadow maps. The
-  meadow already uses baked static/blob shadows and a planar pond reflection;
+- **Sun shafts:** animated, cloud-masked spokes in the sky dome, strongest at
+  low sun and fading out below the horizon. They live behind the meadow
+  silhouettes and cost no extra pass, so they are present in Off as well.
+- **Deferred:** true screen-space/canopy god rays and dynamic sun shadow maps.
+  The meadow already uses baked static/blob shadows and a planar pond reflection;
   adding these without a measured comparison would risk fighting the stylized
   depth and the 40-bear budget.
 - **Known tone-map difference:** three's direct path leaves `toneMapped:false`

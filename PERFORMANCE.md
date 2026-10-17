@@ -116,9 +116,10 @@ The meadow post stack is optional and tiered: Off keeps the direct renderer,
 Soft adds half-resolution bloom, SMAA and a display-space grade, and Full adds
 half-resolution GTAO contact AO with Poisson denoise. The composer uses an SMAA
 path rather than a multisampled render target; the latter was unreliable with
-GTAO in the headless driver. Scene draw calls remain in the same range as the
-direct path (about 571–575 at 1440×900 DPR 2 for the six-bear view), with the
-post passes additional. GTAO is the expensive tier and is opt-in; the quality
+GTAO in the headless driver. The sky-dome sun shafts are shader-only and add no
+pass or draw call. Scene draw calls remain in the same range as the direct path
+(about 571–575 at 1440×900 DPR 2 for the six-bear view), with the post passes
+additional. GTAO is the expensive tier and is opt-in; the quality
 governor can fall back to Soft/Off. This is a correctness/visual check, not a
 final frame-rate claim—the headless command-timing probe is GPU-asynchronous and
 noisy. Phase 6b must profile Off/Soft/Full at 6/20/40 bears before fixing the
