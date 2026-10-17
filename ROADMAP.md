@@ -921,6 +921,14 @@ a runtime dependency of the browser game.
 - Pin one MCP implementation and Blender version for the experiment; record the
   commit/version and license. Keep the bridge local-only. Never expose it to the
   LAN or the game runtime.
+- **Pinned for the experiment (2026-10-18):** `ahujasid/mcp-for-blender` (the
+  `blender-mcp` project after its rename), PyPI package `mcp-for-blender`
+  **v2.1.9**, MIT license, author Siddharth Ahuja. Blender **5.2.2 LTS**, addon
+  protocol 13 (addon version 1.8). Installed as an authoring-time helper only,
+  via Homebrew `uv` 0.13.1 and `uvx mcp-for-blender`; the addon is a local file
+  in Blender's addons folder. The bridge stays local-only
+  (`BLENDER_HOST=localhost`, port 9876) behind the `mcp.blender` entry in the
+  OpenCode config. Nothing here is a repo or runtime dependency.
 - Use MCP to accelerate geometry/material iteration, then perform the final
   export and performance check manually. The deterministic output is the GLB,
   not the chat transcript.
