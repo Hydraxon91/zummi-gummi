@@ -1,7 +1,7 @@
-# Phase 2 captures (in progress)
+# Phase 2 captures
 
 Visual set from the running app (headless Chrome, 1440×900 unless noted). `00_`
-is retained as the pre-replacement baseline; everything else is the current
+is retained as the pre-replacement baseline; everything else is the completed
 circular-meadow / dirt-trail / branched-backdrop pass.
 
 | file | view |
@@ -22,9 +22,12 @@ circular-meadow / dirt-trail / branched-backdrop pass.
 | `13_mobile_portrait.webp` | phone portrait layout with the new Hide UI control |
 | `14_villa_entry_fixed.webp` | close view of the body-coloured entry drum that keeps the tall glazed door flush to a curved villa |
 | `15_phone_ui_hidden.webp` | 390×844 phone view with every overlay hidden; only Show UI remains |
+| `16_water_anime_pattern.webp` | pond close-up with the denser 4× anime cell pattern, foam and reflection |
+| `17_ground_grass_detail.webp` | close-up of the fine grass ground texture and clean dirt hub |
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
-baseline **32.1 ms / 565 calls / 3.67 M triangles**; grass hidden **25.3 ms**;
-quality 3 / DPR 1.25 **23.6 ms**. Grass fill/geometry remains the largest
-single GPU item. Full method and the earlier supplied baselines are in
-[../PERFORMANCE.md](../PERFORMANCE.md).
+the stable circular-pass reading was **32.1 ms / 565 calls / 3.67 M triangles**.
+The later close-up-ground/sheen/water spot check was noisy at **39.7–44.3 ms**
+baseline and **24.8–26.6 ms** at quality 3; a clean rerun is still pending.
+Grass fill/geometry remains the largest single GPU item. Full method and the
+earlier supplied baselines are in [../PERFORMANCE.md](../PERFORMANCE.md).

@@ -452,9 +452,9 @@ export function createTreeCollection({ lots, wind }) {
     scale: { value: 1 },
   };
   const leafMat = makeWindMaterial(new THREE.MeshPhysicalMaterial({
-    color: 0xffffff, map: leafTex, alphaTest: .42, transparent: false, depthWrite: true,
+    color: 0xc3d4ad, map: leafTex, alphaTest: .42, transparent: false, depthWrite: true,
     side: THREE.DoubleSide, vertexColors: true,
-    roughness: .68, clearcoat: .12, clearcoatRoughness: .62, metalness: 0,
+    roughness: .72, clearcoat: .10, clearcoatRoughness: .66, metalness: 0,
   }), wind, 'leaf', leafControls);
   const fruitMat = makeWindMaterial(new THREE.MeshPhysicalMaterial({
     color: 0xffffff, roughness: .17, clearcoat: .85, clearcoatRoughness: .16, metalness: 0,
@@ -755,10 +755,10 @@ export function createTreeCollection({ lots, wind }) {
         const radial = clamp(Math.hypot(p.x - lot.x, p.z - lot.z) / (2.4 * s), 0, 1);
         const top = clamp((p.y - (crown.y - .9 * s)) / (2.3 * s), 0, 1);
         const interior = (1 - radial) * .62;
-        const hue = .212 + rand() * .046;
-        const sat = .64 + rand() * .16;
-        const light = .19 + radial * .12 + top * .070 + rand() * .032 - interior * .052;
-        const color = new THREE.Color().setHSL(hue, sat, clamp(light, .14, .37));
+        const hue = .220 + rand() * .038;
+        const sat = .72 + rand() * .14;
+        const light = .130 + radial * .085 + top * .050 + rand() * .022 - interior * .040;
+        const color = new THREE.Color().setHSL(hue, sat, clamp(light, .10, .27));
 
         // The card base is exactly the branch/twig point. Point the leaf tip
         // outward/up and roll its face around that axis for a dense spray.

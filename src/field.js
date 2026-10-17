@@ -107,10 +107,29 @@ function grassTexture() {
       if (x+ox > -2 && x+ox < W+2 && y+oy > -2 && y+oy < H+2) ctx.fillRect(x+ox, y+oy, 1.3, 1.3);
     }
   }
+  // Fine blade strokes make the ground readable at close range without a
+  // second full-screen texture sample.
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 3200; i++) {
+    const x = r() * W, y = r() * H;
+    const len = 2 + r() * 9;
+    const lean = (r() - .5) * 4.2;
+    ctx.strokeStyle = r() < .6
+      ? `rgba(34,91,27,${.12 + r() * .20})`
+      : `rgba(196,235,142,${.10 + r() * .17})`;
+    ctx.lineWidth = .6 + r() * 1.4;
+    for (const ox of [-W, 0, W]) for (const oy of [-H, 0, H]) {
+      if (x + ox < -20 || x + ox > W + 20 || y + oy < -20 || y + oy > H + 20) continue;
+      ctx.beginPath();
+      ctx.moveTo(x + ox, y + oy);
+      ctx.quadraticCurveTo(x + ox + lean * .45, y + oy - len * .55, x + ox + lean, y + oy - len);
+      ctx.stroke();
+    }
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(4, 3);
+  tex.repeat.set(8, 7);
   tex.anisotropy = 8;
   return tex;
 }
@@ -396,6 +415,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform sampler2D uPathMask;\nuniform float uPathExtent;\nvarying vec2 vPathWorld;')
       .replace('#include <map_fragment>', `#include <map_fragment>
+        float detailLum = dot(diffuseColor.rgb, vec3(.25, .62, .13));
         vec2 pathUv = (vPathWorld + uPathExtent * .5) / uPathExtent;
         float pathRaw = texture2D(uPathMask, pathUv).r;
         float pathNoise = sin(vPathWorld.x * 4.7 + vPathWorld.y * 3.1) * .035
@@ -408,9 +428,15 @@ export function buildField({ scene, camera, renderer, sky }) {
         // begins, so the circumference has no hard green-colour step.
         float edgeT = smoothstep(52.0, 69.0, length(vPathWorld));
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.31,.49,.23), edgeT * .64);
+        // A restrained Aero sheen: strongest at grazing angles and on the
+        // darker grass detail, never glossy enough to read as glass.
+        vec3 eyeV = normalize(cameraPosition - vec3(vPathWorld.x, 0.0, vPathWorld.y));
+        float fres = pow(1.0 - clamp(eyeV.y, 0.0, 1.0), 3.0);
+        float sheen = fres * (0.012 + 0.030 * (1.0 - detailLum));
+        diffuseColor.rgb += vec3(.52,.79,.58) * sheen;
       `);
   };
-  lawn.material.customProgramCacheKey = () => 'meadowLawnPathsV1';
+  lawn.material.customProgramCacheKey = () => 'meadowLawnPathsV3';
   group.add(lawn);
 
   // Detailed rolling backdrop + layered low-LOD tree belts.
@@ -616,8 +642,12 @@ export function buildField({ scene, camera, renderer, sky }) {
         // the remaining short blades from speckling the trail.
         vec2 pathBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
         float pathRaw = texture2D(uPathMask, (pathBase + uPathExtent * .5) / uPathExtent).r;
-        vPathDirt = smoothstep(.10, .68, pathRaw);
-        transformed.y *= 1.0 - vPathDirt * .95;
+        vPathDirt = smoothstep(.04, .50, pathRaw);
+        if (vPathDirt > .34) {
+          transformed = vec3(0.0); // no blades on the dirt footprint
+        } else {
+          transformed.y *= 1.0 - vPathDirt * .98;
+        }
       #endif
     `);
     shader.fragmentShader = shader.fragmentShader
@@ -679,7 +709,12 @@ export function buildField({ scene, camera, renderer, sky }) {
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!outer && !fieldInside(x, z, 0.9)) return false;
       if (outer && r > R) return false;
-      if (pathValueAt(x, z) > .62) return false;
+      // Keep the authored dirt clear: no tuft root on the trail, plus a short
+      // shoulder clearance so wide/leaning tufts cannot grow over the edge.
+      if (pathValueAt(x, z) > .04) return false;
+      for (const [ox, oz] of [[.24, 0], [-.24, 0], [0, .24], [0, -.24]]) {
+        if (pathValueAt(x + ox, z + oz) > .14) return false;
+      }
       const patch = 0.92 + 0.07 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 2.1)
                           + 0.04 * Math.cos(z * 0.23 - x * 0.07);
       if (gr() > patch) return false;
@@ -951,6 +986,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     uDeep: { value: new THREE.Color(0x133d4a) },
     uShallow: { value: new THREE.Color(0x3fa9a2) },
     uAnime: { value: .68 },
+    uCellScale: { value: 1.2 },
     uPondCenter: { value: new THREE.Vector2(POND.x, POND.z) },
     uPondRadii: { value: new THREE.Vector2(POND.rx * .98, POND.rz * .98) },
     uRippleCenters: { value: Array.from({ length: 4 }, () => new THREE.Vector2(POND.x, POND.z)) },
@@ -977,6 +1013,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       uniform sampler2D tDiffuse;
       uniform float uTime;
       uniform float uAnime;
+      uniform float uCellScale;
       uniform vec3 uSunDir, uMoonDir, uSunColor, uMoonColor, uDeep, uShallow, color;
       uniform vec2 uPondCenter, uPondRadii;
       uniform vec2 uRippleCenters[4];
@@ -1033,7 +1070,7 @@ export function buildField({ scene, camera, renderer, sky }) {
 
         // Anime/Aero cell lines. World-locked, slow and low-contrast so the pond
         // still reads as water rather than a tiled swimming pool.
-        vec2 cellUv = p * .30 + vec2(uTime * .018, -uTime * .011);
+        vec2 cellUv = p * uCellScale + vec2(uTime * .018, -uTime * .011);
         float f1 = wf1(cellUv);
         float sf1 = wsf1(cellUv);
         float cellEdge = f1 - sf1;
@@ -1097,7 +1134,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   // The Reflector clones uniforms. Point all *custom* uniforms at the live
   // objects so the sky/water animation updates the material that actually renders.
   const ru = reflector.material.uniforms;
-  for (const k of ['uTime','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uAnime','uPondCenter','uPondRadii','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
+  for (const k of ['uTime','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uAnime','uCellScale','uPondCenter','uPondRadii','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
   const reflectionCam = reflector.getReflectionCamera(camera);
   reflectionCam.layers.set(REFLECT_LAYER);
   reflectionCam.far = 400;
@@ -1523,6 +1560,11 @@ export function buildField({ scene, camera, renderer, sky }) {
     },
     setGrassControls,
     setGrassVisible,
+    setWaterCellScale(v) {
+      const n = THREE.MathUtils.clamp(Number(v) || 1.2, .3, 2.4);
+      waterUniforms.uCellScale.value = n;
+      return n;
+    },
     get mist() { return mistUniforms.uMist.value; },
     setNature(v = {}) {
       if (trees && trees.setControls) {

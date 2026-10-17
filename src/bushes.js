@@ -40,9 +40,9 @@ const lobeGeo = new THREE.IcosahedronGeometry(1, 1);
 
 const foliageUniforms = {
   uSunDir: { value: new THREE.Vector3(.35, .82, .25).normalize() },
-  uShadow: { value: new THREE.Color(0x568844) },
-  uLit: { value: new THREE.Color(0x98ca6b) },
-  uHigh: { value: new THREE.Color(0xd3efa0) },
+  uShadow: { value: new THREE.Color(0x4a7839) },
+  uLit: { value: new THREE.Color(0x86b65a) },
+  uHigh: { value: new THREE.Color(0xc1df91) },
 };
 
 function foliageMaterial(side) {

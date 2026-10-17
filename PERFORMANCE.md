@@ -76,6 +76,15 @@ planning.
 CPU with 21 bears in that run: **0.82 ms physics + 6.76 ms surface ≈
 7.58 ms/frame**.
 
+## Ground-detail / water spot check
+
+Two forced-sync runs after adding the close-up grass ground texture, its Aero
+sheen, the denser water cells and the trail clearing measured **39.7–44.3 ms**
+baseline and **24.8–26.6 ms** at quality 3 / DPR 1.25. The grass-off readings
+were unstable (29.7–45.1 ms) in the same runs, so this environment is currently
+noisy; treat the range as a monitoring result, not a final optimization claim.
+The 32.1 ms circular-pass table above remains the last stable profile.
+
 ## Interpretation
 
 - The meadow remains **fill/overdraw and grass-geometry bound**.

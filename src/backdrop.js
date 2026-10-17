@@ -386,9 +386,9 @@ export function createBackdrop() {
 
   const foliageUniforms = {
     uSunDir: { value: new THREE.Vector3(.35, .82, .25).normalize() },
-    uFoliageShadow: { value: new THREE.Color(0x588844) },
-    uFoliageLit: { value: new THREE.Color(0x9fd071) },
-    uFoliageHigh: { value: new THREE.Color(0xd5f1a4) },
+    uFoliageShadow: { value: new THREE.Color(0x4c7839) },
+    uFoliageLit: { value: new THREE.Color(0x8cbb5e) },
+    uFoliageHigh: { value: new THREE.Color(0xc3df95) },
   };
   function makeFoliageMaterial(side, leaf) {
     const m = new THREE.MeshLambertMaterial({ color: 0xffffff, side });

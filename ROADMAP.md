@@ -73,6 +73,8 @@ src/life.js             scale, ages, sexes, health, pregnancy, births
 src/launcher.js         cannon build/move/aim/fire
 src/ui.js / styles.css  Aero/MSN shell and HUD
 src/renderer.js         WebGL/WebGPU backend selection, capabilities, fallback
+src/studio-room.js      authored Studio lounge/bar/TV interaction surface
+assets/studio/          exported glTF/GLB room kit, collision proxies, credits
 src/app.js              orchestration only
 ```
 
@@ -85,7 +87,7 @@ rig and soft-body solver stay.
 |---|---|---|
 | **0 ✅** | Snapshot current app; split modules; map manager + per-map state; per-bear scale/sex/health/age data; static-wall handles; baseline tests | Current Studio still passes its physics and interaction tests; map/launcher state is structured per map |
 | **1 ✅** | Movable cannon + taller/larger walls on the Studio (quick playable win) | Cannon can be dragged/moved with validation; it stays in bounds; max-power shots are contained; aim/fire still work |
-| **2 (in progress)** | Grass Field, sky, pond, Aero shell, map switcher; field default; **mixed starter colony (2 adult ♀, 2 adult ♂, 1 teen, 1 baby)**; **rounded white/aqua Aero villas on validated home lots**; **distant Frutiger-Aero skyline + three-blade wind turbines**; pond splash/buoyancy; **procedural gummy-tree replacement with rounded leafy puffs/fruit/hives; shared travelling wind for trees + grass; Wind and Meadow-detail controls; procedural clouds, aurora and sporadic morning mist**; **circular wobbled-disc playfield, wandered dirt trails, full-circle grass, branched backdrop trees/bushes and anime-lite water** | Both maps load and switch with independent state; field has grass/trees/flowers/pond/sky/villas; no layout overlaps; day/night slider and dawn look work; pond reflects sun/moon and splashes; trees use the fixed TREE_LOTS/colliders with merged foliage batches and no per-frame CPU branch loops; one shared gust visibly crosses grass and trees; night sky shows aurora; starting colony has the four adults, teen and baby; villa silhouettes are distinct without changing their lots; skyline/windmills read as distant scenery; 16/16 self-test, mobile layouts, layout and map-switch checks pass. The circular/dirt/backdrop/water slice is still under review, so Phase 2 is not signed off |
+| **2 ✅** | Grass Field, sky, pond, Aero shell, map switcher; field default; **mixed starter colony (2 adult ♀, 2 adult ♂, 1 teen, 1 baby)**; **rounded white/aqua Aero villas on validated home lots**; **distant Frutiger-Aero skyline + three-blade wind turbines**; pond splash/buoyancy; **procedural gummy-tree replacement with rounded leafy puffs/fruit/hives; shared travelling wind for trees + grass; Wind and Meadow-detail controls; procedural clouds, aurora and sporadic morning mist**; **circular wobbled-disc playfield, wandered dirt trails, full-circle grass, branched backdrop trees/bushes and anime-lite water**; **Hide UI** | Both maps load and switch with independent state; field has grass/trees/flowers/pond/sky/villas; no layout overlaps; day/night slider and dawn look work; pond reflects sun/moon and splashes; trees use the fixed TREE_LOTS/colliders with merged foliage batches and no per-frame CPU branch loops; one shared gust visibly crosses grass and trees; night sky shows aurora; starting colony has the four adults, teen and baby; villa silhouettes are distinct without changing their lots; skyline/windmills read as distant scenery; 16/16 self-test, mobile layouts, layout and map-switch checks pass; circular camera/containment and UI hide checks pass |
 | **3a** | Food registry/respawn, hunger, waddle locomotion, WANDER / SEEK_FOOD / EAT | Bears autonomously get hungry, walk to safe food, eat, and food regrows; no stuck/NaN/perf regressions |
 | **3b** | Hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | Bees can sting; bears avoid hives below the threshold; health regenerates; hurt/tired bears return to their home and recover; no death |
 | **4** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection, **home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit homes; MSN-style statuses update |
@@ -93,6 +95,7 @@ rig and soft-body solver stay.
 | **6a** | **Effects pass before optimization:** improve shading/contact depth, SSAO, shadow maps, god rays, restrained bloom and a gentle color grade; scope/tuning to be discussed when the simulation is complete | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
 | **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
+| **S — Studio modelling** (parallel, required; can run alongside 3–6) | Authored Studio interior/architecture: modular bar, lounge and giant Frutiger-Aero TV; Blender-to-glTF asset pipeline; evaluate Blender MCP as an authoring-time helper | Bar is interactable and navigable; TV lounge is visually complete; modular assets are exported to the repo with license/provenance, tested at bear scale, and integrated without a runtime MCP/Blender dependency |
 
 ## Status
 
@@ -102,20 +105,23 @@ rig and soft-body solver stay.
 - **Phase 1 complete:** the cannon can be dragged or moved via Move cannon with
   footprint validation; position persists per map; boundary walls are 8 units
   tall and rebuild on resize; aim/fire and real-pointer tests pass.
-- **Phase 2 in progress:** the Grass Field is the default map with the Studio
-  switch, independent map state, reflective pond and splash/buoyancy. The field
-  now has a wobbled 65 m playable disc, 8 detailed Aero villas, a large Studio
-  portal house, 10 merged hero trees, 88k chunked/shader-LOD grass tufts, dirt
-  trails, a detailed rolling backdrop with branched trees and 120+ bushes,
+- **Phase 2 complete (current scope):** the Grass Field is the default map with
+  the Studio switch, independent map state, reflective pond and splash/buoyancy.
+  The field has a wobbled 65 m playable disc, 8 detailed Aero villas, a large
+  Studio portal house, 10 merged hero trees, 88k chunked/shader-LOD grass tufts,
+  dirt trails, a detailed rolling backdrop with branched trees and 120+ bushes,
   anime-lite water, shared tree/grass wind, procedural clouds, aurora,
   fireflies, a distant Aero skyline and wind turbines. Villa doors are validated
   at 1.646 m against a 1.375 m adult bear. The starter colony remains 2 adult ♀,
-  2 adult ♂, one teen and one baby.
-- **Next:** finish the circular-meadow polish and its visual/performance review,
-  then Phase 3a — food registry/respawn, hunger, waddle locomotion and
+  2 adult ♂, one teen and one baby. Camera circular clamping, containment,
+  mobile layouts, layout/nav checks, both portals, hide-UI, and the smoke test
+  pass. The Studio lounge is queued as the parallel Phase S track.
+- **Next:** Phase 3a — food registry/respawn, hunger, waddle locomotion and
   WANDER / SEEK_FOOD / EAT.
-- **Later, required:** model the Studio lounge interior with an interactable bar
-  and a living room anchored by a huge Frutiger-Aero TV (references 19–24).
+- **Studio modelling track queued (parallel, required):** author the Studio
+  interior with an interactable bar and a living room anchored by a huge
+  Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
+  assistant only; see the dedicated track below.
 - **Later, opt-in:** Phase 6a is the effects pass (before Phase 6b optimization);
   Phase 7 adds the WebGPU renderer path, with WebGL2 as the fallback.
 
@@ -204,13 +210,16 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
 
 ## World, sky, pond, presentation
 
-- **Field:** Bliss-style rolling hills backdrop, flat playable gummy lawn,
-  chunked instanced grass (7 tall/overlap blades + 6 low cover fans per tuft),
-  procedural gummy trees with rounded leaf puffs, jelly flowers, jelly fruit,
-  honey hives, pebbles, bubbles, and the cluster of Aero villas. Tree
-  trunks/branches, foliage, fruit and hives are merged/instanced into a few
-  batches; leaf cards are alpha-tested (not transparent glass) and the existing
-  baked blob shadows stay.
+- **Field:** an organic wobbled 65 m playable disc blending into a Bliss-style
+  rolling hill backdrop, 88k chunked grass tufts (7 tall/overlap blades + 6 low
+  cover fans per tuft), a close-up tiled grass-ground texture with a restrained
+  Aero sheen, wandering dirt trails and a dirt hub, procedural hero trees with
+  rounded leaf puffs, branched background trees, 120+ branched bushes, jelly
+  flowers/fruit/honey hives, pebbles, bubbles and the Aero villa cluster.
+  Foreground trees are merged/instanced; backdrop tree trunks/branches and
+  canopy-centre gradient foliage stay in a handful of batches. Leaf cards are
+  alpha-tested (not transparent glass), and the baked blob shadows stay.
+  Authored trail masks clear grass from every dirt footprint and shoulder.
 - **Distant horizon:** a clustered Frutiger-Aero skyline of rounded glass towers
   and flat-topped blocks plus three three-blade wind turbines. These are outside
   the playable bounds and never enter Box3D or nav.
@@ -230,15 +239,19 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
   on only at night. Predetermined paths avoid clumping and keep the update cheap;
   no per-firefly physics or raycasts.
 - **Pond:** organic basin, planar reflection of sky/hills/trees at reduced
-  resolution, fresnel, ripples, shoreline tint, explicit sun/moon glints.
-  Splash/buoyancy for bears flung into it.
-- **Arena:** tall invisible Box3D walls (~8 units) around the field and the
-  Studio table, ground underneath, launch-speed cap so shots stay contained.
+  resolution, fresnel, explicit sun/moon glints, plus an anime-lite layer of
+  dense world-space Voronoi cells, hard-edged shoreline foam and splash-driven
+  ripple rings. Splash/buoyancy for bears flung into it.
+- **Arena:** a segmented oriented Box3D ring follows the wobbled field disc;
+  the Studio keeps its rectangular table walls. Ground underneath and the
+  launch-speed cap keep shots contained.
 - **Cannon:** drag the base or use Move cannon; green/red footprint validation
   (bounds, bears, pond/trees/cottages later); remains visual-only; shadow/arc follow.
 - **UI:** Aero glass, aqua gradients, glossy buttons, bubbles; MSN-style buddy
   list with name, ♀/♂, stage, status, hunger/health, pregnancy, online count and
-  clock; Studio keeps the editorial skin. Keep contrast, focus and keyboard use.
+  clock; Studio keeps the editorial skin. A persistent Hide UI control (and `U`)
+  clears every overlay on desktop and phone while leaving a restore button.
+  Keep contrast, focus and keyboard use.
 
 ## Performance & testing
 
@@ -271,9 +284,11 @@ non-monotonic; the frame-time result is the useful one.
 
 The previous post-polish numbers and the original supplied Phase 2 numbers
 (37.1 ms baseline, 321 calls, 2.12 M triangles) are retained in
-[PERFORMANCE.md](PERFORMANCE.md). Grass fill/geometry is still the dominant GPU
-item. The detailed villas add ~447 calls but save only ~2 ms when hidden. DPR
-and grass density are the main levers. The headless run is not a 60 fps claim.
+[PERFORMANCE.md](PERFORMANCE.md). The later ground-detail/water spot check was
+noisy (39.7–44.3 ms; quality 3 24.8–26.6 ms), so the 32.1 ms table above remains
+the last stable reference. Grass fill/geometry is still the dominant GPU item.
+The detailed villas add ~447 calls but save only ~2 ms when hidden. DPR and
+grass density are the main levers. The headless run is not a 60 fps claim.
 
 - Keep the current 16-check physics self-test green. Add deterministic checks
   for: food claim/respawn; invite acceptance; same-food conflict; health/hive
@@ -365,21 +380,73 @@ passes. WebGL2 remains the automatic fallback and a fully supported path.
 - Night sleep window 20:00–06:00 (bears leave as the sky brightens); low-health
   returns can happen at any time.
 
-## Studio lounge (later, required)
+## Studio modelling track (parallel, required)
 
-The Studio map is still the tabletop sandbox. A later modelled-room pass must add:
+The Studio map is still the tabletop sandbox. This track can run alongside the
+simulation phases, but it is not optional dressing: the interior is a required
+part of the Studio map.
+
+### Content requirements
 
 - **An interactable bar** the bears can use, with a counter, stools, glassware
-  and under-counter glow. It should connect to the existing bear interaction
-  system rather than being decoration only.
+  and under-counter glow. It must connect to the real bear interaction system,
+  not just sit there as geometry.
 - **A living room with a huge Frutiger-Aero TV** as the focal wall: curved screen
   casing, cyan glow, aquatic channel visuals and a low lounge setting.
 - Interior language from references 19–24: white curved architecture, aqua
   risers, ribbed soffits, jellyfish/aquarium motifs, bubble lighting and glossy
   blue floors.
+- A navigable floor plan at bear scale, with walkable paths around the bar and
+  lounge, door/portal clearance, and collision/nav proxies for every solid piece.
 
-These are must-have Studio requirements, not optional dressing. The references
-are saved in `inspiration/`.
+### Authoring pipeline
+
+1. Model a modular kit in Blender: shell, bar, stools, banquette/sofa, TV wall,
+   shelves, lighting coves, floor inlays, planters and portal threshold.
+2. Keep semantic names and transforms: `bar_counter`, `bar_stool_*`, `tv_screen`,
+   `sofa_*`, `nav_*`, `collision_*`, `light_*`. Anchor points must be exported as
+   empties or separately named nodes, not inferred from mesh bounds at runtime.
+3. Export a single room-scale GLB plus small collision proxies. Bake no lighting;
+   use the existing Aero materials/lighting where possible, custom shader only
+   for the TV/water surfaces.
+4. Validate scale against the 1.375 m adult bear, doorframes, camera min/max
+   distance, mobile viewport and draw-call/triangle budgets.
+5. Commit the exported asset, source blend file only if the license/size policy
+   allows it, a provenance note and screenshots. Do not commit MCP servers,
+   Blender binaries or downloaded third-party assets without an explicit license.
+
+### Blender MCP — evaluation, not runtime dependency
+
+Blender MCP is being considered for the **authoring** step only. It must never be
+a runtime dependency of the browser game.
+
+- Candidates reviewed: `3d-mcp/blender-mcp` (local scene context; native Python
+  optional), `MakerSully/blender-mcp` (read-only inspection), and the community
+  `ahujasid/blender-mcp` family (broader write/tool surface). Most are explicitly
+  experimental/alpha and some allow arbitrary Python execution inside Blender.
+- Start with a **read-only inspection** pass in a disposable Blender scene:
+  camera framing, object naming, material inventory, scale checks and export
+  validation. Only enable write/native-script tools for a scoped prototype after
+  reviewing the exact version and license.
+- Pin one MCP implementation and Blender version for the experiment; record the
+  commit/version and license. Keep the bridge local-only. Never expose it to the
+  LAN or the game runtime.
+- Use MCP to accelerate geometry/material iteration, then perform the final
+  export and performance check manually. The deterministic output is the GLB,
+  not the chat transcript.
+
+### Acceptance
+
+- Bears can approach and use the bar; the action is reachable and does not clip
+  through the counter.
+- The TV lounge reads from the default Studio camera and on a phone.
+- All room solids collide and navigate correctly; door/portal approach remains
+  clear.
+- The room loads with no MCP service running and no new web dependency.
+- Reference/provenance and performance notes are recorded with the asset.
+
+These are must-have Studio requirements. The references are saved locally in
+`inspiration/` and are not shipped assets.
 
 ## Non-goals / deferred
 

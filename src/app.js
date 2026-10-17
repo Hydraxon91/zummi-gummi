@@ -3440,6 +3440,7 @@ window.__gummy = {
   setNature(v){ if (!field) return null; field.setNature(v); syncAeroUI(true); return field.natureControls; },
   setMist(v){ if (!sky) return null; sky.setMistOverride(v); return sky.mist; },
   setGrassVisible(v){ if (!field) return null; field.setGrassVisible(v); return v; },
+  setWaterCellScale(v){ return field ? field.setWaterCellScale(v) : null; },
   portal(){
     const active = isMeadow();
     const obj = active ? (field && field.studioHouse ? field.studioHouse.portal : null) : (studioReturnPortal ? studioReturnPortal.hit : null);

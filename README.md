@@ -142,6 +142,10 @@ starter bears, forced GPU sync (`readPixels`):
 \*Reflection render-target accounting makes the pond-hidden triangle counter
 non-monotonic; the frame-time result is the useful one.
 
+A later close-up-ground/sheen/water-cell spot check measured a noisy
+**39.7–44.3 ms** baseline and **24.8–26.6 ms** at quality 3; the stable 32.1 ms
+table above remains the reference until a clean rerun.
+
 Grass fill/geometry is still the largest single item; the detailed villas remove
 ~447 draw calls but save only ~2 ms in this run. DPR and grass density are the
 largest levers. The full report, including the previous post-polish and original
@@ -157,7 +161,7 @@ A continuous-integration smoke test also runs on every push and pull request (`.
 
 - **Phase 0 ✅** — snapshot, module split (`world.js`, `launcher.js`), per-map state, static-wall handles, per-bear life fields, tests green.
 - **Phase 1 ✅** — movable cannon, placement validation, persistent position, 8-unit walls.
-- **Phase 2 (in progress)** — Grass Field default with Studio switch, sky/clouds/aurora/mist, reflective pond, detailed Aero villas and Studio portal house, procedural trees, shared wind, Wind/Meadow-detail controls, mixed starter colony, distant skyline/wind turbines, and lit night fireflies. Door openings are validated at 1.646 m against a 1.375 m adult bear. A further circular-meadow / dirt-trail / grass / background-tree / water pass is now in progress, so Phase 2 is not signed off yet. Studio lounge interior remains a later modelled-room pass.
+- **Phase 2 ✅ (current scope)** — Grass Field default with Studio switch, sky/clouds/aurora/mist, reflective anime-lite pond, detailed Aero villas and Studio portal house, circular dirt-trail meadow, full-circle grass with close-up ground texture and Aero sheen, procedural hero trees, branched backdrop trees and bushes, shared wind, Wind/Meadow-detail controls, mixed starter colony, distant skyline/wind turbines, lit night fireflies, and Hide UI. Door openings are validated at 1.646 m against a 1.375 m adult bear. Studio modelling is queued as the parallel required track in the roadmap.
 - **Next** — Phase 3a: food registry/respawn, hunger, waddle locomotion and WANDER / SEEK_FOOD / EAT. Phase 6a is the reserved effects pass; Phase 7 is the opt-in WebGPU upgrade.
 
 ## Known limitations
