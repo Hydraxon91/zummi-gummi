@@ -1,0 +1,9 @@
+.box3d-build/
+.selftest.html
+box3d-smoke.html
+.DS_Store
+__pycache__/
+*.pyc
+
+# Author-supplied visual references (third-party copyright); not shipped assets.
+inspiration/

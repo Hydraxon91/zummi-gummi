@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gummy Bears — a soft-body confection</title>
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --paper:#ffffff;
+    --ink:#191817;
+    --ink-2:#5f5c56;
+    --ink-3:#8e8a82;
+    --line:rgba(25,24,23,.10);
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Times New Roman",serif;
+    --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    overflow:hidden;overscroll-behavior:none;-webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #view{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:none;touch-action:none}
+
+  /* ---------- custom cursor ---------- */
+  #cursor{
+    position:fixed;left:0;top:0;width:26px;height:26px;margin:0;border-radius:50%;
+    border:1.25px solid rgba(25,24,23,.55);pointer-events:none;z-index:9;
+    transform:translate(-50%,-50%);transition:width .18s ease,height .18s ease,background-color .18s ease,border-color .18s ease,opacity .2s ease;
+    opacity:0;will-change:transform;
+  }
+  #cursor.grab{width:44px;height:44px;background:rgba(25,24,23,.05);border-color:rgba(25,24,23,.35)}
+  #cursor.on{opacity:1}
+  #cursor.aim{width:32px;height:32px;border-color:rgba(179,35,63,.8)}
+  #cursor.aim::before,#cursor.aim::after{content:"";position:absolute;left:50%;top:50%;background:rgba(179,35,63,.55);transform:translate(-50%,-50%)}
+  #cursor.aim::before{width:1px;height:40px}
+  #cursor.aim::after{height:1px;width:40px}
+  #cursor.move{width:34px;height:34px;border-color:rgba(176,138,62,.85)}
+
+  /* ---------- editorial chrome ---------- */
+  .hud{position:fixed;inset:0;pointer-events:none;z-index:4}
+  header{
+    position:absolute;left:clamp(20px,3.4vw,56px);top:clamp(18px,4vh,52px);max-width:min(46vw,620px);
+  }
+  .kick{
+    font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3);
+    display:flex;gap:.9em;align-items:center;
+  }
+  .kick i{display:block;width:26px;height:1px;background:var(--line);font-style:normal}
+  h1{
+    font-family:var(--serif);font-style:italic;font-weight:500;
+    font-size:clamp(3rem,7.6vw,6.9rem);line-height:.88;letter-spacing:-.028em;
+    margin:.14em 0 0;text-wrap:balance;
+  }
+  h1 em{font-style:italic;color:var(--ink-3);font-weight:400}
+  .sub{
+    margin:1.05em 0 0;max-width:34ch;font-size:14.5px;line-height:1.55;color:var(--ink-2);
+  }
+  .sub b{font-weight:600;color:var(--ink)}
+  footer{
+    position:absolute;left:clamp(20px,3.4vw,56px);bottom:clamp(16px,3.2vh,40px);
+    font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);
+  }
+
+  /* ---------- card ---------- */
+  .card{
+    position:absolute;right:clamp(16px,3vw,48px);top:50%;transform:translateY(-50%);
+    width:302px;padding:18px 18px 16px;border-radius:20px;pointer-events:auto;
+    background:rgba(255,255,255,.82);
+    -webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25);
+    border:1px solid var(--line);
+    box-shadow:0 30px 70px -34px rgba(25,24,23,.35),0 2px 6px -2px rgba(25,24,23,.06);
+  }
+  .lbl{
+    font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);
+    display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  }
+  .lbl span:last-child{letter-spacing:.06em;text-transform:none;font-size:10.5px;color:var(--ink-3)}
+  .swatches{display:flex;gap:11px;margin:11px 0 0}
+  .swatch{
+    width:32px;height:32px;border-radius:50%;border:1px solid rgba(25,24,23,.12);
+    padding:0;cursor:pointer;position:relative;background:#fff;
+    transition:transform .16s cubic-bezier(.2,.7,.3,1.4),box-shadow .16s ease;
+    box-shadow:inset 0 -3px 6px -2px rgba(255,255,255,.85),inset 0 3px 5px -2px rgba(255,255,255,.9),0 1px 2px rgba(25,24,23,.10);
+  }
+  .swatch:hover{transform:translateY(-2px) scale(1.07)}
+  .swatch:active{transform:scale(.96)}
+  .swatch:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .hr{height:1px;background:var(--line);margin:16px -18px 14px}
+
+  .custom{margin-top:12px}
+  .custom-top{display:flex;gap:10px;align-items:center}
+  .hue{
+    position:relative;flex:1;height:18px;border-radius:9px;cursor:pointer;touch-action:none;
+    background:linear-gradient(90deg,#ff2d2d,#ff9a1f,#ffe521,#5ee06a,#2fd4d4,#3b7bff,#a44cff,#ff2d9e,#ff2d2d);
+    box-shadow:inset 0 0 0 1px rgba(25,24,23,.10);
+  }
+  .hue .knob{
+    position:absolute;top:50%;left:14%;width:22px;height:22px;border-radius:50%;
+    transform:translate(-50%,-50%);background:#fff;border:1.5px solid rgba(25,24,23,.75);
+    box-shadow:0 2px 6px rgba(25,24,23,.25);pointer-events:none;
+  }
+  .drop{
+    width:38px;height:38px;border-radius:50%;border:1px solid rgba(25,24,23,.12);
+    cursor:pointer;flex:0 0 auto;background:#e5447a;padding:0;
+    transition:transform .16s cubic-bezier(.2,.7,.3,1.4),box-shadow .16s ease;
+    box-shadow:inset 0 -5px 9px -3px rgba(255,255,255,.75),inset 0 4px 8px -3px rgba(255,255,255,.85),0 1px 2px rgba(25,24,23,.10);
+  }
+  .drop:hover{transform:translateY(-2px) scale(1.06)}
+  .drop:active{transform:scale(.96)}
+  .row{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .row .lbl{flex:0 0 62px}
+  .row .limval{flex:0 0 34px;text-align:right;font-size:10.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  /* compact/short layouts drop the limit row to keep the card short */
+  @media (max-height:560px){ .limitrow{display:none} }
+
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;flex:1;height:20px;background:transparent;cursor:pointer;margin:0;
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:3px;background:#e6e2da}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;
+    border:1.25px solid rgba(25,24,23,.75);margin-top:-6.5px;box-shadow:0 1px 3px rgba(25,24,23,.22);
+  }
+  input[type=range]::-moz-range-track{height:3px;border-radius:3px;background:#e6e2da}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:#fff;border:1.25px solid rgba(25,24,23,.75);box-shadow:0 1px 3px rgba(25,24,23,.22)}
+  input[type=range]:focus-visible{outline:2px solid var(--ink);outline-offset:4px;border-radius:6px}
+
+  .stats{margin-top:16px;display:grid;gap:1px}
+  .stat{
+    display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;
+    border-bottom:1px dashed rgba(25,24,23,.08);
+  }
+  .stat:last-child{border-bottom:0}
+  .stat .k{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
+  .stat .v{
+    font-family:var(--serif);font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:.01em;
+    transition:color .35s ease;
+  }
+  .stat .v.hit{color:#c62d55}
+  .btn{
+    margin-top:14px;width:100%;border:0;border-radius:13px;padding:13px 14px;cursor:pointer;
+    background:#191817;color:#fff;font-family:var(--sans);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+    transition:transform .16s ease,box-shadow .2s ease,background-color .2s ease;
+    box-shadow:0 10px 22px -14px rgba(25,24,23,.7);
+  }
+  .btn:hover{transform:translateY(-1px);box-shadow:0 16px 28px -16px rgba(25,24,23,.75)}
+  .btn:active{transform:translateY(0) scale(.995)}
+  .cardfoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:7px;margin-top:11px}
+  .cardfoot .note{margin:0;flex:1 0 100%;text-align:center}
+  .note{font-size:10.5px;line-height:1.5;color:var(--ink-3);text-align:center;letter-spacing:.02em}
+  .perfbtn{
+    flex:0 0 auto;appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-3);
+    font-family:var(--sans);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    padding:5px 10px;border-radius:999px;cursor:pointer;
+    transition:color .18s ease,background-color .18s ease,border-color .18s ease;
+  }
+  .perfbtn:hover{color:var(--ink);border-color:rgba(25,24,23,.28)}
+  .perfbtn.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .perfbtn:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .perfbtn.blast{color:#b3233f;border-color:rgba(179,35,63,.34)}
+  .perfbtn.blast:hover{background:#b3233f;border-color:#b3233f;color:#fff}
+  .perfbtn.launch{color:#b3233f;border-color:rgba(179,35,63,.34);font-weight:600}
+  .perfbtn.launch:hover,.perfbtn.launch.aiming{background:#b3233f;border-color:#b3233f;color:#fff}
+  .perfbtn.move{color:#8a6a2f;border-color:rgba(138,106,47,.32)}
+  .perfbtn.move:hover,.perfbtn.move.aiming{background:#b08a3e;border-color:#b08a3e;color:#fff}
+  .perfbtn:disabled{opacity:.42;cursor:default;transform:none}
+
+  /* ---------- performance overlay ---------- */
+  .perf{
+    position:fixed;right:22px;bottom:22px;width:236px;padding:10px 12px 8px;border-radius:13px;
+    background:rgba(255,255,255,.9);border:1px solid var(--line);
+    box-shadow:0 18px 44px -26px rgba(25,24,23,.5);
+    font-family:var(--sans);font-variant-numeric:tabular-nums;color:var(--ink-2);
+    -webkit-backdrop-filter:blur(10px) saturate(1.1);backdrop-filter:blur(10px) saturate(1.1);
+    opacity:0;visibility:hidden;transform:translateY(6px);pointer-events:none;z-index:6;
+    transition:opacity .25s ease,transform .25s ease,visibility .25s;
+  }
+  .perf.on{opacity:1;visibility:visible;transform:none}
+  .perf.pos-desktop{left:clamp(20px,3.4vw,56px);right:auto;bottom:84px;top:auto}
+  .perf.pos-mobile{right:10px;left:auto;top:auto}
+  .perf.pos-short{left:10px;right:auto;bottom:10px;top:auto}   /* short screens: free bottom-left corner */
+  .perf .phead{
+    display:flex;align-items:baseline;gap:6px;padding-bottom:6px;margin-bottom:7px;
+    border-bottom:1px solid var(--line);font-size:8.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);
+  }
+  .perf .phead b{margin-left:auto;font-family:var(--serif);font-size:20px;font-weight:500;color:var(--ink);letter-spacing:0;line-height:1}
+  .perf .phead span:last-child{font-size:9px;letter-spacing:.1em}
+  .perf canvas{display:block;width:100%;height:34px;margin:0 0 7px}
+  .perf .prow{display:flex;align-items:baseline;gap:6px;padding:1.5px 0}
+  .perf .prow>span:first-child{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);min-width:50px}
+  .perf .prow b{margin-left:auto;font-size:11px;font-weight:500;color:var(--ink)}
+  .perf .prow>span:last-child{font-size:9px;color:var(--ink-3);min-width:62px;text-align:right}
+  .perf .prow.warn b{color:#c62d55}
+  .perf.compact{width:198px;padding:8px 10px 6px}
+  .perf.compact canvas{display:none}
+  .perf.compact .phead{margin-bottom:5px;padding-bottom:4px}
+  .perf.compact .prow{padding:1px 0}
+  .perf.compact .prow:nth-child(9){display:none}
+  .camhint{
+    position:fixed;left:50%;bottom:22px;transform:translate(-50%,6px);
+    padding:7px 13px;border-radius:999px;border:1px solid var(--line);
+    background:rgba(255,255,255,.9);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    font-size:10.5px;letter-spacing:.03em;color:var(--ink-2);white-space:nowrap;
+    opacity:0;pointer-events:none;z-index:5;
+    transition:opacity .55s ease,transform .55s ease;
+  }
+  .camhint.show{opacity:1;transform:translate(-50%,0)}
+  .togglebtn{
+    margin-left:auto;appearance:none;min-width:50px;text-align:center;
+    border:1px solid var(--ink);background:var(--ink);color:#fff;
+    font-family:var(--sans);font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+    padding:5px 12px;border-radius:999px;cursor:pointer;
+    transition:background-color .2s ease,color .2s ease,border-color .2s ease;
+  }
+  .togglebtn.off{background:transparent;color:var(--ink-3);border-color:var(--line)}
+  .togglebtn:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+  .helpbtn{
+    position:fixed;right:clamp(16px,3vw,48px);top:18px;width:34px;height:34px;border-radius:50%;
+    border:1px solid var(--line);background:rgba(255,255,255,.82);color:var(--ink-2);
+    font-family:var(--serif);font-style:italic;font-size:17px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;z-index:7;pointer-events:auto;
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    transition:color .2s ease,border-color .2s ease,transform .2s ease;
+  }
+  .helpbtn:hover{color:var(--ink);border-color:rgba(25,24,23,.3);transform:scale(1.05)}
+  .helpbtn:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .help{
+    position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:rgba(250,249,247,.62);-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
+    opacity:0;visibility:hidden;pointer-events:none;
+    transition:opacity .3s ease,visibility .3s;
+  }
+  .help.open{opacity:1;visibility:visible;pointer-events:auto}
+  .helpcard{
+    width:min(600px,100%);max-height:86vh;overflow:auto;background:#fff;
+    border:1px solid var(--line);border-radius:20px;padding:24px 26px 20px;
+    box-shadow:0 40px 90px -40px rgba(25,24,23,.5);
+    transform:translateY(8px) scale(.995);transition:transform .3s cubic-bezier(.2,.7,.2,1);
+  }
+  .help.open .helpcard{transform:none}
+  .helphead{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:18px}
+  .helphead h2{font-family:var(--serif);font-style:italic;font-weight:500;font-size:30px;margin:0;letter-spacing:-.01em}
+  .helpclose{margin-left:auto;border:0;background:transparent;font-size:22px;line-height:1;color:var(--ink-3);cursor:pointer;padding:0 4px;border-radius:8px}
+  .helpclose:hover{color:var(--ink)}
+  .helpgrid{display:grid;grid-template-columns:1fr 1fr;gap:24px 32px}
+  .helpgrid h3{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);margin:0 0 10px}
+  .helpgrid dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:12px;line-height:1.45;color:var(--ink-2)}
+  .helpgrid dt{white-space:nowrap;color:var(--ink);font-weight:600}
+  .helpgrid dd{margin:0}
+  .helpnote{margin:18px 0 0;font-size:11px;line-height:1.6;color:var(--ink-3)}
+  @media (max-width:640px){
+    .helpgrid{grid-template-columns:1fr;gap:16px}
+    .helpcard{padding:20px 18px;border-radius:16px}
+    .helphead h2{font-size:24px}
+    .helpbtn{top:12px;right:12px}
+  }
+
+  .fade{opacity:0;transform:translateY(6px)}
+  .hud .fade,.card.fade{transition:opacity 1.1s ease,transform 1.1s cubic-bezier(.2,.7,.2,1)}
+  body.ready .fade{opacity:1;transform:none}
+  /* the card is vertically centred, so its fade must preserve that offset */
+  .card.fade{opacity:0;transform:translateY(calc(-50% + 8px))}
+  body.ready .card.fade{opacity:1;transform:translateY(-50%)}
+
+  @media (max-width:900px){
+    header{max-width:min(70vw,520px)}
+    h1{font-size:clamp(2.6rem,11vw,4rem)}
+    .sub{display:none}
+    .card{
+      right:10px;left:10px;bottom:10px;top:auto;width:auto;transform:none;
+      padding:12px 13px 11px;border-radius:18px;
+    }
+    body.ready .card{transform:none}
+    .card.fade{transform:translateY(10px)}
+    body.ready .card.fade{transform:none}
+    .swatches{gap:9px;margin-top:8px}
+    .swatch{width:28px;height:28px}
+    .hr{margin:10px -13px 8px}
+    .custom{margin-top:7px}
+    .custom-top{gap:8px}
+    .hue{height:15px}
+    .hue .knob{width:19px;height:19px}
+    .drop{width:32px;height:32px}
+    .row{margin-top:7px}
+    .row .lbl{flex-basis:54px}
+    .stats{grid-template-columns:1fr 1fr 1fr;margin-top:8px;gap:0}
+    .stat{border-bottom:0;flex-direction:column;gap:1px;align-items:flex-start;padding:2px 0}
+    .stat .v{font-size:15px}
+    .btn{margin-top:9px;padding:11px}
+    .lbl{font-size:9.5px}
+    .note{display:none}
+    .cardfoot{margin-top:8px;justify-content:flex-end;gap:6px}
+    .perf{width:196px;right:10px;padding:9px 10px 7px}
+    .perf .prow>span:last-child{min-width:54px}
+    footer{display:none}
+  }
+  @media (max-width:520px){
+    .swatches{gap:7px}
+    .swatch{width:25px;height:25px}
+    .custom .lbl span:last-child{display:none}
+  }
+  /* short viewports (landscape phones, shallow windows): compact side card */
+  @media (max-height:560px){
+    header{max-width:48vw}
+    .kick{display:none}
+    h1{font-size:clamp(2rem,8vh,3.2rem);margin-top:0}
+    .sub{display:none}
+    .card{
+      top:auto;bottom:10px;right:10px;left:auto;width:258px;transform:none;
+      padding:10px 12px 9px;border-radius:14px;
+    }
+    body.ready .card,body.ready .card.fade{transform:none}
+    .card.fade{transform:translateY(8px)}
+    .lbl{font-size:9px}
+    .swatches{margin-top:5px;gap:8px}
+    .swatch{width:24px;height:24px}
+    .hr{margin:8px -12px}
+    .custom{margin-top:5px}
+    .custom .lbl span:last-child{display:none}
+    .hue{height:13px}
+    .hue .knob{width:17px;height:17px}
+    .drop{width:28px;height:28px}
+    .row{margin-top:4px}
+    .row .lbl{flex-basis:48px;font-size:9px}
+    .stats{margin-top:6px;grid-template-columns:1fr 1fr 1fr;gap:0}
+    .stat{flex-direction:column;align-items:flex-start;border:0;padding:0;gap:0}
+    .stat .v{font-size:13px}
+    .btn{margin-top:6px;padding:9px;font-size:10px;border-radius:9px}
+    .note{display:none}
+    footer{display:none}
+  }
+
+  /* ---------- meadow / Aero layer ---------- */
+  .mapSwitch{
+    position:fixed;top:clamp(14px,2.6vh,26px);left:50%;transform:translateX(-50%);z-index:35;
+    display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;pointer-events:auto;
+    background:rgba(255,255,255,.52);border:1px solid rgba(255,255,255,.8);
+    -webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);
+    box-shadow:0 16px 40px -24px rgba(9,62,82,.55),inset 0 1px rgba(255,255,255,.95);
+  }
+  .mapBtn{
+    appearance:none;border:1px solid transparent;background:transparent;color:var(--ink-3);
+    font-family:var(--sans);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    padding:7px 15px;border-radius:999px;cursor:pointer;
+    transition:background .2s,color .2s,border-color .2s,box-shadow .2s;
+  }
+  .mapBtn:hover{color:var(--ink)}
+  .mapBtn[aria-pressed="true"]{
+    color:#0a4350;background:linear-gradient(180deg,#f8ffff,#c9f2ff 52%,#a7e6ee);
+    border-color:rgba(255,255,255,.95);
+    box-shadow:inset 0 1px 0 #fff,0 2px 7px rgba(20,110,135,.22);
+  }
+  body[data-map="studio"] .mapBtn[aria-pressed="true"]{color:#17140f;background:linear-gradient(180deg,#fff,#eee8dc);box-shadow:inset 0 1px #fff,0 2px 7px rgba(50,40,25,.18)}
+  .mapBtn:focus-visible{outline:2px solid #39bfc0;outline-offset:2px}
+
+  #aeroHud{
+    position:fixed;left:clamp(16px,2.8vw,44px);top:clamp(64px,9.5vh,104px);z-index:20;
+    width:min(330px,32vw);display:flex;flex-direction:column;gap:12px;pointer-events:none;
+  }
+  .aeroPanel{
+    pointer-events:auto;position:relative;border-radius:19px;overflow:hidden;
+    background:linear-gradient(158deg,rgba(255,255,255,.83),rgba(210,243,255,.66) 52%,rgba(224,255,245,.60));
+    border:1px solid rgba(255,255,255,.88);
+    -webkit-backdrop-filter:blur(20px) saturate(1.55);backdrop-filter:blur(20px) saturate(1.55);
+    box-shadow:0 28px 70px -34px rgba(8,66,88,.5),inset 0 1px rgba(255,255,255,.95),inset 0 -1px rgba(83,171,188,.15);
+  }
+  .aeroPanel::before{
+    content:"";position:absolute;left:0;right:0;top:0;height:44%;pointer-events:none;
+    background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,0));
+  }
+  .aeroPanel::after{
+    content:"";position:absolute;right:-28px;top:-42px;width:120px;height:120px;border-radius:50%;
+    background:radial-gradient(circle at 35% 35%,rgba(255,255,255,.65),rgba(160,235,255,.16) 45%,transparent 70%);
+    pointer-events:none;
+  }
+  .buddyPanel{padding:15px 15px 10px}
+  .aeroBrand{display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+  .aeroOrb{
+    width:32px;height:32px;border-radius:50%;flex:0 0 auto;position:relative;
+    background:radial-gradient(circle at 34% 28%,#fff 0 12%,#c9f8ff 24%,#75dcd6 54%,#2f9caf 78%,#137285);
+    border:1px solid rgba(255,255,255,.9);
+    box-shadow:inset 0 2px 5px rgba(255,255,255,.9),0 4px 10px -4px rgba(10,90,110,.6);
+  }
+  .aeroOrb::after{content:"";position:absolute;left:9px;top:7px;width:7px;height:4px;border-radius:50%;background:rgba(255,255,255,.85);transform:rotate(-25deg)}
+  .aeroKicker{font-size:7.5px;letter-spacing:.23em;text-transform:uppercase;color:#4b8b9b}
+  .aeroBrand h2{font-family:var(--sans);font-size:15px;font-weight:650;letter-spacing:-.01em;color:#0b4351;margin:1px 0 0;white-space:nowrap}
+  .onlinePill{
+    margin-left:auto;font-size:8.5px;letter-spacing:.06em;color:#0d6b55;background:rgba(190,255,225,.7);
+    border:1px solid rgba(127,224,185,.8);padding:4px 8px;border-radius:999px;white-space:nowrap;
+    box-shadow:inset 0 1px rgba(255,255,255,.9);
+  }
+  .buddyList{position:relative;z-index:1;display:flex;flex-direction:column;gap:2px;margin:10px -3px 5px;max-height:360px;overflow:auto;scrollbar-width:thin}
+  .buddyRow{
+    display:grid;grid-template-columns:16px 1fr auto;gap:9px;align-items:center;width:100%;
+    padding:5px 7px;border-radius:11px;border:1px solid transparent;cursor:pointer;background:transparent;
+    font-family:var(--sans);text-align:left;color:inherit;appearance:none;
+    transition:background .16s,border-color .16s,transform .16s;
+  }
+  .buddyRow:hover{background:rgba(255,255,255,.58);border-color:rgba(255,255,255,.9);transform:translateX(2px)}
+  .buddyDot{width:10px;height:10px;border-radius:50%;box-shadow:inset 0 1px rgba(255,255,255,.9),0 0 0 2px rgba(255,255,255,.35)}
+  .buddyName{font-size:11px;font-weight:600;color:#10414c;display:flex;align-items:center;gap:5px;line-height:1.2}
+  .buddySex{font-size:8.5px;font-weight:700;color:#4b8f9c;letter-spacing:.03em}
+  .buddyStage{font-size:7px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8a6a9d;background:rgba(236,218,255,.55);border:1px solid rgba(189,160,221,.5);border-radius:6px;padding:1px 4px;line-height:1.2}
+  .buddyStatus{font-size:9px;color:#608b94;margin-top:2px;line-height:1.2}
+  .buddyHome{font-size:8px;color:#84a8af;text-align:right;max-width:92px;line-height:1.25}
+  .aeroFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;z-index:1;padding-top:7px;border-top:1px solid rgba(42,137,155,.12);font-size:8px;letter-spacing:.04em;color:#7198a0}
+  .timePanel{padding:12px 14px 10px}
+  .timeTop{display:flex;align-items:center;gap:9px;position:relative;z-index:1}
+  .skyIcon{font-size:21px;line-height:1;filter:drop-shadow(0 3px 8px rgba(255,198,110,.6))}
+  #skyClock{display:block;font-family:var(--sans);font-size:16px;font-weight:650;letter-spacing:.02em;color:#0b4351;line-height:1.05}
+  #skyPeriod{display:block;font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:#5f949d;margin-top:2px}
+  .aeroChip{
+    appearance:none;margin-left:auto;border:1px solid rgba(53,145,161,.28);background:rgba(255,255,255,.45);color:#3a7d89;
+    font-family:var(--sans);font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:999px;cursor:pointer;
+    transition:background .18s,color .18s,border-color .18s;box-shadow:inset 0 1px rgba(255,255,255,.85);
+  }
+  .aeroChip+.aeroChip{margin-left:4px}
+  .aeroChip.on{background:linear-gradient(180deg,#177d83,#0d5b68);border-color:#0d5b68;color:#eaffff}
+  #timeSlider{width:100%;height:3px;margin:11px 0 5px;accent-color:#2fb9b1;cursor:pointer}
+  .windRow{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:#4b8b97}
+  #windStrength{flex:1;height:3px;accent-color:#2fb9b1;cursor:pointer;min-width:0}
+  #windValue{min-width:24px;text-align:right;font-variant-numeric:tabular-nums;letter-spacing:.02em;color:#2b7782}
+  .naturePanel{padding:0 14px 10px;position:relative;z-index:1}
+  .naturePanel summary{list-style:none;cursor:pointer;padding:10px 0 4px;font-size:8px;font-weight:650;letter-spacing:.15em;text-transform:uppercase;color:#3f8591}
+  .naturePanel summary::-webkit-details-marker{display:none}
+  .naturePanel summary::after{content:"+";float:right;font-size:13px;line-height:9px;color:#5c9fa8}
+  .naturePanel[open] summary::after{content:"–"}
+  .natureRow{display:flex;align-items:center;gap:7px;margin-top:6px;font-size:7.5px;color:#4b8b97;letter-spacing:.09em;text-transform:uppercase}
+  .natureRow span{width:50px;flex:none}
+  .natureRow input{flex:1;height:3px;accent-color:#2fb9b1;cursor:pointer;min-width:0}
+  .natureRow b{width:28px;text-align:right;font-size:8px;font-weight:600;color:#2b7782;font-variant-numeric:tabular-nums}
+  .timeTicks{display:flex;justify-content:space-between;font-size:7px;letter-spacing:.09em;text-transform:uppercase;color:#83a8ad;position:relative;z-index:1}
+  .aeroMin{appearance:none;border:1px solid rgba(61,146,160,.22);background:rgba(255,255,255,.4);color:#4b8b97;width:20px;height:20px;border-radius:50%;line-height:14px;font-size:13px;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.9);margin-left:3px}
+  .aeroMin:hover{background:rgba(255,255,255,.8)}
+  #aeroHud.min .buddyList,#aeroHud.min .aeroFoot,#aeroHud.min .timePanel,#aeroHud.min .naturePanel{display:none}
+  #aeroHud.min .buddyPanel{padding-bottom:10px}
+  .aeroHintBubble{position:absolute;left:calc(100% + 12px);top:14px;padding:8px 11px;border-radius:12px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.8);backdrop-filter:blur(12px);font-size:9px;color:#477e88;white-space:nowrap;pointer-events:none;box-shadow:0 12px 30px -20px rgba(10,70,85,.5)}
+  .aeroHintBubble::before{content:"";position:absolute;left:-5px;top:12px;width:9px;height:9px;background:inherit;border-left:1px solid rgba(255,255,255,.8);border-bottom:1px solid rgba(255,255,255,.8);transform:rotate(45deg)}
+
+  #mapWipe{
+    position:fixed;inset:0;z-index:70;pointer-events:none;opacity:0;
+    background:radial-gradient(circle at 50% 45%,#fbffff 0%,#d8f6ff 34%,#8ed9e9 72%,#59b7cc 100%);
+    transition:opacity .26s ease;
+  }
+  #mapWipe.on{opacity:1}
+
+  /* hide editorial chrome on the meadow */
+  body[data-map="field"] .studioHeader,
+  body[data-map="field"] .studioFooter{display:none}
+  body[data-map="studio"] #aeroHud{display:none}
+  body[data-map="studio"] .mapSwitch{
+    background:rgba(255,255,255,.68);border-color:rgba(25,24,23,.08);
+    box-shadow:0 14px 34px -24px rgba(40,32,22,.4),inset 0 1px #fff;
+  }
+  /* Aero glass control card */
+  body[data-map="field"] .card{
+    background:linear-gradient(162deg,rgba(255,255,255,.82),rgba(214,246,255,.66) 58%,rgba(229,255,247,.60));
+    border-color:rgba(255,255,255,.9);
+    box-shadow:0 34px 80px -38px rgba(8,67,90,.52),inset 0 1px rgba(255,255,255,.95);
+    -webkit-backdrop-filter:blur(20px) saturate(1.45);backdrop-filter:blur(20px) saturate(1.45);
+  }
+  body[data-map="field"] .card::before{
+    content:"";position:absolute;left:0;right:0;top:0;height:64px;border-radius:20px 20px 0 0;
+    background:linear-gradient(180deg,rgba(255,255,255,.42),transparent);pointer-events:none;
+  }
+  body[data-map="field"] .btn{
+    background:linear-gradient(180deg,#177e86,#0d5b68);box-shadow:0 12px 26px -16px rgba(7,82,95,.75),inset 0 1px rgba(255,255,255,.22);
+  }
+  body[data-map="field"] .perfbtn.blast{color:#b3445b;border-color:rgba(179,68,91,.3)}
+  body[data-map="field"] .perfbtn.launch{color:#0b7b77;border-color:rgba(11,123,119,.35)}
+  body[data-map="field"] .perfbtn.launch:hover,body[data-map="field"] .perfbtn.launch.aiming{background:#0d7b76;border-color:#0d7b76;color:#fff}
+  body[data-map="field"] .perfbtn.move{color:#7f8a4a;border-color:rgba(127,138,74,.3)}
+  body[data-map="field"] .perfbtn.move:hover,body[data-map="field"] .perfbtn.move.aiming{background:#7f8a4a;border-color:#7f8a4a;color:#fff}
+  body[data-map="field"] .uprightbtn.on{background:#0d7b76}
+
+  @media (max-width: 1100px){
+    #aeroHud{width:290px}
+    .buddyRow .buddyHome{display:none}
+  }
+  @media (max-width: 900px){
+    #aeroHud{top:60px;left:10px;width:250px;gap:8px}
+    .aeroPanel{border-radius:15px}
+    .buddyPanel{padding:11px 11px 8px}
+    .buddyList{max-height:150px}
+    .aeroFoot{display:none}
+    .timePanel{padding:9px 11px 8px}
+    .timeTicks{display:none}
+    .mapSwitch{top:10px}
+    .mapBtn{padding:6px 11px;font-size:8px}
+  }
+  @media (max-width: 640px){
+    #aeroHud{left:10px;right:10px;width:auto;top:55px;gap:6px}
+    .buddyPanel{padding:10px 11px 7px}
+    .buddyList{max-height:104px}
+    .buddyStatus{font-size:8.5px}
+    .buddyName{font-size:10.5px}
+    .timePanel{padding:8px 11px}
+    #skyClock{font-size:14px}
+    .skyIcon{font-size:18px}
+    .aeroHintBubble{display:none}
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+</head>
+<body data-map="field">
+<canvas id="view"></canvas>
+<div id="cursor"></div>
+
+<div class="mapSwitch" id="mapSwitch" aria-label="Map">
+  <button class="mapBtn" id="mapMeadow" data-map="field" aria-pressed="true">Meadow</button>
+  <button class="mapBtn" id="mapStudio" data-map="studio" aria-pressed="false">Studio</button>
+</div>
+
+<aside id="aeroHud" aria-label="Gummy Meadow">
+  <div class="aeroPanel buddyPanel">
+    <div class="aeroBrand">
+      <span class="aeroOrb"></span>
+      <div><span class="aeroKicker">Gummy Meadow</span><h2>Bears online</h2></div>
+      <span class="onlinePill" id="onlineCount">6 online</span>
+      <button class="aeroMin" id="aeroMin" title="Collapse panel">–</button>
+    </div>
+    <div class="buddyList" id="buddyList"></div>
+    <div class="aeroFoot"><span>Click a bear to find it</span><span id="meadowMood">dawn · 18°</span></div>
+    <div class="aeroHintBubble" id="aeroHint">msn messenger vibes</div>
+  </div>
+  <div class="aeroPanel timePanel">
+    <div class="timeTop">
+      <span class="skyIcon" id="skyIcon">☀</span>
+      <div><b id="skyClock">7:00</b><span id="skyPeriod">dawn</span></div>
+      <button class="aeroChip on" id="timeAuto" aria-pressed="true">Auto</button>
+      <button class="aeroChip" id="timeSpeed">1×</button>
+    </div>
+    <input id="timeSlider" type="range" min="0" max="24" step="0.05" value="7" aria-label="Time of day">
+    <div class="timeTicks"><span>midnight</span><span>dawn</span><span>noon</span><span>dusk</span></div>
+    <div class="windRow"><span>Wind</span><input id="windStrength" type="range" min="0" max="1.8" step="0.05" value="1" aria-label="Wind strength"><span id="windValue">1.0</span></div>
+  </div>
+  <details class="aeroPanel naturePanel">
+    <summary>Meadow detail</summary>
+    <label class="natureRow"><span>Canopy</span><input id="canopyFullness" type="range" min="0.35" max="1" step="0.01" value="1" aria-label="Canopy fullness"><b id="canopyFullnessVal">1.00</b></label>
+    <label class="natureRow"><span>Leaf size</span><input id="leafSize" type="range" min="0.65" max="1.4" step="0.01" value="1" aria-label="Leaf size"><b id="leafSizeVal">1.00</b></label>
+    <label class="natureRow"><span>Grass</span><input id="grassCoverage" type="range" min="0.35" max="1" step="0.01" value="1" aria-label="Grass coverage"><b id="grassCoverageVal">1.00</b></label>
+    <label class="natureRow"><span>Distance</span><input id="grassDistance" type="range" min="28" max="76" step="1" value="56" aria-label="Grass draw distance"><b id="grassDistanceVal">56</b></label>
+  </details>
+</aside>
+
+<div id="mapWipe"></div>
+
+<div class="hud">
+  <header class="fade studioHeader">
+    <div class="kick"><i></i>Soft-body confection — No.&nbsp;01</div>
+    <h1>Gummy <em>/</em><br>Bears.</h1>
+    <p class="sub"><b>Six translucent bears</b> on a white table. Grab one and pull — it stretches, snaps back and wobbles. Throw it, pour in more, watch them jiggle.</p>
+  </header>
+
+  <aside class="card fade" id="card">
+    <div class="lbl"><span>Flavors</span><span>click to drop</span></div>
+    <div class="swatches" id="swatches"></div>
+
+    <div class="hr"></div>
+
+    <div class="lbl"><span>Custom</span><span>your own gummy</span></div>
+    <div class="custom">
+      <div class="custom-top">
+        <div class="hue" id="hue" title="Pick a hue"><div class="knob" id="hueKnob"></div></div>
+        <button class="drop" id="customDrop" title="Drop a bear in this colour" aria-label="Drop a custom bear"></button>
+      </div>
+      <div class="row"><span class="lbl">Clarity</span><input id="clarity" type="range" min="0" max="100" value="18" aria-label="Clarity"></div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="row" style="margin-top:2px"><span class="lbl">Wobble</span><input id="wobble" type="range" min="0" max="100" value="55" aria-label="Wobble"></div>
+    <div class="row limitrow"><span class="lbl">Limit</span><input id="limit" type="range" min="8" max="256" step="8" value="128" aria-label="Maximum number of bears"><span class="limval" id="limitVal">128</span></div>
+
+    <div class="row"><span class="lbl">Upright</span><button class="togglebtn on" id="uprightBtn" aria-pressed="true">On</button></div>
+
+    <div class="stats">
+      <div class="stat"><span class="k">Stretch</span><span class="v" id="vStretch">1.00×</span></div>
+      <div class="stat"><span class="k">Bounces</span><span class="v" id="vBounces">0</span></div>
+      <div class="stat"><span class="k">Bears</span><span class="v" id="vBears">6</span></div>
+    </div>
+
+    <button class="btn" id="pour">Pour more bears</button>
+    <div class="cardfoot">
+      <span class="note" id="note">Drag to stretch · release to throw</span>
+      <button class="perfbtn launch" id="launchBtn" aria-pressed="false" title="Arm the gummy cannon (L)">Launch bear</button>
+      <button class="perfbtn move" id="moveCannonBtn" aria-pressed="false" title="Move the gummy cannon">Move cannon</button>
+      <button class="perfbtn blast" id="explode" title="Launch a firework (F fires at the pointer)">Explode</button>
+      <button class="perfbtn" id="clearBears" title="Remove every bear and reset the counters">Reset bears</button>
+      <button class="perfbtn" id="resetView" hidden title="Reset the camera (R)">Reset view</button>
+      <button class="perfbtn" id="perfBtn" aria-pressed="false" title="Toggle performance overlay (P)">Perf</button>
+    </div>
+  </aside>
+
+  <button class="helpbtn" id="helpBtn" aria-label="Controls">?</button>
+
+  <div class="help" id="help" aria-hidden="true">
+    <div class="helpcard" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="helphead">
+        <h2 id="helpTitle">Controls</h2>
+        <button class="helpclose" id="helpClose" aria-label="Close">×</button>
+      </div>
+      <div class="helpgrid">
+        <section>
+          <h3>Bears</h3>
+          <dl>
+            <dt>Drag a bear</dt><dd>Pull and stretch it; release to throw.</dd>
+            <dt>Two fingers</dt><dd>Pull two bears — or one bear from both sides.</dd>
+            <dt>Pour / Reset</dt><dd>Add five bears, or clear the table to zero.</dd>
+            <dt>L / Launch bear</dt><dd>Arm the gummy cannon, aim at the table, then click or tap to fire a bear. Esc cancels.</dd>
+            <dt>Move cannon</dt><dd>Drag the cannon, or click Move cannon and then the table. Esc cancels.</dd>
+            <dt>Limit</dt><dd>How many bears may exist (8–256).</dd>
+            <dt>F / Explode</dt><dd>Firework at the pointer — hold F to spray, Shift+F for a fan; the button volleys three at the pile.</dd>
+            <dt>Upright</dt><dd>Bears gently right themselves once settled; pushes still win.</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>Camera</h3>
+          <dl>
+            <dt>Drag empty space</dt><dd>Orbit · right-drag does the same.</dd>
+            <dt>Middle-drag</dt><dd>Pan · two fingers on empty space pan too.</dd>
+            <dt>Wheel / pinch</dt><dd>Zoom in and out.</dd>
+            <dt>W A S D</dt><dd>Pan · Q / E zoom · R resets the view.</dd>
+            <dt>P</dt><dd>Performance overlay.</dd>
+          </dl>
+        </section>
+      </div>
+      <p class="helpnote">The wobble slider runs from firm to Mr. Fantastic. Press Esc or click outside to close.</p>
+    </div>
+  </div>
+
+  <div class="camhint" id="camHint"></div>
+
+  <div class="perf" id="perf" aria-hidden="true">
+    <div class="phead"><span>Performance</span><b id="pfFps">60</b><span>fps</span></div>
+    <canvas id="pfGraph" width="212" height="34"></canvas>
+    <div class="prow"><span>Frame</span><b id="pfFrame">16.7</b><span>ms</span></div>
+    <div class="prow"><span>Physics</span><b id="pfPhys">0.4</b><span>ms / frame</span></div>
+    <div class="prow"><span>Surface</span><b id="pfSurf">4.2</b><span>ms / frame</span></div>
+    <div class="prow"><span>Builds</span><b id="pfBuilds">1.0</b><span>/ frame</span></div>
+    <div class="prow"><span>Bears</span><b id="pfBears">6</b><span id="pfBearsMax">/ 100</span></div>
+    <div class="prow"><span>Tier</span><b id="pfTier">1</b><span id="pfTierNote">2.00× · g42</span></div>
+    <div class="prow"><span>Draw</span><b id="pfDraw">17</b><span id="pfTris">150k tri</span></div>
+  </div>
+
+  <footer class="studioFooter">Real-time soft bodies · three.js + Box3D</footer>
+</div>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
