@@ -9,8 +9,8 @@
   :root{
     --paper:#ffffff;
     --ink:#191817;
-    --ink-2:#5f5c56;
-    --ink-3:#8e8a82;
+    --ink-2:#5a5751;
+    --ink-3:#6d6961;
     --line:rgba(25,24,23,.10);
     --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Times New Roman",serif;
     --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
@@ -26,18 +26,24 @@
 
   /* ---------- custom cursor ---------- */
   #cursor{
-    position:fixed;left:0;top:0;width:26px;height:26px;margin:0;border-radius:50%;
-    border:1.25px solid rgba(25,24,23,.55);pointer-events:none;z-index:9;
-    transform:translate(-50%,-50%);transition:width .18s ease,height .18s ease,background-color .18s ease,border-color .18s ease,opacity .2s ease;
+    position:fixed;left:0;top:0;width:28px;height:28px;margin:0;border-radius:50%;
+    border:2px solid rgba(10,18,24,.96);pointer-events:none;z-index:9;
+    background:rgba(255,255,255,.28);
+    box-shadow:0 0 0 2px rgba(255,255,255,.96),0 2px 9px rgba(0,0,0,.32);
+    transform:translate(-50%,-50%);transition:width .18s ease,height .18s ease,background-color .18s ease,border-color .18s ease,box-shadow .18s ease,opacity .2s ease;
     opacity:0;will-change:transform;
   }
-  #cursor.grab{width:44px;height:44px;background:rgba(25,24,23,.05);border-color:rgba(25,24,23,.35)}
+  #cursor::after{
+    content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;border-radius:50%;
+    background:#0b1419;box-shadow:0 0 0 2px #fff;transform:translate(-50%,-50%);
+  }
+  #cursor.grab{width:50px;height:50px;background:rgba(255,255,255,.32);border-color:rgba(10,18,24,.84);box-shadow:0 0 0 2px rgba(255,255,255,.98),0 3px 12px rgba(0,0,0,.28)}
   #cursor.on{opacity:1}
-  #cursor.aim{width:32px;height:32px;border-color:rgba(179,35,63,.8)}
-  #cursor.aim::before,#cursor.aim::after{content:"";position:absolute;left:50%;top:50%;background:rgba(179,35,63,.55);transform:translate(-50%,-50%)}
-  #cursor.aim::before{width:1px;height:40px}
-  #cursor.aim::after{height:1px;width:40px}
-  #cursor.move{width:34px;height:34px;border-color:rgba(176,138,62,.85)}
+  #cursor.aim{width:36px;height:36px;border-color:rgba(179,35,63,.98);background:rgba(255,255,255,.20);box-shadow:0 0 0 2px rgba(255,255,255,.96),0 2px 8px rgba(0,0,0,.28)}
+  #cursor.aim::before,#cursor.aim::after{content:"";position:absolute;left:50%;top:50%;background:rgba(179,35,63,.82);transform:translate(-50%,-50%)}
+  #cursor.aim::before{width:2px;height:48px}
+  #cursor.aim::after{height:2px;width:48px;box-shadow:none}
+  #cursor.move{width:40px;height:40px;border-color:rgba(176,138,62,.98);background:rgba(255,255,255,.24)}
 
   /* ---------- editorial chrome ---------- */
   .hud{position:fixed;inset:0;pointer-events:none;z-index:4}
@@ -68,16 +74,16 @@
   .card{
     position:absolute;right:clamp(16px,3vw,48px);top:50%;transform:translateY(-50%);
     width:302px;padding:18px 18px 16px;border-radius:20px;pointer-events:auto;
-    background:rgba(255,255,255,.82);
-    -webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25);
-    border:1px solid var(--line);
-    box-shadow:0 30px 70px -34px rgba(25,24,23,.35),0 2px 6px -2px rgba(25,24,23,.06);
+    background:rgba(255,255,255,.97);
+    -webkit-backdrop-filter:blur(22px) saturate(1.08);backdrop-filter:blur(22px) saturate(1.08);
+    border:1px solid rgba(25,24,23,.11);
+    box-shadow:0 30px 70px -34px rgba(25,24,23,.35),0 2px 6px -2px rgba(25,24,23,.08);
   }
   .lbl{
-    font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);
+    font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2);
     display:flex;justify-content:space-between;align-items:baseline;gap:10px;
   }
-  .lbl span:last-child{letter-spacing:.06em;text-transform:none;font-size:10.5px;color:var(--ink-3)}
+  .lbl span:last-child{letter-spacing:.06em;text-transform:none;font-size:11px;color:var(--ink-2)}
   .swatches{display:flex;gap:11px;margin:11px 0 0}
   .swatch{
     width:32px;height:32px;border-radius:50%;border:1px solid rgba(25,24,23,.12);
@@ -112,7 +118,7 @@
   .drop:active{transform:scale(.96)}
   .row{display:flex;align-items:center;gap:12px;margin-top:14px}
   .row .lbl{flex:0 0 62px}
-  .row .limval{flex:0 0 34px;text-align:right;font-size:10.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .row .limval{flex:0 0 34px;text-align:right;font-size:10.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
   /* compact/short layouts drop the limit row to keep the card short */
   @media (max-height:560px){ .limitrow{display:none} }
 
@@ -134,7 +140,7 @@
     border-bottom:1px dashed rgba(25,24,23,.08);
   }
   .stat:last-child{border-bottom:0}
-  .stat .k{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
+  .stat .k{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2)}
   .stat .v{
     font-family:var(--serif);font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:.01em;
     transition:color .35s ease;
@@ -150,10 +156,10 @@
   .btn:active{transform:translateY(0) scale(.995)}
   .cardfoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:7px;margin-top:11px}
   .cardfoot .note{margin:0;flex:1 0 100%;text-align:center}
-  .note{font-size:10.5px;line-height:1.5;color:var(--ink-3);text-align:center;letter-spacing:.02em}
+  .note{font-size:11px;line-height:1.5;color:var(--ink-2);text-align:center;letter-spacing:.02em}
   .perfbtn{
-    flex:0 0 auto;appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-3);
-    font-family:var(--sans);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    flex:0 0 auto;appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);
+    font-family:var(--sans);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
     padding:5px 10px;border-radius:999px;cursor:pointer;
     transition:color .18s ease,background-color .18s ease,border-color .18s ease;
   }
@@ -434,8 +440,8 @@
   }
   .aeroPanel{
     pointer-events:auto;position:relative;border-radius:19px;overflow:hidden;
-    background:linear-gradient(158deg,rgba(255,255,255,.83),rgba(210,243,255,.66) 52%,rgba(224,255,245,.60));
-    border:1px solid rgba(255,255,255,.88);
+    background:linear-gradient(158deg,rgba(255,255,255,.965),rgba(220,247,255,.88) 52%,rgba(233,255,248,.83));
+    border:1px solid rgba(255,255,255,.94);
     -webkit-backdrop-filter:blur(20px) saturate(1.55);backdrop-filter:blur(20px) saturate(1.55);
     box-shadow:0 28px 70px -34px rgba(8,66,88,.5),inset 0 1px rgba(255,255,255,.95),inset 0 -1px rgba(83,171,188,.15);
   }
@@ -457,7 +463,7 @@
     box-shadow:inset 0 2px 5px rgba(255,255,255,.9),0 4px 10px -4px rgba(10,90,110,.6);
   }
   .aeroOrb::after{content:"";position:absolute;left:9px;top:7px;width:7px;height:4px;border-radius:50%;background:rgba(255,255,255,.85);transform:rotate(-25deg)}
-  .aeroKicker{font-size:7.5px;letter-spacing:.23em;text-transform:uppercase;color:#4b8b9b}
+  .aeroKicker{font-size:8.5px;letter-spacing:.19em;text-transform:uppercase;color:#397a89}
   .aeroBrand h2{font-family:var(--sans);font-size:15px;font-weight:650;letter-spacing:-.01em;color:#0b4351;margin:1px 0 0;white-space:nowrap}
   .onlinePill{
     margin-left:auto;font-size:8.5px;letter-spacing:.06em;color:#0d6b55;background:rgba(190,255,225,.7);
@@ -474,45 +480,45 @@
   .buddyRow:hover{background:rgba(255,255,255,.58);border-color:rgba(255,255,255,.9);transform:translateX(2px)}
   .buddyDot{width:10px;height:10px;border-radius:50%;box-shadow:inset 0 1px rgba(255,255,255,.9),0 0 0 2px rgba(255,255,255,.35)}
   .buddyName{font-size:11px;font-weight:600;color:#10414c;display:flex;align-items:center;gap:5px;line-height:1.2}
-  .buddySex{font-size:8.5px;font-weight:700;color:#4b8f9c;letter-spacing:.03em}
-  .buddyStage{font-size:7px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8a6a9d;background:rgba(236,218,255,.55);border:1px solid rgba(189,160,221,.5);border-radius:6px;padding:1px 4px;line-height:1.2}
-  .buddyStatus{font-size:9px;color:#608b94;margin-top:2px;line-height:1.2}
+  .buddySex{font-size:9.5px;font-weight:700;color:#397581;letter-spacing:.03em}
+  .buddyStage{font-size:7.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#78598c;background:rgba(236,218,255,.72);border:1px solid rgba(189,160,221,.58);border-radius:6px;padding:1px 4px;line-height:1.2}
+  .buddyStatus{font-size:10px;color:#3f6f79;margin-top:2px;line-height:1.28}
   .buddyRight{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:54px}
   .buddyVitals{display:flex;align-items:center;gap:4px}
-  .buddyHpText{font-size:8px;font-weight:700;color:#2e7c87;min-width:18px;text-align:right;font-variant-numeric:tabular-nums}
+  .buddyHpText{font-size:8.5px;font-weight:700;color:#236c77;min-width:18px;text-align:right;font-variant-numeric:tabular-nums}
   .buddyHealth{display:block;width:54px;height:6px;border-radius:999px;background:rgba(34,112,123,.16);overflow:hidden;box-shadow:inset 0 1px 2px rgba(19,75,83,.14),0 0 0 1px rgba(255,255,255,.72)}
   .buddyHealth>i{display:block;height:100%;width:100%;border-radius:inherit;background:linear-gradient(90deg,#2ab88b,#7be0b5);transition:width .3s,background .3s}
   .buddyHealth.low>i{background:linear-gradient(90deg,#f1b84d,#ffd98a)}
   .buddyHealth.woozy>i{background:linear-gradient(90deg,#e4617a,#ff9cac)}
-  .buddyHome{font-size:8px;color:#84a8af;text-align:right;max-width:92px;line-height:1.25}
-  .aeroFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;z-index:1;padding-top:7px;border-top:1px solid rgba(42,137,155,.12);font-size:8px;letter-spacing:.04em;color:#7198a0}
+  .buddyHome{font-size:8.5px;color:#5d858d;text-align:right;max-width:96px;line-height:1.25}
+  .aeroFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;z-index:1;padding-top:7px;border-top:1px solid rgba(42,137,155,.18);font-size:9px;letter-spacing:.04em;color:#527f88}
   .timePanel{padding:12px 14px 10px}
   .timeTop{display:flex;align-items:center;gap:9px;position:relative;z-index:1}
   .skyIcon{font-size:21px;line-height:1;filter:drop-shadow(0 3px 8px rgba(255,198,110,.6))}
   #skyClock{display:block;font-family:var(--sans);font-size:16px;font-weight:650;letter-spacing:.02em;color:#0b4351;line-height:1.05}
-  #skyPeriod{display:block;font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:#5f949d;margin-top:2px}
+  #skyPeriod{display:block;font-size:8.5px;letter-spacing:.15em;text-transform:uppercase;color:#4f8089;margin-top:2px}
   .aeroChip{
     appearance:none;margin-left:auto;border:1px solid rgba(53,145,161,.28);background:rgba(255,255,255,.45);color:#3a7d89;
-    font-family:var(--sans);font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:999px;cursor:pointer;
+    font-family:var(--sans);font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:5px 8px;border-radius:999px;cursor:pointer;
     transition:background .18s,color .18s,border-color .18s;box-shadow:inset 0 1px rgba(255,255,255,.85);
   }
   .aeroChip+.aeroChip{margin-left:4px}
   .aeroChip.on{background:linear-gradient(180deg,#177d83,#0d5b68);border-color:#0d5b68;color:#eaffff}
   #timeSlider{width:100%;height:3px;margin:11px 0 5px;accent-color:#2fb9b1;cursor:pointer}
-  .windRow{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:7.5px;letter-spacing:.14em;text-transform:uppercase;color:#4b8b97}
+  .windRow{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:#397782}
   #windStrength{flex:1;height:3px;accent-color:#2fb9b1;cursor:pointer;min-width:0}
   #windValue{min-width:24px;text-align:right;font-variant-numeric:tabular-nums;letter-spacing:.02em;color:#2b7782}
   .naturePanel{padding:0 14px 10px;position:relative;z-index:1}
-  .naturePanel summary{list-style:none;cursor:pointer;padding:10px 0 4px;font-size:8px;font-weight:650;letter-spacing:.15em;text-transform:uppercase;color:#3f8591}
+  .naturePanel summary{list-style:none;cursor:pointer;padding:10px 0 4px;font-size:8.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#337682}
   .naturePanel summary::-webkit-details-marker{display:none}
   .naturePanel summary::after{content:"+";float:right;font-size:13px;line-height:9px;color:#5c9fa8}
   .naturePanel[open] summary::after{content:"–"}
-  .natureRow{display:flex;align-items:center;gap:7px;margin-top:6px;font-size:7.5px;color:#4b8b97;letter-spacing:.09em;text-transform:uppercase}
+  .natureRow{display:flex;align-items:center;gap:7px;margin-top:6px;font-size:8.5px;color:#397782;letter-spacing:.07em;text-transform:uppercase}
   .natureRow span{width:50px;flex:none}
   .natureRow input{flex:1;height:3px;accent-color:#2fb9b1;cursor:pointer;min-width:0}
   .natureRow select{appearance:none;flex:1;min-width:0;border:1px solid rgba(53,145,161,.22);border-radius:7px;background:rgba(255,255,255,.58);color:#2b7782;font:600 8px var(--sans);padding:4px 6px;cursor:pointer}
   .natureRow b{width:28px;text-align:right;font-size:8px;font-weight:600;color:#2b7782;font-variant-numeric:tabular-nums}
-  .timeTicks{display:flex;justify-content:space-between;font-size:7px;letter-spacing:.09em;text-transform:uppercase;color:#83a8ad;position:relative;z-index:1}
+  .timeTicks{display:flex;justify-content:space-between;font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:#638b92;position:relative;z-index:1}
   .aeroMin{appearance:none;border:1px solid rgba(61,146,160,.22);background:rgba(255,255,255,.4);color:#4b8b97;width:20px;height:20px;border-radius:50%;line-height:14px;font-size:13px;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.9);margin-left:3px}
   .aeroMin:hover{background:rgba(255,255,255,.8)}
   #aeroHud.min .buddyList,#aeroHud.min .aeroFoot,#aeroHud.min .timePanel,#aeroHud.min .naturePanel{display:none}
@@ -537,8 +543,8 @@
   }
   /* Aero glass control card */
   body[data-map="field"] .card{
-    background:linear-gradient(162deg,rgba(255,255,255,.82),rgba(214,246,255,.66) 58%,rgba(229,255,247,.60));
-    border-color:rgba(255,255,255,.9);
+    background:linear-gradient(162deg,rgba(255,255,255,.97),rgba(226,249,255,.89) 58%,rgba(236,255,250,.85));
+    border-color:rgba(255,255,255,.96);
     box-shadow:0 34px 80px -38px rgba(8,67,90,.52),inset 0 1px rgba(255,255,255,.95);
     -webkit-backdrop-filter:blur(20px) saturate(1.45);backdrop-filter:blur(20px) saturate(1.45);
   }
@@ -575,8 +581,8 @@
     #aeroHud{left:10px;right:10px;width:auto;top:55px;gap:6px}
     .buddyPanel{padding:10px 11px 7px}
     .buddyList{max-height:104px}
-    .buddyStatus{font-size:8.5px}
-    .buddyName{font-size:10.5px}
+    .buddyStatus{font-size:9.5px}
+    .buddyName{font-size:11px}
     .timePanel{padding:8px 11px}
     #skyClock{font-size:14px}
     .skyIcon{font-size:18px}
