@@ -22,7 +22,7 @@ export function createLauncher(ctx) {
     scene, camera, canvas,
     getTable, getBears, spawnBear, uploadVelocities,
     restDY, np, flavors, isPhysicsReady,
-    getHome, placementExtra,
+    getHome, placementExtra, insideBounds, clampBounds,
     state, onPlace,
     ui = {},
   } = ctx;
@@ -73,6 +73,7 @@ export function createLauncher(ctx) {
   }
 
   function clampXZ(x, z) {
+    if (clampBounds) return clampBounds(x, z, BASE_MARGIN);
     const t = table();
     return {
       x: clamp(x, -t.hx + BASE_MARGIN, t.hx - BASE_MARGIN),
@@ -83,7 +84,9 @@ export function createLauncher(ctx) {
   function placementValid(x, z) {
     const t = table();
     if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
-    if (Math.abs(x) > t.hx - BASE_MARGIN || Math.abs(z) > t.hz - BASE_MARGIN) return false;
+    if (insideBounds) {
+      if (!insideBounds(x, z, BASE_MARGIN)) return false;
+    } else if (Math.abs(x) > t.hx - BASE_MARGIN || Math.abs(z) > t.hz - BASE_MARGIN) return false;
     for (const b of bears()) {
       if (!b.active) continue;
       const clearance = 0.62 + 0.18 * (b.scale || 1);
@@ -335,8 +338,13 @@ export function createLauncher(ctx) {
     if (!group) return false;
     const t = table();
     const margin = 0.16;
-    tx = clamp(Number(tx) || 0, -t.hx + margin, t.hx - margin);
-    tz = clamp(Number(tz) || 0, -t.hz + margin, t.hz - margin);
+    if (clampBounds) {
+      const c = clampBounds(Number(tx) || 0, Number(tz) || 0, margin);
+      tx = c.x; tz = c.z;
+    } else {
+      tx = clamp(Number(tx) || 0, -t.hx + margin, t.hx - margin);
+      tz = clamp(Number(tz) || 0, -t.hz + margin, t.hz - margin);
+    }
     const bx = group.position.x, bz = group.position.z;
     let dx = tx - bx, dz = tz - bz;
     let d = Math.hypot(dx, dz);

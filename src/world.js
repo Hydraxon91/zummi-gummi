@@ -1,4 +1,6 @@
 // Map registry and per-map state.
+
+import { FIELD_BOUNDS } from './fieldshape.js';
 // The meadow and the Studio are independent worlds: bears, camera, clock,
 // cannon and counters are saved/restored when switching maps.
 
@@ -27,7 +29,7 @@ export const FIELD = {
   hasLife: true,
   wallHeight: 8.0,
   defaultCeiling: 40,
-  bounds: { hx: 46, hz: 30 },
+  bounds: FIELD_BOUNDS,
   camera: {
     target: [0, 1.7, 0],
     yaw: 0.30,

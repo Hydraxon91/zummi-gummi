@@ -45,8 +45,8 @@ int g3_init(int maxBodies, float gx, float gy, float gz){
     wd.capacity.dynamicShapeCount = maxBodies;
     wd.capacity.contactCount = maxBodies * 6;
   }
-  wd.capacity.staticBodyCount = 16;
-  wd.capacity.staticShapeCount = 32;
+  wd.capacity.staticBodyCount = 512;
+  wd.capacity.staticShapeCount = 512;
   g_world = b3CreateWorld(&wd);
   // soft, slightly damped contacts — jelly rather than billiard balls
   b3World_SetContactTuning(g_world, 55.0f, 0.72f, 2.4f);
@@ -91,6 +91,33 @@ int g3_static_sphere(float x, float y, float z, float r,
   sd.filter.maskBits = ~0ULL;
   sd.filter.groupIndex = group;
   b3CreateSphereShape(id, &sd, &sph);
+  int h = g_bodyCount++;
+  g_bodies[h].id = id;
+  g_bodies[h].alive = 1;
+  g_alive++;
+  return h;
+}
+
+// rotated static box used by the circular meadow wall
+EMSCRIPTEN_KEEPALIVE
+int g3_static_box_rot(float x, float y, float z, float hx, float hy, float hz,
+                      float yaw, float friction, float restitution, int group){
+  if (!g_valid) return -1;
+  ensure_cap(g_bodyCount + 1);
+  b3BodyDef bd = b3DefaultBodyDef();
+  bd.type = b3_staticBody;
+  bd.position = (b3Pos){ (double)x, (double)y, (double)z };
+  bd.rotation.v = v3(0.0f, sinf(yaw * 0.5f), 0.0f);
+  bd.rotation.s = cosf(yaw * 0.5f);
+  b3BodyId id = b3CreateBody(g_world, &bd);
+  b3BoxHull hull = b3MakeBoxHull(hx, hy, hz);
+  b3ShapeDef sd = b3DefaultShapeDef();
+  sd.baseMaterial.friction = friction;
+  sd.baseMaterial.restitution = restitution;
+  sd.filter.categoryBits = 1;
+  sd.filter.maskBits = ~0ULL;
+  sd.filter.groupIndex = group;
+  b3CreateHullShape(id, &sd, &hull.base);
   int h = g_bodyCount++;
   g_bodies[h].id = id;
   g_bodies[h].alive = 1;

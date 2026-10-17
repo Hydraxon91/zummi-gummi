@@ -3,6 +3,7 @@ import { createLauncher } from './launcher.js';
 import { createSky } from './sky.js';
 import { buildField, POND_HOLE, POND } from './field.js';
 import { createStudioReturnPortal } from './studiohouse.js';
+import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 
 let launcher = null;
@@ -1462,9 +1463,9 @@ function applyCamera(dt){
 }
 function clampCamGoal(){
   if (isMeadow()) {
-    const b = getActiveMap().bounds;
-    cam.goal.x = clamp(cam.goal.x, -b.hx + 2.5, b.hx - 2.5);
-    cam.goal.z = clamp(cam.goal.z, -b.hz + 2.5, b.hz - 2.5);
+    const c = fieldClamp(cam.goal.x, cam.goal.z, 2.5);
+    cam.goal.x = c.x;
+    cam.goal.z = c.z;
     cam.goal.y = clamp(cam.goal.y, 0.35, 4.0);
   } else {
     cam.goal.x = clamp(cam.goal.x, -5.5, 5.5);
@@ -3159,12 +3160,32 @@ function buildWorldBounds(){
   const H = Math.max(2.5, map.wallHeight || 8);
   for (const h of worldWalls.walls) if (h >= 0) PHYS.destroy(h);
   worldWalls.walls.length = 0;
-  const wx = TABLE.hx + 0.55, wz = TABLE.hz + 0.55;
-  for (const s of [-1, 1]){
-    worldWalls.walls.push(PHYS.staticBox(s*wx, H/2, 0, 0.60, H/2, wz + 1.1, 0.35, 0.15, 0));
-    worldWalls.walls.push(PHYS.staticBox(0, H/2, s*wz, wx + 1.1, H/2, 0.60, 0.35, 0.15, 0));
+  if (map.kind === 'life') {
+    // A smooth ring wall follows the same wobbled disc as nav/camera. Each
+    // segment is an oriented hull, so there are no square corners to snag on.
+    const N = 96;
+    for (let i = 0; i < N; i++) {
+      const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2;
+      const am = (a0 + a1) * 0.5;
+      const r0 = fieldRadiusAt(a0) + 0.22, r1 = fieldRadiusAt(a1) + 0.22;
+      const x0 = Math.cos(a0) * r0, z0 = Math.sin(a0) * r0;
+      const x1 = Math.cos(a1) * r1, z1 = Math.sin(a1) * r1;
+      const mx = (x0 + x1) * 0.5, mz = (z0 + z1) * 0.5;
+      const chord = Math.hypot(x1 - x0, z1 - z0);
+      worldWalls.walls.push(PHYS.staticBoxRot(
+        mx, H/2, mz, chord * 0.5 + 0.16, H/2, 0.34,
+        am + Math.PI / 2, 0.35, 0.15, 0
+      ));
+    }
+  } else {
+    const wx = TABLE.hx + 0.55, wz = TABLE.hz + 0.55;
+    for (const s of [-1, 1]){
+      worldWalls.walls.push(PHYS.staticBox(s*wx, H/2, 0, 0.60, H/2, wz + 1.1, 0.35, 0.15, 0));
+      worldWalls.walls.push(PHYS.staticBox(0, H/2, s*wz, wx + 1.1, H/2, 0.60, 0.35, 0.15, 0));
+    }
   }
   worldWalls.hx = TABLE.hx; worldWalls.hz = TABLE.hz;
+  worldWalls.shape = map.kind === 'life' ? 'circle' : 'rect';
 }
 function fitWallsToTable(){
   if (!PHYS || !worldWalls.ready) return;
@@ -3186,6 +3207,14 @@ function fitWallsToTable(){
     restDY: REST_DY, np: NP, flavors: FLAVORS,
     isPhysicsReady: () => !!PHYS,
     getHome: () => getActiveMap().launcherHome(TABLE, innerWidth < 760),
+    insideBounds: (x, z, margin) => {
+      if (isMeadow()) return fieldInside(x, z, margin);
+      return Math.abs(x) <= TABLE.hx - margin && Math.abs(z) <= TABLE.hz - margin;
+    },
+    clampBounds: (x, z, margin) => {
+      if (isMeadow()) return fieldClamp(x, z, margin);
+      return { x: clamp(x, -TABLE.hx + margin, TABLE.hx - margin), z: clamp(z, -TABLE.hz + margin, TABLE.hz - margin) };
+    },
     placementExtra: (x, z) => {
       const map = getActiveMap();
       return map.kind === 'life' && field ? field.isCannonSpot(x, z) : true;

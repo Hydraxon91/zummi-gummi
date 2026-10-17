@@ -45,6 +45,9 @@ const wrapper = {
   staticBox(x,y,z,hx,hy,hz,friction,restitution,group=0){
     return M._g3_static_box(x,y,z,hx,hy,hz,friction,restitution,group);
   },
+  staticBoxRot(x,y,z,hx,hy,hz,yaw,friction,restitution,group=0){
+    return M._g3_static_box_rot(x,y,z,hx,hy,hz,yaw,friction,restitution,group);
+  },
   staticSphere(x,y,z,r,friction,restitution,group=0){
     return M._g3_static_sphere(x,y,z,r,friction,restitution,group);
   },

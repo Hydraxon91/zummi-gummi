@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { REFLECT_LAYER } from './sky.js';
 
-const INNER = 68;
+const INNER = 64;
 const OUTER = 232;
 
 function makeRand(seed) {
@@ -31,7 +31,7 @@ function hillTexture() {
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
   }
-  for (let i = 0; i < 2600; i++) {
+  for (let i = 0; i < 3600; i++) {
     const x = r() * S, y = r() * S;
     ctx.fillStyle = r() < .55 ? 'rgba(86,137,64,.20)' : 'rgba(238,249,210,.20)';
     ctx.fillRect(x, y, 1.2 + r() * 2.4, 1 + r() * 2.2);
@@ -64,7 +64,10 @@ function fbm(x, z) {
 }
 function heightAt(x, z) {
   const r = Math.hypot(x, z);
-  const edge = smooth(clamp((r - INNER) / 34, 0, 1));
+  // Stay flat under the playable rim, then lift gradually into the hills. The
+  // terrain begins beneath the lawn so the two surfaces overlap instead of
+  // meeting at a hard ring.
+  const edge = smooth(clamp((r - 65.5) / 34, 0, 1));
   const a = Math.atan2(z, x);
   const n = fbm(x * .014 + 4.3, z * .014 - 2.7);
   const detail = fbm(x * .055 - 9.1, z * .055 + 3.8);
@@ -90,7 +93,7 @@ function buildTerrain() {
       const a = i / segs * Math.PI * 2;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       const y = heightAt(x, z);
-      pos.push(x, y, z);
+      pos.push(x, y - .04, z);
       uv.push(x * .012, z * .012);
       const n = fbm(x * .035 + 11.2, z * .035 - 4.1);
       const broad = fbm(x * .009 - 3.4, z * .009 + 8.6);
@@ -102,6 +105,10 @@ function buildTerrain() {
         .26 + crest * .17 + n * .07 - valley * .035
       );
       c.offsetHSL(0, 0, (broad - .5) * .035);
+      // Match the meadow green at the flat overlap, then ease into the hill
+      // palette so the circumference cannot read as a painted circle.
+      const lawnBlend = smooth(clamp((r - 64) / 15, 0, 1));
+      c.lerp(new THREE.Color(0x3e7134), 1 - lawnBlend);
       col.push(c.r, c.g, c.b);
     }
   }
@@ -139,6 +146,24 @@ export function createBackdrop() {
   const trunkColors = [0x63432d, 0x765039, 0x533927];
 
   const treeCount = 186;
+  const UP = new THREE.Vector3(0, 1, 0);
+  const tmpQ = new THREE.Quaternion();
+  function addBranchSegment(p0, p1, radius, color) {
+    const dx = p1.x - p0.x, dy = p1.y - p0.y, dz = p1.z - p0.z;
+    const len = Math.hypot(dx, dy, dz);
+    if (len < .04) return;
+    const dir = new THREE.Vector3(dx, dy, dz).normalize();
+    tmpQ.setFromUnitVectors(UP, dir);
+    trunks.push({
+      m: new THREE.Matrix4().compose(
+        new THREE.Vector3((p0.x + p1.x) * .5, (p0.y + p1.y) * .5, (p0.z + p1.z) * .5),
+        tmpQ.clone(),
+        new THREE.Vector3(radius, len, radius)
+      ),
+      c: color,
+    });
+  }
+
   for (let i = 0; i < treeCount; i++) {
     const a = rnd() * Math.PI * 2;
     const r = INNER + 2 + Math.pow(rnd(), 1.45) * 144;
@@ -146,38 +171,92 @@ export function createBackdrop() {
     const baseY = heightAt(x, z);
     if (baseY < .15) continue;
     const s = .7 + rnd() * 1.35;
-    const trunkH = 1.5 * s + rnd() * .7;
-    trunks.push({
+    const trunkH = 1.8 * s + rnd() * .9;
+    const trunkCol = new THREE.Color(trunkColors[Math.floor(rnd() * trunkColors.length)]);
+    const canopyCol = new THREE.Color(canopyColors[Math.floor(rnd() * canopyColors.length)]);
+    const base = new THREE.Vector3(x, baseY - .05, z);
+    const top = new THREE.Vector3(x, baseY + trunkH, z);
+    const crown = new THREE.Vector3(x, baseY + trunkH + .75 * s, z);
+    addBranchSegment(base, top, s * .85, trunkCol);
+
+    const tips = [];
+    const primaries = 3 + Math.floor(rnd() * 3);
+    for (let b = 0; b < primaries; b++) {
+      const ang = b / primaries * Math.PI * 2 + rnd() * .65;
+      const h = baseY + trunkH * (.34 + rnd() * .48);
+      const p0 = new THREE.Vector3(x, h, z);
+      const reach = (1.05 + rnd() * .95) * s;
+      const rise = (.35 + rnd() * .90) * s;
+      const p1 = new THREE.Vector3(
+        x + Math.cos(ang) * reach,
+        h + rise,
+        z + Math.sin(ang) * reach
+      );
+      addBranchSegment(p0, p1, s * (.38 + rnd() * .15), trunkCol);
+      tips.push(p1);
+      const sub = 1 + Math.floor(rnd() * 2);
+      for (let k = 0; k < sub; k++) {
+        const a2 = ang + (rnd() - .5) * 1.4;
+        const p2 = new THREE.Vector3(
+          p1.x + Math.cos(a2) * reach * (.45 + rnd() * .35),
+          p1.y + (.18 + rnd() * .55) * s,
+          p1.z + Math.sin(a2) * reach * (.45 + rnd() * .35)
+        );
+        addBranchSegment(p1, p2, s * (.18 + rnd() * .09), trunkCol);
+        tips.push(p2);
+      }
+    }
+
+    // Foliage lives on branch/twig tips, not as a ball around a bare pole.
+    const lobes = [];
+    for (const tip of tips) {
+      const count = 1 + (rnd() < .55 ? 1 : 0);
+      for (let k = 0; k < count; k++) {
+        const p = tip.clone().add(new THREE.Vector3(
+          (rnd() - .5) * .65 * s,
+          (rnd() - .30) * .45 * s,
+          (rnd() - .5) * .65 * s
+        ));
+        lobes.push(p);
+        canopyParts.push({
+          m: new THREE.Matrix4().compose(
+            p,
+            new THREE.Quaternion().setFromAxisAngle(UP, rnd() * 6.283),
+            new THREE.Vector3((.55 + rnd() * .50) * s, (.48 + rnd() * .40) * s, (.55 + rnd() * .50) * s)
+          ),
+          c: canopyCol.clone().offsetHSL(0, .015, (rnd() - .5) * .075),
+          center: crown,
+        });
+      }
+    }
+    // A small crown fill lobe keeps the silhouette from looking hollow.
+    lobes.push(crown);
+    canopyParts.push({
       m: new THREE.Matrix4().compose(
-        new THREE.Vector3(x, baseY + trunkH * .5 - .1, z),
-        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 6.283),
-        new THREE.Vector3(s * .65, trunkH, s * .65)
+        crown.clone().add(new THREE.Vector3(0, .1 * s, 0)),
+        new THREE.Quaternion().setFromAxisAngle(UP, rnd() * 6.283),
+        new THREE.Vector3(.72 * s, .62 * s, .72 * s)
       ),
-      c: new THREE.Color(trunkColors[Math.floor(rnd() * trunkColors.length)]),
+      c: canopyCol.clone().offsetHSL(0, .02, .02),
+      center: crown,
     });
-    const lobes = 5 + Math.floor(rnd() * 4);
-    for (let l = 0; l < lobes; l++) {
-      const angle = rnd() * 6.283, rr = (rnd() * .9 + .20) * s;
-      const cy = baseY + trunkH + (rnd() - .32) * 1.2 * s;
-      const canopyCol = new THREE.Color(canopyColors[Math.floor(rnd() * canopyColors.length)]);
-      canopyParts.push({
-        m: new THREE.Matrix4().compose(
-          new THREE.Vector3(x + Math.cos(angle) * rr, cy, z + Math.sin(angle) * rr),
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 6.283),
-          new THREE.Vector3((.78 + rnd() * .68) * s, (.70 + rnd() * .55) * s, (.78 + rnd() * .68) * s)
-        ),
-        c: canopyCol,
-      });
-      if (r < 124) {
-        for (let lf = 0; lf < 6; lf++) {
-          const la = rnd() * 6.283, lr = (rnd() * 1.0 + .30) * s;
+
+    if (r < 126 && r > INNER - 1) {
+      for (const lobe of lobes) {
+        const n = 2 + Math.floor(rnd() * 2);
+        for (let lf = 0; lf < n; lf++) {
           leafParts.push({
             m: new THREE.Matrix4().compose(
-              new THREE.Vector3(x + Math.cos(angle) * rr + Math.cos(la) * lr, cy + (rnd() - .35) * 1.15 * s, z + Math.sin(angle) * rr + Math.sin(la) * lr),
-              new THREE.Quaternion().setFromEuler(new THREE.Euler((rnd() - .5) * 1.2, rnd() * 6.283, (rnd() - .5) * 1.0)),
-              new THREE.Vector3(.42 * s, (.52 + rnd() * .22) * s, .42 * s)
+              lobe.clone().add(new THREE.Vector3(
+                (rnd() - .5) * .9 * s,
+                (rnd() - .35) * .75 * s,
+                (rnd() - .5) * .9 * s
+              )),
+              new THREE.Quaternion().setFromEuler(new THREE.Euler((rnd() - .5) * 1.3, rnd() * 6.283, (rnd() - .5) * 1.1)),
+              new THREE.Vector3(.36 * s, (.44 + rnd() * .20) * s, .36 * s)
             ),
-            c: canopyCol.clone().offsetHSL(0, .02, (rnd() - .5) * .08),
+            c: canopyCol.clone().offsetHSL(0, .02, (rnd() - .5) * .09),
+            center: crown,
           });
         }
       }
@@ -186,9 +265,9 @@ export function createBackdrop() {
 
   // A sparse low-LOD grass carpet on the hills breaks up the large green slopes
   // at the distances where the playable blade carpet fades out.
-  for (let i = 0; i < 2600; i++) {
+  for (let i = 0; i < 3600; i++) {
     const a = rnd() * Math.PI * 2;
-    const r = 70 + Math.pow(rnd(), 1.3) * 64;
+    const r = 65.5 + Math.pow(rnd(), 1.3) * 68;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     const y = heightAt(x, z);
     if (y < .2) continue;
@@ -282,13 +361,61 @@ export function createBackdrop() {
   trunkMesh.name = 'backdropTrunks'; trunkMesh.frustumCulled = false; trunkMesh.layers.enable(REFLECT_LAYER);
   group.add(trunkMesh);
 
-  const canopyMesh = new THREE.InstancedMesh(lobeGeo, new THREE.MeshLambertMaterial({ vertexColors: false }), canopyParts.length);
-  for (let i = 0; i < canopyParts.length; i++) {
-    canopyMesh.setMatrixAt(i, canopyParts[i].m);
-    canopyMesh.setColorAt(i, canopyParts[i].c);
+  const foliageUniforms = {
+    uSunDir: { value: new THREE.Vector3(.35, .82, .25).normalize() },
+    uFoliageShadow: { value: new THREE.Color(0x416f39) },
+    uFoliageLit: { value: new THREE.Color(0x8cc45e) },
+    uFoliageHigh: { value: new THREE.Color(0xc3e98b) },
+  };
+  function makeFoliageMaterial(side, leaf) {
+    const m = new THREE.MeshLambertMaterial({ color: 0xffffff, side });
+    m.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, foliageUniforms);
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute vec3 aCanopyCenter;\nattribute vec3 aCanopyTint;\nvarying vec3 vFoliageWorld;\nvarying vec3 vFoliageCenter;\nvarying vec3 vFoliageTint;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vec4 wf = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+          vFoliageWorld = wf.xyz;
+          vFoliageCenter = aCanopyCenter;
+          vFoliageTint = aCanopyTint;
+        `);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform vec3 uSunDir;\nuniform vec3 uFoliageShadow;\nuniform vec3 uFoliageLit;\nuniform vec3 uFoliageHigh;\nvarying vec3 vFoliageWorld;\nvarying vec3 vFoliageCenter;\nvarying vec3 vFoliageTint;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          vec3 fdir = normalize(vFoliageWorld - vFoliageCenter);
+          float falign = dot(fdir, uSunDir);
+          float flit = smoothstep(-.55, .36, falign);
+          float fhigh = smoothstep(.26, .88, falign);
+          vec3 fcol = mix(uFoliageShadow, uFoliageLit, flit);
+          fcol = mix(fcol, uFoliageHigh, fhigh * .55);
+          fcol *= mix(vec3(1.0), vFoliageTint, .30);
+          diffuseColor.rgb = fcol;
+        `);
+      if (leaf) {
+        shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+          normal = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));
+        `);
+      }
+    };
+    m.customProgramCacheKey = () => leaf ? 'backdropFoliageLeafV1' : 'backdropFoliageLobeV1';
+    return m;
   }
+  function addFoliageAttributes(mesh, parts) {
+    const centers = new Float32Array(parts.length * 3);
+    const tints = new Float32Array(parts.length * 3);
+    for (let i = 0; i < parts.length; i++) {
+      centers[i * 3] = parts[i].center.x; centers[i * 3 + 1] = parts[i].center.y; centers[i * 3 + 2] = parts[i].center.z;
+      tints[i * 3] = parts[i].c.r; tints[i * 3 + 1] = parts[i].c.g; tints[i * 3 + 2] = parts[i].c.b;
+    }
+    mesh.geometry = mesh.geometry.clone();
+    mesh.geometry.setAttribute('aCanopyCenter', new THREE.InstancedBufferAttribute(centers, 3));
+    mesh.geometry.setAttribute('aCanopyTint', new THREE.InstancedBufferAttribute(tints, 3));
+  }
+  const canopyGeo = lobeGeo.clone();
+  const canopyMesh = new THREE.InstancedMesh(canopyGeo, makeFoliageMaterial(THREE.FrontSide, false), canopyParts.length);
+  for (let i = 0; i < canopyParts.length; i++) canopyMesh.setMatrixAt(i, canopyParts[i].m);
   canopyMesh.instanceMatrix.needsUpdate = true;
-  if (canopyMesh.instanceColor) canopyMesh.instanceColor.needsUpdate = true;
+  addFoliageAttributes(canopyMesh, canopyParts);
   canopyMesh.name = 'backdropCanopy'; canopyMesh.frustumCulled = false; canopyMesh.layers.enable(REFLECT_LAYER);
   group.add(canopyMesh);
 
@@ -299,13 +426,10 @@ export function createBackdrop() {
   ], 3));
   leafGeo.setIndex([0,1,2, 1,4,2, 1,3,4, 3,5,4]);
   leafGeo.computeVertexNormals();
-  const leafMesh = new THREE.InstancedMesh(leafGeo, new THREE.MeshLambertMaterial({ vertexColors: false, side: THREE.DoubleSide }), leafParts.length);
-  for (let i = 0; i < leafParts.length; i++) {
-    leafMesh.setMatrixAt(i, leafParts[i].m);
-    leafMesh.setColorAt(i, leafParts[i].c);
-  }
+  const leafMesh = new THREE.InstancedMesh(leafGeo, makeFoliageMaterial(THREE.DoubleSide, true), leafParts.length);
+  for (let i = 0; i < leafParts.length; i++) leafMesh.setMatrixAt(i, leafParts[i].m);
   leafMesh.instanceMatrix.needsUpdate = true;
-  if (leafMesh.instanceColor) leafMesh.instanceColor.needsUpdate = true;
+  addFoliageAttributes(leafMesh, leafParts);
   leafMesh.name = 'backdropLeaves'; leafMesh.frustumCulled = false; leafMesh.layers.enable(REFLECT_LAYER);
   group.add(leafMesh);
 
@@ -353,9 +477,15 @@ export function createBackdrop() {
 
   return {
     group,
-    trees: trunks.length,
+    trees: treeCount,
+    branches: trunks.length,
+    canopy: canopyParts.length,
+    leaves: leafParts.length,
     hedges: hedgeParts.length,
     heightAt,
+    setSun(v) {
+      if (v) foliageUniforms.uSunDir.value.copy(v).normalize();
+    },
     dispose() {
       group.traverse(o => {
         if (o.geometry) o.geometry.dispose();

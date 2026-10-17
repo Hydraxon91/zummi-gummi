@@ -52,6 +52,7 @@ export function createNavMesh(opts = {}) {
   const cell = opts.cell ?? 0.75;
   const agentRadius = opts.agentRadius ?? 0.36;
   const extraClearance = opts.extraClearance ?? 0.10;
+  const insideBounds = opts.insideBounds || null;
 
   const cols = Math.max(1, Math.ceil((maxX - minX) / cell));
   const rows = Math.max(1, Math.ceil((maxZ - minZ) / cell));
@@ -142,9 +143,10 @@ export function createNavMesh(opts = {}) {
       const z = cz(iz);
       for (let ix = 0; ix < cols; ix++) {
         const x = cx(ix);
-        if (x < minX + edge || x > maxX - edge || z < minZ + edge || z > maxZ - edge) {
-          walk[idx(ix, iz)] = 0;
-        }
+        const outside = insideBounds
+          ? !insideBounds(x, z, edge)
+          : (x < minX + edge || x > maxX - edge || z < minZ + edge || z > maxZ - edge);
+        if (outside) walk[idx(ix, iz)] = 0;
       }
     }
 
@@ -367,7 +369,7 @@ export function createNavMesh(opts = {}) {
   }
 
   return {
-    minX, maxX, minZ, maxZ, cell, cols, rows, agentRadius,
+    minX, maxX, minZ, maxZ, cell, cols, rows, agentRadius, insideBounds,
     addSolid, clearSolids, setDynamic, removeDynamic,
     bake, isWalkable, nearestWalkable, findPath, lineClear,
     buildDebugObject, validate,

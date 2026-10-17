@@ -14,8 +14,10 @@ import { createHorizon } from './horizon.js';
 import { createAeroHomes } from './homes.js';
 import { createBackdrop } from './backdrop.js';
 import { createStudioHouse } from './studiohouse.js';
+import { createBushCollection } from './bushes.js';
+import { FIELD_BOUNDS, FIELD_RADIUS, fieldInside, fieldRadiusAt } from './fieldshape.js';
 
-export const FIELD_BOUNDS = { hx: 46, hz: 30 };
+export { FIELD_BOUNDS };
 export const POND = { x: -17, z: 2, rx: 6.6, rz: 4.3, waterY: 0.045 };
 export const POND_HOLE = { hx: POND.rx * 0.78, hz: POND.rz * 0.78, floorY: -0.8 };
 
@@ -195,6 +197,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   const nav = createNavMesh({
     minX: -hx, maxX: hx, minZ: -hz, maxZ: hz,
     cell: 0.8, agentRadius: 0.38, extraClearance: 0.10,
+    insideBounds: (x, z, edge) => fieldInside(x, z, edge),
   });
 
   const colliders = [];
@@ -277,10 +280,91 @@ export function buildField({ scene, camera, renderer, sky }) {
   const pebbleMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, clearcoat: 0.5 });
   const padMat = new THREE.MeshPhysicalMaterial({ color: 0x66b85b, roughness: 0.25, clearcoat: 0.7 });
 
+  // ---------------------------------------------------------------- dirt trails
+  // The trail network is authored, but its ground footprint is one shared mask:
+  // the lawn paints soil from it and the grass shrinks/tints over the same mask,
+  // so the edge reads as grass thinning into a worn path rather than a decal.
+  const trailHub = { x: 0, z: 0 };
+  const pondShore = { x: POND.x + POND.rx * 0.92, z: POND.z + 0.4 };
+  const trailRoutes = [
+    { w: .78, pts: [{x:10,z:47},{x:5,z:33},{x:1,z:23},{x:4,z:15},{x:-1,z:7},trailHub] },
+    { w: .64, pts: [trailHub,{x:-3,z:-2.8},homes[0].door] },
+    { w: .58, pts: [homes[0].door,{x:-12,z:-8},{x:-13,z:-1},{x:-9,z:4},homes[1].door] },
+    { w: .54, pts: [homes[1].door,{x:-15,z:12},{x:-24,z:8},{x:-31,z:-4},{x:-28,z:-11},homes[7].door] },
+    { w: .62, pts: [trailHub,{x:4,z:-3},{x:3,z:-9},homes[2].door,{x:8,z:-12},{x:10,z:-8},homes[3].door] },
+    { w: .58, pts: [homes[3].door,{x:16,z:-8},{x:23,z:-4},homes[6].door,{x:27,z:3},{x:23,z:10},homes[5].door,{x:16,z:6},homes[4].door] },
+    { w: .52, pts: [homes[4].door,{x:9,z:5},{x:5,z:4},trailHub] },
+    { w: .52, pts: [trailHub,{x:-2,z:3},{x:-7,z:2},pondShore] },
+    { w: .66, pts: [trailHub,{x:-2,z:-5},{x:1,z:-10},{x:-1,z:-12},STUDIO_HOUSE.door] },
+    { w: .46, pts: [trailHub,{x:-6,z:10},{x:-15,z:18},{x:-30,z:22},{x:-46,z:14},{x:-55,z:0},{x:-48,z:-18},{x:-34,z:-26},{x:-15,z:-28},{x:2,z:-25},{x:18,z:-31},{x:33,z:-26},{x:46,z:-10},{x:50,z:10},{x:39,z:27},{x:22,z:38},{x:8,z:42},trailHub] },
+  ];
+  const pathMaskExtent = (FIELD_RADIUS + 8) * 2;
+  const pathMaskRes = 1024;
+  const pathCanvas = document.createElement('canvas');
+  pathCanvas.width = pathCanvas.height = pathMaskRes;
+  const pathCtx = pathCanvas.getContext('2d', { willReadFrequently: true });
+  pathCtx.fillStyle = '#000';
+  pathCtx.fillRect(0, 0, pathMaskRes, pathMaskRes);
+  const pathWorldToPx = (x, z) => [
+    ((x + pathMaskExtent * .5) / pathMaskExtent) * pathMaskRes,
+    ((z + pathMaskExtent * .5) / pathMaskExtent) * pathMaskRes,
+  ];
+  const pathRng = rng(552);
+  const stampDirt = (x, z, radius, alpha) => {
+    const [px, py] = pathWorldToPx(x, z);
+    const r = (radius / pathMaskExtent) * pathMaskRes;
+    if (r < .35) return;
+    pathCtx.globalAlpha = alpha;
+    pathCtx.beginPath();
+    pathCtx.arc(px, py, r, 0, Math.PI * 2);
+    pathCtx.fill();
+  };
+  pathCtx.fillStyle = '#fff';
+  // Central dirt hub.
+  for (let i = 0; i < 44; i++) {
+    const a = pathRng() * Math.PI * 2, rr = pathRng() * .8;
+    stampDirt(trailHub.x + Math.cos(a) * rr, trailHub.z + Math.sin(a) * rr,
+      3.6 + pathRng() * 1.25, .75 + pathRng() * .25);
+  }
+  for (const route of trailRoutes) {
+    const curve = new THREE.CatmullRomCurve3(route.pts.map(p => new THREE.Vector3(p.x, 0, p.z)));
+    const n = Math.max(18, Math.round(curve.getLength() / .24));
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      const p = curve.getPoint(u);
+      const tan = curve.getTangent(u);
+      const nx = -tan.z, nz = tan.x;
+      const wobble = Math.sin(i * .73 + route.w * 19.0) * .18 + (pathRng() - .5) * .16;
+      const x = p.x + nx * wobble, z = p.z + nz * wobble;
+      // Broad soft shoulder then a denser worn centre. The irregular stamp
+      // radii create the ragged, nibbled grass boundary.
+      stampDirt(x, z, route.w * (.62 + pathRng() * .22), .26);
+      stampDirt(x, z, route.w * (.34 + pathRng() * .16), .72);
+    }
+    // A slightly wider landing at every door endpoint.
+    const end = route.pts[route.pts.length - 1];
+    stampDirt(end.x, end.z, route.w * .92, .68);
+  }
+  pathCtx.globalAlpha = 1;
+  const pathMaskData = pathCtx.getImageData(0, 0, pathMaskRes, pathMaskRes).data;
+  const pathValueAt = (x, z) => {
+    if (x < -pathMaskExtent * .5 || x > pathMaskExtent * .5 || z < -pathMaskExtent * .5 || z > pathMaskExtent * .5) return 0;
+    const ix = Math.max(0, Math.min(pathMaskRes - 1, Math.floor(((x + pathMaskExtent * .5) / pathMaskExtent) * pathMaskRes)));
+    const iz = Math.max(0, Math.min(pathMaskRes - 1, Math.floor(((z + pathMaskExtent * .5) / pathMaskExtent) * pathMaskRes)));
+    return pathMaskData[(iz * pathMaskRes + ix) * 4] / 255;
+  };
+  const pathMaskTex = new THREE.CanvasTexture(pathCanvas);
+  pathMaskTex.colorSpace = THREE.NoColorSpace;
+  pathMaskTex.minFilter = THREE.LinearFilter;
+  pathMaskTex.magFilter = THREE.LinearFilter;
+  pathMaskTex.wrapS = pathMaskTex.wrapT = THREE.ClampToEdgeWrapping;
+  const pathMaskUniform = { value: pathMaskTex };
+  const pathExtentUniform = { value: pathMaskExtent };
+
   // ---------------------------------------------------------------- lawn / hills
   const lawnTex = grassTexture();
   const lawn = new THREE.Mesh(
-    new THREE.PlaneGeometry(220, 170, 1, 1),
+    new THREE.CircleGeometry(FIELD_RADIUS + 8, 128),
     new THREE.MeshLambertMaterial({
       map: lawnTex, color: 0x88a566,
     })
@@ -288,6 +372,30 @@ export function buildField({ scene, camera, renderer, sky }) {
   lawn.name = 'meadowLawn';
   lawn.rotation.x = -Math.PI / 2;
   lawn.position.y = -0.02;
+  lawn.material.onBeforeCompile = (shader) => {
+    shader.uniforms.uPathMask = pathMaskUniform;
+    shader.uniforms.uPathExtent = pathExtentUniform;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vPathWorld;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPathWorld = (modelMatrix * vec4(transformed, 1.0)).xz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uPathMask;\nuniform float uPathExtent;\nvarying vec2 vPathWorld;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        vec2 pathUv = (vPathWorld + uPathExtent * .5) / uPathExtent;
+        float pathRaw = texture2D(uPathMask, pathUv).r;
+        float pathNoise = sin(vPathWorld.x * 4.7 + vPathWorld.y * 3.1) * .035
+                        + sin(vPathWorld.x * 1.7 - vPathWorld.y * 5.3) * .025;
+        float path = smoothstep(.20, .62, pathRaw + pathNoise);
+        vec3 soil = mix(vec3(.48,.35,.22), vec3(.68,.51,.32),
+          .45 + .35 * sin(vPathWorld.x * .8 + vPathWorld.y * 1.3));
+        diffuseColor.rgb = mix(diffuseColor.rgb, soil, path * .96);
+        // The meadow disc lightens into the hill palette before the terrain
+        // begins, so the circumference has no hard green-colour step.
+        float edgeT = smoothstep(52.0, 69.0, length(vPathWorld));
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.31,.49,.23), edgeT * .64);
+      `);
+  };
+  lawn.material.customProgramCacheKey = () => 'meadowLawnPathsV1';
   group.add(lawn);
 
   // Detailed rolling backdrop + layered low-LOD tree belts.
@@ -419,9 +527,13 @@ export function buildField({ scene, camera, renderer, sky }) {
     shader.uniforms.uBearCount = grassBearCount;
     shader.uniforms.uGrassCoverage = grassCoverage;
     shader.uniforms.uGrassDrawDistance = grassDrawDistance;
+    shader.uniforms.uPathMask = pathMaskUniform;
+    shader.uniforms.uPathExtent = pathExtentUniform;
     shader.vertexShader = WIND_GLSL
       + '\nuniform vec4 uBears[48];\nuniform int uBearCount;'
-      + '\nuniform float uGrassCoverage;\nuniform float uGrassDrawDistance;\n'
+      + '\nuniform float uGrassCoverage;\nuniform float uGrassDrawDistance;'
+      + '\nuniform sampler2D uPathMask;\nuniform float uPathExtent;'
+      + '\nvarying float vPathDirt;\n'
       + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
       #include <begin_vertex>
@@ -483,10 +595,28 @@ export function buildField({ scene, camera, renderer, sky }) {
           transformed.x += localBend.x;
           transformed.z += localBend.y;
         }
+
+        // Same authored path mask as the lawn. Blades shrink to tiny stubble at
+        // the centre and fade out over the ragged shoulder; the soil tint keeps
+        // the remaining short blades from speckling the trail.
+        vec2 pathBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
+        float pathRaw = texture2D(uPathMask, (pathBase + uPathExtent * .5) / uPathExtent).r;
+        vPathDirt = smoothstep(.10, .68, pathRaw);
+        transformed.y *= 1.0 - vPathDirt * .95;
       #endif
     `);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vPathDirt;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.48,.35,.22), vPathDirt * .62);
+      `)
+      .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+        // Blade normals are flattened to up so the field does not shimmer or
+        // turn black when a double-sided card is viewed from behind.
+        normal = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));
+      `);
   };
-  grassMat.customProgramCacheKey = () => 'meadowGrassV5';
+  grassMat.customProgramCacheKey = () => 'meadowGrassV8';
 
   const grassChunks = [];
   let grassEnabled = true;
@@ -518,21 +648,36 @@ export function buildField({ scene, camera, renderer, sky }) {
       });
     };
 
-    // Deterministic scatter rather than a grid. The old jittered lattice was
-    // still visible at grazing camera angles; random placement plus the wider
-    // tuft footprint removes rows and keeps the density organic.
-    const target = 44000;
+    // Area-weighted circular scatter. Keep the old village-core density and
+    // carry a lighter but continuous carpet through the new outer ring.
+    const CORE_R = 43;
+    const TARGET_CORE = 44000;
+    const TARGET_OUTER = 30000;
     let total = 0, tries = 0;
-    while (total < target && tries++ < target * 1.8) {
-      const x = -hx + 1.2 + gr() * (2 * hx - 2.4);
-      const z = -hz + 1.2 + gr() * (2 * hz - 2.4);
+    const R = FIELD_RADIUS - 1.1;
+    const R2 = R * R, CORE_R2 = CORE_R * CORE_R;
+    const place = (outer) => {
+      const a = gr() * Math.PI * 2;
+      const r = outer
+        ? Math.sqrt(CORE_R2 + gr() * (R2 - CORE_R2))
+        : Math.sqrt(gr()) * CORE_R;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (!fieldInside(x, z, 0.9)) return false;
+      if (pathValueAt(x, z) > .62) return false;
       const patch = 0.92 + 0.07 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 2.1)
                           + 0.04 * Math.cos(z * 0.23 - x * 0.07);
-      if (gr() > patch) continue;
-      if (solidAt(x, z, 0.055)) continue;
+      if (gr() > patch) return false;
+      if (solidAt(x, z, 0.055)) return false;
       const scale = (0.52 + gr() * 0.34) * (0.84 + gr() * 0.34);
       add(x, z, scale, gr(), gr());
-      total++;
+      return true;
+    };
+    while (total < TARGET_CORE && tries++ < TARGET_CORE * 1.8) {
+      if (place(false)) total++;
+    }
+    tries = 0;
+    while (total < TARGET_CORE + TARGET_OUTER && tries++ < TARGET_OUTER * 2.2) {
+      if (place(true)) total++;
     }
     for (const [key, parts] of buckets) {
       if (!parts.length) continue;
@@ -553,7 +698,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   // ---------------------------------------------------------------- placement helpers
   // make sure props do not register on top of each other
   function solidAt(x, z, pad = 0) {
-    if (Math.abs(x) > hx - 0.6 || Math.abs(z) > hz - 0.6) return true;
+    if (!fieldInside(x, z, 0.6)) return true;
     for (const c of colliders) {
       const rr = (c.r || 0.35) + pad;
       if ((x - c.x) ** 2 + (z - c.z) ** 2 < rr * rr) return true;
@@ -563,39 +708,8 @@ export function buildField({ scene, camera, renderer, sky }) {
     return px * px + pz * pz < 1;
   }
 
-  // ---------------------------------------------------------------- paths
+  // Dirt trail geometry is painted into the shared path mask above.
   const pathStones = [];
-  const pathRng = rng(552);
-  function addPath(from, to) {
-    const mid = new THREE.Vector3((from.x + to.x) * 0.5 + (pathRng() - 0.5) * 3, 0, (from.z + to.z) * 0.5 + (pathRng() - 0.5) * 3);
-    const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(from.x, 0, from.z), mid, new THREE.Vector3(to.x, 0, to.z),
-    ]);
-    const n = Math.max(10, Math.round(curve.getLength() / 0.72));
-    for (let i = 0; i < n; i++) {
-      const p = curve.getPoint(i / n);
-      if (solidAt(p.x, p.z, 0.10)) continue;
-      const s = 0.8 + pathRng() * 0.55;
-      const col = new THREE.Color().setHSL(0.10, 0.24, 0.76 + pathRng() * 0.12);
-      pathStones.push({ m: localMatrix({ x: p.x, y: 0.024, z: p.z, ry: pathRng() * 6.283, sx: s, sy: 0.05, sz: s * 0.72 }), c: col });
-    }
-  }
-  for (const h of homes) addPath(h.door, { x: (pathRng() - 0.5) * 1.2, z: (pathRng() - 0.5) * 1.2 });
-  addPath({ x: 0, z: -1.8 }, { x: POND.x + POND.rx * 0.92, z: POND.z + 0.4 });
-  addPath({ x: 0.6, z: 2.0 }, { x: 1.6, z: 25.0 });
-  addPath({ x: 0, z: -1.6 }, STUDIO_HOUSE.door);
-
-  // plaza ring
-  for (let ring = 0; ring < 2; ring++) {
-    const rad = 2.35 + ring * 0.62;
-    const n = ring ? 28 : 20;
-    for (let i = 0; i < n; i++) {
-      const a = i / n * Math.PI * 2;
-      const s = 0.85 + pathRng() * 0.45;
-      pathStones.push({ m: localMatrix({ x: Math.cos(a)*rad, y: 0.024 + ring*0.002, z: Math.sin(a)*rad, ry: pathRng()*6.283, sx: s, sy: 0.045, sz: s*0.7 }), c: new THREE.Color().setHSL(0.10, 0.2, 0.8) });
-    }
-  }
-  instanced(new THREE.CylinderGeometry(0.20, 0.24, 1, 7), stoneFlatMat, pathStones, false, group);
 
   // ---------------------------------------------------------------- flowers
   {
@@ -615,12 +729,16 @@ export function buildField({ scene, camera, renderer, sky }) {
       [-4, 4, 2.5], [6, 7, 2.2], [-3, -4, 2.4], [9, -1, 2.4], [-10, 1, 2.5],
       [0, 9, 2.0], [17, 8, 2.6], [-14, -4, 2.2], [22, -8, 2.4], [-20, 14, 2.3],
       [0, 15, 3.4], [-8, 13, 2.8], [9, 15, 3.0], [4, 21, 2.6], [-5, 22, 2.7],
+      [34, 28, 4.2], [-34, 20, 4.0], [28, -30, 4.2], [-24, -34, 3.8],
+      [48, -2, 3.6], [-44, 36, 4.0], [14, 44, 3.8], [-8, -42, 3.6],
     ];
     let tries = 0;
-    while (blooms.length < 130 && tries++ < 3000) {
+    while (blooms.length < 190 && tries++ < 4500) {
       const cl = clusters[Math.floor(fr() * clusters.length)];
       const a = fr() * Math.PI * 2, rr = Math.sqrt(fr()) * cl[2];
       const x = cl[0] + Math.cos(a) * rr, z = cl[1] + Math.sin(a) * rr;
+      if (!fieldInside(x, z, 1.0)) continue;
+      if (pathValueAt(x, z) > .35) continue;
       if (solidAt(x, z, 0.28)) continue;
       if ((x*x)/(POND.rx*POND.rx) + ((z-POND.z)*(z-POND.z))/(POND.rz*POND.rz) < 1.15) continue;
       if (x*x + z*z < 4.5) continue;
@@ -692,6 +810,36 @@ export function buildField({ scene, camera, renderer, sky }) {
     });
     instanced(geo, pebbleMat, parts, false, group);
   }
+
+  // ---------------------------------------------------------------- bushes
+  // Branched shrubs fill the new playable ring and soften the trail edges. The
+  // smaller ones are walk-through; only the largest get collision/nav solids.
+  const bushLots = [];
+  {
+    const br = rng(9917);
+    let attempts = 0;
+    while (bushLots.length < 86 && attempts++ < 900) {
+      const a = br() * Math.PI * 2;
+      const rr = 29 + Math.sqrt(br()) * (FIELD_RADIUS - 34);
+      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+      if (!fieldInside(x, z, 2.2)) continue;
+      if (pathValueAt(x, z) > .16) continue;
+      if (solidAt(x, z, .62)) continue;
+      if (homes.some(h => Math.hypot(x - h.door.x, z - h.door.z) < 2.6)) continue;
+      if (Math.hypot(x - STUDIO_HOUSE.door.x, z - STUDIO_HOUSE.door.z) < 3.2) continue;
+      if (bushLots.some(b => Math.hypot(x - b.x, z - b.z) < 3.0)) continue;
+      const scale = .58 + br() * .82;
+      bushLots.push({ x, z, scale, y: 0 });
+      if (scale > .92) {
+        const r = .34 * scale;
+        colliders.push({ kind: 'bush', x, z, r, y: .55, scale });
+        nav.addSolid({ kind: 'bush', x, z, r });
+      }
+    }
+  }
+  const bushes = createBushCollection({ lots: bushLots });
+  group.add(bushes.group);
+  group.userData.bushes = bushes.count;
 
   // ---------------------------------------------------------------- pond
   const pond = {
@@ -1044,7 +1192,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     const ADULT_BEAR_HEIGHT = 1.375;
     const DOOR_HEADROOM = 0.16;
     const errors = [];
-    const inside = (x,z,r) => Math.abs(x) + r < hx - 1 && Math.abs(z) + r < hz - 1;
+    const inside = (x,z,r) => fieldInside(x, z, r + 0.35);
     for (const door of aeroHomes.doorClearance) {
       if (door.top < ADULT_BEAR_HEIGHT + DOOR_HEADROOM) {
         errors.push(`${door.name} doorframe is below bear headroom`);
@@ -1095,7 +1243,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   if (layoutErrors.length) console.warn('[meadow layout]', layoutErrors);
 
   function isCannonSpot(x, z) {
-    if (Math.abs(x) > hx - 0.7 || Math.abs(z) > hz - 0.7) return false;
+    if (!fieldInside(x, z, 0.7)) return false;
     for (const h of homes) if (Math.hypot(x-h.x, z-h.z) < h.r + 0.8) return false;
     for (const t of TREE_LOTS) if (Math.hypot(x-t.x, z-t.z) < 0.33 * WORLD_SCALE.tree + 0.8) return false;
     for (const r of ROCK_LOTS) if (Math.hypot(x-r.x, z-r.z) < 0.5*r.s*WORLD_SCALE.prop + 0.7) return false;
@@ -1206,6 +1354,8 @@ export function buildField({ scene, camera, renderer, sky }) {
     }
     // water uniforms follow the sky
     if (sky) {
+      backdrop.setSun(sky.sunDir);
+      bushes.setSun(sky.sunDir);
       waterUniforms.uSunDir.value.copy(sky.sunDir);
       waterUniforms.uMoonDir.value.copy(sky.moonDir);
       waterUniforms.uTime.value += dt;
@@ -1226,7 +1376,7 @@ export function buildField({ scene, camera, renderer, sky }) {
 
   return {
     group, sky, nav, navDebug, homes, colliders, pond, bounds: FIELD_BOUNDS,
-    pathStones, cannonHome: CANNON_HOME, wind, trees, horizon, aeroHomes, backdrop, studioHouse,
+    pathStones, cannonHome: CANNON_HOME, wind, trees, horizon, aeroHomes, backdrop, studioHouse, bushes,
     fireflies: fireflyPoints, fireflyLights,
     valid: layoutErrors.length === 0,
     layoutErrors,
