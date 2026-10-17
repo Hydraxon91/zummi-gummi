@@ -225,6 +225,8 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false, 
 renderer.setPixelRatio(Math.min(devicePixelRatio||1, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 if ('transmissionResolutionScale' in renderer) renderer.transmissionResolutionScale = 0.5;
 
 const scene = new THREE.Scene();
@@ -356,6 +358,7 @@ class Bear{
     this.hopSpeedMin=0.80; this.hopSpeedMax=1.65;
     this.pregnant=false; this.gestation=0; this.mateCooldown=0; this.birthRetryT=0;
     this.parentUids=[]; this.fatherUid=0; this.pendingStage=null;
+    this.bedtime=20; this.wakeTime=5;
     this.name=''; this.home=''; this.inPond=false;
     this.ai=null;
     this.needsBuild=true;
@@ -383,6 +386,7 @@ class Bear{
     this.mesh = new THREE.Mesh(g, this.material);
     this.mesh.matrixAutoUpdate = false;
     this.mesh.frustumCulled = true;
+    this.mesh.castShadow = true;
     this.mesh.visible = false;
     scene.add(this.mesh);
   }
@@ -458,6 +462,8 @@ function spawn(x, z, y, flavor, opts={}){
   b.birthRetryT=0;
   b.parentUids=Array.isArray(opts.parentUids) ? opts.parentUids.slice() : [];
   b.fatherUid=Number.isFinite(opts.fatherUid) ? opts.fatherUid : 0;
+  b.bedtime=Number.isFinite(opts.bedtime) ? opts.bedtime : 20+Math.random()*2.5;
+  b.wakeTime=Number.isFinite(opts.wakeTime) ? opts.wakeTime : 5+Math.random()*2;
   b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
   b.ai=null;
   if (opts.sex) b.sex = opts.sex;
@@ -581,6 +587,8 @@ function tryBirth(mother) {
     home,
     parentUids: [mother.uid, father ? father.uid : 0].filter(Boolean),
     fatherUid: father ? father.uid : 0,
+    bedtime: mother.bedtime,
+    wakeTime: mother.wakeTime,
     hopSpeedMin: pace.min,
     hopSpeedMax: pace.max,
   });
@@ -994,6 +1002,28 @@ function accumulateForces(b, dt){
   }
 }
 
+function rescuePondBear(b, inside) {
+  if (!b || !b.active || !field) return false;
+  let dx = 0, dz = 0;
+  if (!inside) {
+    const p = field.nav && field.nav.nearestWalkable ? field.nav.nearestWalkable(b.cx, b.cz) : null;
+    if (p) { dx = p.x - b.cx; dz = p.z - b.cz; }
+  }
+  const targetY = inside ? 0.36 : 0.34;
+  const dy = targetY - b.cy;
+  if (Math.abs(dx) + Math.abs(dz) + Math.abs(dy) < .001) return false;
+  for (let i = 0; i < NP; i++) {
+    b.px[i] += dx; b.py[i] += dy; b.pz[i] += dz;
+    b.vx[i] = 0; b.vy[i] = 0; b.vz[i] = 0;
+    b.snap[i*3] = b.px[i]; b.snap[i*3+1] = b.py[i]; b.snap[i*3+2] = b.pz[i];
+  }
+  b.cx += dx; b.cy += dy; b.cz += dz;
+  b.inPond = inside;
+  b.needsBuild = true;
+  uploadBearPositions(b, true);
+  return true;
+}
+
 function physicsStep(dt){
   if (!PHYS) return;
   let n = 0;
@@ -1028,6 +1058,12 @@ function physicsStep(dt){
       if (!inside) b.inPond = false;
       else if (!b.inPond && b.cy < 0.50){ b.inPond = true; field.splash(b.cx, b.cz, 1.0); }
       else if (b.inPond && b.cy > 1.05) b.inPond = false;
+      // The rectangular physics cutout is deliberately larger than the water
+      // mesh at its corners. If a bear ends up below the lawn or basin, recover
+      // it instead of leaving it wedged under the ground after a swim.
+      if (b.grabs === 0 && ((inside && b.cy < 0.10) || (!inside && b.cy < -0.12))) {
+        rescuePondBear(b, inside);
+      }
     } else if (b.inPond) b.inPond = false;
     if (b.grabs > 0 && !b.awake){ PHYS.wake(b.handles, NP); b.awake = true; }
     // gentle kinematic righting when settled (yields to pushes via the speed gate)
@@ -1538,6 +1574,9 @@ let shadowTick = 0;
 let fieldShadowTick = 0;
 function drawShadows(){
   if (isMeadow()){
+    // Real directional maps cover the meadow on the high tiers; the canvas
+    // blobs are only a low-tier fallback and are hidden in that case.
+    if (quality.shadowMap > 0) return;
     const tick = fieldShadowTick++;
     if (tick % 2 !== 0) return;
     const p = launcher ? launcher.getPosition() : null;
@@ -1602,25 +1641,38 @@ function drawStudioShadows(){
 }
 
 /* =============================== VIEW / QUALITY ============================ */
-const quality = { dpr:2, grid:42, shadowEvery:1, transmission:0.5, dispersion:true, snap:true, level:0 };
+const quality = { dpr:2, grid:42, shadowEvery:1, shadowMap:2048, transmission:0.5, dispersion:true, snap:true, level:0 };
 const surfaceStats = { built:0, builtMs:0, crowdGrid:42 };
 let effectsMode = 'soft';
+let effectsDof = false;
 try {
   const saved = localStorage.getItem('gummy.effects');
   if (saved === 'off' || saved === 'soft' || saved === 'full') effectsMode = saved;
   else if (matchMedia('(pointer: coarse)').matches || innerWidth < 720) effectsMode = 'off';
+  effectsDof = localStorage.getItem('gummy.effectsDof') === 'on';
 } catch (err) {}
+function applyRealShadows(){
+  const size = quality.shadowMap | 0;
+  const on = size > 0;
+  renderer.shadowMap.enabled = on;
+  if (sky && sky.setShadows) sky.setShadows(on, size || 1024);
+  const blob = field && field.group ? field.group.getObjectByName('meadowShadow') : null;
+  if (blob) blob.visible = !on;
+}
+
 const LEVELS = [
-  { dpr:2.0,  grid:42, shadowEvery:1, transmission:0.50, dispersion:true,  snap:true  },
-  { dpr:1.75, grid:36, shadowEvery:1, transmission:0.50, dispersion:true,  snap:true  },
-  { dpr:1.5,  grid:30, shadowEvery:2, transmission:0.42, dispersion:false, snap:false },
-  { dpr:1.25, grid:25, shadowEvery:3, transmission:0.36, dispersion:false, snap:false },
+  { dpr:2.0,  grid:42, shadowEvery:1, shadowMap:2048, transmission:0.50, dispersion:true,  snap:true  },
+  { dpr:1.75, grid:36, shadowEvery:1, shadowMap:1024, transmission:0.50, dispersion:true,  snap:true  },
+  { dpr:1.5,  grid:30, shadowEvery:2, shadowMap:0,    transmission:0.42, dispersion:false, snap:false },
+  { dpr:1.25, grid:25, shadowEvery:3, shadowMap:0,    transmission:0.36, dispersion:false, snap:false },
 ];
 function applyQuality(){
   const q = LEVELS[quality.level];
-  quality.grid=q.grid; quality.shadowEvery=q.shadowEvery; quality.transmission=q.transmission; quality.dispersion=q.dispersion; quality.snap=q.snap;
+  quality.grid=q.grid; quality.shadowEvery=q.shadowEvery; quality.shadowMap=q.shadowMap;
+  quality.transmission=q.transmission; quality.dispersion=q.dispersion; quality.snap=q.snap;
   setPixelRatioBudget();
   if ('transmissionResolutionScale' in renderer) renderer.transmissionResolutionScale = q.transmission;
+  applyRealShadows();
   if (effects){
     effects.setQuality(quality.level);
     effects.resize(innerWidth, innerHeight);
@@ -2325,6 +2377,7 @@ const leafSizeEl = document.getElementById('leafSize');
 const grassCoverageEl = document.getElementById('grassCoverage');
 const grassDistanceEl = document.getElementById('grassDistance');
 const effectsLevelEl = document.getElementById('effectsLevel');
+const effectsDofEl = document.getElementById('effectsDof');
 const meadowMoodEl = document.getElementById('meadowMood');
 let buddySig = '';
 let lastBuddyStatusTick = 0;
@@ -2592,19 +2645,25 @@ for (const el of [canopyFullnessEl, leafSizeEl, grassCoverageEl, grassDistanceEl
   if (el) el.addEventListener('input', applyNatureUI);
 }
 function syncEffectsUI(){
-  if (!effectsLevelEl) return;
-  effectsLevelEl.value = effectsMode;
+  if (effectsLevelEl) effectsLevelEl.value = effectsMode;
+  if (effectsDofEl){
+    effectsDofEl.value = effectsDof ? 'on' : 'off';
+    effectsDofEl.disabled = (effects ? effects.active : effectsMode) === 'off';
+  }
   if (effects){
     const state = effects.state();
-    effectsLevelEl.title = state.active !== state.requested
-      ? `Active: ${state.active} (quality fallback)`
-      : '';
+    if (effectsLevelEl){
+      effectsLevelEl.title = state.active !== state.requested
+        ? `Active: ${state.active} (quality fallback)`
+        : '';
+    }
   }
 }
 function applyEffectsUI(){
   if (effects){
     effects.setMode(effectsMode);
     effects.setQuality(quality.level);
+    effects.setDof(effectsDof);
   }
   syncEffectsUI();
 }
@@ -2615,6 +2674,15 @@ if (effectsLevelEl) {
       ? effectsLevelEl.value : 'soft';
     try { localStorage.setItem('gummy.effects', effectsMode); } catch (err) {}
     applyEffectsUI();
+  });
+}
+if (effectsDofEl) {
+  effectsDofEl.value = effectsDof ? 'on' : 'off';
+  effectsDofEl.addEventListener('change', () => {
+    effectsDof = effectsDofEl.value === 'on';
+    try { localStorage.setItem('gummy.effectsDof', effectsDof ? 'on' : 'off'); } catch (err) {}
+    if (effects) effects.setDof(effectsDof);
+    syncEffectsUI();
   });
 }
 
@@ -3360,9 +3428,13 @@ function animate(now){
   if (effects){
     effects.setEnabled(isMeadow());
     if (sky) effects.setTimeOfDay(sky.hours);
+    effects.setFocus(cam.dist);
   }
   const fxRendered = effects ? effects.render(dt) : false;
-  if (!fxRendered) renderer.render(scene, camera);
+  if (!fxRendered){
+    renderer.setRenderTarget(null);
+    renderer.render(scene, camera);
+  }
   const renderStats = fxRendered && effects ? effects.stats() : {
     calls: renderer.info.render.calls,
     tris: renderer.info.render.triangles,
@@ -3417,12 +3489,35 @@ function setJellyGlow(on){
   }
 }
 
+function configureMeadowShadows(){
+  if (!field) return;
+  const cast = (root) => {
+    if (!root || !root.traverse) return;
+    root.traverse(o => {
+      if (o.isMesh || o.isInstancedMesh) {
+        o.castShadow = true;
+        o.receiveShadow = false;
+      }
+    });
+  };
+  cast(field.aeroHomes && field.aeroHomes.group);
+  cast(field.trees && field.trees.group);
+  cast(field.bushes && field.bushes.group);
+  cast(field.studioHouse && field.studioHouse.group);
+  const lawn = field.group.getObjectByName('meadowLawn');
+  if (lawn) lawn.receiveShadow = true;
+  const bank = field.group.getObjectByName('meadowPondBank');
+  if (bank) bank.receiveShadow = true;
+}
+
 function ensureMeadow(){
   if (field) return;
   sky = createSky(scene, renderer);
   sky.setVisible(false);
   field = buildField({ scene, camera, renderer, sky });
   field.setVisible(false);
+  configureMeadowShadows();
+  applyRealShadows();
   for (const c of field.colliders){
     fieldColliderHandles.push(PHYS.staticSphere(c.x, c.y, c.z, c.r, 0.62, 0.08, 0));
   }
@@ -3490,6 +3585,8 @@ function seedMeadowBears(){
       if (i >= 4 && bears[0]) {
         b.parentUids = [bears[0].uid, bears[2] ? bears[2].uid : 0].filter(Boolean);
         b.home = bears[0].home || home;
+        b.bedtime = bears[0].bedtime;
+        b.wakeTime = bears[0].wakeTime;
       }
     }
   }
@@ -3506,7 +3603,7 @@ function snapshotBear(b){
     social: b.social, affection: b.affection, bonds: { ...(b.bonds || {}) },
     uid: b.uid, age: b.age, pregnant: !!b.pregnant, gestation: b.gestation,
     mateCooldown: b.mateCooldown || 0, parentUids: (b.parentUids || []).slice(),
-    fatherUid: b.fatherUid || 0,
+    fatherUid: b.fatherUid || 0, bedtime: b.bedtime, wakeTime: b.wakeTime,
     hopSpeedMin: b.hopSpeedMin, hopSpeedMax: b.hopSpeedMax,
     name: b.name, home: b.home,
     x: b.cx, z: b.cz, yaw: yawOfQuat(b.q),
@@ -3532,6 +3629,8 @@ function spawnFromState(st){
     mateCooldown: Number.isFinite(st.mateCooldown) ? st.mateCooldown : 0,
     parentUids: Array.isArray(st.parentUids) ? st.parentUids : [],
     fatherUid: Number.isFinite(st.fatherUid) ? st.fatherUid : 0,
+    bedtime: Number.isFinite(st.bedtime) ? st.bedtime : undefined,
+    wakeTime: Number.isFinite(st.wakeTime) ? st.wakeTime : undefined,
   });
   if (!b) return null;
   b.health = Number.isFinite(st.health) ? st.health : 100;
@@ -3782,9 +3881,11 @@ function fitWallsToTable(){
     effects = createEffects({
       renderer, scene, camera,
       width: innerWidth, height: innerHeight,
+      getSky: () => sky,
     });
     effects.setMode(effectsMode);
     effects.setQuality(quality.level);
+    effects.setDof(effectsDof);
   } catch (err) {
     console.warn('[effects] post-processing unavailable, using direct render:', err);
     effects = null;
@@ -4000,7 +4101,7 @@ window.__gummy = {
         hedges: field.backdrop.hedges,
       } : null,
       colliders: field.colliders.length,
-      pond: { x:field.pond.x, z:field.pond.z, rx:field.pond.rx, rz:field.pond.rz },
+      pond: { x:field.pond.x, z:field.pond.z, rx:field.pond.rx, rz:field.pond.rz, waterY:field.pond.waterY, hole:field.pond.hole },
       trees: field.trees ? field.trees.stats : null,
       horizon: field.horizon ? { towers:field.horizon.towers, windmills:field.horizon.windmills } : null,
       wind: field.wind ? { strength:field.wind.strength, dir:field.wind.direction, gust:field.wind.gust } : null,
@@ -4043,6 +4144,13 @@ window.__gummy = {
   },
   setTime(h){ if (!sky) return null; sky.setAuto(false); sky.setTime(+h); if (worlds.field){ worlds.field.time=sky.hours; worlds.field.auto=false; } syncAeroUI(true); return sky.hours; },
   sun(){ return sky ? { dir: sky.sunDir, visible: sky.sunVisible, hours: sky.hours } : null; },
+  shadows(){ return {
+    renderer: renderer.shadowMap.enabled,
+    quality: quality.level,
+    targetSize: quality.shadowMap,
+    sky: sky && sky.shadowState ? sky.shadowState : null,
+    blob: !!(field && field.group && field.group.getObjectByName('meadowShadow')?.visible),
+  }; },
   setMap(id){ requestMapSwitch(id); return activeWorld.mapId; },
   navPath(x0,z0,x1,z1){ if (!field) return null; return field.nav.findPath(x0,z0,x1,z1); },
   navDebug(on){ if (!field) return null; field.navDebug.visible = on === undefined ? !field.navDebug.visible : !!on; return field.navDebug.visible; },
@@ -4067,7 +4175,7 @@ window.__gummy = {
   launcherScreenOf(x, z){ return launcher ? launcher.screenOf(x, z) : null; },
   launcherMoveMode(on){ return launcher ? launcher.toggleMoveMode(on) : false; },
   world(){ return { map: activeWorld.mapId, wallHeight: getActiveMap().wallHeight, walls: worldWalls.walls.slice(), ground: worldWalls.ground, bounds: [worldWalls.hx, worldWalls.hz], launcher: launcher ? launcher.state() : null }; },
-  traits(){ return bears.map(b => ({ uid:b.uid, sex:b.sex, stage:b.stage, scale:b.scale, age:b.age, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, social:b.social, affection:b.affection, bonds:{ ...(b.bonds || {}) }, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, pregnant:!!b.pregnant, gestation:b.gestation, mateCooldown:b.mateCooldown, parentUids:(b.parentUids || []).slice(), fatherUid:b.fatherUid || 0, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null, partner:b.ai && b.ai.partner ? b.ai.partner.name : null })); },
+  traits(){ return bears.map(b => ({ uid:b.uid, sex:b.sex, stage:b.stage, scale:b.scale, age:b.age, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, social:b.social, affection:b.affection, bonds:{ ...(b.bonds || {}) }, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, pregnant:!!b.pregnant, gestation:b.gestation, mateCooldown:b.mateCooldown, parentUids:(b.parentUids || []).slice(), fatherUid:b.fatherUid || 0, bedtime:b.bedtime, wakeTime:b.wakeTime, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null, partner:b.ai && b.ai.partner ? b.ai.partner.name : null })); },
   ai(){ return ai ? ai.stats() : null; },
   setAI(v){ return ai ? ai.setEnabled(v) : false; },
   food(){ return field && field.food ? field.food.stats() : null; },
@@ -4173,6 +4281,13 @@ window.__gummy = {
     return effects ? effects.state() : null;
   },
   effectsState(){ return effects ? effects.state() : null; },
+  setEffectsDof(on){
+    effectsDof = !!on;
+    try { localStorage.setItem('gummy.effectsDof', effectsDof ? 'on' : 'off'); } catch (err) {}
+    if (effects) effects.setDof(effectsDof);
+    syncEffectsUI();
+    return effects ? effects.state() : null;
+  },
   setEffectsBloom(v){ return effects ? effects.setBloomScale(v) : null; },
   setEffectsExposure(v){ return effects ? effects.setExposureScale(v) : null; },
   renderProbe(frames = 30){
@@ -4180,7 +4295,10 @@ window.__gummy = {
     const gl = renderer.getContext();
     const t0 = performance.now();
     for (let i = 0; i < n; i++) {
-      if (!(effects && effects.render(0.016))) renderer.render(scene, camera);
+      if (!(effects && effects.render(0.016))){
+        renderer.setRenderTarget(null);
+        renderer.render(scene, camera);
+      }
       gl.finish();
     }
     return { frames:n, msPerFrame:+((performance.now() - t0) / n).toFixed(2) };

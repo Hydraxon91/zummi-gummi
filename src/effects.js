@@ -12,6 +12,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const GradeShader = {
@@ -55,6 +56,60 @@ const GradeShader = {
   `,
 };
 
+const GodRaysShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    tDepth: { value: null },
+    uSun: { value: new THREE.Vector2(.5, .5) },
+    uStrength: { value: 0 },
+    uThreshold: { value: .72 },
+    uColor: { value: new THREE.Color(0xffd9a4) },
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tDepth;
+    uniform vec2 uSun;
+    uniform float uStrength;
+    uniform float uThreshold;
+    uniform vec3 uColor;
+    varying vec2 vUv;
+
+    float luma(vec3 c) { return dot(c, vec3(.2126, .7152, .0722)); }
+    vec3 lightSource(vec2 uv) {
+      vec3 c = texture2D(tDiffuse, uv).rgb;
+      return c * smoothstep(uThreshold, uThreshold + .22, luma(c));
+    }
+
+    void main() {
+      vec3 scene = texture2D(tDiffuse, vUv).rgb;
+      vec2 delta = vUv - uSun;
+      vec3 shafts = vec3(0.0);
+      float weight = 0.0;
+      for (int i = 0; i < 20; i++) {
+        float t = float(i) / 19.0;
+        float w = 1.0 - t;
+        shafts += lightSource(vUv - delta * t) * w;
+        weight += w;
+      }
+      shafts /= max(weight, .0001);
+      // The depth prepass renders everything except the sky. A depth of ~1 is
+      // therefore a clear line to the sun; tree branches and buildings mask the
+      // shaft at that pixel.
+      float d = texture2D(tDepth, vUv).x;
+      float sky = smoothstep(.9990, .9998, d);
+      scene += shafts * uColor * (uStrength * sky);
+      gl_FragColor = vec4(scene, 1.0);
+    }
+  `,
+};
+
 function clamp01(n) {
   return n < 0 ? 0 : (n > 1 ? 1 : n);
 }
@@ -78,7 +133,7 @@ const MOODS = [
   { h: 24.0, tint: [.94, .98, 1.06], sat: 1.025, bloom: .30, threshold: .84, ao: .24, exp: .96 },
 ];
 
-export function createEffects({ renderer, scene, camera, width = 1, height = 1 }) {
+export function createEffects({ renderer, scene, camera, width = 1, height = 1, getSky = null }) {
   let requestedMode = 'soft';
   let qualityLevel = 0;
   let mapEnabled = true;
@@ -89,8 +144,16 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1 }
   let bloomScale = 1;
   let exposureScale = 1;
   let moodExposure = .89;
+  let dofEnabled = false;
+  let focusDistance = 8;
+  let raysActive = false;
   const tint = new THREE.Color();
   const bufferSize = new THREE.Vector2();
+  const rayDir = new THREE.Vector3();
+  const rayWorld = new THREE.Vector3();
+  const rayNdc = new THREE.Vector3();
+  const rayUv = new THREE.Vector2();
+  const clearColor = new THREE.Color();
 
   // Multisampled AO targets were unreliable in the headless driver; SMAA
   // below gives the composed image its edge cleanup instead.
@@ -109,6 +172,17 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1 }
     return result;
   };
 
+  const depthTexture = new THREE.DepthTexture(1, 1);
+  depthTexture.type = THREE.UnsignedIntType;
+  const depthTarget = new THREE.WebGLRenderTarget(1, 1, {
+    type: THREE.UnsignedByteType,
+    depthTexture,
+  });
+  const depthMaterial = new THREE.MeshDepthMaterial({
+    depthPacking: THREE.BasicDepthPacking,
+  });
+  const godRaysPass = new ShaderPass(GodRaysShader);
+
   const aoPass = new GTAOPass(scene, camera, 1, 1);
   aoPass.output = GTAOPass.OUTPUT.Default;
   aoPass.blendIntensity = .20;
@@ -117,13 +191,34 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1 }
     distanceFallOff: 1.0, scale: .92, samples: 8,
   });
   aoPass.updatePdMaterial({ lumaPhi: 9, depthPhi: 2, normalPhi: 3, radius: 6 });
+  // GTAO renders the sky group (including transparent sun/moon sprites) into
+  // its normal/depth buffer. That leaves a hard dark square around the sun in
+  // Full. The sky is already in the composer read buffer, so hide the group for
+  // the AO prepass only and let the clear depth stand in for empty sky.
+  const originalAORender = aoPass.render.bind(aoPass);
+  aoPass.render = (...args) => {
+    const sk = getSky ? getSky() : null;
+    const skyGroup = sk && sk.group;
+    const skyVisible = skyGroup ? skyGroup.visible : null;
+    if (skyGroup) skyGroup.visible = false;
+    try {
+      return originalAORender(...args);
+    } finally {
+      if (skyGroup) skyGroup.visible = skyVisible;
+    }
+  };
 
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), .16, .42, .94);
+  const bokehPass = new BokehPass(scene, camera, {
+    focus: 8, aperture: .0012, maxblur: .007,
+  });
   const gradePass = new ShaderPass(GradeShader);
   const smaaPass = new SMAAPass();
   const outputPass = new OutputPass();
 
   composer.addPass(renderPass);
+  composer.addPass(godRaysPass);
+  composer.addPass(bokehPass);
   composer.addPass(aoPass);
   composer.addPass(bloomPass);
   composer.addPass(smaaPass);
@@ -156,12 +251,67 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1 }
     aoPass.blendIntensity = .12 + ao * .25;
   }
 
+  function computeRay() {
+    if (!getSky) return null;
+    const sk = getSky();
+    if (!sk) return null;
+    const dir = sk.sunVisible ? sk.sunDir : (sk.moonVisible ? sk.moonDir : null);
+    if (!dir) return null;
+    camera.getWorldDirection(rayDir);
+    if (rayDir.dot(dir) <= .03) return null;
+    rayWorld.copy(camera.position).addScaledVector(dir, 100);
+    rayNdc.copy(rayWorld).project(camera);
+    if (rayNdc.z < -1 || rayNdc.z > 1) return null;
+    rayUv.set(rayNdc.x * .5 + .5, rayNdc.y * .5 + .5);
+    if (rayUv.x < -.35 || rayUv.x > 1.35 || rayUv.y < -.35 || rayUv.y > 1.35) return null;
+    const sun = sk.sunVisible;
+    return {
+      uv: rayUv,
+      color: sun ? 0xffd9a4 : 0xbfd5ff,
+      strength: sun ? 1 : .82,
+      moon: !sun,
+    };
+  }
+
+  function renderDepth() {
+    const sk = getSky ? getSky() : null;
+    const skyGroup = sk && sk.group;
+    const skyVisible = skyGroup ? skyGroup.visible : null;
+    if (skyGroup) skyGroup.visible = false;
+    const oldOverride = scene.overrideMaterial;
+    const oldBackground = scene.background;
+    const oldAutoClear = renderer.autoClear;
+    const oldShadowAuto = renderer.shadowMap.autoUpdate;
+    renderer.getClearColor(clearColor);
+    const oldAlpha = renderer.getClearAlpha();
+    scene.overrideMaterial = depthMaterial;
+    scene.background = null;
+    renderer.autoClear = true;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.setClearColor(0xffffff, 1);
+    try {
+      renderer.setRenderTarget(depthTarget);
+      renderer.clear();
+      renderer.render(scene, camera);
+    } finally {
+      renderer.setClearColor(clearColor, oldAlpha);
+      renderer.shadowMap.autoUpdate = oldShadowAuto;
+      renderer.autoClear = oldAutoClear;
+      scene.background = oldBackground;
+      scene.overrideMaterial = oldOverride;
+      if (skyGroup) skyGroup.visible = skyVisible;
+    }
+    godRaysPass.uniforms.tDepth.value = depthTexture;
+  }
+
   function resolveMode() {
     let mode = requestedMode;
     if (mode === 'full' && qualityLevel > 1) mode = 'soft';
     if (mode === 'soft' && qualityLevel >= 3) mode = 'off';
     activeMode = mapEnabled ? mode : 'off';
     aoPass.enabled = activeMode === 'full';
+    bokehPass.enabled = dofEnabled && activeMode !== 'off';
+    godRaysPass.enabled = activeMode !== 'off';
     bloomPass.enabled = activeMode !== 'off';
     gradePass.enabled = activeMode !== 'off';
     smaaPass.enabled = activeMode !== 'off';
@@ -196,6 +346,10 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1 }
       Math.max(1, Math.round(bufferSize.x * .5)),
       Math.max(1, Math.round(bufferSize.y * .5)),
     );
+    depthTarget.setSize(
+      Math.max(1, Math.round(bufferSize.x * .5)),
+      Math.max(1, Math.round(bufferSize.y * .5)),
+    );
     const bloomW = Math.max(1, Math.round(bufferSize.x * .5));
     const bloomH = Math.max(1, Math.round(bufferSize.y * .5));
     bloomPass.resolution.set(bloomW, bloomH);
@@ -204,6 +358,17 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1 }
 
   function render(dt) {
     if (activeMode === 'off' || !mapEnabled) return false;
+    const ray = computeRay();
+    raysActive = !!ray;
+    godRaysPass.enabled = raysActive;
+    if (ray) {
+      godRaysPass.uniforms.uSun.value.copy(ray.uv);
+      godRaysPass.uniforms.uColor.value.setHex(ray.color);
+      godRaysPass.uniforms.uThreshold.value = ray.moon ? .52 : .72;
+      godRaysPass.uniforms.uStrength.value = ray.strength * .72;
+      renderDepth();
+    }
+    if (bokehPass.enabled) bokehPass.uniforms.focus.value = focusDistance;
     const exposure = renderer.toneMappingExposure;
     renderer.toneMappingExposure = exposure * exposureScale * moodExposure;
     try {
@@ -228,6 +393,8 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1 }
       bloomScale,
       exposureScale,
       moodExposure,
+      dof: dofEnabled,
+      rays: raysActive,
       scene: { calls: sceneCalls, tris: sceneTris },
       composer: { w: composer._width, h: composer._height, ratio: composer._pixelRatio },
       target: { w: composer.renderTarget1.width, h: composer.renderTarget1.height },
@@ -251,10 +418,22 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1 }
     return exposureScale;
   }
 
+  function setDof(on) {
+    dofEnabled = !!on;
+    resolveMode();
+    return dofEnabled;
+  }
+
+  function setFocus(v) {
+    focusDistance = Math.max(.5, Math.min(40, Number(v) || 8));
+    return focusDistance;
+  }
+
   return {
     render, resize, setMode, setQuality, setEnabled, setTimeOfDay, setBloomScale, setExposureScale,
-    stats, state,
+    setDof, setFocus, stats, state,
     get active() { return activeMode; },
     get enabled() { return activeMode !== 'off'; },
+    get dof() { return dofEnabled; },
   };
 }

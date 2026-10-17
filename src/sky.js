@@ -335,13 +335,13 @@ export function createSky(scene, renderer) {
   // sun + halo
   const sunTex = sunTexture();
   const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: sunTex, transparent: true, opacity: 0.34, depthWrite: false,
+    map: sunTex, transparent: true, alphaTest: .02, opacity: 0.34, depthWrite: false,
     blending: THREE.AdditiveBlending, toneMapped: false, fog: false,
   }));
   sunGlow.scale.set(30, 30, 1);
   group.add(sunGlow);
   const sun = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: sunTex, transparent: true, opacity: 1, depthWrite: false,
+    map: sunTex, transparent: true, alphaTest: .02, opacity: 1, depthWrite: false,
     blending: THREE.AdditiveBlending, toneMapped: false, fog: false,
   }));
   sun.scale.set(9, 9, 1);
@@ -349,7 +349,8 @@ export function createSky(scene, renderer) {
 
   const moonTex = moonTexture();
   const moon = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: moonTex, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, fog: false,
+    map: moonTex, transparent: true, alphaTest: .02, opacity: 0, depthWrite: false,
+    toneMapped: false, fog: false,
   }));
   moon.scale.set(12, 12, 1);
   group.add(moon);
@@ -466,6 +467,33 @@ export function createSky(scene, renderer) {
   group.add(moonTarget);
   moonLight.target = moonTarget;
 
+  let shadowsEnabled = true;
+  let shadowSize = 1024;
+  for (const light of [sunLight, moonLight]) {
+    light.castShadow = false;
+    light.shadow.mapSize.set(shadowSize, shadowSize);
+    const cam = light.shadow.camera;
+    cam.left = -55; cam.right = 55; cam.top = 55; cam.bottom = -55;
+    cam.near = .1; cam.far = 170;
+    cam.updateProjectionMatrix();
+    light.shadow.bias = -.00035;
+    light.shadow.normalBias = .025;
+    light.shadow.radius = 2.2;
+  }
+  function setShadows(on, size = 1024) {
+    shadowsEnabled = !!on;
+    const nextSize = Math.max(512, Math.min(2048, Number(size) || 1024));
+    if (nextSize !== shadowSize) {
+      shadowSize = nextSize;
+      for (const light of [sunLight, moonLight]) {
+        light.shadow.mapSize.set(shadowSize, shadowSize);
+        if (light.shadow.map) { light.shadow.map.dispose(); light.shadow.map = null; }
+      }
+    }
+    apply(true);
+    return { enabled: shadowsEnabled, size: shadowSize };
+  }
+
   // share reflection layer with the pond
   group.traverse((o) => o.layers.enable(REFLECT_LAYER));
 
@@ -495,6 +523,16 @@ export function createSky(scene, renderer) {
     get sunVisible() { return Math.max(0, sunDir.y) > 0.005; },
     get sunDir() { return sunDir.clone(); },
     get moonVisible() { return Math.max(0, moonDir.y) > 0.005; },
+    get moonDir() { return moonDir.clone(); },
+    setShadows,
+    get shadowState() {
+      return {
+        enabled: shadowsEnabled,
+        size: shadowSize,
+        sun: sunLight.castShadow,
+        moon: moonLight.castShadow,
+      };
+    },
     get mist() {
       if (mistOverride !== null) return mistOverride;
       if (!mistToday) return 0;
@@ -574,6 +612,9 @@ export function createSky(scene, renderer) {
     sunLight.color.copy(sunCol);
     sunLight.intensity = sunI * (0.25 + 0.75 * sunFade) * 0.44;
     moonLight.intensity = moonI;
+    const sunCast = shadowsEnabled && sunFade > .02 && sunI > .10;
+    sunLight.castShadow = sunCast;
+    moonLight.castShadow = shadowsEnabled && !sunCast && moonI > .08;
     const hemiSky = blendColor(tmpA, a.hemiSky, b.hemiSky, t);
     const hemiGround = blendColor(tmpB, a.hemiGround, b.hemiGround, t);
     hemi.color.copy(hemiSky);

@@ -19,7 +19,7 @@ import { createFoodRegistry } from './food.js';
 import { FIELD_BOUNDS, FIELD_RADIUS, fieldInside, fieldRadiusAt } from './fieldshape.js';
 
 export { FIELD_BOUNDS };
-export const POND = { x: -17, z: 2, rx: 6.6, rz: 4.3, waterY: 0.045 };
+export const POND = { x: -17, z: 2, rx: 6.6, rz: 4.3, waterY: 0.022 };
 export const POND_HOLE = { hx: POND.rx * 0.78, hz: POND.rz * 0.78, floorY: -0.8 };
 
 const HOUSE_LOTS = [
@@ -441,6 +441,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     })
   );
   lawn.name = 'meadowLawn';
+  lawn.receiveShadow = true;
   lawn.rotation.x = -Math.PI / 2;
   lawn.position.y = -0.02;
   lawn.material.onBeforeCompile = (shader) => {
@@ -976,6 +977,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   // ---------------------------------------------------------------- pond
   const pond = {
     ...POND,
+    hole: POND_HOLE,
     contains(x, z) {
       const dx = (x - POND.x) / POND.rx, dz = (z - POND.z) / POND.rz;
       return dx * dx + dz * dz < 1;
@@ -1007,12 +1009,14 @@ export function buildField({ scene, camera, renderer, sky }) {
     bankShape.holes.push(hole);
     const bankGeo = new THREE.ShapeGeometry(bankShape, 24);
     const bank = new THREE.Mesh(bankGeo, sandMat);
+    bank.name = 'meadowPondBank';
+    bank.receiveShadow = true;
     bank.rotation.x = -Math.PI / 2;
-    bank.position.y = 0.012;
+    bank.position.y = 0.020;
     pondGroup.add(bank);
-    const edgePts = outlinePts.map(p => new THREE.Vector3(p.x, 0.052, -p.y));
+    const edgePts = outlinePts.map(p => new THREE.Vector3(p.x, 0.026, -p.y));
     const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edgePts),
-      new THREE.LineBasicMaterial({ color: 0x577f75, transparent: true, opacity: 0.55 }));
+      new THREE.LineBasicMaterial({ color: 0x577f75, transparent: true, opacity: 0.32 }));
     pondGroup.add(edge);
   }
 

@@ -103,6 +103,13 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     const h = Number(hoursNow());
     return Number.isFinite(h) && (h >= NIGHT_START || h < NIGHT_END);
   };
+  const isNightFor = (b) => {
+    const h = Number(hoursNow());
+    if (!Number.isFinite(h)) return false;
+    const bed = finite(b && b.bedtime, NIGHT_START);
+    const wake = finite(b && b.wakeTime, NIGHT_END);
+    return h >= bed || h < wake;
+  };
 
   function unit(v) {
     return Math.max(0, Math.min(1, finite(v, 0)));
@@ -236,6 +243,8 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     b.bold = Math.max(0, Math.min(1, finite(b.bold, 0.5)));
     b.social = Math.max(0, Math.min(1, finite(b.social, 0.3)));
     b.affection = Math.max(0, Math.min(1, finite(b.affection, 0.25)));
+    b.bedtime = Math.max(0, Math.min(23.99, finite(b.bedtime, 20 + rng() * 2.5)));
+    b.wakeTime = Math.max(0, Math.min(23.99, finite(b.wakeTime, 5 + rng() * 2)));
     if (!b.bonds || typeof b.bonds !== 'object') b.bonds = {};
     b.sleeping = !!b.sleeping;
     b.ai = {
@@ -1586,7 +1595,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     if (!b || !b.ai || !homeFor(b)) return false;
     if (b.health < HEALTH_WOOZY) return true;
     if (b.hunger >= CRITICAL_HUNGER || b.thirst >= CRITICAL_THIRST) return false;
-    return isNight() || b.health < HEALTH_HURT || b.energy < ENERGY_TIRED;
+    return isNightFor(b) || b.health < HEALTH_HURT || b.energy < ENERGY_TIRED;
   }
 
   function startSeekHome(b) {
@@ -1997,7 +2006,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
       if (ai.state === 'sleep') {
         b.health = Math.min(100, b.health + HEALTH_REST * dt);
         b.energy = Math.min(1, b.energy + ENERGY_REST * dt);
-        if (!isNight() && b.health >= HEALTH_HURT && b.energy >= ENERGY_TIRED) wake(b);
+        if (!isNightFor(b) && b.health >= HEALTH_HURT && b.energy >= ENERGY_TIRED) wake(b);
         continue;
       }
       b.health = Math.min(100, b.health + HEALTH_REGEN * dt);
