@@ -95,7 +95,7 @@ rig and soft-body solver stay.
 | **0 ✅** | Snapshot current app; split modules; map manager + per-map state; per-bear scale/sex/health/age data; static-wall handles; baseline tests | Current Studio still passes its physics and interaction tests; map/launcher state is structured per map |
 | **1 ✅** | Movable cannon + taller/larger walls on the Studio (quick playable win) | Cannon can be dragged/moved with validation; it stays in bounds; max-power shots are contained; aim/fire still work |
 | **2 ✅** | Grass Field, sky, pond, Aero shell, map switcher; field default; **mixed starter colony (2 adult ♀, 2 adult ♂, 1 teen, 1 baby)**; **rounded white/aqua Aero villas on validated home lots**; **distant Frutiger-Aero skyline + three-blade wind turbines**; pond splash/buoyancy; **procedural gummy-tree replacement with rounded leafy puffs/fruit/hives; shared travelling wind for trees + grass; Wind and Meadow-detail controls; procedural clouds, aurora and sporadic morning mist**; **circular wobbled-disc playfield, wandered dirt trails, full-circle grass, branched backdrop trees/bushes and anime-lite water**; **Hide UI** | Both maps load and switch with independent state; field has grass/trees/flowers/pond/sky/villas; no layout overlaps; day/night slider and dawn look work; pond reflects sun/moon and splashes; trees use the fixed TREE_LOTS/colliders with merged foliage batches and no per-frame CPU branch loops; one shared gust visibly crosses grass and trees; night sky shows aurora; starting colony has the four adults, teen and baby; villa silhouettes are distinct without changing their lots; skyline/windmills read as distant scenery; 16/16 self-test, mobile layouts, layout and map-switch checks pass; circular camera/containment and UI hide checks pass |
-| **3a** | Food registry/respawn, hunger, waddle locomotion, WANDER / SEEK_FOOD / EAT | Bears autonomously get hungry, walk to safe food, eat, and food regrows; no stuck/NaN/perf regressions |
+| **3a ✅** | Food registry/respawn, hunger, thirst, hop locomotion, WANDER / SEEK_FOOD / EAT / SEEK_WATER / DRINK | Bears autonomously get hungry or thirsty, hop to safe food or the pond shore, eat/drink, and food regrows; grab/throw interrupts and resumes the task; no stuck/NaN/perf regressions |
 | **3b** | Hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | Bees can sting; bears avoid hives below the threshold; health regenerates; hurt/tired bears return to their home and recover; no death |
 | **4** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection, **home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit homes; MSN-style statuses update |
 | **5** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
@@ -127,8 +127,16 @@ rig and soft-body solver stay.
   2 adult ♂, one teen and one baby. Camera circular clamping, containment,
   mobile layouts, layout/nav checks, both portals, hide-UI, and the smoke test
   pass. The Studio lounge is queued as the parallel Phase S track.
-- **Next:** Phase 3a — food registry/respawn, hunger, waddle locomotion and
-  WANDER / SEEK_FOOD / EAT.
+- **Phase 3a complete:** the meadow has 210 edible sources (190 flower blooms +
+  20 fallen jelly-fruit clusters), a food claim/respawn registry, 16 walkable
+  pond drinking approaches, hunger and thirst, and a
+  WANDER / SEEK_FOOD / EAT / SEEK_WATER / DRINK state machine. Bears travel with
+  directional hops, face their next waypoint, nibble/drink, and suspend/resume
+  their task while grabbed or thrown. The Studio remains AI-free. Headless QA
+  covered hop airtime, unique claims, eating, drinking, respawn, throw/resume,
+  Studio suppression and a 20-bear stress run with no NaN or stuck states.
+- **Next:** add voluntary pond play/swimming, then Phase 3b — hives, health,
+  home return and night sleep.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
@@ -147,16 +155,18 @@ can be adjusted without losing the working app.
 
 ## Bear AI
 
-Each bear has **needs** (hunger, social, energy, affection), a sex, age/size,
-health, and personality traits (bold/shy, appetite, sociability). A utility
-selector with cooldowns/hysteresis picks a state roughly once per second.
+Each bear has **needs** (hunger, thirst, social, energy, affection), a sex,
+age/size, health, and personality traits (bold/shy, appetite, sociability). A
+utility selector with cooldowns/hysteresis picks a state roughly once per second.
 
 | State | Trigger | Behaviour |
 |---|---|---|
-| Wander | default | pick a waypoint, waddle/lean there, idle |
+| Wander | default | pick a waypoint, hop there, idle |
 | Seek food | hunger high | claim a ripe safe food source, or weigh a hive raid |
 | Raid hive | honey desired, health/bravery allow | approach, risk sting; eat or flee hurt |
 | Eat | at food | nibble, hunger ↓, food consumed, respawn timer starts |
+| Seek water | thirst high | hop to a validated pond-shore approach |
+| Drink | at the shore | dip the snout, ripple the water, thirst ↓; water is infinite |
 | Seek company | social need high | choose a bear (friends preferred), approach |
 | Invite → Social | near the chosen bear | offer interaction; if accepted **both switch to Social**, bounce/nuzzle, hearts, affection ↑; decline = small “no” emote |
 | Conflict | two bears target the same food | face-off shove; larger/hungrier bear wins; winner eats, loser retargets; no injury |
@@ -172,9 +182,12 @@ it. The bear weighs them against its needs, personality, health and cooldowns an
 can refuse with a visible "no". Possession (8c) suspends the selector for the
 controlled bear only; every other bear keeps running its own.
 
-**Locomotion** is procedural: steering forces plus a waddle/lean cycle driven
-through the shape targets and tiny hops. No skeleton; the metaball jiggle does
-the acting. Bears pause their AI while grabbed and resume after release.
+**Locomotion** is procedural directional hopping: a crouch/anticipation, a
+forward impulse with a small vertical lift, a grounded turn toward the next
+waypoint, and a landing settle. There is no continuous drive and no skeleton;
+the metaball jiggle does the acting. Bears pause their AI while grabbed or
+airborne, release food claims on a grab, and resume/retarget after release or a
+throw. The same interruption hook is the contract for future partner states.
 
 **Navigation:** open-field steering with separation, obstacle avoidance (pond,
 trees, cottages, cannon, arena bounds), stuck detection, and no per-frame
@@ -245,7 +258,8 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
   Aero sheen, wandering dirt trails and a dirt hub, procedural hero trees with
   rounded leaf puffs, branched background trees, 120+ branched bushes, jelly
   flowers/fruit/honey hives, pebbles, bubbles and the Aero villa cluster.
-  Foreground trees are merged/instanced; backdrop tree trunks/branches and
+  Flower blooms and fallen jelly fruit are edible claims with respawn timers;
+  the Studio stays sandbox-only. Foreground trees are merged/instanced; backdrop tree trunks/branches and
   canopy-centre gradient foliage stay in a handful of batches. Leaf cards are
   alpha-tested (not transparent glass), and the baked blob shadows stay.
   Authored trail masks clear grass from every dirt footprint and shoulder.
@@ -270,7 +284,8 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
 - **Pond:** organic basin, planar reflection of sky/hills/trees at reduced
   resolution, fresnel, explicit sun/moon glints, plus an anime-lite layer of
   dense world-space Voronoi cells, hard-edged shoreline foam and splash-driven
-  ripple rings. Splash/buoyancy for bears flung into it.
+  ripple rings. Sixteen validated shore approaches let thirsty bears drink,
+  with a snout dip and ripple; splash/buoyancy still handles flung bears.
 - **Arena:** a segmented oriented Box3D ring follows the wobbled field disc;
   the Studio keeps its rectangular table walls. Ground underneath and the
   launch-speed cap keep shots contained.
@@ -512,6 +527,9 @@ bears and stalls. Decide when 9c is scheduled; 9a and 9b do not depend on it.
 - Starting meadow colony: 2 adult ♀, 2 adult ♂, 1 teen, 1 baby.
 - Hive threshold 45 health; sting damage 15; honey 0.55 satiation.
 - Food respawns: flowers 25–45 s, fruit 45–90 s, hives 90–150 s.
+- Hunger +0.006/s, thirst +0.009/s; seek above 0.58/0.62. Flower satiation 0.20,
+  fallen fruit 0.35; one drink restores 0.55. Hop travel is about 1 m/s with a
+  crouch, low airborne phase and landing settle.
 - Pond buoyancy/floating is non-lethal; no current; paddles to nearest shore.
 - 8 Aero villas × 3–4 residents; door approach 1.2 m; house-to-house clearance 0.9 m.
 - Night sleep window 20:00–06:00 (bears leave as the sky brightens); low-health

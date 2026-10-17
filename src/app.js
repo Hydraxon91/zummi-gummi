@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createLauncher } from './launcher.js';
 import { createSky } from './sky.js';
 import { buildField, POND_HOLE, POND } from './field.js';
+import { createBearAI } from './ai.js';
 import { createStudioReturnPortal } from './studiohouse.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
@@ -9,6 +10,7 @@ import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persi
 let launcher = null;
 let field = null;
 let sky = null;
+let ai = null;
 let studioReturnPortal = null;
 const fieldColliderHandles = [];
 const cannonColliderHandles = { studio: -1, field: -1 };
@@ -338,9 +340,10 @@ class Bear{
     // life-sim foundation (full growth/needs arrive in later phases)
     this.scale=1; this.age=0; this.stage='adult';
     this.sex=(Math.random()<0.5?'F':'M');
-    this.health=100; this.hunger=0.3;
+    this.health=100; this.hunger=0.3; this.thirst=0.3;
     this.pregnant=false; this.gestation=0;
     this.name=''; this.home=''; this.inPond=false;
+    this.ai=null;
     this.needsBuild=true;
     this.snap=new Float32Array(NP*3);
     this.snapC = new THREE.Vector3();
@@ -420,8 +423,9 @@ function spawn(x, z, y, flavor, opts={}){
   b.antic=0; b.hopT=HOP_MIN+Math.random()*(HOP_MAX-HOP_MIN);
   b.grabs=0; b.stretch=1; b.stretchPt=P_HEAD; b.devSlow=0.05;
   b.age=0; b.sex=(Math.random()<0.5?'F':'M');
-  b.health=100; b.hunger=0.3; b.pregnant=false; b.gestation=0;
+  b.health=100; b.hunger=0.3; b.thirst=0.3; b.pregnant=false; b.gestation=0;
   b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
+  b.ai=null;
   if (opts.sex) b.sex = opts.sex;
   b.lat = null; b.deform = 0;
   b.needsBuild = true;
@@ -431,6 +435,9 @@ function spawn(x, z, y, flavor, opts={}){
 }
 function removeBear(b){
   const i = bears.indexOf(b); if (i<0) return;
+  if (ai) ai.detach(b);
+  if (field && field.food) field.food.releaseBear(b);
+  b.ai = null;
   destroyBearBodies(b);
   bears.splice(i,1);
   for (const g of Array.from(grabs.values())) if (g.bear === b) endGrab(g, false);
@@ -519,6 +526,20 @@ function poseAndTargets(b, dt){
       _rmQ.slerp(_qYaw, 1 - Math.exp(-(b.grabs > 0 ? 2.2 : 1.0)*dt*(upY > 0.55 ? 1.3 : 1.0)));
     }
   }
+  // Grounded AI bears face their next hop. This biases the shape-matching target
+  // rather than steering in mid-air; grabbed and airborne bears keep the
+  // player's/ballistic orientation.
+  if (b.ai && b.ai.faceYaw !== null && b.ai.faceYaw !== undefined &&
+      b.grabs === 0 && !b.airborne && b.contacts > 0 && b.rMat[4] > 0.60) {
+    const ex = _v3.set(1, 0, 0).applyQuaternion(_rmQ);
+    const yaw = Math.atan2(-ex.z, ex.x);
+    let delta = b.ai.faceYaw - yaw;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    if (Math.abs(delta) > 0.012) {
+      _qYaw.setFromAxisAngle(_yawAxis, yaw + clamp(delta, -4.2*dt, 4.2*dt));
+      _rmQ.slerp(_qYaw, 1 - Math.exp(-10*dt));
+    }
+  }
   // upright assist (force version): compute the tilt axis; the torque itself is
   // applied in accumulateForces so Box3D contacts can resist/yield naturally.
   b.upTilt = 0;
@@ -572,6 +593,13 @@ function poseAndTargets(b, dt){
     b.tx[i] = b.cx + ix*qw + iw*(-qx) + iy*(-qz) - iz*(-qy);
     b.ty[i] = b.cy + iy*qw + iw*(-qy) + iz*(-qx) - ix*(-qz);
     b.tz[i] = b.cz + iz*qw + iw*(-qz) + ix*(-qy) - iy*(-qx);
+  }
+  // Eating and drinking dip the snout toward the source/water. It is a target
+  // pose offset, so the soft-body solver still owns contacts and jelly motion.
+  if (b.ai && (b.ai.state === 'eat' || b.ai.state === 'drink') && b.grabs === 0) {
+    const dip = b.ai.state === 'drink' ? 0.17 : 0.10;
+    b.ty[P_HEAD] -= dip;
+    b.ty[P_SNOUT] -= dip * 0.92;
   }
   // finger-press squash: compress the target shape toward the table and let
   // volume preservation bulge it outward (releasing pops back)
@@ -653,14 +681,20 @@ function uploadBearPositions(b, zeroVel){
   PHYS.wake(b.handles, NP);
   b.awake = true;
 }
-function hopBear(b, power){
+function hopBear(b, power, dirX = 0, dirZ = 0, liftAll = false){
   if (!b.handles || !PHYS) return;
-  for (let i=0;i<NP;i++){ _physV[i*3]=b.vx[i]; _physV[i*3+1]=b.vy[i]; _physV[i*3+2]=b.vz[i]; }
+  for (let i=0;i<NP;i++){
+    _physV[i*3]=b.vx[i] + dirX;
+    _physV[i*3+1]=b.vy[i] + (liftAll ? power : 0);
+    _physV[i*3+2]=b.vz[i] + dirZ;
+  }
   const add = (i,x,y,z)=>{ _physV[i*3]+=x; _physV[i*3+1]+=y; _physV[i*3+2]+=z; };
-  add(P_BELLY, 0, power, 0);
-  add(P_CHEST, (Math.random()-0.5)*0.5, power*0.75, (Math.random()-0.5)*0.5);
-  add(P_FOOTL, 0, power, 0);
-  add(P_FOOTR, 0, power, 0);
+  if (!liftAll) {
+    add(P_BELLY, 0, power, 0);
+    add(P_CHEST, (Math.random()-0.5)*0.5, power*0.75, (Math.random()-0.5)*0.5);
+    add(P_FOOTL, 0, power, 0);
+    add(P_FOOTR, 0, power, 0);
+  }
   PHYS.setVelocities(b.handles, _physV, NP);
   PHYS.wake(b.handles, NP);
   b.awake = true;
@@ -690,8 +724,8 @@ function accumulateForces(b, dt){
       fx[i] += m*tx; fy[i] += m*ty; fz[i] += m*tz;
     }
   }
-  // anticipation crouch before an idle hop
-  if (b.antic > 0){
+  // anticipation crouch before an idle or travel hop
+  if (b.antic > 0 || (b.ai && b.ai.hopState === 'crouch')){
     for (const i of [P_CHEST,P_BELLY]) fy[i] -= MASS[i]*30;
   }
   // pressing assist: if a grabbed point is driven down near the table, push the
@@ -1623,6 +1657,7 @@ function makeGrab(b, i, id, offX, offY, offZ, depth){
     dbg:typeof id === 'string' && id.indexOf('dbg') === 0,
   };
   b.grabs++; b.stretchPt = i; b.hopT = Math.max(b.hopT, 2.0);
+  if (ai && isMeadow()) ai.onGrab(b);
   grabs.set(id, g);
   return g;
 }
@@ -1662,6 +1697,7 @@ function endGrab(g, throwIt){
     }
   }
   uploadBearVelocities(b);
+  if (ai && isMeadow() && b.grabs === 0) ai.onRelease(b);
   cursorEl.classList.toggle('grab', anyGrab());
 }
 function releaseAllGrabs(){
@@ -2061,6 +2097,15 @@ function flavorHex(b){
 }
 function buddyStatus(b){
   if (!field) return 'settling in';
+  if (b.ai) {
+    if (b.ai.state === 'eat') return b.ai.source && b.ai.source.kind === 'fruit'
+      ? 'nibbling a jelly fruit' : 'nibbling a jelly flower';
+    if (b.ai.state === 'drink') return 'sipping from the pond';
+    if (b.ai.state === 'seekWater') return 'hopping to the pond';
+    if (b.ai.state === 'seekFood') return 'looking for a snack';
+    if (b.thirst >= 0.82) return 'getting thirsty';
+    if (b.hunger >= 0.82) return 'getting hungry';
+  }
   const p = field.pond;
   const distPond = Math.hypot(b.cx - p.x, b.cz - p.z);
   if (distPond < Math.max(p.rx, p.rz) + 2.8) return 'pondside, watching ripples';
@@ -2349,8 +2394,107 @@ function pourBears(){
 }
 
 /* ------------------------------- framing ---------------------------------- */
-let frozen = false;   // debug: pauses idle hops + the quality governor
+let frozen = false;   // debug: pauses idle hops, AI ticks + the quality governor
+
+const AI_HOP_CROUCH = 0.15;
+const AI_HOP_SETTLE = 0.16;
+const AI_HOP_VERTICAL = 2.50;
+const AI_TURN_WAIT = 0.48;
+
+function yawFromMatrix(r) {
+  return Math.atan2(r[2], r[8]);
+}
+
+function aiRoutePoint(b) {
+  const a = b.ai;
+  if (!a) return null;
+  const path = a.path;
+  if (!path || !path.length) return a.target;
+  let i = a.pathIndex | 0;
+  while (i < path.length - 1) {
+    const p = path[i];
+    if (Math.hypot(p.x - b.cx, p.z - b.cz) > 0.42) break;
+    i++;
+  }
+  a.pathIndex = i;
+  return path[i] || a.target;
+}
+
+function updateAiLocomotion(dt) {
+  if (!isMeadow() || !field || !ai || !ai.enabled || frozen) return;
+  for (const b of bears) {
+    const a = b.ai;
+    if (!b.active || !a) continue;
+    if (b.grabs > 0 || b.inPond || a.interrupted || a.state === 'eat' || a.state === 'drink') {
+      if (a.hopState === 'crouch') a.hopState = null;
+      continue;
+    }
+    if (!a.moving) {
+      a.hopState = null;
+      a.hopWait = 0;
+      continue;
+    }
+    if (a.hopState === 'air') {
+      if (b.airborne || b.contacts === 0) continue;
+      a.hopState = 'settle';
+      a.hopWait = AI_HOP_SETTLE;
+      continue;
+    }
+    if (a.hopState === 'settle') {
+      a.hopWait -= dt;
+      if (a.hopWait > 0) continue;
+      a.hopState = null;
+    }
+    if (b.airborne || b.contacts === 0 || b.rMat[4] < 0.62) continue;
+
+    const p = aiRoutePoint(b);
+    if (!p) { a.moving = false; continue; }
+    let dx = p.x - b.cx, dz = p.z - b.cz;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.52) {
+      // Let the next 5 Hz think switch SEEK -> EAT/DRINK or finish WANDER.
+      a.moving = false;
+      a.faceYaw = null;
+      continue;
+    }
+    const wantYaw = Math.atan2(dx, dz);
+    a.faceYaw = wantYaw;
+    const dyaw = Math.atan2(Math.sin(wantYaw - yawFromMatrix(b.rMat)),
+                            Math.cos(wantYaw - yawFromMatrix(b.rMat)));
+    if (Math.abs(dyaw) > 0.28) {
+      a.turnWait = (a.turnWait || 0) + dt;
+      if (a.turnWait < AI_TURN_WAIT) continue;
+    } else {
+      a.turnWait = 0;
+    }
+
+    if (a.hopState !== 'crouch') {
+      a.hopState = 'crouch';
+      a.hopWait = AI_HOP_CROUCH;
+    }
+    a.hopWait -= dt;
+    if (a.hopWait > 0) continue;
+
+    const speed = clamp(d / 0.34, 1.15, 2.55);
+    const ux = dx / d, uz = dz / d;
+    hopBear(b, AI_HOP_VERTICAL, ux * speed, uz * speed, true);
+    a.hopState = 'air';
+    a.hopWait = 0;
+    b.airborne = true;
+    b.antic = 0;
+  }
+}
+
+function stepMeadowAI(dt) {
+  if (!isMeadow() || !field || frozen) return;
+  if (field.food) field.food.update(dt);
+  if (!ai || !ai.enabled) return;
+  ai.update(dt);
+  updateAiLocomotion(dt);
+}
+
 function frameTick(dt){
+  stepMeadowAI(dt);
   // pointer velocity decays when the pointer stops, so a hold-then-release
   // doesn't fling the bear with stale momentum
   {
@@ -2363,9 +2507,13 @@ function frameTick(dt){
     d.t -= dt;
     if (d.t <= 0){ spawn(d.x, d.z, d.y, d.f, {tilt:0.3}); dropQueue.splice(i,1); }
   }
-  // idle hops + anticipation
+  // idle hops + anticipation. An AI bear that is travelling or eating has its
+  // own hop controller; only genuinely idle meadow bears keep the random hop.
   for (const b of bears){
-    if (!frozen && b.grabs === 0){
+    const aiBusy = b.ai && (b.ai.moving || b.ai.hopState === 'crouch' ||
+      b.ai.state === 'seekFood' || b.ai.state === 'seekWater' ||
+      b.ai.state === 'eat' || b.ai.state === 'drink');
+    if (!frozen && b.grabs === 0 && !aiBusy){
       const speed = Math.hypot(b.vcx,b.vcy,b.vcz);
       if (b.antic > 0){
         b.antic -= dt;
@@ -2968,7 +3116,7 @@ function yawOfQuat(q){
 function snapshotBear(b){
   return {
     flavor: b.flavor, sex: b.sex, stage: b.stage, scale: b.scale,
-    health: b.health, hunger: b.hunger, name: b.name, home: b.home,
+    health: b.health, hunger: b.hunger, thirst: b.thirst, name: b.name, home: b.home,
     x: b.cx, z: b.cz, yaw: yawOfQuat(b.q),
   };
 }
@@ -2991,6 +3139,7 @@ function spawnFromState(st){
   if (!b) return null;
   b.health = Number.isFinite(st.health) ? st.health : 100;
   b.hunger = Number.isFinite(st.hunger) ? st.hunger : 0.3;
+  b.thirst = Number.isFinite(st.thirst) ? st.thirst : 0.3;
   return b;
 }
 
@@ -3227,6 +3376,7 @@ function fitWallsToTable(){
   applyQuality();
   PHYS = await initPhysics(24 * BEAR_HARD_MAX, { x: 0, y: GRAV, z: 0 });
   ensureMeadow();
+  ai = createBearAI({ field, getBears: () => bears });
   launcher = createLauncher({
     scene, camera, canvas,
     getTable: () => TABLE,
@@ -3422,6 +3572,8 @@ window.__gummy = {
       trees: field.trees ? field.trees.stats : null,
       horizon: field.horizon ? { towers:field.horizon.towers, windmills:field.horizon.windmills } : null,
       wind: field.wind ? { strength:field.wind.strength, dir:field.wind.direction, gust:field.wind.gust } : null,
+      food: field.food ? field.food.stats() : null,
+      waterSpots: field.waterSpots ? field.waterSpots.length : 0,
       nature: field.natureControls,
       grass: field.grassControls,
       mist: field.mist,
@@ -3480,7 +3632,16 @@ window.__gummy = {
   launcherScreenOf(x, z){ return launcher ? launcher.screenOf(x, z) : null; },
   launcherMoveMode(on){ return launcher ? launcher.toggleMoveMode(on) : false; },
   world(){ return { map: activeWorld.mapId, wallHeight: getActiveMap().wallHeight, walls: worldWalls.walls.slice(), ground: worldWalls.ground, bounds: [worldWalls.hx, worldWalls.hz], launcher: launcher ? launcher.state() : null }; },
-  traits(){ return bears.map(b => ({ sex:b.sex, stage:b.stage, scale:b.scale, health:b.health, hunger:b.hunger })); },
+  traits(){ return bears.map(b => ({ sex:b.sex, stage:b.stage, scale:b.scale, health:b.health, hunger:b.hunger, thirst:b.thirst, ai:b.ai ? b.ai.state : null })); },
+  ai(){ return ai ? ai.stats() : null; },
+  setAI(v){ return ai ? ai.setEnabled(v) : false; },
+  food(){ return field && field.food ? field.food.stats() : null; },
+  foodSources(){ return field && field.food ? field.food.sources.map(s => ({
+    id:s.id, kind:s.kind, x:s.x, z:s.z, ripe:s.ripe, claimed:!!s.claim,
+    visualIndex:s.visualIndex,
+  })) : []; },
+  setHunger(i, v){ const b = bears[i]; if (!b) return false; b.hunger = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.hunger; },
+  setThirst(i, v){ const b = bears[i]; if (!b) return false; b.thirst = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.thirst; },
   firework(){ return { rockets:rockets.length, particles:pCount, queued:burstQueue.length, rings:fwRings.length, fwTicks, frameTicks }; },
   launchFirework(usePointer, sx, sz){ return launchFirework(!!usePointer, sx, sz); },
   rocketTargets(){ return rockets.map(r => [ +r.x.toFixed(3), BURST_Y, +r.z.toFixed(3) ]); },

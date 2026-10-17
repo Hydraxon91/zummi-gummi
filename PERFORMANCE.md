@@ -76,6 +76,18 @@ planning.
 CPU with 21 bears in that run: **0.82 ms physics + 6.76 ms surface ≈
 7.58 ms/frame**.
 
+## Phase 3a AI / food spot check
+
+Phase 3a adds one 5 Hz state-machine update per bear, 210 food sources with
+claims and respawn timers, 16 pond drinking approaches and directional hop
+impulses. In the headless QA runs the AI update itself measured **0.007–0.045 ms**
+per update for six bears; food timers update in a 0.2 s bucket rather than every
+frame. A 20-bear stress run reached 7 unique food claims, 23 consumed sources,
+and **0.052 ms** AI update time with no NaN/stuck positions. Hop arcs use the
+existing Box3D velocity and contact path, so this is not a new per-frame render
+cost. The full frame profile has not been re-run after the AI pass; the Phase 2
+GPU profile above remains the reference until a clean measurement.
+
 ## Ground-detail / water spot check
 
 Two forced-sync runs after adding the close-up grass ground texture, its Aero

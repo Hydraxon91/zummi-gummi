@@ -51,6 +51,8 @@ const modules = [
   "/src/world.js",
   "/src/launcher.js",
   "/src/field.js",
+  "/src/food.js",
+  "/src/ai.js",
   "/src/sky.js",
   "/src/box3d.js",
   "/vendor/box3d/box3d.js",

@@ -15,6 +15,7 @@ import { createAeroHomes } from './homes.js';
 import { createBackdrop } from './backdrop.js';
 import { createStudioHouse } from './studiohouse.js';
 import { createBushCollection } from './bushes.js';
+import { createFoodRegistry } from './food.js';
 import { FIELD_BOUNDS, FIELD_RADIUS, fieldInside, fieldRadiusAt } from './fieldshape.js';
 
 export { FIELD_BOUNDS };
@@ -239,7 +240,12 @@ export function buildField({ scene, camera, renderer, sky }) {
   const splashRings = [];
   const smokePuffs = [];
   const bubbles = [];
+  const foodSources = [];
   const clock = new THREE.Clock();
+  const hiddenFoodMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+  let flowerFoodVisual = null;
+  let fallenFruitVisual = null;
+  let food = null;
 
   // Register the static layout before any scatter placement so grass, flowers,
   // paths and the nav bake all share the same obstacle footprints.
@@ -797,9 +803,20 @@ export function buildField({ scene, camera, renderer, sky }) {
       const fs = WORLD_SCALE.flowerHeight;
       const stemH = 0.44 * s * fs;
       const col = new THREE.Color(palette[Math.floor(fr() * palette.length)]);
+      const visualIndex = blooms.length;
       stems.push({ m: localMatrix({ x, y: stemH * 0.5, z, ry: fr()*6.283, sx: s, sy: s * fs, sz: s }), c: new THREE.Color(0x5a9e48) });
       blooms.push({ m: localMatrix({ x, y: stemH, z, ry: fr()*6.283, sx: s * .92, sy: s * .84, sz: s * .92 }), c: col });
       centers.push({ m: localMatrix({ x, y: stemH + 0.10 * s * fs, z, sx: s * .84, sy: s * .84, sz: s * .84 }), c: new THREE.Color(0xffe98d) });
+      foodSources.push({
+        id: `flower-${visualIndex}`,
+        kind: 'flower',
+        label: 'jelly flower',
+        x, z, y: stemH,
+        approachX: x, approachZ: z,
+        satiation: 0.20,
+        respawnMin: 25, respawnMax: 45,
+        visualIndex,
+      });
     }
     const flowerStems = instanced(stemGeo, stemMat, stems, false, group);
     const flowerBlooms = instanced(blossomGeo, flowerBlossomMat, blooms, false, group);
@@ -807,6 +824,12 @@ export function buildField({ scene, camera, renderer, sky }) {
     flowerStems.name = 'meadowFlowerStems';
     flowerBlooms.name = 'meadowFlowerBlooms';
     flowerCenters.name = 'meadowFlowerCenters';
+    flowerFoodVisual = {
+      stems: flowerStems,
+      blooms: flowerBlooms,
+      centers: flowerCenters,
+      parts: { stems, blooms, centers },
+    };
   }
 
   // ---------------------------------------------------------------- candy trees
@@ -1343,6 +1366,127 @@ export function buildField({ scene, camera, renderer, sky }) {
   const navDebug = nav.buildDebugObject(THREE);
   group.add(navDebug);
 
+  // ---------------------------------------------------------------- food
+  // The flower blooms above are already placed clear of the paths and props.
+  // Fallen jelly fruit gives the bears a second safe food type without asking
+  // them to reach into the canopy.
+  {
+    const fruitCols = [0xff7e9c, 0xffc94f, 0xff9b58, 0xd995ff, 0xfff0a8];
+    const fallenGeo = new THREE.SphereGeometry(.13, 10, 8);
+    const fallenMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff, vertexColors: true, roughness: .17,
+      clearcoat: .85, clearcoatRoughness: .16, metalness: 0,
+    });
+    const parts = [];
+    const fr = rng(5173);
+    for (const lot of TREE_LOTS) {
+      for (let k = 0; k < 2; k++) {
+        let x = 0, z = 0, ok = false;
+        for (let tries = 0; tries < 12; tries++) {
+          const a = fr() * Math.PI * 2;
+          const rad = 1.05 + fr() * 0.55;
+          x = lot.x + Math.cos(a) * rad;
+          z = lot.z + Math.sin(a) * rad;
+          if (!fieldInside(x, z, 1.0)) continue;
+          if (pathValueAt(x, z) > .22) continue;
+          if (solidAt(x, z, .45)) continue;
+          if (!nav.isWalkable(x, z)) continue;
+          if (homes.some(h => Math.hypot(x - h.door.x, z - h.door.z) < 2.0)) continue;
+          if (Math.hypot(x - STUDIO_HOUSE.door.x, z - STUDIO_HOUSE.door.z) < 2.0) continue;
+          ok = true;
+          break;
+        }
+        if (!ok) continue;
+        const visualIndex = parts.length;
+        parts.push({
+          m: localMatrix({ x, y: .14, z, ry: fr() * 6.283, sx: 1, sy: 1, sz: 1 }),
+          c: new THREE.Color(fruitCols[Math.floor(fr() * fruitCols.length)]),
+        });
+        foodSources.push({
+          id: `fruit-${visualIndex}`,
+          kind: 'fruit',
+          label: 'jelly fruit',
+          x, z, y: .14,
+          approachX: x, approachZ: z,
+          satiation: .35,
+          respawnMin: 45, respawnMax: 90,
+          visualIndex,
+        });
+      }
+    }
+    if (parts.length) {
+      const mesh = instanced(fallenGeo, fallenMat, parts, false, group);
+      mesh.name = 'meadowFallenFruit';
+      fallenFruitVisual = { mesh, parts };
+      group.userData.fallenFruit = parts.length;
+    }
+  }
+
+  // Keep only food sources whose approach is actually reachable. Flowers can
+  // sit next to a trunk or house clearance; the visual stays decorative, while
+  // the edible source is either shifted to the nearest walkable cell or dropped.
+  const usableFoodSources = [];
+  for (const s of foodSources) {
+    if (!nav.isWalkable(s.approachX, s.approachZ)) {
+      const p = nav.nearestWalkable(s.approachX, s.approachZ);
+      if (!p || Math.hypot(p.x - s.approachX, p.z - s.approachZ) > 2.2) continue;
+      s.approachX = p.x;
+      s.approachZ = p.z;
+    }
+    usableFoodSources.push(s);
+  }
+
+  function setFoodVisible(source, visible) {
+    if (!source) return;
+    const m = visible ? null : hiddenFoodMatrix;
+    if (source.kind === 'flower' && flowerFoodVisual) {
+      const i = source.visualIndex;
+      const { stems, blooms, centers } = flowerFoodVisual.parts;
+      if (!stems[i] || !blooms[i] || !centers[i]) return;
+      flowerFoodVisual.stems.setMatrixAt(i, m || stems[i].m);
+      flowerFoodVisual.blooms.setMatrixAt(i, m || blooms[i].m);
+      flowerFoodVisual.centers.setMatrixAt(i, m || centers[i].m);
+      flowerFoodVisual.stems.instanceMatrix.needsUpdate = true;
+      flowerFoodVisual.blooms.instanceMatrix.needsUpdate = true;
+      flowerFoodVisual.centers.instanceMatrix.needsUpdate = true;
+    } else if (source.kind === 'fruit' && fallenFruitVisual) {
+      const i = source.visualIndex;
+      const part = fallenFruitVisual.parts[i];
+      if (!part) return;
+      fallenFruitVisual.mesh.setMatrixAt(i, m || part.m);
+      fallenFruitVisual.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  food = createFoodRegistry({
+    sources: usableFoodSources,
+    rng: rng(8741),
+    onVisibility: setFoodVisible,
+  });
+
+  // Safe, walkable drinking approaches around the pond. The water itself is
+  // infinite; these are shore positions, not consumable sources.
+  const waterSpots = [];
+  {
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * Math.PI * 2;
+      const rawX = POND.x + Math.cos(a) * POND.rx * 1.22;
+      const rawZ = POND.z + Math.sin(a) * POND.rz * 1.22;
+      if (!fieldInside(rawX, rawZ, .8)) continue;
+      const p = nav.nearestWalkable(rawX, rawZ);
+      if (!p) continue;
+      if (Math.hypot(p.x - rawX, p.z - rawZ) > 2.2) continue;
+      if (pond.contains(p.x, p.z)) continue;
+      if (waterSpots.some(w => Math.hypot(w.x - p.x, w.z - p.z) < 1.4)) continue;
+      waterSpots.push({
+        x: p.x, z: p.z,
+        waterX: POND.x + Math.cos(a) * POND.rx * .94,
+        waterZ: POND.z + Math.sin(a) * POND.rz * .94,
+        y: POND.waterY,
+      });
+    }
+  }
+
   function validateLayout() {
     // Door-frame headroom: an adult bear is 1.375 m tall at rest. Reject a
     // layout if a scaled villa door would sit below that plus a small margin.
@@ -1392,6 +1536,16 @@ export function buildField({ scene, camera, renderer, sky }) {
       if (px*px+pz*pz < 1) errors.push('Studio House clips the pond');
       if (Math.hypot(sh.x-CANNON_HOME.x, sh.z-CANNON_HOME.z) < sh.r+1.5) errors.push('Studio House blocks the cannon home');
       if (!nav.isWalkable(sh.door.x, sh.door.z)) errors.push('Studio House door approach is blocked');
+    }
+    for (const s of usableFoodSources) {
+      if (!nav.isWalkable(s.approachX, s.approachZ)) errors.push(`${s.id} food approach is blocked`);
+      if (!Number.isFinite(s.x) || !Number.isFinite(s.z)) errors.push(`${s.id} has a bad position`);
+    }
+    if (food) errors.push(...food.validate());
+    if (!waterSpots.length) errors.push('pond has no walkable drinking approach');
+    for (const w of waterSpots) {
+      if (!nav.isWalkable(w.x, w.z)) errors.push('pond drinking approach is blocked');
+      if (pond.contains(w.x, w.z)) errors.push('pond drinking approach is in the water');
     }
     const navErrors = nav.validate();
     return errors.concat(navErrors);
@@ -1543,6 +1697,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   return {
     group, sky, nav, navDebug, homes, colliders, pond, bounds: FIELD_BOUNDS,
     pathStones, cannonHome: CANNON_HOME, wind, trees, horizon, aeroHomes, backdrop, studioHouse, bushes,
+    food, foodSources: usableFoodSources, waterSpots,
     fireflies: fireflyPoints, fireflyLights,
     valid: layoutErrors.length === 0,
     layoutErrors,

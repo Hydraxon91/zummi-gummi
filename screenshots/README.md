@@ -1,8 +1,9 @@
-# Phase 2 captures
+# Phase 2–3a captures
 
 Visual set from the running app (headless Chrome, 1440×900 unless noted). `00_`
 is retained as the pre-replacement baseline; everything else is the completed
-circular-meadow / dirt-trail / branched-backdrop pass.
+circular-meadow / dirt-trail / branched-backdrop pass plus the Phase 3a
+autonomous-behaviour checks.
 
 | file | view |
 |---|---|
@@ -24,10 +25,16 @@ circular-meadow / dirt-trail / branched-backdrop pass.
 | `15_phone_ui_hidden.webp` | 390×844 phone view with every overlay hidden; only Show UI remains |
 | `16_water_anime_pattern.webp` | pond close-up with the denser 4× anime cell pattern, foam and reflection |
 | `17_ground_grass_detail.webp` | close-up of the fine grass ground texture and clean dirt hub |
+| `18_ai_hopping.webp` | mid-hop capture of an autonomous bear travelling toward food |
+| `19_ai_eating.webp` | bear at a jelly-flower source; buddy status reads “nibbling a jelly flower” |
+| `20_ai_drinking.webp` | bear at a validated pond-shore approach; status reads “sipping from the pond” |
+| `21_food_sources.webp` | fallen jelly fruit and grass at a tree base |
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
 the stable circular-pass reading was **32.1 ms / 565 calls / 3.67 M triangles**.
 The later close-up-ground/sheen/water spot check was noisy at **39.7–44.3 ms**
 baseline and **24.8–26.6 ms** at quality 3; a clean rerun is still pending.
-Grass fill/geometry remains the largest single GPU item. Full method and the
-earlier supplied baselines are in [../PERFORMANCE.md](../PERFORMANCE.md).
+Grass fill/geometry remains the largest single GPU item. Phase 3a AI updates
+measured **0.007–0.045 ms per update** for six bears in headless QA; the full
+frame profile has not been re-run. Full method and the earlier supplied
+baselines are in [../PERFORMANCE.md](../PERFORMANCE.md).

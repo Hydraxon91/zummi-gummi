@@ -2,7 +2,7 @@
 
 An interactive bowl of translucent jelly bears: grab, stretch, squash, throw, pour, wobble, set off fireworks — or load one into the little glass cannon and fire it across the table. Rendered with **three.js**; soft-body physics runs on **Box3D** (erincatto/box3d) compiled to WebAssembly.
 
-The meadow chapter is playable: a circular Bliss-style meadow with a continuous full-circle grass carpet, wandered dirt trails, rounded hero trees, branched background trees and bushes, detailed Aero villas and a large Studio portal house, an anime-lite reflective pond, a full day/night sky with clouds, aurora and fireflies, a distant skyline and wind turbines. The Studio remains available from the in-app map switch and the diegetic door. The next simulation chapters (food, AI, growth) are in [ROADMAP.md](ROADMAP.md), with selected captures in [screenshots](screenshots/).
+The meadow chapter is playable: a circular Bliss-style meadow with a continuous full-circle grass carpet, wandered dirt trails, rounded hero trees, branched background trees and bushes, detailed Aero villas and a large Studio portal house, an anime-lite reflective pond, a full day/night sky with clouds, aurora and fireflies, a distant skyline and wind turbines. The bears now act on hunger and thirst: they hop to edible flowers and fallen jelly fruit, drink at the pond, and resume their task after being grabbed or thrown. The Studio remains available from the in-app map switch and the diegetic door. The remaining simulation chapters (hives/health, social, growth) are in [ROADMAP.md](ROADMAP.md), with selected captures in [screenshots](screenshots/).
 
 ## Launch it
 
@@ -49,6 +49,7 @@ The app uses ES modules and a `.wasm` file, so it must be served over HTTP (open
 - **L / Launch bear** arms the glass cannon. Aim with the mouse (or drag a finger) and release/click to fire a bear on a ballistic arc; `Esc` or the button cancels. The landing ring shows where it will come down.
 - **Move cannon**: drag the cannon itself, or press **Move cannon** and click/tap the table. The footprint ring turns green/red for a valid spot; `Esc` cancels and restores the previous position. The position persists for each map.
 - **Hide UI**: press `U` or use the small top-right UI button to hide every overlay (including on phones). The button remains as the restore control and the choice is remembered.
+- **Autonomous bears**: meadow bears wander, hop toward food, nibble flowers or fallen fruit, and drink at the pond. Grabbing or throwing one interrupts its hop/task; it resumes when it lands and settles. The Studio remains a hands-on sandbox with needs paused.
 - **Wind**: use the Wind slider in the meadow time panel. **Meadow detail** exposes canopy fullness, leaf size, grass coverage and grass draw distance for balancing the look against frame cost.
 - Flavor swatches, custom color + clarity, wobble, bear ceiling (8–256, persisted), upright assist, pour, reset, and a performance overlay.
 
@@ -64,7 +65,9 @@ src/app.js                 renderer, metaball surface, input, UI, fireworks, loo
 src/config.js              flavors + the 24-body bear rig
 src/world.js               map registry + per-map launcher state
 src/launcher.js            movable cannon: build, aim, fire, move/validate
-src/field.js               meadow, pond, grass chunks, trails, props, nav/shadows
+src/field.js               meadow, pond, food visuals, grass, trails, nav/shadows
+src/food.js                food sources, claims, ripeness and respawn
+src/ai.js                  hunger/thirst needs, hop tasks and interruption hooks
 src/fieldshape.js          shared wobbled-disc boundary, camera/nav/wall clamp
 src/wind.js                shared world-space wind uniforms + GLSL
 src/trees.js               procedural merged trees, foliage/fruit/hive batches
@@ -159,17 +162,19 @@ The Box3D port passes a 16-check headless self-test covering NaN/bounds, bounce 
 
 A continuous-integration smoke test also runs on every push and pull request (`.github/workflows/smoke.yml`). It boots `launch.py`, then `scripts/smoke.mjs` fetches the page shell, source modules, licenses and `box3d.wasm` over HTTP and instantiates the wasm — asserting the `application/wasm` MIME type, the `\0asm` header, the linear memory and the exported `_g3_*` wrapper API. Run it locally with `python3 launch.py --no-open &` then `node scripts/smoke.mjs`.
 
+Phase 3a debug checks drive `__gummy.ai()` / `__gummy.food()` / `__gummy.foodSources()`, plus `setHunger`, `setThirst` and `setAI`. They cover hop travel and airtime, food claims and unique claims, eating, drinking, respawn, grab/throw interruption and resume, Studio AI suppression, map-switch cleanup, and NaN/bounds. The AI update itself measured well under the <0.5 ms budget.
+
 ## Roadmap status
 
 - **Phase 0 ✅** — snapshot, module split (`world.js`, `launcher.js`), per-map state, static-wall handles, per-bear life fields, tests green.
 - **Phase 1 ✅** — movable cannon, placement validation, persistent position, 8-unit walls.
 - **Phase 2 ✅ (current scope)** — Grass Field default with Studio switch, sky/clouds/aurora/mist, reflective anime-lite pond, detailed Aero villas and Studio portal house, circular dirt-trail meadow, full-circle grass with close-up ground texture and Aero sheen, procedural hero trees, branched backdrop trees and bushes, shared wind, Wind/Meadow-detail controls, mixed starter colony, distant skyline/wind turbines, lit night fireflies, and Hide UI. Door openings are validated at 1.646 m against a 1.375 m adult bear. Studio modelling is queued as the parallel required track in the roadmap.
-- **Next** — Phase 3a: food registry/respawn, hunger, waddle locomotion and WANDER / SEEK_FOOD / EAT. Phase 6a is the reserved effects pass; Phase 7 is the opt-in WebGPU upgrade.
+- **Phase 3a ✅** — Food claims/respawn, hunger and thirst, hop locomotion, WANDER / SEEK_FOOD / EAT / SEEK_WATER / DRINK, with grab/throw interruption and resume. Voluntary pond play is the next small water pass; Phase 3b then adds hives, health, home return and night sleep. Phase 6a is the reserved effects pass; Phase 7 is the opt-in WebGPU upgrade.
 - **Queued after the simulation** — Phase 8a persistence (IndexedDB save slots, JSON export/import, autosave, New Game), 8b bear directives the bears can refuse, 8c third-person possession, and Phase 9: a curated village placement editor, village homes/hub/naming and light jobs/shops. See [ROADMAP.md](ROADMAP.md).
 
 ## Known limitations
 
-- The field is the default playable map; the Studio remains the sandbox. The full food/AI/growth simulation is still Phase 3–5.
+- The field is the default playable map; the Studio remains the sandbox. Food, water and autonomous hop behaviour are in place; hives/health, social behaviour and growth are still Phase 3b–5.
 - Dense grass is GPU-heavy at high DPR in the headless profile; use the Meadow-detail controls or quality tiers on slower devices. No 60 fps guarantee is made from the headless run.
 - The existing metaball surface remains CPU-bound; very large crowds deliberately drop resolution.
 - Aero villa interiors are implied (door/light) rather than modeled walk-in rooms. The Studio lounge (interactive bar + huge Frutiger Aero TV) is the next required modelled-room pass; the reference moodboard used for it is kept locally and is not part of the repo.
