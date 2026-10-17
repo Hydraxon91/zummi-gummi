@@ -17,6 +17,11 @@ working in this repo.
   blanket `?:` fallbacks or empty `try/catch`. Trace the fault to its origin (a physics
   step, a WASM bridge call, a nav-mesh footprint, a shader uniform, a map-state field)
   and fix it there.
+- **Log potential bugs as you find them.** If you notice a latent defect or a
+  plausible edge-case bug while reading or changing code, record it in the
+  **Known follow-ups** section of `ROADMAP.md` in the same task — include the
+  trigger, the affected file/state and whether it is fixed, deferred or needs a
+  decision. Do not leave it only in chat or silently work around it.
 - **Style alignment:** mirror the existing syntax, formatting and pattern choices in
   `src/`. Match the surrounding file; do not introduce a new idiom for one change.
 - **Hypothesis verification:** before proposing a fix, state the expected behavior, the
