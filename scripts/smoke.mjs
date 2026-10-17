@@ -65,6 +65,11 @@ for (const path of modules) {
     `GET ${path}`,
     `${res.status} ${type}`,
   );
+  // Drain every response. Node 24's bundled undici crashes with an
+  // uncatchable Parser.finish assertion when a paused body is followed by a
+  // server FIN (nodejs/undici#5360). Consuming the body keeps the parser out
+  // of that state regardless of the CI Node version.
+  await res.arrayBuffer();
 }
 
 // --- Box3D wasm -------------------------------------------------------------
@@ -127,6 +132,7 @@ check(
   "repository MIT license is served",
 );
 const missing = await get("/this-file-does-not-exist");
+await missing.arrayBuffer();
 check(missing.status === 404, "unknown paths return 404", `status ${missing.status}`);
 
 // --- summary ----------------------------------------------------------------
