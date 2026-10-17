@@ -1366,6 +1366,80 @@ export function buildField({ scene, camera, renderer, sky }) {
   const navDebug = nav.buildDebugObject(THREE);
   group.add(navDebug);
 
+  // ---------------------------------------------------------------- AI plan overlay
+  // One selected-bear route only. The line and ring are debug-only scene objects;
+  // they share a fixed-size buffer so changing the plan does not allocate.
+  const aiPlanGroup = new THREE.Group();
+  aiPlanGroup.name = 'meadowAIPlan';
+  aiPlanGroup.visible = false;
+  group.add(aiPlanGroup);
+  const AI_PLAN_MAX = 64;
+  const aiPlanPositions = new Float32Array(AI_PLAN_MAX * 3);
+  const aiPlanGeo = new THREE.BufferGeometry();
+  aiPlanGeo.setAttribute('position', new THREE.BufferAttribute(aiPlanPositions, 3).setUsage(THREE.DynamicDrawUsage));
+  const aiPlanLine = new THREE.Line(
+    aiPlanGeo,
+    new THREE.LineBasicMaterial({
+      color: 0x5ee7ff, transparent: true, opacity: .95,
+      depthTest: false, depthWrite: false, toneMapped: false,
+    })
+  );
+  aiPlanLine.name = 'meadowAIPlanLine';
+  aiPlanLine.frustumCulled = false;
+  aiPlanLine.renderOrder = 20;
+  aiPlanGroup.add(aiPlanLine);
+  const aiPlanDots = new THREE.Points(
+    aiPlanGeo,
+    new THREE.PointsMaterial({
+      color: 0xa8f6ff, size: .17, sizeAttenuation: true,
+      depthTest: false, depthWrite: false, transparent: true,
+      opacity: .95, toneMapped: false,
+    })
+  );
+  aiPlanDots.name = 'meadowAIPlanDots';
+  aiPlanDots.frustumCulled = false;
+  aiPlanDots.renderOrder = 20;
+  aiPlanGroup.add(aiPlanDots);
+  const aiPlanTarget = new THREE.Mesh(
+    new THREE.RingGeometry(.16, .30, 28),
+    new THREE.MeshBasicMaterial({
+      color: 0xffd66a, transparent: true, opacity: .95,
+      side: THREE.DoubleSide, depthTest: false, depthWrite: false, toneMapped: false,
+    })
+  );
+  aiPlanTarget.name = 'meadowAIPlanTarget';
+  aiPlanTarget.rotation.x = -Math.PI / 2;
+  aiPlanTarget.position.y = .07;
+  aiPlanTarget.renderOrder = 20;
+  aiPlanTarget.visible = false;
+  aiPlanGroup.add(aiPlanTarget);
+
+  function setAIPlan(points, target) {
+    const n = Math.min(points?.length || 0, AI_PLAN_MAX);
+    if ((!n && !target) || (n < 2 && !target)) {
+      aiPlanGroup.visible = false;
+      aiPlanTarget.visible = false;
+      return 0;
+    }
+    for (let i = 0; i < n; i++) {
+      const p = points[i];
+      aiPlanPositions[i*3] = p.x;
+      aiPlanPositions[i*3+1] = .12;
+      aiPlanPositions[i*3+2] = p.z;
+    }
+    aiPlanGeo.setDrawRange(0, n);
+    aiPlanGeo.attributes.position.needsUpdate = true;
+    aiPlanLine.visible = n > 1;
+    if (target) {
+      aiPlanTarget.position.set(target.x, .07, target.z);
+      aiPlanTarget.visible = true;
+    } else {
+      aiPlanTarget.visible = false;
+    }
+    aiPlanGroup.visible = true;
+    return n;
+  }
+
   // ---------------------------------------------------------------- food
   // The flower blooms above are already placed clear of the paths and props.
   // Fallen jelly fruit gives the bears a second safe food type without asking
@@ -1715,6 +1789,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     },
     setGrassControls,
     setGrassVisible,
+    setAIPlan,
     setWaterCellScale(v) {
       const n = THREE.MathUtils.clamp(Number(v) || 1.2, .3, 2.4);
       waterUniforms.uCellScale.value = n;

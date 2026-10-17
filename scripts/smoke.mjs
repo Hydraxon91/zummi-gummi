@@ -53,6 +53,7 @@ const modules = [
   "/src/field.js",
   "/src/food.js",
   "/src/ai.js",
+  "/src/aidebug.js",
   "/src/sky.js",
   "/src/box3d.js",
   "/vendor/box3d/box3d.js",

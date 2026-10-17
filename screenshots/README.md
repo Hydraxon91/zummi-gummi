@@ -29,6 +29,8 @@ autonomous-behaviour checks.
 | `19_ai_eating.webp` | bear at a jelly-flower source; buddy status reads “nibbling a jelly flower” |
 | `20_ai_drinking.webp` | bear at a validated pond-shore approach; status reads “sipping from the pond” |
 | `21_food_sources.webp` | fallen jelly fruit and grass at a tree base |
+| `22_ai_debug.webp` | field AI debug panel with needs, forced state, live plan readout and selected-bear route |
+| `23_ai_debug_mobile.webp` | 390×844 AI debug panel layout |
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
 the stable circular-pass reading was **32.1 ms / 565 calls / 3.67 M triangles**.

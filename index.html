@@ -199,6 +199,50 @@
   .perf.compact .phead{margin-bottom:5px;padding-bottom:4px}
   .perf.compact .prow{padding:1px 0}
   .perf.compact .prow:nth-child(9){display:none}
+
+  /* ---------- bear AI debug ---------- */
+  .aidebug{
+    position:fixed;left:50%;bottom:18px;transform:translate(-50%,8px);
+    width:min(460px,calc(100vw - 24px));max-height:min(620px,calc(100vh - 32px));
+    overflow:auto;padding:13px 15px 12px;border-radius:18px;z-index:24;
+    background:linear-gradient(158deg,rgba(255,255,255,.92),rgba(210,243,255,.84) 60%,rgba(224,255,245,.80));
+    border:1px solid rgba(255,255,255,.92);
+    -webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5);
+    box-shadow:0 26px 70px -34px rgba(8,66,88,.6),inset 0 1px rgba(255,255,255,.95);
+    pointer-events:none;opacity:0;visibility:hidden;
+    transition:opacity .2s ease,transform .2s ease,visibility .2s;
+    font-family:var(--sans);color:var(--ink-2);
+  }
+  .aidebug.on{opacity:1;visibility:visible;transform:translate(-50%,0);pointer-events:auto}
+  .aiHead{display:flex;align-items:baseline;gap:7px;padding-bottom:8px;margin-bottom:7px;border-bottom:1px solid rgba(42,137,155,.16)}
+  .aiHead strong{font-size:14px;letter-spacing:.01em;color:#0b4351}
+  .aiKicker{font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:#5b939c}
+  .aiClose{margin-left:auto;appearance:none;border:0;background:transparent;color:#5b939c;font-size:18px;line-height:1;cursor:pointer;padding:0 3px}
+  .aiClose:hover{color:#0b4351}
+  .aiGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .aiField{display:flex;flex-direction:column;gap:4px;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#5b939c}
+  .aiField select{appearance:none;border:1px solid rgba(53,145,161,.25);border-radius:9px;background:rgba(255,255,255,.62);color:#10414c;font-family:var(--sans);font-size:11px;padding:7px 8px;min-width:0}
+  .aiNeed{margin-top:8px}
+  .aiNeedTop{display:flex;align-items:baseline;justify-content:space-between;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#5b939c}
+  .aiNeedTop b{font-size:10px;color:#2b7782;font-variant-numeric:tabular-nums;letter-spacing:0}
+  .aiNeed input{width:100%;height:18px;accent-color:#2fb9b1;cursor:pointer}
+  .aiBtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .aiBtn{appearance:none;border:1px solid rgba(53,145,161,.24);border-radius:8px;background:rgba(255,255,255,.5);color:#286e7c;font-family:var(--sans);font-size:9px;letter-spacing:.06em;padding:6px 9px;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.8)}
+  .aiBtn:hover{background:rgba(255,255,255,.85)}
+  .aiBtn.on,.aiBtn.primary{background:linear-gradient(180deg,#177e86,#0d5b68);border-color:#0d5b68;color:#fff}
+  .aiBtn:focus-visible,.aiField select:focus-visible,.aiNeed input:focus-visible{outline:2px solid #39bfc0;outline-offset:2px}
+  .aiReadout{margin:9px 0 0;padding:8px 9px;border-radius:9px;background:rgba(13,91,104,.07);color:#356f7a;font:10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-line;min-height:31px}
+  .aiFoot{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .aiNote{flex:1;font-size:9px;color:#5b939c;line-height:1.3}
+  .aiNote.bad{color:#b3445b}
+  .aiFoot .aiBtn{margin-left:auto}
+  body.ui-hidden .aidebug{opacity:0;visibility:hidden;pointer-events:none}
+  body[data-map="studio"] #aiDebugBtn,body[data-map="studio"] .aidebug{display:none}
+  @media(max-width:700px){
+    .aidebug{left:10px;right:10px;bottom:10px;width:auto;transform:none;max-height:calc(100vh - 76px);border-radius:15px}
+    .aidebug.on{transform:none}
+    .aiGrid{grid-template-columns:1fr}
+  }
   .camhint{
     position:fixed;left:50%;bottom:22px;transform:translate(-50%,6px);
     padding:7px 13px;border-radius:999px;border:1px solid var(--line);
@@ -631,6 +675,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
       <button class="perfbtn blast" id="explode" title="Launch a firework (F fires at the pointer)">Explode</button>
       <button class="perfbtn" id="clearBears" title="Remove every bear and reset the counters">Reset bears</button>
       <button class="perfbtn" id="resetView" hidden title="Reset the camera (R)">Reset view</button>
+      <button class="perfbtn" id="aiDebugBtn" aria-pressed="false" title="Toggle bear AI debug (G)">AI</button>
       <button class="perfbtn" id="perfBtn" aria-pressed="false" title="Toggle performance overlay (P)">Perf</button>
     </div>
   </aside>
@@ -666,6 +711,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>W A S D</dt><dd>Pan · Q / E zoom · R resets the view.</dd>
             <dt>U</dt><dd>Hide or show the interface.</dd>
             <dt>P</dt><dd>Performance overlay.</dd>
+            <dt>G</dt><dd>Bear AI debug (meadow only).</dd>
           </dl>
         </section>
       </div>
@@ -686,6 +732,47 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
     <div class="prow"><span>Tier</span><b id="pfTier">1</b><span id="pfTierNote">2.00× · g42</span></div>
     <div class="prow"><span>Draw</span><b id="pfDraw">17</b><span id="pfTris">150k tri</span></div>
   </div>
+
+  <aside class="aidebug" id="aiDebug" aria-hidden="true" aria-label="Bear AI debug">
+    <div class="aiHead">
+      <span class="aiKicker">Meadow debug</span>
+      <strong>Bear AI</strong>
+      <button class="aiClose" id="aiDebugClose" type="button" aria-label="Close AI debug">×</button>
+    </div>
+    <div class="aiGrid">
+      <label class="aiField"><span>Bear</span><select id="aiBear" aria-label="Debug bear"></select></label>
+      <label class="aiField"><span>State</span>
+        <select id="aiState" aria-label="Force AI state">
+          <option value="wander">Wander</option>
+          <option value="seekFood">Seek food</option>
+          <option value="eat">Eat</option>
+          <option value="seekWater">Seek water</option>
+          <option value="drink">Drink</option>
+        </select>
+      </label>
+    </div>
+    <div class="aiNeed">
+      <div class="aiNeedTop"><span>Hunger</span><b id="aiHungerVal">0.30</b></div>
+      <input id="aiHunger" type="range" min="0" max="1" step="0.01" value="0.30" aria-label="Debug hunger">
+    </div>
+    <div class="aiNeed">
+      <div class="aiNeedTop"><span>Thirst</span><b id="aiThirstVal">0.30</b></div>
+      <input id="aiThirst" type="range" min="0" max="1" step="0.01" value="0.30" aria-label="Debug thirst">
+    </div>
+    <div class="aiBtns">
+      <button class="aiBtn" id="aiMakeHungry" type="button">Make hungry</button>
+      <button class="aiBtn" id="aiMakeThirsty" type="button">Make thirsty</button>
+    </div>
+    <div class="aiBtns">
+      <button class="aiBtn primary" id="aiApplyState" type="button">Apply state</button>
+      <button class="aiBtn" id="aiRoute" type="button" aria-pressed="false">Show route</button>
+    </div>
+    <pre class="aiReadout" id="aiDebugReadout">No active meadow bears.</pre>
+    <div class="aiFoot">
+      <span class="aiNote" id="aiDebugNote"></span>
+      <button class="aiBtn" id="aiResetBear" type="button">Reset bear</button>
+    </div>
+  </aside>
 
   <footer class="studioFooter">Real-time soft bodies · three.js + Box3D</footer>
 </div>

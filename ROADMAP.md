@@ -295,7 +295,9 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
   list with name, ♀/♂, stage, status, hunger/health, pregnancy, online count and
   clock; Studio keeps the editorial skin. A persistent Hide UI control (and `U`)
   clears every overlay on desktop and phone while leaving a restore button.
-  Keep contrast, focus and keyboard use.
+  The field-only AI debug panel (and `G`) exposes needs, forced states and a
+  selected-bear planned-route overlay; Studio hides it. Keep contrast, focus and
+  keyboard use.
 
 ## Performance & testing
 

@@ -3,6 +3,7 @@ import { createLauncher } from './launcher.js';
 import { createSky } from './sky.js';
 import { buildField, POND_HOLE, POND } from './field.js';
 import { createBearAI } from './ai.js';
+import { createAIDebug } from './aidebug.js';
 import { createStudioReturnPortal } from './studiohouse.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
@@ -11,6 +12,7 @@ let launcher = null;
 let field = null;
 let sky = null;
 let ai = null;
+let aiDebug = null;
 let studioReturnPortal = null;
 const fieldColliderHandles = [];
 const cannonColliderHandles = { studio: -1, field: -1 };
@@ -1872,6 +1874,7 @@ addEventListener('keydown', (e)=>{
   if (helpOpen) return;
   const k = e.key.toLowerCase();
   if (k === 'u'){ if (!e.repeat) toggleUi(); return; }
+  if (k === 'g'){ if (!e.repeat && aiDebug && isMeadow()) aiDebug.toggle(); return; }
   if (k === 'f'){
     if (!e.repeat){
       fwHeld = true;
@@ -2025,6 +2028,7 @@ function setUiHidden(hidden){
   if (uiHidden){
     keys.clear();
     setHelp(false);
+    if (aiDebug) aiDebug.setOpen(false);
   }
   syncUiToggle();
   try { localStorage.setItem('gummy.uiHidden', uiHidden ? '1' : '0'); } catch (err) {}
@@ -2970,6 +2974,7 @@ function animate(now){
     field.update(dt, bears);
     if (scene.fog) scene.fog.color.copy(sky.fogColor);
   }
+  if (aiDebug) aiDebug.update(dt);
 
   const tPhys0 = performance.now();
   acc += dt;
@@ -3197,6 +3202,7 @@ function applyMapVisuals(id){
   }
   updateMapButtons();
   updateAeroVisibility();
+  if (aiDebug) aiDebug.onMapChanged();
 }
 
 function syncCannonCollider(){
@@ -3377,6 +3383,12 @@ function fitWallsToTable(){
   PHYS = await initPhysics(24 * BEAR_HARD_MAX, { x: 0, y: GRAV, z: 0 });
   ensureMeadow();
   ai = createBearAI({ field, getBears: () => bears });
+  aiDebug = createAIDebug({
+    getBears: () => bears,
+    getAI: () => ai,
+    getField: () => field,
+    isMeadow,
+  });
   launcher = createLauncher({
     scene, camera, canvas,
     getTable: () => TABLE,
@@ -3642,6 +3654,19 @@ window.__gummy = {
   })) : []; },
   setHunger(i, v){ const b = bears[i]; if (!b) return false; b.hunger = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.hunger; },
   setThirst(i, v){ const b = bears[i]; if (!b) return false; b.thirst = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.thirst; },
+  setBearState(i, state){
+    const b = bears[i];
+    if (!b || !ai || !isMeadow()) return { ok:false, note:'meadow only or no bear' };
+    return ai.debugState(b, state);
+  },
+  aiPlan(i){ const b = bears[i]; return b && ai ? ai.plan(b) : null; },
+  aiRoute(i, on){
+    if (!aiDebug || !isMeadow()) return null;
+    if (i !== undefined) aiDebug.selectByIndex(i);
+    if (on !== undefined) aiDebug.showRoute(!!on);
+    return aiDebug.state();
+  },
+  aiDebug(){ return aiDebug ? aiDebug.state() : null; },
   firework(){ return { rockets:rockets.length, particles:pCount, queued:burstQueue.length, rings:fwRings.length, fwTicks, frameTicks }; },
   launchFirework(usePointer, sx, sz){ return launchFirework(!!usePointer, sx, sz); },
   rocketTargets(){ return rockets.map(r => [ +r.x.toFixed(3), BURST_Y, +r.z.toFixed(3) ]); },

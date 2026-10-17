@@ -409,6 +409,106 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     // eat/drink are timer states; update() finishes them.
   }
 
+  function setNeed(b, kind, value) {
+    if (!b || (kind !== 'hunger' && kind !== 'thirst')) return false;
+    const n = Math.max(0, Math.min(1, Number(value)));
+    if (!Number.isFinite(n)) return false;
+    b[kind] = n;
+    if (b.ai) b.ai.nextThink = 0;
+    return n;
+  }
+
+  // Force a state from the debug panel. Eat/drink are only entered when a real
+  // target is available/in range; otherwise they degrade to the matching seek
+  // task rather than nibbling at empty air.
+  function debugState(b, state) {
+    if (!b) return { ok: false, note: 'no bear' };
+    if (!b.ai) attach(b);
+    if (!['wander', 'seekFood', 'seekWater', 'eat', 'drink'].includes(state)) {
+      return { ok: false, note: 'unknown state' };
+    }
+    releaseFood(b);
+    b.ai.interrupted = false;
+    b.ai.moving = false;
+    b.ai.hopState = null;
+    b.ai.hopWait = 0;
+    b.ai.faceYaw = null;
+    b.ai.path = null;
+    b.ai.pathIndex = 0;
+    b.ai.target = null;
+    b.ai.source = null;
+    b.ai.waterSpot = null;
+    b.ai.eatT = 0;
+    b.ai.drinkT = 0;
+    b.ai.taskCooldown = 0;
+    b.ai.nextThink = 0;
+
+    if (state === 'wander') {
+      b.ai.state = 'wander';
+      b.ai.idleT = 0;
+      return { ok: true, state: 'wander', note: 'wandering' };
+    }
+    if (state === 'seekFood') {
+      b.ai.state = 'seekFood';
+      return { ok: true, state: 'seekFood', note: 'looking for food' };
+    }
+    if (state === 'seekWater') {
+      b.ai.state = 'seekWater';
+      return { ok: true, state: 'seekWater', note: 'looking for water' };
+    }
+    if (state === 'eat') {
+      const source = field.food.nearestRipe(b.cx, b.cz, { maxDistance: 999, bear: b });
+      if (!source || !field.food.claim(source, b)) {
+        b.ai.state = 'seekFood';
+        return { ok: false, state: 'seekFood', note: 'no food target; seeking' };
+      }
+      b.ai.source = source;
+      b.ai.target = { x: source.approachX, z: source.approachZ };
+      const d = Math.hypot(source.approachX - b.cx, source.approachZ - b.cz);
+      if (d <= EAT_DIST) {
+        startEat(b);
+        return { ok: true, state: 'eat', note: 'eating' };
+      }
+      b.ai.state = 'seekFood';
+      setPath(b, pathTo(b, source.approachX, source.approachZ) || [{ x: source.approachX, z: source.approachZ }]);
+      return { ok: true, state: 'seekFood', note: 'seeking nearest food' };
+    }
+
+    let spot = null;
+    let bestD = Infinity;
+    for (const s of field.waterSpots || []) {
+      const d = Math.hypot(s.x - b.cx, s.z - b.cz);
+      if (d < bestD) { bestD = d; spot = s; }
+    }
+    if (!spot) {
+      b.ai.state = 'wander';
+      return { ok: false, state: 'wander', note: 'no water target' };
+    }
+    b.ai.waterSpot = spot;
+    b.ai.target = { x: spot.x, z: spot.z };
+    if (bestD <= DRINK_DIST) {
+      startDrink(b);
+      return { ok: true, state: 'drink', note: 'drinking' };
+    }
+    b.ai.state = 'seekWater';
+    setPath(b, pathTo(b, spot.x, spot.z) || [{ x: spot.x, z: spot.z }]);
+    return { ok: true, state: 'seekWater', note: 'seeking nearest water' };
+  }
+
+  function plan(b) {
+    if (!b || !b.ai) return null;
+    return {
+      state: b.ai.state,
+      hunger: +b.hunger.toFixed(3),
+      thirst: +b.thirst.toFixed(3),
+      interrupted: !!b.ai.interrupted,
+      moving: !!b.ai.moving,
+      source: b.ai.source ? b.ai.source.id : null,
+      target: b.ai.target ? { x: +b.ai.target.x.toFixed(2), z: +b.ai.target.z.toFixed(2) } : null,
+      path: b.ai.path ? b.ai.path.map(p => ({ x: +p.x.toFixed(2), z: +p.z.toFixed(2) })) : [],
+    };
+  }
+
   function update(dt) {
     if (!enabled || !field || !bears.length) return;
     const t0 = performance.now();
@@ -511,7 +611,8 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
   }
 
   return {
-    update, onGrab, onRelease, detach, setEnabled, stats: statsNow,
+    update, onGrab, onRelease, detach, setEnabled,
+    setNeed, debugState, plan, stats: statsNow,
     get enabled() { return enabled; },
   };
 }

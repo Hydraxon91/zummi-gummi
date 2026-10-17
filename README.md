@@ -50,6 +50,7 @@ The app uses ES modules and a `.wasm` file, so it must be served over HTTP (open
 - **Move cannon**: drag the cannon itself, or press **Move cannon** and click/tap the table. The footprint ring turns green/red for a valid spot; `Esc` cancels and restores the previous position. The position persists for each map.
 - **Hide UI**: press `U` or use the small top-right UI button to hide every overlay (including on phones). The button remains as the restore control and the choice is remembered.
 - **Autonomous bears**: meadow bears wander, hop toward food, nibble flowers or fallen fruit, and drink at the pond. Grabbing or throwing one interrupts its hop/task; it resumes when it lands and settles. The Studio remains a hands-on sandbox with needs paused.
+- **AI Debug**: press `G` or click **AI** to open the meadow-only inspector. Select a bear, set hunger/thirst, force a valid state, and show that bear’s planned route and target in the world. Eat/drink fall back to the matching seek state when no target exists.
 - **Wind**: use the Wind slider in the meadow time panel. **Meadow detail** exposes canopy fullness, leaf size, grass coverage and grass draw distance for balancing the look against frame cost.
 - Flavor swatches, custom color + clarity, wobble, bear ceiling (8–256, persisted), upright assist, pour, reset, and a performance overlay.
 
@@ -68,6 +69,7 @@ src/launcher.js            movable cannon: build, aim, fire, move/validate
 src/field.js               meadow, pond, food visuals, grass, trails, nav/shadows
 src/food.js                food sources, claims, ripeness and respawn
 src/ai.js                  hunger/thirst needs, hop tasks and interruption hooks
+src/aidebug.js             field-only AI inspector + selected-bear plan overlay
 src/fieldshape.js          shared wobbled-disc boundary, camera/nav/wall clamp
 src/wind.js                shared world-space wind uniforms + GLSL
 src/trees.js               procedural merged trees, foliage/fruit/hive batches
@@ -162,7 +164,7 @@ The Box3D port passes a 16-check headless self-test covering NaN/bounds, bounce 
 
 A continuous-integration smoke test also runs on every push and pull request (`.github/workflows/smoke.yml`). It boots `launch.py`, then `scripts/smoke.mjs` fetches the page shell, source modules, licenses and `box3d.wasm` over HTTP and instantiates the wasm — asserting the `application/wasm` MIME type, the `\0asm` header, the linear memory and the exported `_g3_*` wrapper API. Run it locally with `python3 launch.py --no-open &` then `node scripts/smoke.mjs`.
 
-Phase 3a debug checks drive `__gummy.ai()` / `__gummy.food()` / `__gummy.foodSources()`, plus `setHunger`, `setThirst` and `setAI`. They cover hop travel and airtime, food claims and unique claims, eating, drinking, respawn, grab/throw interruption and resume, Studio AI suppression, map-switch cleanup, and NaN/bounds. The AI update itself measured well under the <0.5 ms budget.
+Phase 3a debug checks drive `__gummy.ai()` / `__gummy.food()` / `__gummy.foodSources()`, plus `setHunger`, `setThirst`, `setAI`, `setBearState`, `aiPlan` and `aiRoute`. They cover hop travel and airtime, food claims and unique claims, eating, drinking, respawn, grab/throw interruption and resume, Studio AI suppression, map-switch cleanup, and NaN/bounds. The AI debug panel was checked at desktop and 390×844 with a selected-bear route line, target marker and Studio-hidden controls. The AI update itself measured well under the <0.5 ms budget.
 
 ## Roadmap status
 
