@@ -1,0 +1,52 @@
+name: Smoke test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  serve-and-load:
+    name: Serve the app and load the wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Start the launcher
+        run: |
+          set -euo pipefail
+          python3 launch.py --no-open --verbose --port 8000 > server.log 2>&1 &
+          for _ in $(seq 1 60); do
+            grep -q "This computer :" server.log && break
+            sleep 0.25
+          done
+          cat server.log
+          url="$(grep -o 'http://localhost:[0-9]*/' server.log | head -1)"
+          if [ -z "$url" ]; then
+            echo "::error::launch.py did not report a listening URL"
+            exit 1
+          fi
+          echo "BASE_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Smoke test the served build
+        run: node scripts/smoke.mjs "$BASE_URL"
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat server.log
