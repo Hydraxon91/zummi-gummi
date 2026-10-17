@@ -88,6 +88,17 @@ existing Box3D velocity and contact path, so this is not a new per-frame render
 cost. The full frame profile has not been re-run after the AI pass; the Phase 2
 GPU profile above remains the reference until a clean measurement.
 
+## Phase 4 social / contention spot check
+
+Phase 4 adds slow social/affection needs, pair bonds, invite/decline timers,
+door visits and claimed-food contention. A 20-bear headless stress run measured
+**0.028 ms** AI update time with no NaN positions or duplicate claims; the
+contention search only runs for critically hungry bears and iterates the existing
+212-source list. Social marks use a fixed pool of 18 sprites, so no scene object
+or material is allocated per frame. This is a CPU-only measurement; the last
+stable GPU frame profile above is still the reference, and the visible sprites
+have not been included in a fresh frame benchmark.
+
 ## Ground-detail / water spot check
 
 Two forced-sync runs after adding the close-up grass ground texture, its Aero

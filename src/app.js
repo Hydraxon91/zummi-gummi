@@ -344,6 +344,7 @@ class Bear{
     this.sex=(Math.random()<0.5?'F':'M');
     this.health=100; this.hunger=0.3; this.thirst=0.3;
     this.energy=1; this.bold=0.5; this.sleeping=false;
+    this.uid=0; this.social=0.3; this.affection=0.25; this.bonds={};
     // Heritable pace range; sampled per bear at spawn and inherited in Phase 5.
     this.hopSpeedMin=0.80; this.hopSpeedMax=1.65;
     this.pregnant=false; this.gestation=0;
@@ -394,6 +395,7 @@ function getFreeBear(){
   eyes.instanceMatrix.needsUpdate = true;
 })();
 const bears = [];
+let nextBearUid = 1;
 let bounces = 0;
 
 function spawn(x, z, y, flavor, opts={}){
@@ -430,6 +432,11 @@ function spawn(x, z, y, flavor, opts={}){
   b.age=0; b.sex=(Math.random()<0.5?'F':'M');
   b.health=100; b.hunger=0.3; b.thirst=0.3; b.energy=1;
   b.bold=0.25+Math.random()*0.5; b.sleeping=false;
+  b.uid = Number.isFinite(opts.uid) ? opts.uid : nextBearUid++;
+  if (b.uid >= nextBearUid) nextBearUid = b.uid + 1;
+  b.social = 0.28 + Math.random()*0.18;
+  b.affection = 0.18 + Math.random()*0.18;
+  b.bonds = {};
   // Phase 5 births will blend the parents' ranges with a small mutation.
   b.hopSpeedMin=0.70+Math.random()*0.25;
   b.hopSpeedMax=1.45+Math.random()*0.35;
@@ -644,6 +651,32 @@ function poseAndTargets(b, dt){
       b.tz[P_SNOUT] += 0.018;
       b.tx[P_HEAD] += sway;
       b.tx[P_SNOUT] += sway;
+    }
+  }
+  // Social states use small target-pose gestures: a soft nuzzle bounce while
+  // hanging out, a polite lean when inviting, a head shake on a decline, and a
+  // braced shove during a food contest.
+  if (b.ai && b.grabs === 0) {
+    const t = b.ai.animT || 0;
+    if (b.ai.state === 'social' || b.ai.state === 'visit') {
+      const bob = Math.max(0, Math.sin(t * 5.4));
+      const sway = Math.sin(t * 3.0) * .012;
+      b.ty[P_HEAD] += .012 + bob * .022;
+      b.ty[P_SNOUT] += .008 + bob * .018;
+      b.tx[P_HEAD] += sway;
+      b.tx[P_SNOUT] += sway * 1.15;
+    } else if (b.ai.state === 'invite') {
+      b.ty[P_HEAD] -= .018;
+      b.tz[P_HEAD] += .045;
+      b.tz[P_SNOUT] += .055;
+    } else if (b.ai.state === 'conflict') {
+      const brace = .5 - .5 * Math.cos(t * 12);
+      b.ty[P_HEAD] -= .022 + brace * .012;
+      b.tz[P_HEAD] += .035 + brace * .02;
+      b.tz[P_SNOUT] += .045 + brace * .02;
+    } else if (b.ai.state === 'decline') {
+      b.tx[P_HEAD] += Math.sin(t * 24) * .018;
+      b.tx[P_SNOUT] += Math.sin(t * 24) * .022;
     }
   }
   // finger-press squash: compress the target shape toward the table and let
@@ -2149,11 +2182,26 @@ function flavorHex(b){
   if (b.flavor < 0) return '#ff4fa3';
   return '#' + (FLAVORS[b.flavor] ? FLAVORS[b.flavor].hex.toString(16).padStart(6,'0') : 'd51f3c');
 }
+function buddyPartnerName(b){
+  const p = b && b.ai ? b.ai.partner : null;
+  return p ? (p.name || 'a friend') : 'a friend';
+}
 function buddyStatus(b){
   if (!field) return 'settling in';
   if (b.ai && b.ai.state === 'sleep') return `sleeping at ${b.home || 'home'}`;
   if (b.health < 15) return 'woozy — needs a quiet corner';
   if (b.ai) {
+    if (b.ai.state === 'seekCompany') return 'looking for a friend';
+    if (b.ai.state === 'invite') return 'offering a nuzzle';
+    if (b.ai.state === 'social') return `hanging out with ${buddyPartnerName(b)}`;
+    if (b.ai.state === 'decline') return 'needs a little space';
+    if (b.ai.state === 'visit') {
+      const who = buddyPartnerName(b);
+      const home = b.ai.visitHome || 'home';
+      return b.ai.visitRole === 'guest' ? `visiting ${who}'s villa` : `hosting ${who} at ${home}`;
+    }
+    if (b.ai.state === 'seekConflict') return 'eyeing someone else’s snack';
+    if (b.ai.state === 'conflict') return 'shoving over a snack';
     if (b.ai.state === 'seekHome') return 'heading home to rest';
     if (b.ai.state === 'raidHive') return 'raiding a beehive';
     if (b.ai.state === 'seekHive') return 'eyeing the beehive';
@@ -2593,6 +2641,14 @@ function stepMeadowAI(dt) {
   if (field.food) field.food.update(dt);
   if (!ai || !ai.enabled) return;
   ai.update(dt);
+  // Social conflicts queue a small shove; app.js owns body impulses.
+  for (const b of bears) {
+    if (!b.active || !b.ai || !b.ai.shove) continue;
+    const s = b.ai.shove;
+    b.ai.shove = null;
+    if (b.grabs > 0 || b.inPond) continue;
+    hopBear(b, 0, s.x, s.z, true);
+  }
   updateAiLocomotion(dt);
 }
 
@@ -2613,9 +2669,8 @@ function frameTick(dt){
   // idle hops + anticipation. An AI bear that is travelling or eating has its
   // own hop controller; only genuinely idle meadow bears keep the random hop.
   for (const b of bears){
-    const aiBusy = b.ai && (b.ai.moving || b.ai.hopState === 'crouch' ||
-      b.ai.state === 'seekFood' || b.ai.state === 'seekWater' ||
-      b.ai.state === 'eat' || b.ai.state === 'drink');
+    const aiBusy = b.ai && (b.ai.moving || b.ai.state !== 'wander' ||
+      b.ai.hopState === 'crouch');
     if (!frozen && b.grabs === 0 && !aiBusy){
       const speed = Math.hypot(b.vcx,b.vcy,b.vcz);
       if (b.antic > 0){
@@ -3222,6 +3277,8 @@ function snapshotBear(b){
     flavor: b.flavor, sex: b.sex, stage: b.stage, scale: b.scale,
     health: b.health, hunger: b.hunger, thirst: b.thirst,
     energy: b.energy, bold: b.bold,
+    social: b.social, affection: b.affection, bonds: { ...(b.bonds || {}) },
+    uid: b.uid,
     hopSpeedMin: b.hopSpeedMin, hopSpeedMax: b.hopSpeedMax,
     name: b.name, home: b.home,
     x: b.cx, z: b.cz, yaw: yawOfQuat(b.q),
@@ -3241,7 +3298,7 @@ function spawnFromState(st){
   const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), st.yaw || 0);
   const b = spawn(x, z, 0.004, st.flavor >= 0 ? st.flavor : 0, {
     quat: q, lift: 0, name: st.name || takeBearName(), sex: st.sex || 'F', home: st.home || '',
-    stage: st.stage || 'adult', scale: st.scale || 1,
+    stage: st.stage || 'adult', scale: st.scale || 1, uid: st.uid,
   });
   if (!b) return null;
   b.health = Number.isFinite(st.health) ? st.health : 100;
@@ -3249,6 +3306,9 @@ function spawnFromState(st){
   b.thirst = Number.isFinite(st.thirst) ? st.thirst : 0.3;
   b.energy = Number.isFinite(st.energy) ? st.energy : 1;
   b.bold = Number.isFinite(st.bold) ? st.bold : 0.5;
+  b.social = Number.isFinite(st.social) ? clamp(st.social, 0, 1) : b.social;
+  b.affection = Number.isFinite(st.affection) ? clamp(st.affection, 0, 1) : b.affection;
+  b.bonds = st.bonds && typeof st.bonds === 'object' ? { ...st.bonds } : {};
   b.hopSpeedMin = Number.isFinite(st.hopSpeedMin) ? st.hopSpeedMin : b.hopSpeedMin;
   b.hopSpeedMax = Number.isFinite(st.hopSpeedMax) ? st.hopSpeedMax : b.hopSpeedMax;
   return b;
@@ -3697,6 +3757,7 @@ window.__gummy = {
       food: field.food ? field.food.stats() : null,
       hives: field.hives ? field.hives.length : 0,
       waterSpots: field.waterSpots ? field.waterSpots.length : 0,
+      emotes: field.emoteCount || 0,
       nature: field.natureControls,
       grass: field.grassControls,
       mist: field.mist,
@@ -3755,7 +3816,7 @@ window.__gummy = {
   launcherScreenOf(x, z){ return launcher ? launcher.screenOf(x, z) : null; },
   launcherMoveMode(on){ return launcher ? launcher.toggleMoveMode(on) : false; },
   world(){ return { map: activeWorld.mapId, wallHeight: getActiveMap().wallHeight, walls: worldWalls.walls.slice(), ground: worldWalls.ground, bounds: [worldWalls.hx, worldWalls.hz], launcher: launcher ? launcher.state() : null }; },
-  traits(){ return bears.map(b => ({ sex:b.sex, stage:b.stage, scale:b.scale, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null })); },
+  traits(){ return bears.map(b => ({ uid:b.uid, sex:b.sex, stage:b.stage, scale:b.scale, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, social:b.social, affection:b.affection, bonds:{ ...(b.bonds || {}) }, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null, partner:b.ai && b.ai.partner ? b.ai.partner.name : null })); },
   ai(){ return ai ? ai.stats() : null; },
   setAI(v){ return ai ? ai.setEnabled(v) : false; },
   food(){ return field && field.food ? field.food.stats() : null; },
@@ -3763,6 +3824,10 @@ window.__gummy = {
     id:s.id, kind:s.kind, x:s.x, z:s.z,
     approachX:s.approachX, approachZ:s.approachZ,
     ripe:s.ripe, claimed:!!s.claim, visualIndex:s.visualIndex,
+  })) : []; },
+  homes(){ return field ? field.homes.map(h => ({
+    name:h.name, x:h.x, z:h.z, yaw:h.yaw,
+    door:{ x:h.door.x, z:h.door.z },
   })) : []; },
   setHunger(i, v){ const b = bears[i]; if (!b) return false; b.hunger = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.hunger; },
   setThirst(i, v){ const b = bears[i]; if (!b) return false; b.thirst = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.thirst; },
@@ -3779,6 +3844,40 @@ window.__gummy = {
     b.energy = clamp(n, 0, 1);
     if (b.ai) b.ai.nextThink = 0;
     return b.energy;
+  },
+  setSocial(i, v){
+    const b = bears[i]; if (!b) return false;
+    const n = Number(v); if (!Number.isFinite(n)) return false;
+    b.social = clamp(n, 0, 1);
+    if (b.ai) b.ai.nextThink = 0;
+    return b.social;
+  },
+  setAffection(i, v){
+    const b = bears[i]; if (!b) return false;
+    const n = Number(v); if (!Number.isFinite(n)) return false;
+    b.affection = clamp(n, 0, 1);
+    if (b.ai) b.ai.nextThink = 0;
+    return b.affection;
+  },
+  setBond(i, j, v){
+    if (!ai) return false;
+    return ai.setBond(bears[i], bears[j], v);
+  },
+  forceSocial(i, j, accept = true){
+    if (!ai) return { ok:false, note:'meadow only' };
+    return ai.debugSocial(bears[i], bears[j], accept);
+  },
+  forceInvite(i, j, accept = true){
+    if (!ai) return { ok:false, note:'meadow only' };
+    return ai.debugInvite(bears[i], bears[j], accept);
+  },
+  forceVisit(i, j){
+    if (!ai) return { ok:false, note:'meadow only' };
+    return ai.debugVisit(bears[i], bears[j]);
+  },
+  forceConflict(i, j){
+    if (!ai) return { ok:false, note:'meadow only' };
+    return ai.debugConflict(bears[i], bears[j]);
   },
   setBearState(i, state){
     const b = bears[i];

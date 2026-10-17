@@ -41,6 +41,30 @@ const NIGHT_END = 6;
 const HOME_DIST = 1.15;
 const WOOZY_SPEED = 0.65;
 
+// Socialising is a slow need. Company is preferred over a random wander once
+// either need crosses its threshold; a successful greeting relieves both and
+// raises the pair's bond. Visits stay at the door for now; interiors are a
+// later home pass.
+const SOCIAL_RATE = 0.0018;         // per second, awake
+const AFFECTION_RATE = 0.0012;      // per second, awake
+const SEEK_SOCIAL = 0.60;
+const SEEK_AFFECTION = 0.64;
+const STOP_SOCIAL = 0.30;
+const SOCIAL_RADIUS = 22;
+const SOCIAL_DIST = 1.45;
+const INVITE_TIME = 0.70;
+const SOCIAL_TIME = 4.2;
+const DECLINE_TIME = 0.90;
+const SOCIAL_COOLDOWN = 14;
+const VISIT_BOND = 0.16;
+const VISIT_CHANCE = 0.45;
+const VISIT_TIME = 4.8;
+const VISIT_DIST = 1.55;
+const CONFLICT_DIST = 1.20;
+const CONFLICT_TIME = 0.85;
+const CONFLICT_COOLDOWN = 12;
+const CONFLICT_RADIUS = 8;
+
 // Hives are high-value and risky. The threshold shifts with boldness; hunger
 // can push a desperate bear a little lower, never below the hard floor.
 const HIVE_HUNGER = 0.95;
@@ -67,6 +91,71 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     const h = Number(hoursNow());
     return Number.isFinite(h) && (h >= NIGHT_START || h < NIGHT_END);
   };
+
+  function unit(v) {
+    return Math.max(0, Math.min(1, finite(v, 0)));
+  }
+
+  function bondKey(other) {
+    return String(other && (other.uid !== undefined ? other.uid : other.slot));
+  }
+
+  function bondOf(a, b) {
+    if (!a || !b || !a.bonds) return 0;
+    const v = Number(a.bonds[bondKey(b)]);
+    return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0;
+  }
+
+  function pairBond(a, b) {
+    return (bondOf(a, b) + bondOf(b, a)) * 0.5;
+  }
+
+  function addBond(a, b, amount) {
+    if (!a || !b || a === b) return 0;
+    if (!a.bonds || typeof a.bonds !== 'object') a.bonds = {};
+    if (!b.bonds || typeof b.bonds !== 'object') b.bonds = {};
+    const next = Math.max(0, Math.min(1, pairBond(a, b) + amount));
+    a.bonds[bondKey(b)] = next;
+    b.bonds[bondKey(a)] = next;
+    return next;
+  }
+
+  function partnerName(b) {
+    return b && b.ai && b.ai.partner ? (b.ai.partner.name || 'a friend') : '';
+  }
+
+  function breakPair(b) {
+    if (!b || !b.ai) return;
+    if (b.ai.source && field && field.food) field.food.release(b.ai.source, b);
+    const p = b.ai.partner;
+    if (p && p.ai && p.ai.partner === b) {
+      if (p.ai.source && field && field.food) field.food.release(p.ai.source, p);
+      p.ai.partner = null;
+      p.ai.moving = false;
+      p.ai.path = null;
+      p.ai.visitHome = null;
+      p.ai.visitRole = null;
+      p.ai.visitPhase = null;
+      p.ai.visitArrived = false;
+      if (['social', 'invite', 'decline', 'visit', 'conflict'].includes(p.ai.state)) {
+        p.ai.state = 'wander';
+        p.ai.idleT = 0.5;
+        p.ai.taskCooldown = 0.8;
+      }
+      p.ai.source = null;
+      p.ai.contestBear = null;
+      p.ai.contestSource = null;
+      p.ai.conflictSource = null;
+    }
+    b.ai.partner = null;
+    b.ai.visitHome = null;
+    b.ai.visitRole = null;
+    b.ai.visitPhase = null;
+    b.ai.visitArrived = false;
+    b.ai.contestBear = null;
+    b.ai.contestSource = null;
+    b.ai.conflictSource = null;
+  }
 
   function assignHome(b) {
     if (!b || !field || !field.homes || !field.homes.length) return null;
@@ -102,6 +191,9 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     b.thirst = finite(b.thirst, 0.30);
     b.energy = Math.max(0, Math.min(1, finite(b.energy, 1)));
     b.bold = Math.max(0, Math.min(1, finite(b.bold, 0.5)));
+    b.social = Math.max(0, Math.min(1, finite(b.social, 0.3)));
+    b.affection = Math.max(0, Math.min(1, finite(b.affection, 0.25)));
+    if (!b.bonds || typeof b.bonds !== 'object') b.bonds = {};
     b.sleeping = !!b.sleeping;
     b.ai = {
       state: 'wander',
@@ -128,6 +220,25 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       fleeFrom: null,
       stungT: 0,
       sleepHome: null,
+      partner: null,
+      inviteT: 0,
+      inviteAccepted: false,
+      socialT: 0,
+      socialCooldown: 0,
+      heartT: 0,
+      declineT: 0,
+      conflictT: 0,
+      conflictCooldown: 0,
+      conflictSource: null,
+      contestBear: null,
+      contestSource: null,
+      visitHome: null,
+      visitRole: null,
+      visitPhase: null,
+      visitT: 0,
+      visitArrived: false,
+      visitRetryT: 0,
+      shove: null,
       lastX: b.cx,
       lastZ: b.cz,
       stuckT: 0,
@@ -152,6 +263,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
   function onGrab(b) {
     if (!b.ai) attach(b);
     if (!b.ai) return;
+    breakPair(b);
     b.ai.interrupted = true;
     b.ai.moving = false;
     b.ai.arrived = false;
@@ -161,8 +273,15 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     b.ai.faceYaw = null;
     b.ai.raidT = 0;
     b.ai.fleeT = 0;
+    b.ai.inviteT = 0;
+    b.ai.socialT = 0;
+    b.ai.declineT = 0;
+    b.ai.conflictT = 0;
+    b.ai.shove = null;
     b.sleeping = false;
-    if (b.ai.state === 'sleep') b.ai.state = 'wander';
+    if (['sleep', 'social', 'invite', 'decline', 'visit', 'conflict'].includes(b.ai.state)) {
+      b.ai.state = 'wander';
+    }
     b.ai.path = null;
     b.ai.pathIndex = 0;
     // Do not hold a food reservation while the player is carrying the bear.
@@ -181,10 +300,12 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
 
   function detach(b) {
     releaseFood(b);
+    breakPair(b);
     if (b.ai) {
       b.ai.moving = false;
       b.ai.path = null;
       b.ai.hopState = null;
+      b.ai.partner = null;
       b.sleeping = false;
     }
     b.ai = null;
@@ -196,6 +317,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       for (const b of bears) {
         if (!b.active || !b.ai) continue;
         releaseFood(b);
+        breakPair(b);
         b.ai.moving = false;
         b.ai.arrived = false;
         b.ai.source = null;
@@ -210,8 +332,15 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
         b.ai.faceYaw = null;
         b.ai.raidT = 0;
         b.ai.fleeT = 0;
+        b.ai.inviteT = 0;
+        b.ai.socialT = 0;
+        b.ai.declineT = 0;
+        b.ai.conflictT = 0;
+        b.ai.shove = null;
         b.sleeping = false;
-        if (b.ai.state === 'sleep') b.ai.state = 'wander';
+        if (['sleep', 'social', 'invite', 'decline', 'visit', 'conflict'].includes(b.ai.state)) {
+          b.ai.state = 'wander';
+        }
       }
     }
     return enabled;
@@ -469,6 +598,552 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     clearPath(b);
   }
 
+  function canCompany(b, other) {
+    if (!b || !other || b === other || !other.active || !other.ai) return false;
+    if (other.grabs > 0 || other.inPond || other.sleeping) return false;
+    if (other.health < HEALTH_WOOZY) return false;
+    if (!['wander', 'seekCompany'].includes(other.ai.state)) return false;
+    if (other.ai.partner && other.ai.partner !== b) return false;
+    return true;
+  }
+
+  function acquireCompany(b) {
+    if (!b || !b.ai || b.ai.socialCooldown > 0) return null;
+    if (b.social < SEEK_SOCIAL && b.affection < SEEK_AFFECTION) return null;
+    let best = null;
+    let bestScore = -Infinity;
+    for (const other of bears) {
+      if (!canCompany(b, other)) continue;
+      const d = Math.hypot(other.cx - b.cx, other.cz - b.cz);
+      if (d > SOCIAL_RADIUS) continue;
+      const bond = pairBond(b, other);
+      const need = unit(other.social);
+      const score = bond * 1.3 + need * .7 - d * .025 +
+        (other.ai.state === 'wander' && !other.ai.moving ? .18 : 0) +
+        (rng() - .5) * .08;
+      if (score > bestScore) { bestScore = score; best = other; }
+    }
+    if (!best) {
+      b.ai.socialCooldown = 3.0;
+      return null;
+    }
+    startSeekCompany(b, best);
+    return best;
+  }
+
+  function startSeekCompany(b, partner) {
+    if (!b || !b.ai || !partner) return false;
+    releaseFood(b);
+    b.ai.source = null;
+    b.ai.waterSpot = null;
+    b.ai.partner = partner;
+    b.ai.state = 'seekCompany';
+    b.ai.target = { x: partner.cx, z: partner.cz };
+    b.ai.faceYaw = Math.atan2(partner.cx - b.cx, partner.cz - b.cz);
+    b.ai.moving = false;
+    setPath(b, pathTo(b, partner.cx, partner.cz) || [{ x: partner.cx, z: partner.cz }]);
+    return true;
+  }
+
+  function thinkSeekCompany(b) {
+    if (!b || !b.ai) return;
+    const p = b.ai.partner;
+    if (!canCompany(b, p)) {
+      // A partner that started socialising with someone else is no longer ours.
+      if (p && p.ai && p.ai.partner === b) breakPair(b);
+      b.ai.partner = null;
+      b.ai.state = 'wander';
+      b.ai.idleT = .5;
+      b.ai.socialCooldown = Math.max(b.ai.socialCooldown, 3.0);
+      clearPath(b);
+      return;
+    }
+    if (b.social < STOP_SOCIAL && b.affection < STOP_SOCIAL) {
+      breakPair(b);
+      b.ai.state = 'wander';
+      b.ai.idleT = .5;
+      clearPath(b);
+      return;
+    }
+    const d = Math.hypot(p.cx - b.cx, p.cz - b.cz);
+    if (d <= SOCIAL_DIST) {
+      startInvite(b, p);
+      return;
+    }
+    b.ai.target = { x: p.cx, z: p.cz };
+    if (!b.ai.path || !b.ai.path.length) {
+      const path = pathTo(b, p.cx, p.cz);
+      if (!path) {
+        if (d > 2.2) {
+          b.ai.partner = null;
+          b.ai.state = 'wander';
+          b.ai.idleT = .7;
+          b.ai.socialCooldown = Math.max(b.ai.socialCooldown, 3.0);
+          clearPath(b);
+        }
+        return;
+      }
+      setPath(b, path);
+    }
+    b.ai.moving = true;
+  }
+
+  function decideAccept(initiator, partner) {
+    const need = unit(partner.social);
+    const bond = pairBond(initiator, partner);
+    let chance = .30 + need * .55 + bond * .30 + (partner.ai.state === 'wander' ? .12 : 0);
+    if (partner.health < HEALTH_HURT) chance -= .18;
+    if (partner.energy < ENERGY_TIRED) chance -= .12;
+    chance = Math.max(.15, Math.min(.94, chance));
+    return rng() < chance;
+  }
+
+  function startInvite(b, partner, acceptedOverride) {
+    if (!b || !b.ai || !partner || !partner.ai) return false;
+    if (!canCompany(b, partner)) return false;
+    const accepted = acceptedOverride === undefined ? decideAccept(b, partner) : !!acceptedOverride;
+    b.ai.state = 'invite';
+    b.ai.partner = partner;
+    b.ai.inviteAccepted = accepted;
+    b.ai.inviteT = INVITE_TIME;
+    b.ai.moving = false;
+    b.ai.path = null;
+    b.ai.target = { x: partner.cx, z: partner.cz };
+    b.ai.faceYaw = Math.atan2(partner.cx - b.cx, partner.cz - b.cz);
+    partner.ai.partner = b;
+    partner.ai.inviteAccepted = accepted;
+    partner.ai.inviteT = INVITE_TIME;
+    partner.ai.declineT = DECLINE_TIME;
+    partner.ai.moving = false;
+    partner.ai.path = null;
+    partner.ai.target = { x: b.cx, z: b.cz };
+    partner.ai.faceYaw = Math.atan2(b.cx - partner.cx, b.cz - partner.cz);
+    partner.ai.state = accepted ? 'invite' : 'decline';
+    if (field && field.emote) field.emote(b.cx, b.cy + 1.08, b.cz, 'question');
+    return true;
+  }
+
+  function beginSocialPair(a, b) {
+    if (!a || !b || !a.ai || !b.ai || a === b) return false;
+    a.ai.state = 'social';
+    b.ai.state = 'social';
+    a.ai.partner = b;
+    b.ai.partner = a;
+    a.ai.socialT = SOCIAL_TIME;
+    b.ai.socialT = SOCIAL_TIME;
+    a.ai.inviteT = 0;
+    b.ai.inviteT = 0;
+    a.ai.heartT = 0;
+    b.ai.heartT = .22;
+    a.ai.animT = 0;
+    b.ai.animT = 0;
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.target = { x: b.cx, z: b.cz };
+    b.ai.target = { x: a.cx, z: a.cz };
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    if (field && field.emote) field.emote(a.cx, a.cy + .9, a.cz, 'heart');
+    return true;
+  }
+
+  function settleSocial(b) {
+    if (!b || !b.ai) return;
+    b.social = Math.max(0, b.social - .50);
+    b.affection = Math.max(0, b.affection - .38);
+    b.ai.socialCooldown = SOCIAL_COOLDOWN;
+  }
+
+  function endSocialPair(a) {
+    if (!a || !a.ai || a.ai.state !== 'social') return;
+    const b = a.ai.partner;
+    settleSocial(a);
+    if (b && b.ai && b.ai.state === 'social' && b.ai.partner === a) settleSocial(b);
+    addBond(a, b, .16 + rng() * .08);
+    a.ai.state = 'wander';
+    a.ai.idleT = .55;
+    a.ai.taskCooldown = 1.0;
+    a.ai.partner = null;
+    clearPath(a);
+    if (b && b.ai && b.ai.state === 'social' && b.ai.partner === a) {
+      b.ai.state = 'wander';
+      b.ai.idleT = .55;
+      b.ai.taskCooldown = 1.0;
+      b.ai.partner = null;
+      clearPath(b);
+    }
+    const canVisit = b && b.ai && !isNight() && pairBond(a, b) >= VISIT_BOND &&
+      rng() < VISIT_CHANCE;
+    if (canVisit) startVisit(a, b);
+  }
+
+  function startDeclinePair(a, b) {
+    if (!a || !a.ai || !b || !b.ai) return;
+    a.ai.state = 'decline';
+    b.ai.state = 'decline';
+    a.ai.partner = b;
+    b.ai.partner = a;
+    a.ai.declineT = DECLINE_TIME;
+    b.ai.declineT = DECLINE_TIME;
+    a.ai.inviteT = 0;
+    b.ai.inviteT = 0;
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.socialCooldown = Math.max(a.ai.socialCooldown, 4.0);
+    b.ai.socialCooldown = Math.max(b.ai.socialCooldown, 2.5);
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    if (field && field.emote) {
+      field.emote(a.cx, a.cy + 1.08, a.cz, 'no');
+      field.emote(b.cx, b.cy + 1.08, b.cz, 'no');
+    }
+  }
+
+  function finishDeclinePair(b) {
+    if (!b || !b.ai || b.ai.state !== 'decline') return;
+    const p = b.ai.partner;
+    b.ai.state = 'wander';
+    b.ai.idleT = .55;
+    b.ai.partner = null;
+    clearPath(b);
+    if (p && p.ai && p.ai.state === 'decline' && p.ai.partner === b) {
+      p.ai.state = 'wander';
+      p.ai.idleT = .55;
+      p.ai.partner = null;
+      clearPath(p);
+    }
+  }
+
+  function resolveInvite(b) {
+    if (!b || !b.ai || b.ai.state !== 'invite' || b.ai.inviteT > 0) return;
+    const p = b.ai.partner;
+    if (!p || !p.ai) {
+      b.ai.state = 'wander';
+      b.ai.partner = null;
+      clearPath(b);
+      return;
+    }
+    if (b.ai.inviteAccepted) beginSocialPair(b, p);
+    else startDeclinePair(b, p);
+  }
+
+  // Door-level visit: the host leads a friend to its villa and both hang out
+  // outside. Interiors are deliberately a later pass; the visit fields keep the
+  // host/home identity so an enter/exit transition can be added without a new
+  // state.
+  function startVisit(a, b) {
+    if (!a || !b || !a.ai || !b.ai || a === b) return false;
+    const home = homeFor(a);
+    if (!home || isNight() || !field || !field.nav) return false;
+    const dx = home.door.x - home.x;
+    const dz = home.door.z - home.z;
+    const len = Math.hypot(dx, dz) || 1;
+    let gx = home.door.x - dz / len * .72;
+    let gz = home.door.z + dx / len * .72;
+    const p = field.nav.nearestWalkable(gx, gz);
+    if (p && !(field.pond && field.pond.contains(p.x, p.z))) {
+      gx = p.x; gz = p.z;
+    } else {
+      gx = home.door.x; gz = home.door.z;
+    }
+    a.ai.state = 'visit';
+    b.ai.state = 'visit';
+    a.ai.partner = b;
+    b.ai.partner = a;
+    a.ai.visitHome = home.name;
+    b.ai.visitHome = home.name;
+    a.ai.visitRole = 'host';
+    b.ai.visitRole = 'guest';
+    a.ai.visitPhase = 'travel';
+    b.ai.visitPhase = 'travel';
+    a.ai.visitT = 0;
+    b.ai.visitT = 0;
+    a.ai.visitArrived = false;
+    b.ai.visitArrived = false;
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.target = { x: home.door.x, z: home.door.z };
+    b.ai.target = { x: gx, z: gz };
+    a.ai.faceYaw = Math.atan2(home.door.x - a.cx, home.door.z - a.cz);
+    b.ai.faceYaw = Math.atan2(gx - b.cx, gz - b.cz);
+    setPath(a, pathTo(a, home.door.x, home.door.z) || [{ x: home.door.x, z: home.door.z }]);
+    setPath(b, pathTo(b, gx, gz) || [{ x: gx, z: gz }]);
+    if (field.emote) field.emote(a.cx, a.cy + .95, a.cz, 'heart');
+    return true;
+  }
+
+  function beginVisitHangout(a, b) {
+    if (!a || !b || !a.ai || !b.ai) return;
+    a.ai.visitPhase = 'hangout';
+    b.ai.visitPhase = 'hangout';
+    a.ai.visitT = VISIT_TIME;
+    b.ai.visitT = VISIT_TIME;
+    a.ai.animT = 0;
+    b.ai.animT = 0;
+    a.ai.heartT = .3;
+    b.ai.heartT = 1.0;
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    if (field && field.emote) field.emote(a.cx, a.cy + .95, a.cz, 'heart');
+  }
+
+  function finishVisitPair(a) {
+    if (!a || !a.ai || a.ai.state !== 'visit') return;
+    const b = a.ai.partner;
+    addBond(a, b, .08);
+    a.social = Math.max(0, a.social - .22);
+    a.affection = Math.max(0, a.affection - .16);
+    a.ai.state = 'wander';
+    a.ai.idleT = .6;
+    a.ai.taskCooldown = 1.2;
+    a.ai.socialCooldown = 8;
+    a.ai.partner = null;
+    a.ai.visitHome = null;
+    a.ai.visitRole = null;
+    a.ai.visitPhase = null;
+    a.ai.visitArrived = false;
+    clearPath(a);
+    if (b && b.ai && b.ai.state === 'visit' && b.ai.partner === a) {
+      b.social = Math.max(0, b.social - .22);
+      b.affection = Math.max(0, b.affection - .16);
+      b.ai.state = 'wander';
+      b.ai.idleT = .6;
+      b.ai.taskCooldown = 1.2;
+      b.ai.socialCooldown = 8;
+      b.ai.partner = null;
+      b.ai.visitHome = null;
+      b.ai.visitRole = null;
+      b.ai.visitPhase = null;
+      b.ai.visitArrived = false;
+      clearPath(b);
+    }
+  }
+
+  function thinkVisit(b) {
+    if (!b || !b.ai || b.ai.state !== 'visit') return;
+    const p = b.ai.partner;
+    if (!p || !p.ai || p.ai.partner !== b || p.ai.state !== 'visit' || isNight()) {
+      finishVisitPair(b);
+      return;
+    }
+    if (b.ai.visitPhase === 'hangout') return;
+    b.ai.visitT = (b.ai.visitT || 0) + .22;
+    if (b.ai.visitT > 12) { finishVisitPair(b); return; }
+    const home = field.homes.find(h => h.name === b.ai.visitHome);
+    if (!home) { finishVisitPair(b); return; }
+    const target = b.ai.target;
+    if (!target) { finishVisitPair(b); return; }
+    const d = Math.hypot(target.x - b.cx, target.z - b.cz);
+    if (d <= VISIT_DIST) {
+      b.ai.visitArrived = true;
+      b.ai.moving = false;
+      b.ai.path = null;
+      if (p.ai.visitArrived) {
+        const host = b.ai.visitRole === 'host' ? b : p;
+        const guest = host === b ? p : b;
+        beginVisitHangout(host, guest);
+      }
+      return;
+    }
+    if (!b.ai.path || !b.ai.path.length) {
+      const path = pathTo(b, target.x, target.z);
+      if (!path) {
+        if (d > 2.2) { finishVisitPair(b); return; }
+        return;
+      }
+      setPath(b, path);
+    }
+    b.ai.moving = true;
+  }
+
+  function findContest(b) {
+    if (!b || !b.ai || !field || !field.food || !field.food.sources) return null;
+    if (b.hunger < SEEK_HUNGER || b.health < HEALTH_WOOZY || b.ai.conflictCooldown > 0) return null;
+    let best = null;
+    let bestScore = -Infinity;
+    for (const source of field.food.sources) {
+      if (!source.ripe || !source.claim || source.claim === b) continue;
+      if (!SAFE_FOOD.includes(source.kind)) continue;
+      const other = source.claim;
+      if (!other || !other.active || other.sleeping || other.health < HEALTH_WOOZY) continue;
+      if (!other.ai || !['wander', 'seekFood', 'eat', 'drink', 'seekWater', 'seekCompany'].includes(other.ai.state)) continue;
+      if (other.grabs > 0 || other.inPond) continue;
+      const d = Math.hypot(source.approachX - b.cx, source.approachZ - b.cz);
+      if (d > CONFLICT_RADIUS) continue;
+      const dc = Math.hypot(other.cx - source.approachX, other.cz - source.approachZ);
+      if (dc > 3.5) continue;
+      if (b.bold < .30 && other.scale > b.scale * 1.06) continue;
+      const score = (1 - d / CONFLICT_RADIUS) * .6 + b.hunger * .5 +
+        (b.scale >= other.scale ? .08 : 0) - pairBond(b, other) * .25;
+      if (score > bestScore) { bestScore = score; best = { source, bear: other }; }
+    }
+    return best;
+  }
+
+  function acquireContest(b) {
+    const contest = findContest(b);
+    if (!contest) return null;
+    releaseFood(b);
+    b.ai.source = null;
+    b.ai.contestSource = contest.source;
+    b.ai.contestBear = contest.bear;
+    b.ai.state = 'seekConflict';
+    b.ai.target = { x: contest.source.approachX, z: contest.source.approachZ };
+    b.ai.faceYaw = Math.atan2(contest.source.approachX - b.cx, contest.source.approachZ - b.cz);
+    setPath(b, pathTo(b, contest.source.approachX, contest.source.approachZ) ||
+      [{ x: contest.source.approachX, z: contest.source.approachZ }]);
+    return contest.source;
+  }
+
+  function thinkSeekConflict(b) {
+    if (!b || !b.ai) return;
+    const source = b.ai.contestSource;
+    const other = source ? source.claim : b.ai.contestBear;
+    if (!source || !source.ripe || !other || !other.active || other.sleeping ||
+        other.grabs > 0 || other.inPond || !other.ai) {
+      b.ai.contestSource = null;
+      b.ai.contestBear = null;
+      b.ai.state = 'wander';
+      b.ai.idleT = .6;
+      b.ai.conflictCooldown = Math.max(b.ai.conflictCooldown, 2);
+      clearPath(b);
+      return;
+    }
+    const d = Math.hypot(other.cx - b.cx, other.cz - b.cz);
+    if (d <= CONFLICT_DIST) {
+      startConflict(b, other, source);
+      return;
+    }
+    b.ai.target = { x: source.approachX, z: source.approachZ };
+    b.ai.faceYaw = Math.atan2(source.approachX - b.cx, source.approachZ - b.cz);
+    if (!b.ai.path || !b.ai.path.length) {
+      const path = pathTo(b, source.approachX, source.approachZ);
+      if (!path) {
+        b.ai.contestSource = null;
+        b.ai.contestBear = null;
+        b.ai.state = 'wander';
+        b.ai.idleT = .6;
+        b.ai.conflictCooldown = Math.max(b.ai.conflictCooldown, 3);
+        return;
+      }
+      setPath(b, path);
+    }
+    b.ai.moving = true;
+  }
+
+  function startConflict(a, b, source) {
+    if (!a || !b || !a.ai || !b.ai || a === b) return false;
+    a.ai.state = 'conflict';
+    b.ai.state = 'conflict';
+    a.ai.partner = b;
+    b.ai.partner = a;
+    a.ai.conflictT = CONFLICT_TIME;
+    b.ai.conflictT = CONFLICT_TIME;
+    a.ai.conflictSource = source;
+    b.ai.conflictSource = source;
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.target = { x: b.cx, z: b.cz };
+    b.ai.target = { x: a.cx, z: a.cz };
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    a.ai.animT = 0;
+    b.ai.animT = 0;
+    if (field && field.emote) {
+      field.emote(a.cx, a.cy + 1.14, a.cz, 'exclaim');
+      field.emote(b.cx, b.cy + 1.14, b.cz, 'exclaim');
+    }
+    return true;
+  }
+
+  function finishConflict(b) {
+    if (!b || !b.ai || b.ai.state !== 'conflict') return;
+    const other = b.ai.partner;
+    const source = b.ai.conflictSource || (other && other.ai ? other.ai.conflictSource : null);
+    if (!other || !other.ai) {
+      b.ai.state = 'wander';
+      b.ai.partner = null;
+      b.ai.conflictSource = null;
+      b.ai.conflictT = 0;
+      clearPath(b);
+      return;
+    }
+    const weight = (bear) => (bear.scale || 1) * 1.05 + unit(bear.hunger) * .75 +
+      unit(bear.bold) * .35 + unit(bear.energy) * .15 + rng() * .20;
+    const winner = weight(b) >= weight(other) ? b : other;
+    const loser = winner === b ? other : b;
+    const claimant = source ? source.claim : null;
+    const claimOk = !!source && source.ripe;
+
+    b.ai.partner = null;
+    other.ai.partner = null;
+    b.ai.conflictSource = null;
+    other.ai.conflictSource = null;
+    b.ai.contestSource = null;
+    other.ai.contestSource = null;
+    b.ai.contestBear = null;
+    other.ai.contestBear = null;
+    b.ai.conflictT = 0;
+    other.ai.conflictT = 0;
+
+    if (claimOk && winner !== claimant) {
+      field.food.release(source, claimant);
+      field.food.claim(source, winner);
+    }
+
+    const loserWasClaimant = loser === claimant;
+    if (loserWasClaimant && source) field.food.release(source, loser);
+    releaseFood(loser);
+    loser.ai.source = null;
+    loser.ai.state = 'wander';
+    loser.ai.idleT = .8;
+    loser.ai.taskCooldown = 2.4;
+    loser.ai.conflictCooldown = CONFLICT_COOLDOWN;
+    loser.ai.socialCooldown = Math.max(loser.ai.socialCooldown, 4.0);
+    clearPath(loser);
+    const dx = loser.cx - winner.cx;
+    const dz = loser.cz - winner.cz;
+    const len = Math.hypot(dx, dz) || 1;
+    loser.ai.shove = { x: dx / len * 1.15, z: dz / len * 1.15 };
+
+    winner.ai.taskCooldown = .35;
+    winner.ai.conflictCooldown = 5;
+    winner.ai.idleT = .2;
+    if (claimOk && source.claim === winner) {
+      winner.ai.source = source;
+      winner.ai.target = { x: source.approachX, z: source.approachZ };
+      const d = Math.hypot(source.approachX - winner.cx, source.approachZ - winner.cz);
+      if (d <= EAT_DIST) {
+        startEat(winner);
+      } else {
+        winner.ai.state = 'seekFood';
+        setPath(winner, pathTo(winner, source.approachX, source.approachZ) ||
+          [{ x: source.approachX, z: source.approachZ }]);
+      }
+    } else {
+      winner.ai.source = null;
+      winner.ai.state = 'wander';
+      winner.ai.idleT = .5;
+      clearPath(winner);
+    }
+    addBond(b, other, -.08);
+    if (field && field.emote) field.emote(loser.cx, loser.cy + 1.05, loser.cz, 'no');
+  }
+
+  function emitHeart(b) {
+    if (field && field.emote && b) field.emote(b.cx, b.cy + .92, b.cz, 'heart');
+  }
+
   function thinkWander(b) {
     if (b.ai.state !== 'wander') return;
     if (b.ai.moving) {
@@ -489,8 +1164,13 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       if (acquireWater(b)) return;
     }
     if (b.hunger >= HIVE_HUNGER && acquireHive(b)) return;
+    if (b.hunger >= CRITICAL_HUNGER && acquireContest(b)) return;
     if (b.hunger >= SEEK_HUNGER) {
       if (acquireFood(b)) return;
+      if (acquireContest(b)) return;
+    }
+    if (b.social >= SEEK_SOCIAL || b.affection >= SEEK_AFFECTION) {
+      if (acquireCompany(b)) return;
     }
     if (b.ai.arrived) {
       b.ai.arrived = false;
@@ -638,6 +1318,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
 
   function startFlee(b, source) {
     if (!b.ai) return;
+    breakPair(b);
     releaseFood(b);
     b.ai.source = null;
     b.ai.target = null;
@@ -668,6 +1349,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
 
   function startSeekHome(b) {
     if (!b.ai) return false;
+    breakPair(b);
     releaseFood(b);
     b.ai.source = null;
     b.ai.waterSpot = null;
@@ -731,7 +1413,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
 
   function think(b) {
     if (!b.ai) return;
-    if (b.ai.state === 'sleep') return;
+    if (['sleep', 'invite', 'social', 'decline', 'conflict'].includes(b.ai.state)) return;
     if (needsHome(b) && b.ai.state !== 'seekHome') {
       startSeekHome(b);
       return;
@@ -741,11 +1423,14 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     else if (b.ai.state === 'seekWater') thinkSeekWater(b);
     else if (b.ai.state === 'seekHive') thinkSeekHive(b);
     else if (b.ai.state === 'seekHome') thinkSeekHome(b);
+    else if (b.ai.state === 'seekCompany') thinkSeekCompany(b);
+    else if (b.ai.state === 'seekConflict') thinkSeekConflict(b);
+    else if (b.ai.state === 'visit') thinkVisit(b);
     // eat/drink/raid are timer states; update() finishes them.
   }
 
   function setNeed(b, kind, value) {
-    if (!b || (kind !== 'hunger' && kind !== 'thirst')) return false;
+    if (!b || !['hunger', 'thirst', 'social', 'affection'].includes(kind)) return false;
     const n = Math.max(0, Math.min(1, Number(value)));
     if (!Number.isFinite(n)) return false;
     b[kind] = n;
@@ -759,9 +1444,10 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
   function debugState(b, state) {
     if (!b) return { ok: false, note: 'no bear' };
     if (!b.ai) attach(b);
-    if (!['wander', 'seekFood', 'seekWater', 'eat', 'drink'].includes(state)) {
+    if (!['wander', 'seekFood', 'seekWater', 'eat', 'drink', 'seekCompany', 'seekConflict', 'seekHome', 'seekHive'].includes(state)) {
       return { ok: false, note: 'unknown state' };
     }
+    breakPair(b);
     releaseFood(b);
     b.ai.interrupted = false;
     b.ai.moving = false;
@@ -780,6 +1466,14 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     b.ai.waterSpot = null;
     b.ai.eatT = 0;
     b.ai.drinkT = 0;
+    b.ai.inviteT = 0;
+    b.ai.socialT = 0;
+    b.ai.declineT = 0;
+    b.ai.conflictT = 0;
+    b.ai.contestBear = null;
+    b.ai.contestSource = null;
+    b.ai.conflictSource = null;
+    b.ai.shove = null;
     b.ai.animT = 0;
     b.ai.taskCooldown = 0;
     b.ai.nextThink = 0;
@@ -796,6 +1490,28 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     if (state === 'seekWater') {
       b.ai.state = 'seekWater';
       return { ok: true, state: 'seekWater', note: 'looking for water' };
+    }
+    if (state === 'seekCompany') {
+      const p = acquireCompany(b);
+      return {
+        ok: !!p, state: b.ai.state,
+        note: p ? `seeking ${p.name || 'a friend'}` : 'no company target',
+      };
+    }
+    if (state === 'seekConflict') {
+      const source = acquireContest(b);
+      return {
+        ok: !!source, state: b.ai.state,
+        note: source ? 'looking for a contested snack' : 'no contested snack',
+      };
+    }
+    if (state === 'seekHome') {
+      startSeekHome(b);
+      return { ok: true, state: b.ai.state, note: 'heading home' };
+    }
+    if (state === 'seekHive') {
+      b.ai.state = 'seekHive';
+      return { ok: true, state: 'seekHive', note: 'looking for a hive' };
     }
     if (state === 'eat') {
       const source = field.food.nearestRipe(b.cx, b.cz, { maxDistance: 999, bear: b, kinds: SAFE_FOOD });
@@ -836,6 +1552,109 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     return { ok: true, state: 'seekWater', note: 'seeking nearest water' };
   }
 
+  function setBond(a, b, value) {
+    if (!a || !b || a === b) return false;
+    const n = Math.max(0, Math.min(1, Number(value)));
+    if (!Number.isFinite(n)) return false;
+    if (!a.bonds || typeof a.bonds !== 'object') a.bonds = {};
+    if (!b.bonds || typeof b.bonds !== 'object') b.bonds = {};
+    a.bonds[bondKey(b)] = n;
+    b.bonds[bondKey(a)] = n;
+    return n;
+  }
+
+  function debugSocial(a, b, accept = true) {
+    if (!a || !b || a === b || !a.ai || !b.ai) return { ok: false, note: 'need two active bears' };
+    breakPair(a);
+    breakPair(b);
+    releaseFood(a);
+    releaseFood(b);
+    a.ai.source = null;
+    b.ai.source = null;
+    a.ai.state = 'wander';
+    b.ai.state = 'wander';
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    if (accept) {
+      beginSocialPair(a, b);
+      return { ok: true, accepted: true, state: a.ai.state, partner: b.name || 'bear' };
+    }
+    startDeclinePair(a, b);
+    return { ok: true, accepted: false, state: a.ai.state, partner: b.name || 'bear' };
+  }
+
+  function debugInvite(a, b, accept = true) {
+    if (!a || !b || a === b || !a.ai || !b.ai) return { ok: false, note: 'need two active bears' };
+    breakPair(a);
+    breakPair(b);
+    releaseFood(a);
+    releaseFood(b);
+    a.ai.source = null;
+    b.ai.source = null;
+    a.ai.state = 'wander';
+    b.ai.state = 'wander';
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    const ok = startInvite(a, b, !!accept);
+    return { ok, accepted: !!accept, state: a.ai.state, partner: b.name || 'bear' };
+  }
+
+  function debugVisit(a, b) {
+    if (!a || !b || a === b || !a.ai || !b.ai) return { ok: false, note: 'need two active bears' };
+    breakPair(a);
+    breakPair(b);
+    releaseFood(a);
+    releaseFood(b);
+    a.ai.source = null;
+    b.ai.source = null;
+    a.ai.state = 'wander';
+    b.ai.state = 'wander';
+    const ok = startVisit(a, b);
+    return { ok, state: a.ai.state, home: a.ai.visitHome || null, partner: b.name || 'bear' };
+  }
+
+  function debugConflict(a, b) {
+    if (!a || !b || a === b || !a.ai || !b.ai || !field || !field.food) {
+      return { ok: false, note: 'need two active bears and food' };
+    }
+    breakPair(a);
+    breakPair(b);
+    releaseFood(a);
+    releaseFood(b);
+    let source = null;
+    for (const s of field.food.sources) {
+      if (s.ripe && s.claim === b && SAFE_FOOD.includes(s.kind)) { source = s; break; }
+    }
+    if (!source) {
+      let best = null;
+      let bestD = Infinity;
+      for (const s of field.food.sources) {
+        if (!s.ripe || !SAFE_FOOD.includes(s.kind)) continue;
+        const d = Math.hypot(s.approachX - b.cx, s.approachZ - b.cz);
+        if (d < bestD) { bestD = d; best = s; }
+      }
+      if (!best) return { ok: false, note: 'no ripe food source' };
+      field.food.release(best, best.claim);
+      if (!field.food.claim(best, b)) return { ok: false, note: 'could not claim a source' };
+      source = best;
+    }
+    a.ai.source = null;
+    a.ai.contestSource = source;
+    a.ai.contestBear = b;
+    a.ai.state = 'wander';
+    b.ai.state = 'wander';
+    startConflict(a, b, source);
+    return { ok: true, source: source.id, state: a.ai.state, partner: b.name || 'bear' };
+  }
+
   function plan(b) {
     if (!b || !b.ai) return null;
     return {
@@ -844,6 +1663,12 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       thirst: +b.thirst.toFixed(3),
       health: +b.health.toFixed(1),
       energy: +b.energy.toFixed(3),
+      social: +b.social.toFixed(3),
+      affection: +b.affection.toFixed(3),
+      partner: partnerName(b) || null,
+      bond: b.ai.partner ? +pairBond(b, b.ai.partner).toFixed(3) : null,
+      visitHome: b.ai.visitHome || null,
+      visitRole: b.ai.visitRole || null,
       home: b.home || '',
       sleeping: !!b.sleeping,
       interrupted: !!b.ai.interrupted,
@@ -851,6 +1676,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       faceYaw: b.ai.faceYaw === null || b.ai.faceYaw === undefined ? null : +b.ai.faceYaw.toFixed(3),
       animT: +(b.ai.animT || 0).toFixed(3),
       source: b.ai.source ? b.ai.source.id : null,
+      contest: b.ai.contestSource ? b.ai.contestSource.id : null,
       target: b.ai.target ? { x: +b.ai.target.x.toFixed(2), z: +b.ai.target.z.toFixed(2) } : null,
       path: b.ai.path ? b.ai.path.map(p => ({ x: +p.x.toFixed(2), z: +p.z.toFixed(2) })) : [],
     };
@@ -870,6 +1696,8 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       if (ai.taskCooldown > 0) ai.taskCooldown = Math.max(0, ai.taskCooldown - dt);
       if (ai.idleT > 0) ai.idleT = Math.max(0, ai.idleT - dt);
       if (ai.stungT > 0) ai.stungT = Math.max(0, ai.stungT - dt);
+      if (ai.socialCooldown > 0) ai.socialCooldown = Math.max(0, ai.socialCooldown - dt);
+      if (ai.conflictCooldown > 0) ai.conflictCooldown = Math.max(0, ai.conflictCooldown - dt);
 
       b.health = Math.max(1, Math.min(100, finite(b.health, 100)));
       b.energy = Math.max(0, Math.min(1, finite(b.energy, 1)));
@@ -881,6 +1709,8 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       }
       b.health = Math.min(100, b.health + HEALTH_REGEN * dt);
       b.energy = Math.max(0, b.energy - ENERGY_RATE * dt);
+      b.social = Math.min(1, finite(b.social, 0.3) + SOCIAL_RATE * dt);
+      b.affection = Math.min(1, finite(b.affection, 0.25) + AFFECTION_RATE * dt);
       if (b.hunger >= 0.95) b.health = Math.max(1, b.health - HEALTH_STARVE * dt);
 
       const grounded = !b.airborne && b.contacts > 0 && (b.rMat[4] || 0) > 0.62;
@@ -925,6 +1755,47 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
         }
       }
 
+      if (ai.state === 'invite') {
+        ai.animT += dt;
+        ai.inviteT -= dt;
+        if (ai.inviteT <= 0) resolveInvite(b);
+        continue;
+      }
+      if (ai.state === 'social') {
+        ai.animT += dt;
+        ai.socialT -= dt;
+        ai.heartT -= dt;
+        if (ai.heartT <= 0) {
+          ai.heartT = .72;
+          emitHeart(b);
+        }
+        if (ai.socialT <= 0) endSocialPair(b);
+        continue;
+      }
+      if (ai.state === 'decline') {
+        ai.animT += dt;
+        ai.declineT -= dt;
+        if (ai.declineT <= 0) finishDeclinePair(b);
+        continue;
+      }
+      if (ai.state === 'conflict') {
+        ai.animT += dt;
+        ai.conflictT -= dt;
+        if (ai.conflictT <= 0) finishConflict(b);
+        continue;
+      }
+      if (ai.state === 'visit' && ai.visitPhase !== 'hangout') ai.animT += dt;
+      if (ai.state === 'visit' && ai.visitPhase === 'hangout') {
+        ai.animT += dt;
+        ai.heartT -= dt;
+        ai.visitT -= dt;
+        if (ai.heartT <= 0) {
+          ai.heartT = 1.0;
+          emitHeart(b);
+        }
+        if (ai.visitT <= 0) finishVisitPair(b);
+        continue;
+      }
       if (ai.state === 'eat') {
         ai.animT += dt;
         ai.eatT -= dt;
@@ -980,6 +1851,13 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
         thirst: +b.thirst.toFixed(3),
         health: +b.health.toFixed(1),
         energy: +b.energy.toFixed(3),
+        social: +b.social.toFixed(3),
+        affection: +b.affection.toFixed(3),
+        partner: partnerName(b) || null,
+        bond: b.ai.partner ? +pairBond(b, b.ai.partner).toFixed(3) : null,
+        visitHome: b.ai.visitHome || null,
+        visitRole: b.ai.visitRole || null,
+        visitPhase: b.ai.visitPhase || null,
         home: b.home || '',
         sleeping: !!b.sleeping,
         woozy: b.health < HEALTH_WOOZY,
@@ -990,6 +1868,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
         faceYaw: b.ai.faceYaw === null || b.ai.faceYaw === undefined ? null : +b.ai.faceYaw.toFixed(3),
         animT: +(b.ai.animT || 0).toFixed(3),
         source: b.ai.source ? b.ai.source.id : null,
+        contest: b.ai.contestSource ? b.ai.contestSource.id : null,
         target: b.ai.target ? [+b.ai.target.x.toFixed(2), +b.ai.target.z.toFixed(2)] : null,
         path: b.ai.path ? b.ai.path.length : 0,
       });
@@ -999,7 +1878,8 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
 
   return {
     update, onGrab, onRelease, detach, setEnabled,
-    setNeed, debugState, plan, stats: statsNow,
+    setNeed, setBond, debugState, debugSocial, debugInvite, debugVisit, debugConflict,
+    plan, stats: statsNow,
     get enabled() { return enabled; },
   };
 }

@@ -708,6 +708,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>F / Explode</dt><dd>Firework at the pointer — hold F to spray, Shift+F for a fan; the button volleys three at the pile.</dd>
             <dt>Upright</dt><dd>Bears gently right themselves once settled; pushes still win.</dd>
             <dt>Health &amp; night</dt><dd>Health bars show condition. Hurt or tired bears return to their villa; from 20:00 to 06:00 they sleep there and wake when morning comes. Very hungry bears may raid a beehive and risk a sting.</dd>
+            <dt>Friends &amp; snacks</dt><dd>Bears seek company when lonely, offer a nuzzle, and may be turned down. Friends can visit a villa doorway together. A hungry bear may shove another off a claimed snack; the bigger or hungrier bear usually wins.</dd>
           </dl>
         </section>
         <section>
@@ -739,11 +740,16 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
       <label class="aiField"><span>Bear</span><select id="aiBear" aria-label="Debug bear"></select></label>
       <label class="aiField"><span>State</span>
         <select id="aiState" aria-label="Force AI state">
+          <option value="">Automatic</option>
           <option value="wander">Wander</option>
           <option value="seekFood">Seek food</option>
           <option value="eat">Eat</option>
           <option value="seekWater">Seek water</option>
           <option value="drink">Drink</option>
+          <option value="seekCompany">Seek company</option>
+          <option value="seekConflict">Seek conflict</option>
+          <option value="seekHome">Seek home</option>
+          <option value="seekHive">Seek hive</option>
         </select>
       </label>
     </div>
@@ -755,9 +761,18 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
       <div class="aiNeedTop"><span>Thirst</span><b id="aiThirstVal">0.30</b></div>
       <input id="aiThirst" type="range" min="0" max="1" step="0.01" value="0.30" aria-label="Debug thirst">
     </div>
+    <div class="aiNeed">
+      <div class="aiNeedTop"><span>Social</span><b id="aiSocialVal">0.30</b></div>
+      <input id="aiSocial" type="range" min="0" max="1" step="0.01" value="0.30" aria-label="Debug social need">
+    </div>
+    <div class="aiNeed">
+      <div class="aiNeedTop"><span>Affection</span><b id="aiAffectionVal">0.25</b></div>
+      <input id="aiAffection" type="range" min="0" max="1" step="0.01" value="0.25" aria-label="Debug affection need">
+    </div>
     <div class="aiBtns">
       <button class="aiBtn" id="aiMakeHungry" type="button">Make hungry</button>
       <button class="aiBtn" id="aiMakeThirsty" type="button">Make thirsty</button>
+      <button class="aiBtn" id="aiMakeLonely" type="button">Make lonely</button>
     </div>
     <div class="aiBtns">
       <button class="aiBtn primary" id="aiApplyState" type="button">Apply state</button>

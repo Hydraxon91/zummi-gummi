@@ -13,6 +13,13 @@ const STATE_LABELS = {
   flee: 'Fleeing',
   seekHome: 'Seek home',
   sleep: 'Sleeping',
+  seekCompany: 'Seek company',
+  invite: 'Inviting',
+  social: 'Social',
+  decline: 'Declining',
+  visit: 'Home visit',
+  seekConflict: 'Seek conflict',
+  conflict: 'Conflict',
 };
 
 export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
@@ -23,12 +30,17 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
   const stateSel = document.getElementById('aiState');
   const hungerInput = document.getElementById('aiHunger');
   const thirstInput = document.getElementById('aiThirst');
+  const socialInput = document.getElementById('aiSocial');
+  const affectionInput = document.getElementById('aiAffection');
   const hungerVal = document.getElementById('aiHungerVal');
   const thirstVal = document.getElementById('aiThirstVal');
+  const socialVal = document.getElementById('aiSocialVal');
+  const affectionVal = document.getElementById('aiAffectionVal');
   const applyBtn = document.getElementById('aiApplyState');
   const routeBtn = document.getElementById('aiRoute');
   const hungryBtn = document.getElementById('aiMakeHungry');
   const thirstyBtn = document.getElementById('aiMakeThirsty');
+  const lonelyBtn = document.getElementById('aiMakeLonely');
   const resetBtn = document.getElementById('aiResetBear');
   const noteEl = document.getElementById('aiDebugNote');
   const readoutEl = document.getElementById('aiDebugReadout');
@@ -99,20 +111,35 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
       return;
     }
     if (document.activeElement !== stateSel) {
-      stateSel.value = a ? a.state : 'wander';
+      const state = a ? a.state : 'wander';
+      const forceable = Array.from(stateSel.options).some(o => o.value === state);
+      stateSel.value = forceable ? state : '';
     }
     if (document.activeElement !== hungerInput) hungerInput.value = String(b.hunger ?? .3);
     if (document.activeElement !== thirstInput) thirstInput.value = String(b.thirst ?? .3);
+    if (socialInput && document.activeElement !== socialInput) socialInput.value = String(b.social ?? .3);
+    if (affectionInput && document.activeElement !== affectionInput) affectionInput.value = String(b.affection ?? .25);
     hungerVal.textContent = (b.hunger ?? .3).toFixed(2);
     thirstVal.textContent = (b.thirst ?? .3).toFixed(2);
+    if (socialVal) socialVal.textContent = (b.social ?? .3).toFixed(2);
+    if (affectionVal) affectionVal.textContent = (b.affection ?? .25).toFixed(2);
     if (readoutEl) {
       const label = a ? (STATE_LABELS[a.state] || a.state) : 'No AI';
       const target = a && a.target ? `${a.target.x.toFixed(1)}, ${a.target.z.toFixed(1)}` : '—';
       const source = a && a.source ? a.source.id : '—';
       const path = a && a.path ? a.path.length : 0;
+      const partner = a && a.partner ? (a.partner.name || 'bear') : '—';
+      const bond = a && a.partner && ai() ? (() => {
+        const p = a.partner;
+        const k = (x) => String(x.uid !== undefined ? x.uid : x.slot);
+        const ba = Number(b.bonds?.[k(p)] ?? 0);
+        const bb = Number(p.bonds?.[k(b)] ?? 0);
+        return ((ba + bb) * .5).toFixed(2);
+      })() : '—';
       readoutEl.textContent =
         `${label} · hunger ${(b.hunger ?? 0).toFixed(2)} · thirst ${(b.thirst ?? 0).toFixed(2)}\n` +
         `health ${(b.health ?? 0).toFixed(0)} · energy ${(b.energy ?? 0).toFixed(2)} · pace ${(b.hopSpeedMin ?? 0).toFixed(2)}–${(b.hopSpeedMax ?? 0).toFixed(2)} · ${b.home || 'no home'}\n` +
+        `social ${(b.social ?? 0).toFixed(2)} · affection ${(b.affection ?? 0).toFixed(2)} · partner ${partner} · bond ${bond}\n` +
         `target ${target} · path ${path} · source ${source}` +
         (a && a.interrupted ? ' · interrupted' : '') +
         (b.sleeping ? ' · sleeping' : '');
@@ -159,6 +186,10 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
     const b = bear();
     const a = ai();
     if (!b || !a) return;
+    if (!stateSel.value) {
+      setNote('automatic states are shown in the readout');
+      return;
+    }
     const result = a.debugState(b, stateSel.value);
     setNote(result.note || '', !result.ok);
     syncControls(true);
@@ -172,6 +203,8 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
     if (a) {
       a.setNeed(b, 'hunger', .3);
       a.setNeed(b, 'thirst', .3);
+      a.setNeed(b, 'social', .3);
+      a.setNeed(b, 'affection', .25);
       b.health = 100;
       b.energy = 1;
       a.debugState(b, 'wander');
@@ -238,8 +271,11 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
   });
   hungerInput?.addEventListener('input', () => applyNeed('hunger', Number(hungerInput.value)));
   thirstInput?.addEventListener('input', () => applyNeed('thirst', Number(thirstInput.value)));
+  socialInput?.addEventListener('input', () => applyNeed('social', Number(socialInput.value)));
+  affectionInput?.addEventListener('input', () => applyNeed('affection', Number(affectionInput.value)));
   hungryBtn?.addEventListener('click', () => applyNeed('hunger', .90));
   thirstyBtn?.addEventListener('click', () => applyNeed('thirst', .90));
+  lonelyBtn?.addEventListener('click', () => applyNeed('social', .92));
   applyBtn?.addEventListener('click', applyState);
   routeBtn?.addEventListener('click', () => setRoute(!routeOn));
   resetBtn?.addEventListener('click', resetBear);

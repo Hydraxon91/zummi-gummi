@@ -97,7 +97,7 @@ rig and soft-body solver stay.
 | **2 ✅** | Grass Field, sky, pond, Aero shell, map switcher; field default; **mixed starter colony (2 adult ♀, 2 adult ♂, 1 teen, 1 baby)**; **rounded white/aqua Aero villas on validated home lots**; **distant Frutiger-Aero skyline + three-blade wind turbines**; pond splash/buoyancy; **procedural gummy-tree replacement with rounded leafy puffs/fruit/hives; shared travelling wind for trees + grass; Wind and Meadow-detail controls; procedural clouds, aurora and sporadic morning mist**; **circular wobbled-disc playfield, wandered dirt trails, full-circle grass, branched backdrop trees/bushes and anime-lite water**; **Hide UI** | Both maps load and switch with independent state; field has grass/trees/flowers/pond/sky/villas; no layout overlaps; day/night slider and dawn look work; pond reflects sun/moon and splashes; trees use the fixed TREE_LOTS/colliders with merged foliage batches and no per-frame CPU branch loops; one shared gust visibly crosses grass and trees; night sky shows aurora; starting colony has the four adults, teen and baby; villa silhouettes are distinct without changing their lots; skyline/windmills read as distant scenery; 16/16 self-test, mobile layouts, layout and map-switch checks pass; circular camera/containment and UI hide checks pass |
 | **3a ✅** | Food registry/respawn, hunger, thirst, hop locomotion, WANDER / SEEK_FOOD / EAT / SEEK_WATER / DRINK | Bears autonomously get hungry or thirsty, hop to safe food or the pond shore, eat/drink, and food regrows; grab/throw interrupts and resumes the task; no stuck/NaN/perf regressions |
 | **3b ✅** | **3b.0 hop pose/takeoff polish** (level crouch/air target with a small forward lean, upright takeoff gate, transient AI reset, per-bear hop-pace range (inherited in Phase 5)); hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | AI hops stay close to upright through takeoff, apex and landing; player throws still tumble freely; bees can sting, bears avoid hives below the threshold, health regenerates, hurt/tired bears return home and recover, with no death |
-| **4** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection, **home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit homes; MSN-style statuses update |
+| **4 ✅** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection/bonds, **door-level home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit a villa doorway; MSN-style statuses update |
 | **5** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
 | **6a** | **Effects pass before optimization:** improve shading/contact depth, SSAO, shadow maps, god rays, restrained bloom and a gentle color grade; scope/tuning to be discussed when the simulation is complete | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
 | **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
@@ -151,7 +151,20 @@ rig and soft-body solver stay.
   inheritance. Headless checks cover health/woozy, hive claims/stings, night
   sleep/wake, speed ranges, UI health bars and the existing wander/eat/drink
   regression path with no page errors.
-- **Next:** add voluntary pond play/swimming, then Phase 4 social behaviour.
+- **Phase 4 complete:** bears carry social/affection needs and a symmetric pair
+  bond keyed by a persistent uid. A lonely bear seeks a nearby friend, offers a
+  readable nuzzle handshake, and both switch into a short mutual social; a
+  partner can decline with a visible “needs space” state. Hearts and marks are
+  pooled field sprites, not per-frame scene allocations. Critical hunger adds
+  claimed-food contention: a challenger may approach, both face off in a short
+  shove, and the larger/hungrier/bolder bear keeps or takes the source while the
+  loser retargets. After a greeting, a bonded pair may walk to the host’s villa
+  door and hang out outside; interiors are deliberately deferred. MSN-style buddy
+  statuses update for seeking, inviting, socialising, declining, visiting and
+  shoving. Headless checks cover natural company seeking, forced accept/decline,
+  bond gain, door visits, natural and forced contention, grab interruption and
+  social/bond persistence through a map switch with no page errors.
+- **Next:** add voluntary pond play/swimming, then Phase 5 growth and family life.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
@@ -183,9 +196,10 @@ utility selector with cooldowns/hysteresis picks a state roughly once per second
 | Eat | at food | nibble, hunger ↓, food consumed, respawn timer starts |
 | Seek water | thirst high | hop to a validated pond-shore approach |
 | Drink | at the shore | dip the snout, ripple the water, thirst ↓; water is infinite |
-| Seek company | social need high | choose a bear (friends preferred), approach |
-| Invite → Social | near the chosen bear | offer interaction; if accepted **both switch to Social**, bounce/nuzzle, hearts, affection ↑; decline = small “no” emote |
-| Conflict | two bears target the same food | face-off shove; larger/hungrier bear wins; winner eats, loser retargets; no injury |
+| Seek company | social/affection need high | choose a nearby bear (friends preferred), approach |
+| Invite → Social | near the chosen bear | offer a nuzzle; if accepted **both switch to Social**, bounce/nuzzle, hearts, bond ↑; decline = “needs space” |
+| Seek conflict / Conflict | critical hunger and a claimed safe-food source nearby | approach, face off, short shove; larger/hungrier/bolder bear keeps or takes the source, loser retargets; no injury |
+| Home visit | after a successful social with a bonded friend, daylight | host and guest walk to the host’s villa door, hang out outside, then disperse; interiors are a later pass |
 | Mate | adult, opposite sex, hunger satisfied, healthy, food & population room | hearts, pregnancy for the female, then birth |
 | Seek home / Rest | night, low health, low energy | walk to the bear’s cottage door, enter, sleep and regen; a warm entrance glow marks an occupied villa |
 | Woozy | health near zero | slow, safe food only, no hives/mating/conflict; returns home to recover |
@@ -280,12 +294,33 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Health/energy only advance inside `ai.update`.** Disabling AI (Studio or the
   debug toggle) freezes vitals; that is intended for the Studio, but should be
   documented or separated from the debug pause.
-- **The AI debug state selector still lists only the original five states.**
-  Automatic hive/home/sleep states appear in the readout but leave the dropdown
-  blank; add safe force-state handlers if those states need direct debugging.
 - **The occupied-villa marker is an entrance halo, not per-window emissive.**
   This is the Phase 3b approximation; revisit with the Phase 6b occupancy/window
   polish.
+
+**Known follow-ups after Phase 4** — recorded for later, not current blockers:
+
+- **Home visits stop at the door.** The host/guest pair uses the validated door
+  approach, but entering the villa together and returning outside are deferred
+  until interiors are authored. The `visitHome` / `visitRole` fields are the seam
+  for that transition.
+- **Bonds are not shown in the roster yet.** The buddy list reflects the live
+  social state, but the numeric pair bond is only in the AI debug readout and
+  `__gummy.traits()`. Decide whether a friendship/heart indicator belongs in the
+  Phase 6b MSN polish.
+- **Removed bears leave stale bond keys.** `bonds` is keyed by a persistent uid;
+  removing a bear does not prune other bears’ entries. Harmless in memory, but a
+  save/cleanup pass should prune dead uids before Phase 8a persistence.
+- **Interrupted social pairs reset without an emote.** Grabbing a partner, a
+  night/home override or a map switch breaks the pair into wander immediately;
+  add a “maybe later” beat if the interruption feels abrupt in playtests.
+- **The emote pool caps at 18 sprites.** In a dense group social burst, some
+  hearts/marks are silently dropped rather than queued. This is deliberate for
+  frame cost; revisit only if it is noticeable at 40 bears.
+- **Only seek states have direct force handlers.** Social, invite, decline, visit
+  and conflict states show “Automatic” in the debug selector; use
+  `__gummy.forceSocial/forceInvite/forceVisit/forceConflict` for deterministic
+  checks until those need in-panel controls.
 
 ## Health, hives, mating
 
@@ -305,6 +340,27 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   parents’ ranges and applies a small mutation, so colonies can drift toward
   calmer or quicker hoppers without a separate selection mechanic.
 
+## Social & bonds
+
+- Social and affection are slow needs (~0.0018/s and ~0.0012/s awake); company
+  seeking starts around 0.60/0.64 and a successful greeting relieves both. A
+  greeting raises the pair’s symmetric bond (roughly 0.16–0.24) and applies a
+  cooldown so bears do not chain the same interaction.
+- Invitations are utility decisions: the partner weighs its own social need,
+  existing bond, health, energy and whether it was idling. Acceptance and
+  decline both last long enough to read, with hearts or a “needs space” mark.
+- Critical hunger can contest a **claimed safe-food** source within about 8 m.
+  The shove resolves from scale, hunger, boldness, energy and a small random
+  factor; the winner keeps or takes the claim and the loser gets a short
+  cooldown and a nudge away. No damage and no hive contests yet.
+- After a greeting, a bonded pair may make a door-level home visit (daylight
+  only, ~4.8 s hangout). The host and guest use the validated door approach and
+  an offset guest spot; they do not enter the villa yet. Interiors and
+  enter/exit transitions are a later modelled-room pass.
+- Bonds persist through map switches as `{ otherUid: 0..1 }`; the buddy list
+  shows the live state, not the numeric bond. Emotes are a small pooled sprite
+  layer in the field and never allocate per frame.
+
 ## Homes & no-clipping
 
 - **Aero villas:** 8–12 white/aqua Frutiger-Aero homes arranged around the
@@ -316,8 +372,9 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Home use:** bears claim a home at spawn (or a baby is assigned to a parent’s
   home). At night, when low on health/energy, or while woozy, they walk to the
   door, enter (a short fade/scale through the doorway — never through a wall),
-  sleep and regenerate. In the morning they come back out. Friends can be
-  invited for a home visit; babies follow parents; a pregnant/nursing mother
+  sleep and regenerate. In the morning they come back out. A bonded friend can
+  currently be invited for a **door-level** visit; entering the villa together
+  is a later interior pass. Babies follow parents; a pregnant/nursing mother
   uses her home as the nursery.
 - **Object placement contract:** every prop gets a footprint + clearance:
   - cottages: wall footprint + roof overhang + 0.5 m clearance,
@@ -388,8 +445,8 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Cannon:** drag the base or use Move cannon; green/red footprint validation
   (bounds, bears, pond/trees/cottages later); remains visual-only; shadow/arc follow.
 - **UI:** Aero glass, aqua gradients, glossy buttons, bubbles; MSN-style buddy
-  list with name, ♀/♂, stage, status, hunger/health, pregnancy, online count and
-  clock; Studio keeps the editorial skin. A persistent Hide UI control (and `U`)
+  list with name, ♀/♂, stage, live social/visit/conflict status, hunger/health,
+  pregnancy, online count and clock; Studio keeps the editorial skin. A persistent Hide UI control (and `U`)
   clears every overlay on desktop and phone while leaving a restore button.
   The field-only AI debug panel (and `G`) exposes needs, forced states and a
   selected-bear planned-route overlay; Studio hides it. Keep contrast, focus and

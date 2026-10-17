@@ -169,6 +169,34 @@ function fireflyTexture() {
   return tex;
 }
 
+const EMOTE_STYLES = {
+  heart:    { glyph: '♥', color: '#ff6f9f' },
+  question: { glyph: '?', color: '#79e9ff' },
+  no:       { glyph: '×', color: '#ff7d88' },
+  exclaim:  { glyph: '!', color: '#ffd86b' },
+  sparkle:  { glyph: '✦', color: '#d9b6ff' },
+};
+const emoteTextureCache = new Map();
+function emoteTexture(kind) {
+  const style = EMOTE_STYLES[kind] || EMOTE_STYLES.heart;
+  const key = style.glyph;
+  if (emoteTextureCache.has(key)) return emoteTextureCache.get(key);
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.font = '700 46px "Trebuchet MS", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = 'rgba(255,255,255,.92)';
+  ctx.fillStyle = style.color;
+  ctx.strokeText(style.glyph, 32, 35);
+  ctx.fillText(style.glyph, 32, 35);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  emoteTextureCache.set(key, tex);
+  return tex;
+}
+
 function tube(a, b, radius, color) {
   // small helper for a cylinder between two points
   const dir = new THREE.Vector3().subVectors(b, a);
@@ -239,6 +267,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   const homes = [];
   const splashRings = [];
   const stingBursts = [];
+  const emotes = [];
   const smokePuffs = [];
   const bubbles = [];
   const foodSources = [];
@@ -1699,6 +1728,56 @@ export function buildField({ scene, camera, renderer, sky }) {
     nav.bake();
   }
 
+  // ---------------------------------------------------------------- emotes
+  // A tiny pooled sprite layer for social feedback. It is intentionally
+  // render-only: ai.js decides when a heart, question or shove mark belongs
+  // above a bear, and this module just gives it a short readable lifetime.
+  function emote(x, y, z, kind = 'heart') {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return false;
+    const style = EMOTE_STYLES[kind] || EMOTE_STYLES.heart;
+    let e = emotes.find((item) => !item.visible);
+    if (!e) {
+      if (emotes.length >= 18) return false;
+      e = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: emoteTexture(kind),
+        transparent: true,
+        depthWrite: false,
+        toneMapped: false,
+      }));
+      e.name = 'meadowEmote';
+      e.renderOrder = 8;
+      e.visible = false;
+      group.add(e);
+      emotes.push(e);
+    }
+    e.material.map = emoteTexture(kind);
+    e.material.color.set(0xffffff);
+    e.material.opacity = 1;
+    e.material.needsUpdate = true;
+    e.visible = true;
+    e.position.set(x, y, z);
+    e.scale.set(.34, .34, 1);
+    e.userData.t = 0;
+    e.userData.dur = kind === 'heart' ? 1.15 : .95;
+    e.userData.baseScale = kind === 'heart' ? .34 : .38;
+    e.userData.kind = style.glyph;
+    return true;
+  }
+
+  function updateEmotes(dt) {
+    for (const e of emotes) {
+      if (!e.visible) continue;
+      e.userData.t += dt;
+      const k = e.userData.t / e.userData.dur;
+      if (k >= 1) { e.visible = false; continue; }
+      const fade = 1 - k;
+      e.position.y += dt * (0.32 + fade * .10);
+      e.material.opacity = fade;
+      const s = e.userData.baseScale * (0.82 + k * .32);
+      e.scale.set(s, s, 1);
+    }
+  }
+
   // ---------------------------------------------------------------- splash / update
   function splash(x, z, strength = 1) {
     const ring = splashRings.find(r => r.t >= r.dur) || splashRings[0];
@@ -1863,6 +1942,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       beePoints.visible = false;
       beePoints.material.opacity = 0;
     }
+    updateEmotes(dt);
     // nav debug line opacity gently pulses
     if (navDebug) navDebug.material.opacity = 0.45 + Math.sin(performance.now()*0.002)*0.08;
   }
@@ -1879,6 +1959,8 @@ export function buildField({ scene, camera, renderer, sky }) {
     drawShadows,
     splash,
     sting,
+    emote,
+    get emoteCount() { return emotes.filter(e => e.visible).length; },
     setCannon,
     isCannonSpot,
     validateLayout,
