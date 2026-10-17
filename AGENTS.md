@@ -271,13 +271,18 @@ approved work chunk.
 
 ## 13. Visual Verification
 
-- For any UI, visual or scene change, capture a screenshot from the running app (headless
+- For any UI, visual or scene change, capture screenshots from the running app (headless
   Chrome is the established path; `scripts/` and `README.md`/`PERFORMANCE.md` describe the
-  method) and **view it before reporting the task complete**.
+  method) and **view them before reporting the task complete**.
+- **Builder agent: shoot more than one capture per visual pass.** A single hero frame is
+  not enough — capture before/after of the change, the changed element in close-up, one or
+  two other angles, and the relevant time-of-day or quality tier (dawn/day/dusk/night, UI
+  and UI-hidden). Name them `<step>_<what>_<view>.png` (e.g. `x3_no_backdrop_flowers.png`).
 - Screenshots do not replace semantic success checks: assert the outcome through
   `window.__gummy` as well, and report anything you could not verify.
-- Keep capture artifacts out of the repo (`/tmp` or a scratch dir). Only curated,
-  intentional captures belong under `screenshots/`, matching the existing set and
+- **Write scratch captures to the gitignored `.dev-shots/` directory** in the project root
+  so the user can watch progress. It is never committed; `/tmp` is not a substitute. Only
+  curated, intentional captures belong under `screenshots/`, matching the existing set and
   `screenshots/README.md`.
 - `inspiration/` is gitignored third-party reference material. Never commit it or copy its
   assets into the app.

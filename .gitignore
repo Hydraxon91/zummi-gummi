@@ -7,3 +7,6 @@ __pycache__/
 
 # Author-supplied visual references (third-party copyright); not shipped assets.
 inspiration/
+
+# Builder-agent progress captures; local only, superseded by curated screenshots/.
+.dev-shots/
