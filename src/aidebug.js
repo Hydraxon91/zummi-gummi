@@ -8,6 +8,11 @@ const STATE_LABELS = {
   seekWater: 'Seek water',
   eat: 'Eat',
   drink: 'Drink',
+  seekHive: 'Seek hive',
+  raidHive: 'Raid hive',
+  flee: 'Fleeing',
+  seekHome: 'Seek home',
+  sleep: 'Sleeping',
 };
 
 export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
@@ -107,8 +112,10 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
       const path = a && a.path ? a.path.length : 0;
       readoutEl.textContent =
         `${label} · hunger ${(b.hunger ?? 0).toFixed(2)} · thirst ${(b.thirst ?? 0).toFixed(2)}\n` +
+        `health ${(b.health ?? 0).toFixed(0)} · energy ${(b.energy ?? 0).toFixed(2)} · pace ${(b.hopSpeedMin ?? 0).toFixed(2)}–${(b.hopSpeedMax ?? 0).toFixed(2)} · ${b.home || 'no home'}\n` +
         `target ${target} · path ${path} · source ${source}` +
-        (a && a.interrupted ? ' · interrupted' : '');
+        (a && a.interrupted ? ' · interrupted' : '') +
+        (b.sleeping ? ' · sleeping' : '');
     }
   }
 
@@ -165,6 +172,8 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
     if (a) {
       a.setNeed(b, 'hunger', .3);
       a.setNeed(b, 'thirst', .3);
+      b.health = 100;
+      b.energy = 1;
       a.debugState(b, 'wander');
     }
     setNote('needs and task reset');

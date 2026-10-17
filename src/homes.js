@@ -108,7 +108,7 @@ export function createAeroHomes({ homes, scale = 1 }) {
 
   const styles = ['pavilion', 'dome', 'saucer', 'tower', 'pavilion', 'saucer', 'dome', 'tower'];
   const postParts = [], mailParts = [], flagParts = [], lampParts = [], bubbleParts = [];
-  const stepParts = [], trimParts = [], doorClearance = [];
+  const stepParts = [], trimParts = [], doorClearance = [], occupancyParts = [];
 
   const addMesh = (parent, geo, mat, pos, rot = null, scale = null) => {
     const m = new THREE.Mesh(geo, mat);
@@ -269,6 +269,11 @@ export function createAeroHomes({ homes, scale = 1 }) {
       radius = .735;
     }
 
+    // A soft warm halo at the entrance, shown only while this villa is
+    // occupied by a sleeping bear. It is one instanced batch for all homes.
+    const occupiedLocal = new THREE.Matrix4().setPosition(0, 1.30, radius + .235);
+    occupancyParts.push(hm.clone().multiply(occupiedLocal));
+
     // Door-clearance metadata is measured in world metres, after the villa
     // scale has been applied. The QA harness compares it to the tallest bear.
     const doorWorldTop = (DOOR_CENTER_Y + DOOR_RADIUS * DOOR_Y_SCALE) * scale;
@@ -318,12 +323,35 @@ export function createAeroHomes({ homes, scale = 1 }) {
   const trimMesh = instanced(new THREE.TorusGeometry(1.035, .020, 6, 30), silverMat, trimParts);
   if (trimMesh) { trimMesh.name = 'villaBaseTrim'; group.add(trimMesh); }
 
+  const hiddenOccupancy = new THREE.Matrix4().makeScale(0, 0, 0);
+  const occupancyGeo = new THREE.SphereGeometry(.14, 12, 8);
+  const occupancyMat = new THREE.MeshBasicMaterial({
+    color: 0xffc76a, transparent: true, opacity: .30, depthWrite: false,
+    blending: THREE.AdditiveBlending, toneMapped: false,
+  });
+  const occupancyMesh = new THREE.InstancedMesh(occupancyGeo, occupancyMat, homes.length);
+  occupancyMesh.name = 'villaOccupancyGlow';
+  occupancyMesh.frustumCulled = false;
+  for (let i = 0; i < homes.length; i++) occupancyMesh.setMatrixAt(i, hiddenOccupancy);
+  occupancyMesh.instanceMatrix.needsUpdate = true;
+  group.add(occupancyMesh);
+
+  function setOccupied(names) {
+    const set = names instanceof Set ? names : new Set(names || []);
+    for (let i = 0; i < homes.length; i++) {
+      occupancyMesh.setMatrixAt(i, set.has(homes[i].name) ? occupancyParts[i] : hiddenOccupancy);
+    }
+    occupancyMesh.instanceMatrix.needsUpdate = true;
+  }
+
   group.traverse(o => { if (o.isMesh) o.layers.enable(REFLECT_LAYER); });
 
   return {
     group,
     styles: styles.slice(0, homes.length),
     doorClearance,
+    occupancyMesh,
+    setOccupied,
     setNight(v) {
       const n = Math.max(0, Math.min(1, Number(v) || 0));
       aquaMat.emissiveIntensity = .18 + n * 1.9;

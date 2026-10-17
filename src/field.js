@@ -238,6 +238,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   const colliders = [];
   const homes = [];
   const splashRings = [];
+  const stingBursts = [];
   const smokePuffs = [];
   const bubbles = [];
   const foodSources = [];
@@ -245,6 +246,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   const hiddenFoodMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
   let flowerFoodVisual = null;
   let fallenFruitVisual = null;
+  let hiveVisual = null;
   let food = null;
 
   // Register the static layout before any scatter placement so grass, flowers,
@@ -842,6 +844,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   });
   treeGroup.add(trees.group);
   group.userData.treeStats = trees.stats;
+  hiveVisual = trees.hives;
 
   // static ground mushrooms near the left-hand trees (not part of the swaying
   // tree batches; they stay tucked into the grass as before)
@@ -1297,6 +1300,23 @@ export function buildField({ scene, camera, renderer, sky }) {
     group.add(fireflyLights);
   }
 
+  // ---------------------------------------------------------------- bee swarm
+  // A small reusable point burst for hive stings; it is short-lived and costs
+  // one draw call only while a bear is actually raiding.
+  const BEE_MAX = 4, BEE_PER = 14;
+  const beePositions = new Float32Array(BEE_MAX * BEE_PER * 3);
+  const beeGeo = new THREE.BufferGeometry();
+  beeGeo.setAttribute('position', new THREE.BufferAttribute(beePositions, 3).setUsage(THREE.DynamicDrawUsage));
+  const beePoints = new THREE.Points(beeGeo, new THREE.PointsMaterial({
+    size: .22, map: fireflyTexture(), color: 0xffdf72, transparent: true,
+    opacity: 0, depthWrite: false, toneMapped: false, sizeAttenuation: true, alphaTest: .01,
+    blending: THREE.AdditiveBlending,
+  }));
+  beePoints.name = 'meadowBeeSwarm';
+  beePoints.frustumCulled = false;
+  beePoints.visible = false;
+  group.add(beePoints);
+
   // ---------------------------------------------------------------- field shadows
   const SHADOW_W = 100, SHADOW_H = 68;
   const SHADOW_RES = 1024;
@@ -1342,7 +1362,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     sctx.drawImage(staticShadow, 0, 0);
     const alpha = 0.55;
     for (const b of activeBears) {
-      if (!b.active) continue;
+      if (!b.active || b.sleeping) continue;
       const bScale = b.scale || 1;
       const h = Math.max(0, b.cy - 0.6 * bScale);
       const s = (1.15 * bScale + h * 0.35) * pxw;
@@ -1496,6 +1516,39 @@ export function buildField({ scene, camera, renderer, sky }) {
     }
   }
 
+  // Beehives are high-value food with a sting risk. They hang above the first
+  // two trees, so the bear approaches the trunk rather than eating at the
+  // canopy position. A depleted hive hides independently of the other hive.
+  if (hiveVisual) {
+    for (let i = 0; i < hiveVisual.length; i++) {
+      const hive = hiveVisual[i];
+      let approach = null;
+      for (let k = 0; k < 14; k++) {
+        const a = k / 14 * Math.PI * 2 + i * .7;
+        const rawX = hive.treeX + Math.cos(a) * 1.55 * hive.treeScale;
+        const rawZ = hive.treeZ + Math.sin(a) * 1.55 * hive.treeScale;
+        if (!fieldInside(rawX, rawZ, 1.0)) continue;
+        const p = nav.nearestWalkable(rawX, rawZ);
+        if (!p) continue;
+        if (Math.hypot(p.x - rawX, p.z - rawZ) > 1.2) continue;
+        if (pond.contains(p.x, p.z)) continue;
+        approach = p;
+        break;
+      }
+      if (!approach) continue;
+      foodSources.push({
+        id: `hive-${i}`,
+        kind: 'hive',
+        label: 'beehive',
+        x: hive.center.x, z: hive.center.z, y: hive.center.y,
+        approachX: approach.x, approachZ: approach.z,
+        satiation: .55,
+        respawnMin: 90, respawnMax: 150,
+        visualIndex: i,
+      });
+    }
+  }
+
   // Keep only food sources whose approach is actually reachable. Flowers can
   // sit next to a trunk or house clearance; the visual stays decorative, while
   // the edible source is either shifted to the nearest walkable cell or dropped.
@@ -1529,6 +1582,9 @@ export function buildField({ scene, camera, renderer, sky }) {
       if (!part) return;
       fallenFruitVisual.mesh.setMatrixAt(i, m || part.m);
       fallenFruitVisual.mesh.instanceMatrix.needsUpdate = true;
+    } else if (source.kind === 'hive' && hiveVisual) {
+      const hive = hiveVisual[source.visualIndex];
+      if (hive) hive.mesh.visible = !!visible;
     }
   }
 
@@ -1653,6 +1709,14 @@ export function buildField({ scene, camera, renderer, sky }) {
     ring.mesh.visible = true;
   }
 
+  function sting(x, z, y = 1.5) {
+    if (stingBursts.length >= BEE_MAX) stingBursts.shift();
+    stingBursts.push({
+      x, z, y: Number.isFinite(y) ? y : 1.5,
+      t: 0, dur: 1.25, phase: Math.random() * Math.PI * 2,
+    });
+  }
+
   let grassCullTick = 0;
   function updateGrassCull() {
     const dd = grassDrawDistance.value;
@@ -1672,6 +1736,8 @@ export function buildField({ scene, camera, renderer, sky }) {
   }
 
   let lastNight = -1;
+  let occupancySig = '';
+  const occupiedHomes = [];
   function update(dt, activeBears) {
     if (sky) sky.update(dt);
     wind.update(dt);
@@ -1686,10 +1752,18 @@ export function buildField({ scene, camera, renderer, sky }) {
     if ((grassCullTick++ & 7) === 0) updateGrassCull();
     if (activeBears) {
       const n = Math.min(48, activeBears.length);
+      occupiedHomes.length = 0;
       for (let i = 0; i < n; i++) {
         const b = activeBears[i];
         grassBears[i*4] = b.cx; grassBears[i*4+1] = b.cz;
         grassBears[i*4+2] = b.vcx; grassBears[i*4+3] = b.vcz;
+        if (b.sleeping && b.home) occupiedHomes.push(b.home);
+      }
+      occupiedHomes.sort();
+      const sig = occupiedHomes.join('|');
+      if (sig !== occupancySig) {
+        occupancySig = sig;
+        aeroHomes.setOccupied(occupiedHomes);
       }
       grassBearCount.value = n;
     }
@@ -1764,6 +1838,31 @@ export function buildField({ scene, camera, renderer, sky }) {
       }
     }
     waterUniforms.uRippleCount.value = ripCount;
+    // short hive-sting bee clouds
+    let beeCount = 0, beeOpacity = 0;
+    for (let i = stingBursts.length - 1; i >= 0; i--) {
+      const burst = stingBursts[i];
+      burst.t += dt;
+      if (burst.t >= burst.dur) { stingBursts.splice(i, 1); continue; }
+      beeOpacity = Math.max(beeOpacity, Math.min(1, (1 - burst.t / burst.dur) * 1.3));
+      for (let k = 0; k < BEE_PER; k++) {
+        const a = burst.phase + k / BEE_PER * Math.PI * 2 + burst.t * 5.5;
+        const rad = .42 + Math.sin(burst.t * 8 + k) * .10;
+        beePositions[beeCount * 3] = burst.x + Math.cos(a) * rad;
+        beePositions[beeCount * 3 + 1] = burst.y + Math.sin(burst.t * 9 + k * 1.7) * .34;
+        beePositions[beeCount * 3 + 2] = burst.z + Math.sin(a) * rad;
+        beeCount++;
+      }
+    }
+    if (beeCount) {
+      beePoints.visible = true;
+      beePoints.material.opacity = beeOpacity;
+      beePoints.geometry.setDrawRange(0, beeCount);
+      beePoints.geometry.attributes.position.needsUpdate = true;
+    } else {
+      beePoints.visible = false;
+      beePoints.material.opacity = 0;
+    }
     // nav debug line opacity gently pulses
     if (navDebug) navDebug.material.opacity = 0.45 + Math.sin(performance.now()*0.002)*0.08;
   }
@@ -1772,12 +1871,14 @@ export function buildField({ scene, camera, renderer, sky }) {
     group, sky, nav, navDebug, homes, colliders, pond, bounds: FIELD_BOUNDS,
     pathStones, cannonHome: CANNON_HOME, wind, trees, horizon, aeroHomes, backdrop, studioHouse, bushes,
     food, foodSources: usableFoodSources, waterSpots,
+    hives: hiveVisual,
     fireflies: fireflyPoints, fireflyLights,
     valid: layoutErrors.length === 0,
     layoutErrors,
     update,
     drawShadows,
     splash,
+    sting,
     setCannon,
     isCannonSpot,
     validateLayout,

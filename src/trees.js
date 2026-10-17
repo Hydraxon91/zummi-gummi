@@ -434,7 +434,7 @@ export function createTreeCollection({ lots, wind }) {
   const barkGeoms = [];
   const leafRows = [];
   const fruitRows = [];
-  const hiveGeoms = [];
+  const hiveRecords = [];
   const treeMeta = [];
   let branchCount = 0;
   let anchorCount = 0;
@@ -809,7 +809,10 @@ export function createTreeCollection({ lots, wind }) {
       const branchAnchors = treeAnchors.filter(a => !a.fill);
       const anchor = branchAnchors[(index * 3 + 1) % branchAnchors.length] || branchAnchors[0];
       const center = anchor.pos.clone().add(new THREE.Vector3(0, -.66 * s, 0));
-      hiveGeoms.push(hiveGeometryAt(center, anchor.pos, anchor.flex, treePhase, anchor.branchPhase));
+      hiveRecords.push({
+        geometry: hiveGeometryAt(center, anchor.pos, anchor.flex, treePhase, anchor.branchPhase),
+        center, treeX: lot.x, treeZ: lot.z, treeScale: s,
+      });
     }
   });
 
@@ -828,15 +831,22 @@ export function createTreeCollection({ lots, wind }) {
   fruitMesh.frustumCulled = false;
   group.add(fruitMesh);
 
-  let hiveMesh = null;
-  if (hiveGeoms.length) {
-    const hiveGeo = mergeAttachedGeometries(hiveGeoms);
-    hiveMesh = new THREE.Mesh(hiveGeo, hiveMat);
-    hiveMesh.name = 'treeHives';
-    hiveMesh.frustumCulled = false;
-    hiveMesh.layers.enable(REFLECT_LAYER);
-    group.add(hiveMesh);
-  }
+  // Keep each hive separate so a depleted one can disappear without hiding the
+  // other tree's hive. There are only two, so the extra draw call is cheap.
+  const hives = hiveRecords.map((record, i) => {
+    const mesh = new THREE.Mesh(record.geometry, hiveMat);
+    mesh.name = `treeHive${i}`;
+    mesh.frustumCulled = false;
+    mesh.layers.enable(REFLECT_LAYER);
+    group.add(mesh);
+    return {
+      mesh,
+      center: record.center,
+      treeX: record.treeX,
+      treeZ: record.treeZ,
+      treeScale: record.treeScale,
+    };
+  });
 
   const barkTris = barkGeo.index ? barkGeo.index.count / 3 : 0;
   const leafTris = (leafGeo.index ? leafGeo.index.count / 3 : 0) * leafRows.length;
@@ -847,12 +857,12 @@ export function createTreeCollection({ lots, wind }) {
     anchors: anchorCount,
     leaves: leafRows.length,
     fruit: fruitRows.length,
-    hives: hiveGeoms.length,
+    hives: hives.length,
     barkTris: Math.round(barkTris),
     leafTris: Math.round(leafTris),
     fruitTris: Math.round(fruitTris),
     totalTris: Math.round(barkTris + leafTris + fruitTris),
-    batches: 3 + (hiveMesh ? 1 : 0),
+    batches: 3 + hives.length,
   };
 
   return {
@@ -861,7 +871,7 @@ export function createTreeCollection({ lots, wind }) {
     barkMesh,
     leafMesh,
     fruitMesh,
-    hiveMesh,
+    hives,
     controls: leafControls,
     setControls(v = {}) {
       if (!v) return;

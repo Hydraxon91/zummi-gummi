@@ -343,6 +343,9 @@ class Bear{
     this.scale=1; this.age=0; this.stage='adult';
     this.sex=(Math.random()<0.5?'F':'M');
     this.health=100; this.hunger=0.3; this.thirst=0.3;
+    this.energy=1; this.bold=0.5; this.sleeping=false;
+    // Heritable pace range; sampled per bear at spawn and inherited in Phase 5.
+    this.hopSpeedMin=0.80; this.hopSpeedMax=1.65;
     this.pregnant=false; this.gestation=0;
     this.name=''; this.home=''; this.inPond=false;
     this.ai=null;
@@ -425,7 +428,12 @@ function spawn(x, z, y, flavor, opts={}){
   b.antic=0; b.hopT=HOP_MIN+Math.random()*(HOP_MAX-HOP_MIN);
   b.grabs=0; b.stretch=1; b.stretchPt=P_HEAD; b.devSlow=0.05;
   b.age=0; b.sex=(Math.random()<0.5?'F':'M');
-  b.health=100; b.hunger=0.3; b.thirst=0.3; b.pregnant=false; b.gestation=0;
+  b.health=100; b.hunger=0.3; b.thirst=0.3; b.energy=1;
+  b.bold=0.25+Math.random()*0.5; b.sleeping=false;
+  // Phase 5 births will blend the parents' ranges with a small mutation.
+  b.hopSpeedMin=0.70+Math.random()*0.25;
+  b.hopSpeedMax=1.45+Math.random()*0.35;
+  b.pregnant=false; b.gestation=0;
   b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
   b.ai=null;
   if (opts.sex) b.sex = opts.sex;
@@ -1295,6 +1303,12 @@ const _mDelta = new THREE.Matrix4(), _mSnapInv = new THREE.Matrix4(), _mTr = new
 function updateMeshTransforms(){
   for (const b of bears){
     if (!b.active) continue;
+    if (b.sleeping){
+      b.mesh.visible = false;
+      writeEyeInstance(b, true);
+      continue;
+    }
+    b.mesh.visible = true;
     _mDelta.set(
       b.rMat[0], b.rMat[3], b.rMat[6], b.cx,
       b.rMat[1], b.rMat[4], b.rMat[7], b.cy,
@@ -1353,6 +1367,7 @@ function drawStudioShadows(){
   sctx.drawImage(baseCanvas,0,0);
   sctx.globalCompositeOperation='multiply';
   for (const b of bears){
+    if (!b.active || b.sleeping) continue;
     const h = Math.max(0, b.cy - REST_COM_Y);
     const scale = 1 + h*0.52;
     const wx = b.cx - KEY_DIR.x*h*0.34;
@@ -2136,12 +2151,19 @@ function flavorHex(b){
 }
 function buddyStatus(b){
   if (!field) return 'settling in';
+  if (b.ai && b.ai.state === 'sleep') return `sleeping at ${b.home || 'home'}`;
+  if (b.health < 15) return 'woozy — needs a quiet corner';
   if (b.ai) {
+    if (b.ai.state === 'seekHome') return 'heading home to rest';
+    if (b.ai.state === 'raidHive') return 'raiding a beehive';
+    if (b.ai.state === 'seekHive') return 'eyeing the beehive';
+    if (b.ai.state === 'flee') return 'fleeing the bees';
     if (b.ai.state === 'eat') return b.ai.source && b.ai.source.kind === 'fruit'
       ? 'nibbling a jelly fruit' : 'nibbling a jelly flower';
     if (b.ai.state === 'drink') return 'sipping from the pond';
     if (b.ai.state === 'seekWater') return 'hopping to the pond';
     if (b.ai.state === 'seekFood') return 'looking for a snack';
+    if (b.energy < 0.18) return 'ready for a nap';
     if (b.thirst >= 0.82) return 'getting thirsty';
     if (b.hunger >= 0.82) return 'getting hungry';
   }
@@ -2154,6 +2176,16 @@ function buddyStatus(b){
   if (b.cy > 1.4) return 'airborne!';
   if (sky && sky.night > 0.5) return 'counting stars';
   return 'out exploring the meadow';
+}
+function syncBuddyHealth(b){
+  if (!b || !b._buddyHealthEl || !b._buddyHealthFill) return;
+  const hp = clamp(Number.isFinite(b.health) ? b.health : 100, 1, 100);
+  const label = Math.round(hp);
+  b._buddyHealthFill.style.width = `${hp}%`;
+  b._buddyHealthEl.className = `buddyHealth${hp < 15 ? ' woozy' : hp < 35 ? ' low' : ''}`;
+  b._buddyHealthEl.title = `Health ${label} / 100`;
+  b._buddyHealthEl.setAttribute('aria-label', `Health ${label} out of 100`);
+  if (b._buddyHpText) b._buddyHpText.textContent = String(label);
 }
 function refreshBuddyList(){
   if (!buddyListEl) return;
@@ -2180,19 +2212,37 @@ function refreshBuddyList(){
     status.className = 'buddyStatus';
     status.textContent = buddyStatus(b);
     mid.append(name, document.createElement('br'), status);
+    const right = document.createElement('span');
+    right.className = 'buddyRight';
+    const health = document.createElement('span');
+    health.className = 'buddyHealth';
+    health.setAttribute('role', 'img');
+    const healthFill = document.createElement('i');
+    health.appendChild(healthFill);
+    const hpText = document.createElement('span');
+    hpText.className = 'buddyHpText';
+    hpText.textContent = '100';
+    const vitals = document.createElement('span');
+    vitals.className = 'buddyVitals';
+    vitals.append(hpText, health);
     const home = document.createElement('span');
     home.className = 'buddyHome';
     home.textContent = b.home || '—';
+    right.append(vitals, home);
     if (b.stage && b.stage !== 'adult') {
       const stage = document.createElement('span');
       stage.className = 'buddyStage';
       stage.textContent = b.stage;
       name.appendChild(stage);
     }
-    row.append(dot, mid, home);
+    row.append(dot, mid, right);
     row.addEventListener('click', () => focusBuddy(b));
     buddyListEl.append(row);
     b._buddyStatusEl = status;
+    b._buddyHealthEl = health;
+    b._buddyHealthFill = healthFill;
+    b._buddyHpText = hpText;
+    syncBuddyHealth(b);
   }
   if (onlineCountEl) onlineCountEl.textContent = `${list.length} online`;
   buddySig = list.map(b=>`${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
@@ -2204,7 +2254,9 @@ function updateBuddyStatuses(force = false){
   if (!force && now - lastBuddyStatusTick < 650) return;
   lastBuddyStatusTick = now;
   for (const b of bears){
-    if (b.active && b._buddyStatusEl) b._buddyStatusEl.textContent = buddyStatus(b);
+    if (!b.active) continue;
+    if (b._buddyStatusEl) b._buddyStatusEl.textContent = buddyStatus(b);
+    syncBuddyHealth(b);
   }
 }
 function focusBuddy(b){
@@ -2226,6 +2278,7 @@ function syncAeroUI(force){
   const sig = list.map(b=>`${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
   if (force || sig !== buddySig) refreshBuddyList();
   updateBuddyStatuses(force);
+  for (const b of list) syncBuddyHealth(b);
   if (!sky) return;
   if (skyClockEl) skyClockEl.textContent = formatClock(sky.hours);
   const per = timePeriod(sky.hours);
@@ -2442,6 +2495,8 @@ const AI_HOP_SPEED_MIN = 0.80;
 const AI_HOP_SPEED_MAX = 1.65;
 const AI_HOP_MIN_UP = 0.86;
 const AI_HOP_LEAN = 10 * Math.PI / 180;
+const AI_WOOZY_HEALTH = 15;
+const AI_WOOZY_SPEED = 0.65;
 const AI_FACE_RATE_GROUND = 9.0;
 const AI_FACE_RATE_AIR = 4.0;
 const AI_TURN_WAIT = 0.75;
@@ -2520,7 +2575,10 @@ function updateAiLocomotion(dt) {
     a.hopWait -= dt;
     if (a.hopWait > 0) continue;
 
-    const speed = clamp(d / 0.55, AI_HOP_SPEED_MIN, AI_HOP_SPEED_MAX);
+    const speedMin = Number.isFinite(b.hopSpeedMin) ? b.hopSpeedMin : AI_HOP_SPEED_MIN;
+    const speedMax = Number.isFinite(b.hopSpeedMax) ? b.hopSpeedMax : AI_HOP_SPEED_MAX;
+    const speed = clamp(d / 0.55, Math.min(speedMin, speedMax), Math.max(speedMin, speedMax)) *
+      (b.health < AI_WOOZY_HEALTH ? AI_WOOZY_SPEED : 1);
     const ux = dx / d, uz = dz / d;
     hopBear(b, AI_HOP_VERTICAL, ux * speed, uz * speed, true);
     a.hopState = 'air';
@@ -2598,7 +2656,7 @@ function updateSurfaces(){
   }
   buildOrder.length = 0;
   for (const b of bears){
-    if (!b.active) continue;
+    if (!b.active || b.sleeping) continue;
     if (b.grabs > 0 || b.needsBuild){ buildOrder.push(b); continue; }
     // rigid motion is handled by the mesh matrix, so only *shape* changes rebuild
     if (b.deform > 0.30*b.cell) buildOrder.push(b);
@@ -3162,7 +3220,10 @@ function yawOfQuat(q){
 function snapshotBear(b){
   return {
     flavor: b.flavor, sex: b.sex, stage: b.stage, scale: b.scale,
-    health: b.health, hunger: b.hunger, thirst: b.thirst, name: b.name, home: b.home,
+    health: b.health, hunger: b.hunger, thirst: b.thirst,
+    energy: b.energy, bold: b.bold,
+    hopSpeedMin: b.hopSpeedMin, hopSpeedMax: b.hopSpeedMax,
+    name: b.name, home: b.home,
     x: b.cx, z: b.cz, yaw: yawOfQuat(b.q),
   };
 }
@@ -3186,6 +3247,10 @@ function spawnFromState(st){
   b.health = Number.isFinite(st.health) ? st.health : 100;
   b.hunger = Number.isFinite(st.hunger) ? st.hunger : 0.3;
   b.thirst = Number.isFinite(st.thirst) ? st.thirst : 0.3;
+  b.energy = Number.isFinite(st.energy) ? st.energy : 1;
+  b.bold = Number.isFinite(st.bold) ? st.bold : 0.5;
+  b.hopSpeedMin = Number.isFinite(st.hopSpeedMin) ? st.hopSpeedMin : b.hopSpeedMin;
+  b.hopSpeedMax = Number.isFinite(st.hopSpeedMax) ? st.hopSpeedMax : b.hopSpeedMax;
   return b;
 }
 
@@ -3423,7 +3488,11 @@ function fitWallsToTable(){
   applyQuality();
   PHYS = await initPhysics(24 * BEAR_HARD_MAX, { x: 0, y: GRAV, z: 0 });
   ensureMeadow();
-  ai = createBearAI({ field, getBears: () => bears });
+  ai = createBearAI({
+    field,
+    getBears: () => bears,
+    getHours: () => (sky ? sky.hours : 12),
+  });
   aiDebug = createAIDebug({
     getBears: () => bears,
     getAI: () => ai,
@@ -3626,6 +3695,7 @@ window.__gummy = {
       horizon: field.horizon ? { towers:field.horizon.towers, windmills:field.horizon.windmills } : null,
       wind: field.wind ? { strength:field.wind.strength, dir:field.wind.direction, gust:field.wind.gust } : null,
       food: field.food ? field.food.stats() : null,
+      hives: field.hives ? field.hives.length : 0,
       waterSpots: field.waterSpots ? field.waterSpots.length : 0,
       nature: field.natureControls,
       grass: field.grassControls,
@@ -3685,16 +3755,31 @@ window.__gummy = {
   launcherScreenOf(x, z){ return launcher ? launcher.screenOf(x, z) : null; },
   launcherMoveMode(on){ return launcher ? launcher.toggleMoveMode(on) : false; },
   world(){ return { map: activeWorld.mapId, wallHeight: getActiveMap().wallHeight, walls: worldWalls.walls.slice(), ground: worldWalls.ground, bounds: [worldWalls.hx, worldWalls.hz], launcher: launcher ? launcher.state() : null }; },
-  traits(){ return bears.map(b => ({ sex:b.sex, stage:b.stage, scale:b.scale, health:b.health, hunger:b.hunger, thirst:b.thirst, ai:b.ai ? b.ai.state : null })); },
+  traits(){ return bears.map(b => ({ sex:b.sex, stage:b.stage, scale:b.scale, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null })); },
   ai(){ return ai ? ai.stats() : null; },
   setAI(v){ return ai ? ai.setEnabled(v) : false; },
   food(){ return field && field.food ? field.food.stats() : null; },
   foodSources(){ return field && field.food ? field.food.sources.map(s => ({
-    id:s.id, kind:s.kind, x:s.x, z:s.z, ripe:s.ripe, claimed:!!s.claim,
-    visualIndex:s.visualIndex,
+    id:s.id, kind:s.kind, x:s.x, z:s.z,
+    approachX:s.approachX, approachZ:s.approachZ,
+    ripe:s.ripe, claimed:!!s.claim, visualIndex:s.visualIndex,
   })) : []; },
   setHunger(i, v){ const b = bears[i]; if (!b) return false; b.hunger = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.hunger; },
   setThirst(i, v){ const b = bears[i]; if (!b) return false; b.thirst = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.thirst; },
+  setHealth(i, v){
+    const b = bears[i]; if (!b) return false;
+    const n = Number(v); if (!Number.isFinite(n)) return false;
+    b.health = clamp(n, 1, 100);
+    if (b.ai) b.ai.nextThink = 0;
+    return b.health;
+  },
+  setEnergy(i, v){
+    const b = bears[i]; if (!b) return false;
+    const n = Number(v); if (!Number.isFinite(n)) return false;
+    b.energy = clamp(n, 0, 1);
+    if (b.ai) b.ai.nextThink = 0;
+    return b.energy;
+  },
   setBearState(i, state){
     const b = bears[i];
     if (!b || !ai || !isMeadow()) return { ok:false, note:'meadow only or no bear' };

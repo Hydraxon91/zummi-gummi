@@ -477,6 +477,13 @@
   .buddySex{font-size:8.5px;font-weight:700;color:#4b8f9c;letter-spacing:.03em}
   .buddyStage{font-size:7px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8a6a9d;background:rgba(236,218,255,.55);border:1px solid rgba(189,160,221,.5);border-radius:6px;padding:1px 4px;line-height:1.2}
   .buddyStatus{font-size:9px;color:#608b94;margin-top:2px;line-height:1.2}
+  .buddyRight{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:54px}
+  .buddyVitals{display:flex;align-items:center;gap:4px}
+  .buddyHpText{font-size:8px;font-weight:700;color:#2e7c87;min-width:18px;text-align:right;font-variant-numeric:tabular-nums}
+  .buddyHealth{display:block;width:54px;height:6px;border-radius:999px;background:rgba(34,112,123,.16);overflow:hidden;box-shadow:inset 0 1px 2px rgba(19,75,83,.14),0 0 0 1px rgba(255,255,255,.72)}
+  .buddyHealth>i{display:block;height:100%;width:100%;border-radius:inherit;background:linear-gradient(90deg,#2ab88b,#7be0b5);transition:width .3s,background .3s}
+  .buddyHealth.low>i{background:linear-gradient(90deg,#f1b84d,#ffd98a)}
+  .buddyHealth.woozy>i{background:linear-gradient(90deg,#e4617a,#ff9cac)}
   .buddyHome{font-size:8px;color:#84a8af;text-align:right;max-width:92px;line-height:1.25}
   .aeroFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;position:relative;z-index:1;padding-top:7px;border-top:1px solid rgba(42,137,155,.12);font-size:8px;letter-spacing:.04em;color:#7198a0}
   .timePanel{padding:12px 14px 10px}
@@ -700,6 +707,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>Limit</dt><dd>How many bears may exist (8–256).</dd>
             <dt>F / Explode</dt><dd>Firework at the pointer — hold F to spray, Shift+F for a fan; the button volleys three at the pile.</dd>
             <dt>Upright</dt><dd>Bears gently right themselves once settled; pushes still win.</dd>
+            <dt>Health &amp; night</dt><dd>Health bars show condition. Hurt or tired bears return to their villa; from 20:00 to 06:00 they sleep there and wake when morning comes. Very hungry bears may raid a beehive and risk a sting.</dd>
           </dl>
         </section>
         <section>

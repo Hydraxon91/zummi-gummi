@@ -25,19 +25,84 @@ const THINK_MIN = 0.18;
 const THINK_MAX = 0.28;
 const STUCK_TIME = 1.9;
 
+// Health, rest and night. Health is in points (0–100), never reaches zero.
+const HEALTH_REGEN = 0.6 / 60;      // awake, points per second
+const HEALTH_REST = 4.0 / 60;       // sleeping/resting
+const HEALTH_STARVE = 0.02;         // at hunger >= 0.95
+const HEALTH_HURT = 35;
+const HEALTH_WOOZY = 15;
+const HEALTH_RECOVERED = 70;
+const ENERGY_RATE = 0.0025;         // awake
+const ENERGY_REST = 0.012;          // sleeping
+const ENERGY_TIRED = 0.18;
+const ENERGY_RESTED = 0.35;
+const NIGHT_START = 20;
+const NIGHT_END = 6;
+const HOME_DIST = 1.15;
+const WOOZY_SPEED = 0.65;
+
+// Hives are high-value and risky. The threshold shifts with boldness; hunger
+// can push a desperate bear a little lower, never below the hard floor.
+const HIVE_HUNGER = 0.95;
+const HIVE_HEALTH = 45;
+const HIVE_HARD_FLOOR = 25;
+const HIVE_DAMAGE = 15;
+const HIVE_STING_CHANCE = 0.5;
+const HIVE_DIST = 1.25;
+const HIVE_RAID_TIME = 1.25;
+const FLEE_TIME = 1.4;
+
+const SAFE_FOOD = ['flower', 'fruit'];
+
 function finite(n, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export function createBearAI({ field, getBears, rng = Math.random } = {}) {
+export function createBearAI({ field, getBears, getHours, rng = Math.random } = {}) {
   const bears = getBears ? getBears() : [];
   let enabled = true;
   const stats = { ticks: 0, ms: 0 };
+  const hoursNow = typeof getHours === 'function' ? getHours : () => 12;
+  const isNight = () => {
+    const h = Number(hoursNow());
+    return Number.isFinite(h) && (h >= NIGHT_START || h < NIGHT_END);
+  };
+
+  function assignHome(b) {
+    if (!b || !field || !field.homes || !field.homes.length) return null;
+    if (b.home) {
+      const existing = field.homes.find(h => h.name === b.home);
+      if (existing) return existing;
+    }
+    const i = Math.max(0, bears.indexOf(b));
+    const home = field.homes[i % field.homes.length];
+    b.home = home.name;
+    return home;
+  }
+
+  function homeFor(b) {
+    if (!b || !field || !field.homes || !field.homes.length) return null;
+    return field.homes.find(h => h.name === b.home) || assignHome(b);
+  }
+
+  function hiveThreshold(b) {
+    const bold = finite(b.bold, 0.5);
+    const desperation = b.hunger >= 0.92 ? 5 : 0;
+    return Math.max(HIVE_HARD_FLOOR,
+      HIVE_HEALTH + (0.5 - bold) * 30 - desperation);
+  }
+
+  function canRaidHive(b) {
+    return !!b && !b.sleeping && b.health > hiveThreshold(b) && b.hunger >= HIVE_HUNGER;
+  }
 
   function attach(b) {
     if (b.ai) return b.ai;
     b.hunger = finite(b.hunger, 0.30);
     b.thirst = finite(b.thirst, 0.30);
+    b.energy = Math.max(0, Math.min(1, finite(b.energy, 1)));
+    b.bold = Math.max(0, Math.min(1, finite(b.bold, 0.5)));
+    b.sleeping = !!b.sleeping;
     b.ai = {
       state: 'wander',
       nextThink: rng() * 0.20,
@@ -58,10 +123,16 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       drinkT: 0,
       animT: 0,
       taskCooldown: 0,
+      raidT: 0,
+      fleeT: 0,
+      fleeFrom: null,
+      stungT: 0,
+      sleepHome: null,
       lastX: b.cx,
       lastZ: b.cz,
       stuckT: 0,
     };
+    if (!b.home) assignHome(b);
     return b.ai;
   }
 
@@ -88,6 +159,10 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     b.ai.hopWait = 0;
     b.ai.turnWait = 0;
     b.ai.faceYaw = null;
+    b.ai.raidT = 0;
+    b.ai.fleeT = 0;
+    b.sleeping = false;
+    if (b.ai.state === 'sleep') b.ai.state = 'wander';
     b.ai.path = null;
     b.ai.pathIndex = 0;
     // Do not hold a food reservation while the player is carrying the bear.
@@ -110,6 +185,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       b.ai.moving = false;
       b.ai.path = null;
       b.ai.hopState = null;
+      b.sleeping = false;
     }
     b.ai = null;
   }
@@ -122,11 +198,20 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
         releaseFood(b);
         b.ai.moving = false;
         b.ai.arrived = false;
+        b.ai.source = null;
+        b.ai.waterSpot = null;
+        b.ai.target = null;
+        b.ai.eatT = 0;
+        b.ai.drinkT = 0;
         b.ai.path = null;
         b.ai.hopState = null;
         b.ai.hopWait = 0;
         b.ai.turnWait = 0;
         b.ai.faceYaw = null;
+        b.ai.raidT = 0;
+        b.ai.fleeT = 0;
+        b.sleeping = false;
+        if (b.ai.state === 'sleep') b.ai.state = 'wander';
       }
     }
     return enabled;
@@ -157,6 +242,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
         maxDistance: 46,
         bear: b,
         exclude,
+        kinds: SAFE_FOOD,
       });
       if (!source) break;
       exclude.add(source.id);
@@ -168,6 +254,34 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       }
       b.ai.source = source;
       b.ai.state = 'seekFood';
+      b.ai.target = { x: source.approachX, z: source.approachZ };
+      setPath(b, path || [{ x: source.approachX, z: source.approachZ }]);
+      b.ai.faceYaw = Math.atan2(source.approachX - b.cx, source.approachZ - b.cz);
+      return source;
+    }
+    return null;
+  }
+
+  function acquireHive(b) {
+    if (!field || !field.food || !b.ai || !canRaidHive(b)) return null;
+    const exclude = new Set();
+    for (let tries = 0; tries < 3; tries++) {
+      const source = field.food.nearestRipe(b.cx, b.cz, {
+        maxDistance: 52,
+        bear: b,
+        exclude,
+        kinds: ['hive'],
+      });
+      if (!source) break;
+      exclude.add(source.id);
+      if (!field.food.claim(source, b)) continue;
+      const path = pathTo(b, source.approachX, source.approachZ);
+      if (!path && Math.hypot(source.approachX - b.cx, source.approachZ - b.cz) > 1.25) {
+        field.food.release(source, b);
+        continue;
+      }
+      b.ai.source = source;
+      b.ai.state = 'seekHive';
       b.ai.target = { x: source.approachX, z: source.approachZ };
       setPath(b, path || [{ x: source.approachX, z: source.approachZ }]);
       b.ai.faceYaw = Math.atan2(source.approachX - b.cx, source.approachZ - b.cz);
@@ -374,6 +488,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     if (b.thirst >= SEEK_THIRST) {
       if (acquireWater(b)) return;
     }
+    if (b.hunger >= HIVE_HUNGER && acquireHive(b)) return;
     if (b.hunger >= SEEK_HUNGER) {
       if (acquireFood(b)) return;
     }
@@ -401,6 +516,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       source = acquireFood(b);
     }
     if (!source) {
+      if (acquireHive(b)) return;
       b.ai.state = 'wander';
       b.ai.idleT = 0.7;
       clearPath(b);
@@ -453,12 +569,179 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     b.ai.moving = true;
   }
 
+  function thinkSeekHive(b) {
+    if (!b.ai) return;
+    let source = b.ai.source;
+    if (!source || !source.ripe || (source.claim && source.claim !== b) || !canRaidHive(b)) {
+      releaseFood(b);
+      b.ai.source = null;
+      b.ai.state = 'seekFood';
+      b.ai.nextThink = 0;
+      clearPath(b);
+      return;
+    }
+    const d = Math.hypot(source.approachX - b.cx, source.approachZ - b.cz);
+    if (d <= HIVE_DIST) { startHiveRaid(b); return; }
+    if (!b.ai.path || !b.ai.path.length) {
+      const path = pathTo(b, source.approachX, source.approachZ);
+      if (!path) {
+        releaseFood(b);
+        b.ai.source = null;
+        b.ai.state = 'seekFood';
+        b.ai.idleT = 0.7;
+        clearPath(b);
+        return;
+      }
+      setPath(b, path);
+    }
+    b.ai.moving = true;
+  }
+
+  function startHiveRaid(b) {
+    if (!b.ai || !b.ai.source) return;
+    const source = b.ai.source;
+    b.ai.state = 'raidHive';
+    b.ai.raidT = HIVE_RAID_TIME;
+    b.ai.moving = false;
+    b.ai.path = null;
+    b.ai.faceYaw = Math.atan2(source.x - b.cx, source.z - b.cz);
+  }
+
+  function finishHiveRaid(b) {
+    if (!b.ai) return;
+    const source = b.ai.source;
+    if (!source) {
+      b.ai.state = 'wander';
+      b.ai.idleT = 0.5;
+      return;
+    }
+    if (rng() < HIVE_STING_CHANCE) {
+      b.health = Math.max(1, b.health - HIVE_DAMAGE);
+      b.ai.stungT = 2.0;
+      releaseFood(b);
+      b.ai.source = null;
+      if (field && field.sting) field.sting(source.x, source.z, source.y);
+      startFlee(b, source);
+      return;
+    }
+    if (field.food.consume(source, b)) {
+      b.hunger = Math.max(0, b.hunger - source.satiation);
+    }
+    b.ai.source = null;
+    b.ai.target = null;
+    b.ai.faceYaw = null;
+    b.ai.state = 'wander';
+    b.ai.idleT = 0.9;
+    b.ai.taskCooldown = 1.3;
+    clearPath(b);
+  }
+
+  function startFlee(b, source) {
+    if (!b.ai) return;
+    releaseFood(b);
+    b.ai.source = null;
+    b.ai.target = null;
+    b.ai.faceYaw = null;
+    b.ai.state = 'flee';
+    b.ai.fleeT = FLEE_TIME;
+    b.ai.fleeFrom = source ? { x: source.x, z: source.z } : null;
+    clearPath(b);
+    if (!field || !field.nav) return;
+    const dx = b.cx - (source ? source.x : b.cx);
+    const dz = b.cz - (source ? source.z : b.cz);
+    const len = Math.hypot(dx, dz) || 1;
+    const p = field.nav.nearestWalkable(b.cx + dx / len * 4.5, b.cz + dz / len * 4.5);
+    if (!p) return;
+    b.ai.target = { x: p.x, z: p.z };
+    const path = pathTo(b, p.x, p.z);
+    if (path) setPath(b, path);
+    else b.ai.moving = false;
+    b.ai.faceYaw = Math.atan2(p.x - b.cx, p.z - b.cz);
+  }
+
+  function needsHome(b) {
+    if (!b || !b.ai || !homeFor(b)) return false;
+    if (b.health < HEALTH_WOOZY) return true;
+    if (b.hunger >= CRITICAL_HUNGER || b.thirst >= CRITICAL_THIRST) return false;
+    return isNight() || b.health < HEALTH_HURT || b.energy < ENERGY_TIRED;
+  }
+
+  function startSeekHome(b) {
+    if (!b.ai) return false;
+    releaseFood(b);
+    b.ai.source = null;
+    b.ai.waterSpot = null;
+    b.ai.target = null;
+    b.ai.faceYaw = null;
+    b.ai.state = 'seekHome';
+    b.ai.idleT = 0;
+    b.ai.moving = false;
+    clearPath(b);
+    return true;
+  }
+
+  function startSleep(b, home) {
+    if (!b.ai || !home) return;
+    b.ai.state = 'sleep';
+    b.ai.sleepHome = home.name;
+    b.ai.moving = false;
+    b.ai.path = null;
+    b.ai.pathIndex = 0;
+    b.ai.faceYaw = Math.atan2(home.door.x - b.cx, home.door.z - b.cz);
+    b.sleeping = true;
+  }
+
+  function wake(b) {
+    if (!b.ai) return;
+    b.sleeping = false;
+    b.needsBuild = true;
+    b.ai.state = 'wander';
+    b.ai.sleepHome = null;
+    b.ai.idleT = 0.5;
+    b.ai.taskCooldown = 0.8;
+    b.ai.nextThink = 0;
+  }
+
+  function thinkSeekHome(b) {
+    if (!b.ai) return;
+    const home = homeFor(b);
+    if (!home) {
+      b.ai.state = 'wander';
+      b.ai.idleT = 0.8;
+      return;
+    }
+    if (!needsHome(b)) {
+      b.ai.state = 'wander';
+      b.ai.idleT = 0.5;
+      return;
+    }
+    const d = Math.hypot(home.door.x - b.cx, home.door.z - b.cz);
+    if (d <= HOME_DIST) { startSleep(b, home); return; }
+    if (!b.ai.path || !b.ai.path.length) {
+      const path = pathTo(b, home.door.x, home.door.z);
+      if (!path) {
+        b.ai.state = 'wander';
+        b.ai.idleT = 0.8;
+        return;
+      }
+      setPath(b, path);
+    }
+    b.ai.moving = true;
+  }
+
   function think(b) {
     if (!b.ai) return;
+    if (b.ai.state === 'sleep') return;
+    if (needsHome(b) && b.ai.state !== 'seekHome') {
+      startSeekHome(b);
+      return;
+    }
     if (b.ai.state === 'wander') thinkWander(b);
     else if (b.ai.state === 'seekFood') thinkSeekFood(b);
     else if (b.ai.state === 'seekWater') thinkSeekWater(b);
-    // eat/drink are timer states; update() finishes them.
+    else if (b.ai.state === 'seekHive') thinkSeekHive(b);
+    else if (b.ai.state === 'seekHome') thinkSeekHome(b);
+    // eat/drink/raid are timer states; update() finishes them.
   }
 
   function setNeed(b, kind, value) {
@@ -486,6 +769,9 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     b.ai.hopState = null;
     b.ai.hopWait = 0;
     b.ai.turnWait = 0;
+    b.ai.raidT = 0;
+    b.ai.fleeT = 0;
+    b.sleeping = false;
     b.ai.faceYaw = null;
     b.ai.path = null;
     b.ai.pathIndex = 0;
@@ -512,7 +798,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       return { ok: true, state: 'seekWater', note: 'looking for water' };
     }
     if (state === 'eat') {
-      const source = field.food.nearestRipe(b.cx, b.cz, { maxDistance: 999, bear: b });
+      const source = field.food.nearestRipe(b.cx, b.cz, { maxDistance: 999, bear: b, kinds: SAFE_FOOD });
       if (!source || !field.food.claim(source, b)) {
         b.ai.state = 'seekFood';
         return { ok: false, state: 'seekFood', note: 'no food target; seeking' };
@@ -556,6 +842,10 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       state: b.ai.state,
       hunger: +b.hunger.toFixed(3),
       thirst: +b.thirst.toFixed(3),
+      health: +b.health.toFixed(1),
+      energy: +b.energy.toFixed(3),
+      home: b.home || '',
+      sleeping: !!b.sleeping,
       interrupted: !!b.ai.interrupted,
       moving: !!b.ai.moving,
       faceYaw: b.ai.faceYaw === null || b.ai.faceYaw === undefined ? null : +b.ai.faceYaw.toFixed(3),
@@ -579,6 +869,19 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       b.thirst = Math.min(1, finite(b.thirst, 0.3) + THIRST_RATE * dt);
       if (ai.taskCooldown > 0) ai.taskCooldown = Math.max(0, ai.taskCooldown - dt);
       if (ai.idleT > 0) ai.idleT = Math.max(0, ai.idleT - dt);
+      if (ai.stungT > 0) ai.stungT = Math.max(0, ai.stungT - dt);
+
+      b.health = Math.max(1, Math.min(100, finite(b.health, 100)));
+      b.energy = Math.max(0, Math.min(1, finite(b.energy, 1)));
+      if (ai.state === 'sleep') {
+        b.health = Math.min(100, b.health + HEALTH_REST * dt);
+        b.energy = Math.min(1, b.energy + ENERGY_REST * dt);
+        if (!isNight() && b.health >= HEALTH_HURT && b.energy >= ENERGY_TIRED) wake(b);
+        continue;
+      }
+      b.health = Math.min(100, b.health + HEALTH_REGEN * dt);
+      b.energy = Math.max(0, b.energy - ENERGY_RATE * dt);
+      if (b.hunger >= 0.95) b.health = Math.max(1, b.health - HEALTH_STARVE * dt);
 
       const grounded = !b.airborne && b.contacts > 0 && (b.rMat[4] || 0) > 0.62;
       if (b.grabs > 0 || b.inPond) {
@@ -639,6 +942,22 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
         if (ai.drinkT <= 0) finishWater(b);
         continue;
       }
+      if (ai.state === 'raidHive') {
+        ai.animT += dt;
+        ai.raidT -= dt;
+        if (ai.raidT <= 0) finishHiveRaid(b);
+        continue;
+      }
+      if (ai.state === 'flee') {
+        ai.fleeT -= dt;
+        if (ai.fleeT <= 0) {
+          ai.state = 'seekFood';
+          ai.nextThink = 0;
+          ai.moving = false;
+          clearPath(b);
+        }
+        continue;
+      }
 
       ai.nextThink -= dt;
       if (ai.nextThink > 0) continue;
@@ -659,6 +978,12 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
         state: b.ai.state,
         hunger: +b.hunger.toFixed(3),
         thirst: +b.thirst.toFixed(3),
+        health: +b.health.toFixed(1),
+        energy: +b.energy.toFixed(3),
+        home: b.home || '',
+        sleeping: !!b.sleeping,
+        woozy: b.health < HEALTH_WOOZY,
+        stungT: +(b.ai.stungT || 0).toFixed(2),
         moving: !!b.ai.moving,
         interrupted: !!b.ai.interrupted,
         hopState: b.ai.hopState,

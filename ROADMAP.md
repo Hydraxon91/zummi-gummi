@@ -96,9 +96,9 @@ rig and soft-body solver stay.
 | **1 ✅** | Movable cannon + taller/larger walls on the Studio (quick playable win) | Cannon can be dragged/moved with validation; it stays in bounds; max-power shots are contained; aim/fire still work |
 | **2 ✅** | Grass Field, sky, pond, Aero shell, map switcher; field default; **mixed starter colony (2 adult ♀, 2 adult ♂, 1 teen, 1 baby)**; **rounded white/aqua Aero villas on validated home lots**; **distant Frutiger-Aero skyline + three-blade wind turbines**; pond splash/buoyancy; **procedural gummy-tree replacement with rounded leafy puffs/fruit/hives; shared travelling wind for trees + grass; Wind and Meadow-detail controls; procedural clouds, aurora and sporadic morning mist**; **circular wobbled-disc playfield, wandered dirt trails, full-circle grass, branched backdrop trees/bushes and anime-lite water**; **Hide UI** | Both maps load and switch with independent state; field has grass/trees/flowers/pond/sky/villas; no layout overlaps; day/night slider and dawn look work; pond reflects sun/moon and splashes; trees use the fixed TREE_LOTS/colliders with merged foliage batches and no per-frame CPU branch loops; one shared gust visibly crosses grass and trees; night sky shows aurora; starting colony has the four adults, teen and baby; villa silhouettes are distinct without changing their lots; skyline/windmills read as distant scenery; 16/16 self-test, mobile layouts, layout and map-switch checks pass; circular camera/containment and UI hide checks pass |
 | **3a ✅** | Food registry/respawn, hunger, thirst, hop locomotion, WANDER / SEEK_FOOD / EAT / SEEK_WATER / DRINK | Bears autonomously get hungry or thirsty, hop to safe food or the pond shore, eat/drink, and food regrows; grab/throw interrupts and resumes the task; no stuck/NaN/perf regressions |
-| **3b** | **3b.0 hop pose/takeoff polish** (level crouch/air target with a small forward lean, upright takeoff gate, transient AI reset); hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | AI hops stay close to upright through takeoff, apex and landing; player throws still tumble freely; then bees can sting, bears avoid hives below the threshold, health regenerates, hurt/tired bears return home and recover, with no death |
+| **3b ✅** | **3b.0 hop pose/takeoff polish** (level crouch/air target with a small forward lean, upright takeoff gate, transient AI reset, per-bear hop-pace range (inherited in Phase 5)); hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | AI hops stay close to upright through takeoff, apex and landing; player throws still tumble freely; bees can sting, bears avoid hives below the threshold, health regenerates, hurt/tired bears return home and recover, with no death |
 | **4** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection, **home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit homes; MSN-style statuses update |
-| **5** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
+| **5** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
 | **6a** | **Effects pass before optimization:** improve shading/contact depth, SSAO, shadow maps, god rays, restrained bloom and a gentle color grade; scope/tuning to be discussed when the simulation is complete | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
 | **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
@@ -127,8 +127,9 @@ rig and soft-body solver stay.
   2 adult ♂, one teen and one baby. Camera circular clamping, containment,
   mobile layouts, layout/nav checks, both portals, hide-UI, and the smoke test
   pass. The Studio lounge is queued as the parallel Phase S track.
-- **Phase 3a complete:** the meadow has 210 edible sources (190 flower blooms +
-  20 fallen jelly-fruit clusters), a food claim/respawn registry, 16 walkable
+- **Phase 3a complete:** the meadow has 210 safe edible sources (190 flower
+  blooms + 20 fallen jelly-fruit clusters; two hazard hives were added in 3b),
+  a food claim/respawn registry, 16 walkable
   pond drinking approaches, hunger and thirst, and a
   WANDER / SEEK_FOOD / EAT / SEEK_WATER / DRINK state machine. Bears travel with
   directional hops, face their next waypoint, nibble/drink, and suspend/resume
@@ -141,8 +142,16 @@ rig and soft-body solver stay.
   up (~17°), with the visible pose capped at 10°; smoke, Phase 3a QA and side
   captures pass. Transient `arrived` / `turnWait` / `faceYaw` / hop timing state
   is now cleared on disable, grab and release.
-- **Next:** add voluntary pond play/swimming, then continue Phase 3b with hives,
-  health, home return and night sleep.
+- **Phase 3b complete:** two tree hives are high-value food with a 50% sting
+  risk and 15-point damage; health/energy regenerate, woozy bears return home,
+  and the roster shows health plus sleeping/night status. Bears claim a villa,
+  path to its door at night or when hurt/tired, disappear into the doorway to
+  sleep, and wake after dawn once recovered. Each bear also has its own random
+  hop-speed range (`0.70–0.95` min, `1.45–1.80` max) stored for Phase 5
+  inheritance. Headless checks cover health/woozy, hive claims/stings, night
+  sleep/wake, speed ranges, UI health bars and the existing wander/eat/drink
+  regression path with no page errors.
+- **Next:** add voluntary pond play/swimming, then Phase 4 social behaviour.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
@@ -170,6 +179,7 @@ utility selector with cooldowns/hysteresis picks a state roughly once per second
 | Wander | default | pick a waypoint, hop there, idle |
 | Seek food | hunger high | claim a ripe safe food source, or weigh a hive raid |
 | Raid hive | honey desired, health/bravery allow | approach, risk sting; eat or flee hurt |
+| Flee bees | stung | run away briefly, then seek safe food |
 | Eat | at food | nibble, hunger ↓, food consumed, respawn timer starts |
 | Seek water | thirst high | hop to a validated pond-shore approach |
 | Drink | at the shore | dip the snout, ripple the water, thirst ↓; water is infinite |
@@ -177,7 +187,7 @@ utility selector with cooldowns/hysteresis picks a state roughly once per second
 | Invite → Social | near the chosen bear | offer interaction; if accepted **both switch to Social**, bounce/nuzzle, hearts, affection ↑; decline = small “no” emote |
 | Conflict | two bears target the same food | face-off shove; larger/hungrier bear wins; winner eats, loser retargets; no injury |
 | Mate | adult, opposite sex, hunger satisfied, healthy, food & population room | hearts, pregnancy for the female, then birth |
-| Seek home / Rest | night, low health, low energy | walk to the bear’s cottage door, enter, sleep and regen; window glows while occupied |
+| Seek home / Rest | night, low health, low energy | walk to the bear’s cottage door, enter, sleep and regen; a warm entrance glow marks an occupied villa |
 | Woozy | health near zero | slow, safe food only, no hives/mating/conflict; returns home to recover |
 | Grow | passive age | baby → teen → adult; sparkle at stage-ups |
 
@@ -246,6 +256,37 @@ could strand a bear in idle after its first task), the old face bias was too wea
 and based on measured rotation, and the performance overlay was hidden with the
 rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 
+**Known follow-ups after Phase 3b** — recorded for later, not current blockers:
+
+- **Sleeping bears remain physical at the door.** Their mesh, eyes and shadow
+  are hidden, but the Box3D bodies stay collidable at the villa entrance. A map
+  switch saves that door position but not the sleeping flag, so the bear wakes
+  on return. Consider an interior sleep point or collision layer, and persist
+  the sleep state cleanly.
+- **Home assignment has no bed capacity.** `assignHome` round-robins by bear
+  index, so poured/test bears can overfill a villa. Add capacity/claiming with
+  the Phase 4–5 home work.
+- **Grab/throw resume has no explicit hive/home/sleep branch.** `resumeTask`
+  handles food, water and wander; grabbing a bear while it is seeking a hive or
+  home currently retargets it to wander. Add explicit resume rules before those
+  states become player-facing.
+- **Hive approach generation can silently drop a hive.** If no walkable point
+  within 1.2 units is found, the visual hive remains but no food source is
+  registered; surface that as a layout warning instead of leaving an edible
+  object that cannot be targeted.
+- **A failed flee path leaves a bear in place.** `startFlee` still spends the
+  `flee` timer if `nearestWalkable`/`pathTo` fails; add an immediate safe-food
+  fallback or a short retreat target.
+- **Health/energy only advance inside `ai.update`.** Disabling AI (Studio or the
+  debug toggle) freezes vitals; that is intended for the Studio, but should be
+  documented or separated from the debug pause.
+- **The AI debug state selector still lists only the original five states.**
+  Automatic hive/home/sleep states appear in the readout but leave the dropdown
+  blank; add safe force-state handlers if those states need direct debugging.
+- **The occupied-villa marker is an entrance halo, not per-window emissive.**
+  This is the Phase 3b approximation; revisit with the Phase 6b occupancy/window
+  polish.
+
 ## Health, hives, mating
 
 - Health 0–100. Base regen ~0.6/min; resting/napping ~4/min; starving slowly
@@ -260,12 +301,15 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   rises. Birth requires room and food; otherwise it is briefly delayed.
 - Babies inherit flavor (rare mutation) and a random sex; they can follow a
   parent when young. Same-sex friendships/socializing are fully supported.
+- Each bear carries its own minimum/maximum hop speed. A child blends the
+  parents’ ranges and applies a small mutation, so colonies can drift toward
+  calmer or quicker hoppers without a separate selection mechanic.
 
 ## Homes & no-clipping
 
 - **Aero villas:** 8–12 white/aqua Frutiger-Aero homes arranged around the
   meadow: soft rounded shells, turquoise glazing bands, silver trim, large oval
-  windows, aqua doors, bubble lamps, mailboxes and a warm/aqua window glow when
+  windows, aqua doors, bubble lamps, mailboxes and a warm/aqua entrance glow when
   occupied. Silhouettes vary between pavilion, dome, saucer and tower types
   without changing the authored lots. Each villa has 2–4 beds/residents; the
   buddy list shows each bear’s home.
@@ -579,8 +623,12 @@ bears and stalls. Decide when 9c is scheduled; 9a and 9b do not depend on it.
 - Day 10 min; growth 6–8 min; world speed 1×/2×/4×.
 - Field ceiling 40; hard max 128; Studio ceiling 128.
 - Starting meadow colony: 2 adult ♀, 2 adult ♂, 1 teen, 1 baby.
-- Hive threshold 45 health; sting damage 15; honey 0.55 satiation.
+- Hive threshold 45 health (bold/shy shifts it, desperation lowers it to a
+  25-point floor); sting damage 15; honey 0.55 satiation.
 - Food respawns: flowers 25–45 s, fruit 45–90 s, hives 90–150 s.
+- Per-bear hop pace: min 0.70–0.95, max 1.45–1.80, sampled at spawn and inherited
+  in Phase 5. Health base regen 0.6/min, rest 4/min; energy drains 0.0025/s,
+  restores 0.012/s; woozy below 15 health.
 - Hunger +0.006/s, thirst +0.009/s; seek above 0.58/0.62. Flower satiation 0.20,
   fallen fruit 0.35; one drink restores 0.55. Hop travel is about 1 m/s with a
   crouch, low airborne phase and landing settle.
