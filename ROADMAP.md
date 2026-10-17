@@ -100,7 +100,7 @@ rig and soft-body solver stay.
 | **3b ✅** | **3b.0 hop pose/takeoff polish** (level crouch/air target with a small forward lean, upright takeoff gate, transient AI reset, per-bear hop-pace range (inherited in Phase 5)); hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | AI hops stay close to upright through takeoff, apex and landing; player throws still tumble freely; bees can sting, bears avoid hives below the threshold, health regenerates, hurt/tired bears return home and recover, with no death |
 | **4 ✅** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection/bonds, **door-level home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit a villa doorway; MSN-style statuses update |
 | **5 ✅** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
-| **6a core ✅** | **Effects pass before optimization:** gentle color grade, restrained thresholded bloom, SMAA, high-tier GTAO contact AO, cloud-masked sky-dome sun shafts; true screen-space/canopy god rays and dynamic sun shadow maps deferred | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
+| **6a core ✅ / effects follow-up ✅** | **Effects pass:** gentle color grade, restrained thresholded bloom, SMAA, high-tier GTAO contact AO, cloud-masked sky-dome glow, **real sun/moon directional shadow maps**, **depth-aware screen-space god rays** and an optional **Depth of field** toggle; per-bear sleep schedules and the pond recovery path are also in | Effects stay optional/tiered, preserve readable UI/transmission, occlude light shafts against canopies/objects, and keep a blob-shadow fallback below the shadow tier |
 | **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
 | **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
@@ -146,10 +146,10 @@ rig and soft-body solver stay.
 - **Phase 3b complete:** two tree hives are high-value food with a 50% sting
   risk and 15-point damage; health/energy regenerate, woozy bears return home,
   and the roster shows health plus sleeping/night status. Bears claim a villa,
-  path to its door at night or when hurt/tired, disappear into the doorway to
-  sleep, and wake after dawn once recovered. Each bear also has its own random
-  hop-speed range (`0.70–0.95` min, `1.45–1.80` max) stored for Phase 5
-  inheritance. Headless checks cover health/woozy, hive claims/stings, night
+  path to its door at their own bedtime (20:00–22:30) or when hurt/tired,
+  disappear into the doorway to sleep, and wake at their own wake time
+  (05:00–07:00) once recovered. Each bear also has its own random hop-speed range
+  (`0.70–0.95` min, `1.45–1.80` max) stored for Phase 5 inheritance. Headless checks cover health/woozy, hive claims/stings, night
   sleep/wake, speed ranges, UI health bars and the existing wander/eat/drink
   regression path with no page errors.
 - **Phase 4 complete:** bears carry social/affection needs and a symmetric pair
@@ -178,19 +178,26 @@ rig and soft-body solver stay.
   natural/forced courtship, pregnancy, birth, cap blocking, flavor/pace
   inheritance, baby following, family homes and life-state map persistence with
   no page errors.
-- **Phase 6a core complete:** the meadow has an optional composer with **Off / Soft /
-  Full** selection persisted locally. Soft adds a gentle time-of-day grade and
-  restrained thresholded bloom; Full adds GTAO contact AO on the high tier.
-  SMAA replaces the composer's multisample target so AO and the final sRGB output
-  stay stable. Studio remains on the direct renderer. The stack preserves the
-  existing transmission and planar-reflection passes, uses half-resolution AO
-  and bloom, and exposes `setEffects` / `effectsState` / `setEffectsBloom` /
-  `setEffectsExposure` for headless checks. The sky dome also adds cloud-masked,
-  animated **sun shafts** weighted toward low sun; these live behind the meadow
-  silhouettes and add no post pass. The post stack tone-maps sky/cloud materials
-  that bypass ACES in the direct path, so the optional tiers have a slightly
-  softer sky. True screen-space/canopy god rays and dynamic sun shadow maps are
-  deferred until a measured comparison against the baked/contact-shadow baseline.
+- **Phase 6a core + effects follow-up complete:** the meadow has an optional
+  composer with **Off / Soft / Full** selection persisted locally. Soft adds a
+  gentle time-of-day grade and restrained thresholded bloom; Full adds GTAO
+  contact AO on the high tier. SMAA replaces the composer's multisample target
+  so AO and the final sRGB output stay stable. Studio remains on the direct
+  renderer. The stack preserves the existing transmission and planar-reflection
+  passes, uses half-resolution AO/bloom/god-ray depth, and exposes `setEffects` /
+  `effectsState` / `setEffectsBloom` / `setEffectsExposure` / `setEffectsDof`
+  plus `shadows()` for headless checks. High quality tiers use real sun/moon
+  directional shadow maps (2048/1024) and hide the blob plane; lower tiers keep
+  the lightweight canvas blobs. A half-resolution depth prepass feeds the
+  screen-space god-ray pass, so sun/moon shafts are masked by tree canopies,
+  branches and solid objects instead of only living in the sky dome. The new
+  **Depth of field** selector is persisted and drives Bokeh focus from the
+  camera distance. Per-bear `bedtime` / `wakeTime` schedules spread sleep from
+  20:00–22:30 and wake from 05:00–07:00, persist in snapshots and are inherited
+  by family members. A pond recovery path lifts a bear that ends up below the
+  lawn/basin at the rectangular pond cutout. The post stack tone-maps sky/cloud
+  materials that bypass ACES in the direct path, so the optional tiers have a
+  slightly softer sky.
 - **Next:** add voluntary pond play/swimming, then the Phase 6b effects/profile
   pass.
 - **Studio modelling track queued (parallel, required):** author the Studio
@@ -378,22 +385,35 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **The life schema is now the Phase 8a freeze point.** Any further change to
   `age`, stages, pregnancy, parent uids or inheritance should add a save migration.
 
-**Known follow-ups after Phase 6a core** — recorded for later:
+**Known follow-ups after the effects pass** — recorded for later:
 
 - **The composed frame tone-maps sky/clouds that bypass ACES in the direct path.**
   Soft/Full therefore have a slightly softer, brighter sky; mood exposure and
   the display-space grade keep it within the Aero palette. A depth/mask output
   pass is the clean future fix if exact Off/Soft parity is required.
-- **GTAO is the expensive tier and is opt-in.** Full AO is half-resolution with
-  eight samples and Poisson denoise; the quality governor may fall back to Soft
-  or Off. Phase 6b owns the full 40-bear effect profile and final defaults.
-- **The composer uses SMAA rather than multisampled AO targets.** A multisampled
-  composer target plus GTAO produced an unreliable/black headless path; SMAA is
-  the stable path. Re-test MSAA on hardware before changing this.
-- **Sky-dome sun shafts are present, but true screen-space/canopy god rays and
-  dynamic sun shadow maps remain deferred.** The dome shafts are cloud-masked and
-  cheap; screen-space shafts need depth/mask work and a measured comparison
-  against the baked/blob-shadow baseline, not a default.
+- **GTAO, the god-ray depth prepass, real shadows and optional DOF are the
+  expensive pieces and are opt-in/tiered.** Full AO is half-resolution with eight
+  samples and Poisson denoise; the quality governor may fall back to Soft or Off.
+  High tiers use 2048/1024 sun/moon maps; quality 3 falls back to blob shadows.
+  Phase 6b still owns the full 40-bear effect profile and final defaults.
+- **GTAO previously rendered the transparent sun/moon sprites into its normal
+  buffer and produced a dark square around the sun in Full.** Fixed by hiding the
+  sky group for the AO prepass only; the sky is already present in the composer
+  read buffer. Re-check if GTAOPass internals change.
+- **The god-ray depth prepass hides the sky group and relies on clear depth for
+  open sky.** It is half-resolution, so very thin branches can still leak a few
+  pixels; the shaft source is thresholded to bright sky. Current checks cover
+  dawn/noon/night, Soft/Full and canopy occlusion.
+- **Sun/moon shadow cameras are fixed at ±55 world units.** Far-rim props can
+  fall outside the shadow frustum; recenter or fit the light target if visible
+  in a wider overview.
+- **The pond ground cutout is rectangular while the water is elliptical.** The
+  recovery path lifts a bear that falls below the lawn/basin, but replacing the
+  four-slab cutout with an ellipse-approximating collider set would remove the
+  teleport corner case entirely.
+- **DOF is a fixed look, not an autofocus system.** Focus follows the orbit
+  distance; aperture/max-blur are constants. Expose them only if a future shot
+  system needs authored focus.
 - **Effect timing is not a final frame-rate claim.** The headless effect probe is
   noisy and GPU-async; Phase 6b must profile Off/Soft/Full at 6/20/40 bears and
   record the method before committing to defaults.
@@ -473,21 +493,32 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Full:** adds GTAO contact AO on the high quality tiers, with half-resolution
   AO targets and Poisson denoise. It is deliberately opt-in because GTAO is the
   expensive tier; the quality governor can fall back to Soft/Off.
-- **Sun shafts:** animated, cloud-masked spokes in the sky dome, strongest at
-  low sun and fading out below the horizon. They live behind the meadow
-  silhouettes and cost no extra pass, so they are present in Off as well.
-- **Deferred:** true screen-space/canopy god rays and dynamic sun shadow maps.
-  The meadow already uses baked static/blob shadows and a planar pond reflection;
-  adding these without a measured comparison would risk fighting the stylized
-  depth and the 40-bear budget.
+- **Sky dome:** animated, cloud-masked glow/spokes in the sky dome, strongest at
+  low sun and fading below the horizon. They are the cheap base layer in Off and
+  remain behind the real shafts in Soft/Full.
+- **Depth-aware god rays:** Soft/Full run a half-resolution depth prepass with
+  the sky group hidden, project the sun/moon to screen UV, threshold the bright
+  source and radially blur it. The prepass depth masks the result, so tree
+  canopies, branches and solid props create real shaft gaps; the pass is disabled
+  when the sun/moon is off-screen or behind the camera.
+- **Real shadows:** high quality tiers enable `PCFSoftShadowMap` with a single
+  active directional light (sun by day, moon at night), 2048/1024 maps, marked
+  terrain/tree/home/bear casters and lawn/bank receivers. Lower tiers keep the
+  authored blob canvas and hide the real maps.
+- **Depth of field:** an optional persisted Bokeh pass after the god-ray pass,
+  focus driven by orbit distance, fixed aperture/max-blur. It is available in
+  Soft/Full and disabled when effects are Off.
 - **Known tone-map difference:** three's direct path leaves `toneMapped:false`
   sky/cloud materials untonemapped, while `OutputPass` tone-maps the composed
   frame. The mood exposure and display-space grade keep this subtle, but a
   depth/mask output pass is the cleaner future fix.
 - **Testing:** Off/Soft/Full persistence, day/night captures, Studio direct
-  rendering, transmission/reflection parity and no page errors are checked
-  headlessly. Effect timing is not yet a final frame profile; Phase 6b owns the
-  full 40-bear measurement.
+  rendering, transmission/reflection parity, real sun/moon maps with blob
+  fallback, canopy-occluded shafts, DOF toggle and no page errors are checked
+  headlessly. The direct path explicitly clears the render target before Off
+  rendering; without it a headless capture could keep the previous composed
+  frame. Effect timing is not yet a final frame profile; Phase 6b owns the full
+  40-bear measurement.
 
 ## Homes & no-clipping
 
@@ -827,8 +858,9 @@ bears and stalls. Decide when 9c is scheduled; 9a and 9b do not depend on it.
 - Pond buoyancy/floating is non-lethal; no current; paddles to nearest shore.
 - 8 Aero villas × 4 residents (32 authored capacity; overflow shares the least
   occupied villa); door approach 1.2 m; house-to-house clearance 0.9 m.
-- Night sleep window 20:00–06:00 (bears leave as the sky brightens); low-health
-  returns can happen at any time.
+- Per-bear sleep window: bedtime 20:00–22:30, wake 05:00–07:00; schedules are
+  fixed per bear, inherited by family members and persisted with snapshots.
+  Low-health returns can happen at any time.
 - Effects: **Soft** default on desktop, **Off** default on coarse-pointer/low
   width; **Full** opt-in. Bloom is half-resolution and thresholded; GTAO is
   half-resolution on the high tiers; SMAA handles edges.

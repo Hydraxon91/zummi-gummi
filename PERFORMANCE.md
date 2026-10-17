@@ -110,20 +110,33 @@ counts and scale increasing together without page errors. Mating/birth decisions
 only scan adults and the existing food list, and emotes stay in the fixed pool.
 No new full-frame GPU profile was taken in this pass.
 
-## Phase 6a effects spot check
+## Effects follow-up spot check
 
 The meadow post stack is optional and tiered: Off keeps the direct renderer,
-Soft adds half-resolution bloom, SMAA and a display-space grade, and Full adds
-half-resolution GTAO contact AO with Poisson denoise. The composer uses an SMAA
-path rather than a multisampled render target; the latter was unreliable with
-GTAO in the headless driver. The sky-dome sun shafts are shader-only and add no
-pass or draw call. Scene draw calls remain in the same range as the direct path
-(about 571–575 at 1440×900 DPR 2 for the six-bear view), with the post passes
-additional. GTAO is the expensive tier and is opt-in; the quality
-governor can fall back to Soft/Off. This is a correctness/visual check, not a
-final frame-rate claim—the headless command-timing probe is GPU-asynchronous and
-noisy. Phase 6b must profile Off/Soft/Full at 6/20/40 bears before fixing the
-default.
+Soft adds half-resolution bloom, SMAA, a display-space grade and the
+depth-aware god-ray pass, and Full adds half-resolution GTAO contact AO with
+Poisson denoise. The composer uses an SMAA path rather than a multisampled
+render target; the latter was unreliable with GTAO in the headless driver.
+High quality tiers also render real 2048/1024 sun/moon directional shadow maps
+and hide the authored blob plane; lower tiers skip the shadow maps and keep the
+blob canvas. The god-ray pass adds a half-resolution depth prepass only while a
+celestial body is on screen, so the clear-sky sun/moon view pays an extra scene
+render but a camera facing away does not. The optional DOF pass adds its own
+depth render only when enabled.
+
+The direct Off path now explicitly clears the compositor's render target before
+drawing; without that, a headless capture after switching from composed to Off
+could retain the previous frame (a QA-only symptom, fixed in the app loop and
+render probe).
+
+Scene draw calls remain in the same range as the direct path (about 571–575 at
+1440×900 DPR 2 for the six-bear view), with the post/shadow passes additional.
+A single forced `renderProbe` pass at quality 0 measured roughly **6.1 ms Off /
+10.0 ms Soft / 45.2 ms Full** for the six-bear view; Full includes GTAO and the
+real shadow map, and the headless command-timing probe is GPU-asynchronous and
+noisy, so this is not a frame-rate claim. The quality-3 tier intentionally
+falls back to no composer/no shadow maps. Phase 6b must profile Off/Soft/Full at
+6/20/40 bears before fixing defaults.
 
 ## Ground-detail / water spot check
 

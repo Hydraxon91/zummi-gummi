@@ -1,10 +1,10 @@
-# Phase 2–6a captures
+# Phase 2–6 effects captures
 
 Visual set from the running app (headless Chrome, 1440×900 unless noted). `00_`
 is retained as the pre-replacement baseline; everything else is the completed
 circular-meadow / dirt-trail / branched-backdrop pass plus the Phase 3a
-autonomous-behaviour, Phase 4 social, Phase 5 growth/family and Phase 6a
-optional-effects checks.
+autonomous-behaviour, Phase 4 social, Phase 5 growth/family and Phase 6
+optional-effects checks, including the real-shadow/god-ray/DOF follow-up.
 
 | file | view |
 |---|---|
@@ -46,6 +46,16 @@ optional-effects checks.
 | `35_effects_night.webp` | Full effects at night; villa lamps, fireflies and bears with bloom/AO |
 | `36_effects_control.webp` | Meadow-detail Effects selector (Off/Soft/Full) open with the scene live |
 | `37_godrays.webp` | clear-sky check of the dome-animated sun shafts at 15:30 with clouds hidden for visibility |
+| `38_real_sun_shadows.webp` | high-quality meadow at 12:30 with real 2048px sun shadow maps on trees, villas and bears |
+| `39_moon_shadows.webp` | night meadow with the moon as the active shadow caster; the sun map is disabled |
+| `40_godrays_canopy.webp` | depth-aware screen-space shafts through a tree canopy at 15:30 in Soft effects; branches occlude the light |
+| `41_depth_of_field.webp` | depth-of-field toggle on in Soft effects, focused at the orbit distance with the near/far meadow softly defocused |
+| `42_pond_shore.webp` | low-angle pond shore after aligning the water surface and bank heights, showing the continuous sand/water edge without a vertical gap |
+
+The Phase 6 effects follow-up adds real sun/moon maps on the high tiers, a
+half-resolution depth prepass for canopy-occluded sun/moon shafts, and the
+optional depth-of-field toggle (`38`–`42`). The low tiers retain blob shadows
+and the direct renderer; Studio remains direct.
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
 the stable circular-pass reading was **32.1 ms / 565 calls / 3.67 M triangles**.
