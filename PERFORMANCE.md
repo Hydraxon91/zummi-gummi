@@ -7,7 +7,44 @@ Measured in the actual gameplay view: headless Chrome on Apple silicon,
 forced-sync `readPixels` median, not the headless rAF interval (the compositor
 caps rAF around 20–30 Hz).
 
-## Post-polish re-run — current sign-off data
+## Circular-meadow re-run — current data
+
+| State | Median frame | Draw calls | Triangles |
+|---|---:|---:|---:|
+| Baseline | **32.1 ms** | 565 | 3.67 M |
+| Grass hidden | **25.3 ms** | 554 | 2.10 M |
+| Trees hidden | 30.6 ms | 557 | 3.40 M |
+| Pond/reflection hidden | 29.8 ms | 528 | 5.25 M* |
+| Villas hidden | 30.3 ms | 118 | 3.59 M |
+| Static shadow hidden | 32.9 ms | 564 | 3.67 M |
+| Grass coverage 0.50 | 30.3 ms | 565 | 3.67 M |
+| Grass draw distance 28 m | 29.5 ms | 559 | 2.84 M |
+| Quality 3 / DPR 1.25 | **23.6 ms** | 565 | 3.64 M |
+| Bears removed | 29.2 ms | 559 | 3.62 M |
+
+\*Reflection render-target accounting makes the pond-hidden triangle counter
+non-monotonic; the frame-time result is the useful one.
+
+The circular-meadow pass now carries the rescaled world, detailed villas, Studio
+portal house, 88k grass tufts, dirt trails, branched backdrop trees and bushes,
+anime-lite water and fireflies. The **grass fill/geometry cost is still the
+largest single GPU item**. Hiding the villas removes ~447 draw calls and saves
+~2 ms; draw-call submission is not the primary limiting factor. DPR and grass
+density are the largest levers. No 60 fps claim is made from the headless run.
+
+The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
+and the original supplied 37.1 ms baseline are retained below as historical
+comparisons; they describe earlier scene states, not the current disc.
+
+CPU with 21 bears in the current build: **0.90 ms physics + 7.46 ms surface ≈
+8.36 ms/frame** at the live update rate (`perf_20`, gated). Forcing a surface
+rebuild every frame raises the surface cost to 7.03 ms (7.80 ms total), which is
+the worst-case ceiling for this crowd size.
+
+## Previous post-polish reference
+
+This was the sign-off profile before the circular-meadow pass. It is retained
+as a historical comparison only.
 
 | State | Median frame | Draw calls | Triangles |
 |---|---:|---:|---:|
@@ -16,26 +53,7 @@ caps rAF around 20–30 Hz).
 | Trees hidden | 27.4 ms | 550 | 2.16 M |
 | Pond/reflection hidden | 27.1 ms | 520 | 3.73 M* |
 | Villas hidden | 25.4 ms | 111 | 2.35 M |
-| Static shadow hidden | 30.2 ms | 557 | 2.43 M |
-| Grass coverage 0.50 | 27.7 ms | 558 | 2.43 M |
-| Grass draw distance 28 m | 25.8 ms | 553 | 1.72 M |
 | Quality 3 / DPR 1.25 | **20.1 ms** | 558 | 2.40 M |
-| Bears removed | 27.9 ms | 552 | 2.38 M |
-
-\*Reflection render-target accounting makes the pond-hidden triangle counter
-non-monotonic; the frame-time result is the useful one.
-
-The scene now carries the rescaled world, detailed villas, Studio portal house,
-backdrop tree belts and fireflies. The **grass fill/geometry cost is still the
-largest single GPU item**, but the current baseline is materially faster than
-the first Phase 2 profile. Hiding the villas removes ~447 draw calls and saves
-~4 ms; draw-call submission is not the primary limiting factor. DPR and grass
-density are the largest levers. No 60 fps claim is made from the headless run.
-
-CPU with 21 bears in the current build: **0.87 ms physics + 5.81 ms surface ≈
-6.68 ms/frame** at the live update rate (`perf_20`, gated). Forcing a surface
-rebuild every frame raises the surface cost to 7.34 ms (8.20 ms total), which is
-the worst-case ceiling for this crowd size.
 
 ## Earlier Phase 2 reference (pre-polish)
 

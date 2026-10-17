@@ -85,7 +85,7 @@ rig and soft-body solver stay.
 |---|---|---|
 | **0 ✅** | Snapshot current app; split modules; map manager + per-map state; per-bear scale/sex/health/age data; static-wall handles; baseline tests | Current Studio still passes its physics and interaction tests; map/launcher state is structured per map |
 | **1 ✅** | Movable cannon + taller/larger walls on the Studio (quick playable win) | Cannon can be dragged/moved with validation; it stays in bounds; max-power shots are contained; aim/fire still work |
-| **2 ✅** | Grass Field, sky, pond, Aero shell, map switcher; field default; **mixed starter colony (2 adult ♀, 2 adult ♂, 1 teen, 1 baby)**; **rounded white/aqua Aero villas on validated home lots**; **distant Frutiger-Aero skyline + three-blade wind turbines**; pond splash/buoyancy; **procedural gummy-tree replacement with rounded leafy puffs/fruit/hives; shared travelling wind for trees + grass; Wind and Meadow-detail controls; procedural clouds, aurora and sporadic morning mist** | Both maps load and switch with independent state; field has grass/trees/flowers/pond/sky/villas; no layout overlaps; day/night slider and dawn look work; pond reflects sun/moon and splashes; trees use the fixed TREE_LOTS/colliders with merged foliage batches and no per-frame CPU branch loops; one shared gust visibly crosses grass and trees; night sky shows aurora; starting colony has the four adults, teen and baby; villa silhouettes are distinct without changing their lots; skyline/windmills read as distant scenery; 16/16 self-test, mobile layouts, layout and map-switch checks pass |
+| **2 (in progress)** | Grass Field, sky, pond, Aero shell, map switcher; field default; **mixed starter colony (2 adult ♀, 2 adult ♂, 1 teen, 1 baby)**; **rounded white/aqua Aero villas on validated home lots**; **distant Frutiger-Aero skyline + three-blade wind turbines**; pond splash/buoyancy; **procedural gummy-tree replacement with rounded leafy puffs/fruit/hives; shared travelling wind for trees + grass; Wind and Meadow-detail controls; procedural clouds, aurora and sporadic morning mist**; **circular wobbled-disc playfield, wandered dirt trails, full-circle grass, branched backdrop trees/bushes and anime-lite water** | Both maps load and switch with independent state; field has grass/trees/flowers/pond/sky/villas; no layout overlaps; day/night slider and dawn look work; pond reflects sun/moon and splashes; trees use the fixed TREE_LOTS/colliders with merged foliage batches and no per-frame CPU branch loops; one shared gust visibly crosses grass and trees; night sky shows aurora; starting colony has the four adults, teen and baby; villa silhouettes are distinct without changing their lots; skyline/windmills read as distant scenery; 16/16 self-test, mobile layouts, layout and map-switch checks pass. The circular/dirt/backdrop/water slice is still under review, so Phase 2 is not signed off |
 | **3a** | Food registry/respawn, hunger, waddle locomotion, WANDER / SEEK_FOOD / EAT | Bears autonomously get hungry, walk to safe food, eat, and food regrows; no stuck/NaN/perf regressions |
 | **3b** | Hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | Bees can sting; bears avoid hives below the threshold; health regenerates; hurt/tired bears return to their home and recover; no death |
 | **4** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection, **home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit homes; MSN-style statuses update |
@@ -102,19 +102,17 @@ rig and soft-body solver stay.
 - **Phase 1 complete:** the cannon can be dragged or moved via Move cannon with
   footprint validation; position persists per map; boundary walls are 8 units
   tall and rebuild on resize; aim/fire and real-pointer tests pass.
-- **Phase 2 complete:** the Grass Field is the default map with the Studio
+- **Phase 2 in progress:** the Grass Field is the default map with the Studio
   switch, independent map state, reflective pond and splash/buoyancy. The field
-  now has the 92×60 bounds, 8 detailed Aero villas, a large Studio portal house,
-  10 merged procedural trees, dense chunked/shader-LOD grass, a detailed rolling
-  backdrop, shared tree/grass wind, procedural clouds, aurora, sporadic morning
-  mist, lit fireflies, a distant Aero skyline and three-blade wind turbines.
-  Villa doors are mounted on shallow entry drums and every opening is validated
-  at 1.646 m against a 1.375 m adult bear. The starter colony is 2 adult ♀,
-  2 adult ♂, one teen and one baby. The existing physics suite, layout/nav
-  checks, map switching, both portal directions and mobile captures pass.
-  Performance is remeasured in the Phase 2 profile below; grass remains the main
-  GPU cost and is exposed through the Meadow-detail controls.
-- **Next:** Phase 3a — food registry/respawn, hunger, waddle locomotion and
+  now has a wobbled 65 m playable disc, 8 detailed Aero villas, a large Studio
+  portal house, 10 merged hero trees, 88k chunked/shader-LOD grass tufts, dirt
+  trails, a detailed rolling backdrop with branched trees and 120+ bushes,
+  anime-lite water, shared tree/grass wind, procedural clouds, aurora,
+  fireflies, a distant Aero skyline and wind turbines. Villa doors are validated
+  at 1.646 m against a 1.375 m adult bear. The starter colony remains 2 adult ♀,
+  2 adult ♂, one teen and one baby.
+- **Next:** finish the circular-meadow polish and its visual/performance review,
+  then Phase 3a — food registry/respawn, hunger, waddle locomotion and
   WANDER / SEEK_FOOD / EAT.
 - **Later, required:** model the Studio lounge interior with an interactable bar
   and a living room anchored by a huge Frutiger-Aero TV (references 19–24).
@@ -249,7 +247,7 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
   resolution/alternate frames with quality tiers. AI <0.5 ms/frame; food updates
   on timers; growth body rebuilds only at thresholds.
 
-### Phase 2 profile (post-polish sign-off)
+### Phase 2 profile (circular pass, not final sign-off)
 
 Headless Chrome on Apple silicon, 1440×900 at DPR 2, six starter bears,
 default gameplay camera. These are forced-sync `readPixels` measurements, not
@@ -257,25 +255,25 @@ vsync rAF intervals (the headless compositor caps rAF around 30–20 Hz):
 
 | state | frame | draw calls | triangles |
 |---|---:|---:|---:|
-| baseline | 29.5 ms | 558 | 2.43 M |
-| grass hidden | 22.5 ms | 549 | 1.15 M |
-| trees hidden | 27.4 ms | 550 | 2.16 M |
-| pond/reflection hidden | 27.1 ms | 520 | 3.73 M* |
-| villas hidden | 25.4 ms | 111 | 2.35 M |
-| static shadow hidden | 30.2 ms | 557 | 2.43 M |
-| grass coverage 0.50 | 27.7 ms | 558 | 2.43 M |
-| grass draw distance 28 m | 25.8 ms | 553 | 1.72 M |
-| DPR 1.25 (quality 3) | 20.1 ms | 558 | 2.40 M |
-| bears removed | 27.9 ms | 552 | 2.38 M |
+| baseline | 32.1 ms | 565 | 3.67 M |
+| grass hidden | 25.3 ms | 554 | 2.10 M |
+| trees hidden | 30.6 ms | 557 | 3.40 M |
+| pond/reflection hidden | 29.8 ms | 528 | 5.25 M* |
+| villas hidden | 30.3 ms | 118 | 3.59 M |
+| static shadow hidden | 32.9 ms | 564 | 3.67 M |
+| grass coverage 0.50 | 30.3 ms | 565 | 3.67 M |
+| grass draw distance 28 m | 29.5 ms | 559 | 2.84 M |
+| DPR 1.25 (quality 3) | 23.6 ms | 565 | 3.64 M |
+| bears removed | 29.2 ms | 559 | 3.62 M |
 
 \*Reflection render-target accounting makes the pond-hidden triangle counter
 non-monotonic; the frame-time result is the useful one.
 
-The earlier pre-polish Phase 2 numbers (37.1 ms baseline, 321 calls, 2.12 M
-triangles) and the full method are retained in [PERFORMANCE.md](PERFORMANCE.md).
-Grass fill/geometry is still the dominant GPU item. The detailed villas add
-~447 calls and save ~4 ms when hidden. DPR and grass density are the main
-levers. The headless run is not a 60 fps claim.
+The previous post-polish numbers and the original supplied Phase 2 numbers
+(37.1 ms baseline, 321 calls, 2.12 M triangles) are retained in
+[PERFORMANCE.md](PERFORMANCE.md). Grass fill/geometry is still the dominant GPU
+item. The detailed villas add ~447 calls but save only ~2 ms when hidden. DPR
+and grass density are the main levers. The headless run is not a 60 fps claim.
 
 - Keep the current 16-check physics self-test green. Add deterministic checks
   for: food claim/respawn; invite acceptance; same-food conflict; health/hive

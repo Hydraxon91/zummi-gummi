@@ -1,8 +1,8 @@
-# Phase 2 captures
+# Phase 2 captures (in progress)
 
-Final Phase 2 visual set, rendered from the running app (headless Chrome,
-1440×900). `00_` is retained as the pre-replacement baseline; everything else
-is the current post-polish meadow and Studio portal house.
+Visual set from the running app (headless Chrome, 1440×900 unless noted). `00_`
+is retained as the pre-replacement baseline; everything else is the current
+circular-meadow / dirt-trail / branched-backdrop pass.
 
 | file | view |
 |---|---|
@@ -19,11 +19,12 @@ is the current post-polish meadow and Studio portal house.
 | `10_studio_house_corner.webp` | three-quarter view of the rounded glazed corner, balcony and roof garden |
 | `11_studio_house_night.webp` | Studio House night lighting |
 | `12_fireflies_night.webp` | lit firefly swarm on looping paths at night |
-| `13_mobile_portrait.webp` | phone portrait layout |
+| `13_mobile_portrait.webp` | phone portrait layout with the new Hide UI control |
 | `14_villa_entry_fixed.webp` | close view of the body-coloured entry drum that keeps the tall glazed door flush to a curved villa |
+| `15_phone_ui_hidden.webp` | 390×844 phone view with every overlay hidden; only Show UI remains |
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
-baseline **29.5 ms / 558 calls / 2.43 M triangles**; grass hidden **22.5 ms**;
-quality 3 / DPR 1.25 **20.1 ms**. Grass fill/geometry is still the largest
-single GPU item, so the detail controls are the first response. Full method and
-the earlier supplied baseline are in [../PERFORMANCE.md](../PERFORMANCE.md).
+baseline **32.1 ms / 565 calls / 3.67 M triangles**; grass hidden **25.3 ms**;
+quality 3 / DPR 1.25 **23.6 ms**. Grass fill/geometry remains the largest
+single GPU item. Full method and the earlier supplied baselines are in
+[../PERFORMANCE.md](../PERFORMANCE.md).

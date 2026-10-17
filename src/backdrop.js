@@ -67,7 +67,7 @@ function heightAt(x, z) {
   // Stay flat under the playable rim, then lift gradually into the hills. The
   // terrain begins beneath the lawn so the two surfaces overlap instead of
   // meeting at a hard ring.
-  const edge = smooth(clamp((r - 65.5) / 34, 0, 1));
+  const edge = smooth(clamp((r - 69.0) / 34, 0, 1));
   const a = Math.atan2(z, x);
   const n = fbm(x * .014 + 4.3, z * .014 - 2.7);
   const detail = fbm(x * .055 - 9.1, z * .055 + 3.8);
@@ -107,8 +107,8 @@ function buildTerrain() {
       c.offsetHSL(0, 0, (broad - .5) * .035);
       // Match the meadow green at the flat overlap, then ease into the hill
       // palette so the circumference cannot read as a painted circle.
-      const lawnBlend = smooth(clamp((r - 64) / 15, 0, 1));
-      c.lerp(new THREE.Color(0x3e7134), 1 - lawnBlend);
+      const lawnBlend = smooth(clamp((r - 64) / 28, 0, 1));
+      c.lerp(new THREE.Color(0x6f9d50), 1 - lawnBlend);
       col.push(c.r, c.g, c.b);
     }
   }
@@ -127,7 +127,12 @@ function buildTerrain() {
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
   g.computeVertexNormals();
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: hillTexture() });
+  const mat = new THREE.MeshLambertMaterial({
+    vertexColors: true,
+    map: hillTexture(),
+    emissive: 0x3b6a30,
+    emissiveIntensity: .62,
+  });
   const mesh = new THREE.Mesh(g, mat);
   mesh.name = 'backdropHills';
   mesh.frustumCulled = false;
@@ -265,9 +270,9 @@ export function createBackdrop() {
 
   // A sparse low-LOD grass carpet on the hills breaks up the large green slopes
   // at the distances where the playable blade carpet fades out.
-  for (let i = 0; i < 3600; i++) {
+  for (let i = 0; i < 7000; i++) {
     const a = rnd() * Math.PI * 2;
-    const r = 65.5 + Math.pow(rnd(), 1.3) * 68;
+    const r = 65.5 + Math.pow(rnd(), 1.3) * 53;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     const y = heightAt(x, z);
     if (y < .2) continue;
@@ -286,9 +291,9 @@ export function createBackdrop() {
 
   // near-field hedges and flower drifts give the boundary a layered edge rather
   // than a clean cut between playable lawn and backdrop.
-  for (let i = 0; i < 82; i++) {
+  for (let i = 0; i < 150; i++) {
     const a = rnd() * Math.PI * 2;
-    const r = 56 + rnd() * 28;
+    const r = 61 + rnd() * 27;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     const y = heightAt(x, z);
     hedgeParts.push({
@@ -296,6 +301,24 @@ export function createBackdrop() {
         new THREE.Vector3(x, y + .35, z),
         new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 6.283),
         new THREE.Vector3(.8 + rnd() * 1.4, .55 + rnd() * .65, .8 + rnd() * 1.4)
+      ),
+      c: new THREE.Color(canopyColors[Math.floor(rnd() * canopyColors.length)]),
+    });
+  }
+  // A continuous soft hedge ring hides the geometry/lighting seam where the
+  // playable disc meets the hill toe. It is deliberately irregular and double
+  // layered so it reads as a wild hedge, not a circular wall.
+  for (let i = 0; i < 150; i++) {
+    const a = i / 150 * Math.PI * 2 + (rnd() - .5) * .045;
+    const r = 63.4 + rnd() * 5.6;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    const y = heightAt(x, z);
+    const s = .55 + rnd() * .85;
+    hedgeParts.push({
+      m: new THREE.Matrix4().compose(
+        new THREE.Vector3(x, y + .30 * s, z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 6.283),
+        new THREE.Vector3(s, s * (.55 + rnd() * .40), s)
       ),
       c: new THREE.Color(canopyColors[Math.floor(rnd() * canopyColors.length)]),
     });
@@ -363,9 +386,9 @@ export function createBackdrop() {
 
   const foliageUniforms = {
     uSunDir: { value: new THREE.Vector3(.35, .82, .25).normalize() },
-    uFoliageShadow: { value: new THREE.Color(0x416f39) },
-    uFoliageLit: { value: new THREE.Color(0x8cc45e) },
-    uFoliageHigh: { value: new THREE.Color(0xc3e98b) },
+    uFoliageShadow: { value: new THREE.Color(0x588844) },
+    uFoliageLit: { value: new THREE.Color(0x9fd071) },
+    uFoliageHigh: { value: new THREE.Color(0xd5f1a4) },
   };
   function makeFoliageMaterial(side, leaf) {
     const m = new THREE.MeshLambertMaterial({ color: 0xffffff, side });
@@ -388,7 +411,7 @@ export function createBackdrop() {
           float fhigh = smoothstep(.26, .88, falign);
           vec3 fcol = mix(uFoliageShadow, uFoliageLit, flit);
           fcol = mix(fcol, uFoliageHigh, fhigh * .55);
-          fcol *= mix(vec3(1.0), vFoliageTint, .30);
+          fcol *= mix(vec3(1.0), vFoliageTint, .22);
           diffuseColor.rgb = fcol;
         `);
       if (leaf) {

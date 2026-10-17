@@ -228,6 +228,33 @@
   }
   .helpbtn:hover{color:var(--ink);border-color:rgba(25,24,23,.3);transform:scale(1.05)}
   .helpbtn:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+  .uiToggle{
+    position:fixed;right:clamp(62px,7.5vw,104px);top:18px;z-index:40;
+    display:flex;align-items:center;justify-content:center;gap:5px;
+    min-width:34px;height:34px;padding:0 10px;border-radius:999px;cursor:pointer;
+    border:1px solid rgba(255,255,255,.86);background:rgba(255,255,255,.58);color:#346c78;
+    font-family:var(--sans);font-size:8px;font-weight:650;letter-spacing:.10em;text-transform:uppercase;
+    -webkit-backdrop-filter:blur(14px) saturate(1.5);backdrop-filter:blur(14px) saturate(1.5);
+    box-shadow:0 10px 24px -18px rgba(15,83,98,.55),inset 0 1px rgba(255,255,255,.95);
+    pointer-events:auto;transition:opacity .24s ease,color .2s ease,background .2s ease,transform .2s ease;
+  }
+  .uiToggle:hover{color:#0a4350;background:rgba(255,255,255,.82);transform:translateY(-1px)}
+  .uiToggle:focus-visible{outline:2px solid #39bfc0;outline-offset:3px}
+  .uiToggleMark{font-size:13px;line-height:1;color:#1b8b98}
+  .uiToggleLabel{white-space:nowrap}
+  #aeroHud,.hud,.mapSwitch{transition:opacity .26s ease,visibility .26s ease}
+  body.ui-hidden #aeroHud,
+  body.ui-hidden .hud,
+  body.ui-hidden .mapSwitch{opacity:0;visibility:hidden;pointer-events:none}
+  body.ui-hidden .uiToggle{opacity:1;visibility:visible;pointer-events:auto}
+
+  @media (max-width:640px){
+    .uiToggle{right:58px;top:10px;width:34px;min-width:34px;height:34px;padding:0}
+    .uiToggleLabel{display:none}
+    body.ui-hidden .uiToggle{right:16px;width:auto;min-width:68px;padding:0 12px}
+    body.ui-hidden .uiToggleLabel{display:inline}
+  }
   .help{
     position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;padding:24px;
     background:rgba(250,249,247,.62);-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
@@ -512,6 +539,9 @@
 </script>
 </head>
 <body data-map="field">
+<script>
+try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classList.add('ui-hidden'); } catch (err) {}
+</script>
 <canvas id="view"></canvas>
 <div id="cursor"></div>
 
@@ -553,6 +583,10 @@
 </aside>
 
 <div id="mapWipe"></div>
+
+<button class="uiToggle" id="uiToggle" type="button" aria-pressed="false" aria-label="Hide interface" title="Hide interface (U)">
+  <span class="uiToggleMark" aria-hidden="true">◉</span><span class="uiToggleLabel">Hide UI</span>
+</button>
 
 <div class="hud">
   <header class="fade studioHeader">
@@ -630,6 +664,7 @@
             <dt>Middle-drag</dt><dd>Pan · two fingers on empty space pan too.</dd>
             <dt>Wheel / pinch</dt><dd>Zoom in and out.</dd>
             <dt>W A S D</dt><dd>Pan · Q / E zoom · R resets the view.</dd>
+            <dt>U</dt><dd>Hide or show the interface.</dd>
             <dt>P</dt><dd>Performance overlay.</dd>
           </dl>
         </section>

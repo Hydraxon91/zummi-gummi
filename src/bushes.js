@@ -40,9 +40,9 @@ const lobeGeo = new THREE.IcosahedronGeometry(1, 1);
 
 const foliageUniforms = {
   uSunDir: { value: new THREE.Vector3(.35, .82, .25).normalize() },
-  uShadow: { value: new THREE.Color(0x3d6b36) },
-  uLit: { value: new THREE.Color(0x7fb856) },
-  uHigh: { value: new THREE.Color(0xbee58a) },
+  uShadow: { value: new THREE.Color(0x568844) },
+  uLit: { value: new THREE.Color(0x98ca6b) },
+  uHigh: { value: new THREE.Color(0xd3efa0) },
 };
 
 function foliageMaterial(side) {
@@ -65,7 +65,7 @@ function foliageMaterial(side) {
         float hi = smoothstep(.24, .88, a);
         vec3 col = mix(uShadow, uLit, lit);
         col = mix(col, uHigh, hi * .55);
-        col *= mix(vec3(1.0), vBushTint, .34);
+        col *= mix(vec3(1.0), vBushTint, .24);
         diffuseColor.rgb = col;
       `);
   };

@@ -134,6 +134,21 @@ function cloudSmokeTexture() {
   return c;
 }
 
+function fireflyTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 1, 32, 32, 31);
+  g.addColorStop(0, 'rgba(255,255,235,1)');
+  g.addColorStop(.18, 'rgba(255,244,160,.95)');
+  g.addColorStop(.48, 'rgba(255,205,90,.35)');
+  g.addColorStop(1, 'rgba(255,190,70,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function tube(a, b, radius, color) {
   // small helper for a cylinder between two points
   const dir = new THREE.Vector3().subVectors(b, a);
@@ -651,10 +666,10 @@ export function buildField({ scene, camera, renderer, sky }) {
     // Area-weighted circular scatter. Keep the old village-core density and
     // carry a lighter but continuous carpet through the new outer ring.
     const CORE_R = 43;
-    const TARGET_CORE = 44000;
-    const TARGET_OUTER = 30000;
+    const TARGET_CORE = 50000;
+    const TARGET_OUTER = 38000;
     let total = 0, tries = 0;
-    const R = FIELD_RADIUS - 1.1;
+    const R = FIELD_RADIUS + 3.2; // visual apron continues into the hill toe
     const R2 = R * R, CORE_R2 = CORE_R * CORE_R;
     const place = (outer) => {
       const a = gr() * Math.PI * 2;
@@ -662,7 +677,8 @@ export function buildField({ scene, camera, renderer, sky }) {
         ? Math.sqrt(CORE_R2 + gr() * (R2 - CORE_R2))
         : Math.sqrt(gr()) * CORE_R;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (!fieldInside(x, z, 0.9)) return false;
+      if (!outer && !fieldInside(x, z, 0.9)) return false;
+      if (outer && r > R) return false;
       if (pathValueAt(x, z) > .62) return false;
       const patch = 0.92 + 0.07 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 2.1)
                           + 0.04 * Math.cos(z * 0.23 - x * 0.07);
@@ -836,6 +852,32 @@ export function buildField({ scene, camera, renderer, sky }) {
         nav.addSolid({ kind: 'bush', x, z, r });
       }
     }
+    // A denser shrub belt just inside the rim breaks the last hard silhouette
+    // against the hills. These are deliberately visual-only; the playable
+    // boundary remains clear and readable.
+    for (let i = 0; i < 34; i++) {
+      const a = br() * Math.PI * 2;
+      const rr = 59.0 + br() * 5.0;
+      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+      if (pathValueAt(x, z) > .20) continue;
+      if (colliders.some(c => Math.hypot(x - c.x, z - c.z) < (c.r || .3) + 1.2)) continue;
+      const scale = .64 + br() * .78;
+      bushLots.push({ x, z, scale, y: 0 });
+    }
+  }
+  // A second, visual-only ring of branched shrubs sits just outside the walkable
+  // edge and overlaps the hill toe. This is the final soft silhouette between
+  // the meadow and the backdrop terrain.
+  {
+    const br = rng(4521);
+    for (let i = 0; i < 46; i++) {
+      const a = i / 46 * Math.PI * 2 + (br() - .5) * .10;
+      const rr = 64.2 + br() * 8.0;
+      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+      if (colliders.some(c => Math.hypot(x - c.x, z - c.z) < (c.r || .3) + 1.1)) continue;
+      const y = backdrop.heightAt(x, z) - .04;
+      bushLots.push({ x, z, y, scale: .64 + br() * .82 });
+    }
   }
   const bushes = createBushCollection({ lots: bushLots });
   group.add(bushes.group);
@@ -906,8 +948,14 @@ export function buildField({ scene, camera, renderer, sky }) {
     uMoonDir: { value: new THREE.Vector3(0.7, 0.4, 0.4) },
     uSunColor: { value: new THREE.Color(0xffd49c) },
     uMoonColor: { value: new THREE.Color(0xc9dcff) },
-    uDeep: { value: new THREE.Color(0x123b3a) },
-    uShallow: { value: new THREE.Color(0x4c978e) },
+    uDeep: { value: new THREE.Color(0x133d4a) },
+    uShallow: { value: new THREE.Color(0x3fa9a2) },
+    uAnime: { value: .68 },
+    uPondCenter: { value: new THREE.Vector2(POND.x, POND.z) },
+    uPondRadii: { value: new THREE.Vector2(POND.rx * .98, POND.rz * .98) },
+    uRippleCenters: { value: Array.from({ length: 4 }, () => new THREE.Vector2(POND.x, POND.z)) },
+    uRippleT: { value: [0, 0, 0, 0] },
+    uRippleCount: { value: 0 },
   };
   const waterMat = new THREE.ShaderMaterial({
     uniforms: waterUniforms,
@@ -928,9 +976,43 @@ export function buildField({ scene, camera, renderer, sky }) {
     fragmentShader: `
       uniform sampler2D tDiffuse;
       uniform float uTime;
+      uniform float uAnime;
       uniform vec3 uSunDir, uMoonDir, uSunColor, uMoonColor, uDeep, uShallow, color;
+      uniform vec2 uPondCenter, uPondRadii;
+      uniform vec2 uRippleCenters[4];
+      uniform float uRippleT[4];
+      uniform int uRippleCount;
       varying vec4 vUv;
       varying vec3 vWorld;
+
+      vec2 whash(vec2 p){
+        p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+        return fract(sin(p) * 43758.5453);
+      }
+      float wsmin(float a, float b, float k){
+        float h = max(k - abs(a - b), 0.0) / k;
+        return min(a, b) - h * h * h * k / 6.0;
+      }
+      vec2 wcell(vec2 seed){ return .5 + .5 * sin(uTime * .14 + 6.2831 * seed); }
+      float wf1(vec2 p){
+        vec2 i = floor(p), f = fract(p);
+        float md = 8.0;
+        for (int y=-1; y<=1; y++) for (int x=-1; x<=1; x++){
+          vec2 n = vec2(float(x), float(y));
+          md = min(md, length(n + wcell(whash(i + n)) - f));
+        }
+        return md;
+      }
+      float wsf1(vec2 p){
+        vec2 i = floor(p), f = fract(p);
+        float res = 8.0;
+        for (int y=-1; y<=1; y++) for (int x=-1; x<=1; x++){
+          vec2 n = vec2(float(x), float(y));
+          res = wsmin(res, length(n + wcell(whash(i + n)) - f), .58);
+        }
+        return res;
+      }
+
       void main(){
         vec2 p = vWorld.xz;
         float r1 = sin(p.x * 0.72 + uTime * 0.75) * cos(p.y * 0.91 - uTime * 0.57);
@@ -943,7 +1025,41 @@ export function buildField({ scene, camera, renderer, sky }) {
         uv.xy += vec2(r1, r2) * 0.0032 * uv.w;
         vec3 refl = texture2DProj(tDiffuse, uv).rgb;
         vec3 base = mix(uDeep, uShallow, 0.45 + 0.35 * r2);
-        vec3 col = mix(base, refl, clamp(0.52 + fres * 0.45, 0.0, 0.97));
+        // Keep more of the pond's own ink/teal colour than the raw mirror. The
+        // reflection is still present, but does not wash the pond white under a
+        // bright noon sky.
+        vec3 col = mix(base, refl, clamp(0.28 + fres * 0.42, 0.0, 0.72));
+        col = mix(col, mix(uDeep, uShallow, .70), .26);
+
+        // Anime/Aero cell lines. World-locked, slow and low-contrast so the pond
+        // still reads as water rather than a tiled swimming pool.
+        vec2 cellUv = p * .30 + vec2(uTime * .018, -uTime * .011);
+        float f1 = wf1(cellUv);
+        float sf1 = wsf1(cellUv);
+        float cellEdge = f1 - sf1;
+        float cell = smoothstep(.048, .088, cellEdge);
+        col = mix(col, vec3(.54,.94,.94), cell * uAnime * .36);
+
+        // Hard-edged shoreline foam, following the pond shape but nibbled by
+        // the same wave field so it is not a vector outline.
+        vec2 ep = (p - uPondCenter) / uPondRadii;
+        float er = length(ep) + (r1 + r2) * .014;
+        float foam = smoothstep(.905, .958, er) * (1.0 - smoothstep(.985, 1.015, er));
+        col = mix(col, vec3(.84,.99,.96), foam * uAnime * .68);
+
+        // Splash rings: four active impact events are fed from the existing
+        // splash-ring state. Rings are intentionally sharp and cyan on the crest.
+        float rip = 0.0;
+        for (int i = 0; i < 4; i++){
+          if (i >= uRippleCount) break;
+          float age = uRippleT[i];
+          float d = length(p - uRippleCenters[i]);
+          float rad = age * 1.55;
+          float ring = 1.0 - smoothstep(.018, .095, abs(d - rad));
+          rip += ring * exp(-age * 1.25);
+        }
+        col = mix(col, vec3(.80,1.0,.98), clamp(rip, 0.0, 1.0) * .62);
+
         // sun and moon glints on the ripples
         vec3 R = reflect(-uSunDir, N);
         float sunSpec = pow(max(dot(R, V), 0.0), 260.0) * 2.8;
@@ -981,7 +1097,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   // The Reflector clones uniforms. Point all *custom* uniforms at the live
   // objects so the sky/water animation updates the material that actually renders.
   const ru = reflector.material.uniforms;
-  for (const k of ['uTime','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow']) ru[k] = waterUniforms[k];
+  for (const k of ['uTime','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uAnime','uPondCenter','uPondRadii','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
   const reflectionCam = reflector.getReflectionCamera(camera);
   reflectionCam.layers.set(REFLECT_LAYER);
   reflectionCam.far = 400;
@@ -1100,7 +1216,11 @@ export function buildField({ scene, camera, renderer, sky }) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos,3));
     g.setAttribute('color', new THREE.BufferAttribute(col,3));
-    const m = new THREE.PointsMaterial({ size: 0.21, transparent: true, opacity: 0, depthWrite: false, vertexColors: true, toneMapped: false, blending: THREE.AdditiveBlending, sizeAttenuation: true });
+    const m = new THREE.PointsMaterial({
+      size: 0.21, map: fireflyTexture(), transparent: true, opacity: 0,
+      depthWrite: false, vertexColors: true, toneMapped: false,
+      blending: THREE.AdditiveBlending, sizeAttenuation: true, alphaTest: .01,
+    });
     fireflyPoints = new THREE.Points(g, m);
     fireflyPoints.name = 'meadowFireflies';
     fireflyPoints.frustumCulled = false;
@@ -1363,13 +1483,22 @@ export function buildField({ scene, camera, renderer, sky }) {
       glassMat.emissiveIntensity = 0.38 + night*2.1;
         if (night !== lastNight) lastNight = night;
     }
+    const ripCenters = waterUniforms.uRippleCenters.value;
+    const ripT = waterUniforms.uRippleT.value;
+    let ripCount = 0;
     for (const r of splashRings) {
       if (r.t >= r.dur) { r.mesh.visible = false; continue; }
       r.t += dt;
       const p = Math.min(1, r.t / r.dur);
       r.mesh.scale.setScalar(0.4 + p*3.6);
       r.mesh.material.opacity = (1-p)*0.65;
+      if (ripCount < 4) {
+        ripCenters[ripCount].set(r.mesh.position.x, r.mesh.position.z);
+        ripT[ripCount] = r.t;
+        ripCount++;
+      }
     }
+    waterUniforms.uRippleCount.value = ripCount;
     // nav debug line opacity gently pulses
     if (navDebug) navDebug.material.opacity = 0.45 + Math.sin(performance.now()*0.002)*0.08;
   }

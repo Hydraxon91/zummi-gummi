@@ -2,7 +2,7 @@
 
 An interactive bowl of translucent jelly bears: grab, stretch, squash, throw, pour, wobble, set off fireworks — or load one into the little glass cannon and fire it across the table. Rendered with **three.js**; soft-body physics runs on **Box3D** (erincatto/box3d) compiled to WebAssembly.
 
-The meadow chapter is playable: a huge Bliss-style Grass Field with dense wind-swept grass, rounded leafy trees, detailed Aero villas and a large Studio portal house, a reflective pond, a full day/night sky with clouds, aurora and fireflies, a distant skyline and wind turbines. The Studio remains available from the in-app map switch and the diegetic door. The next simulation chapters (food, AI, growth) are in [ROADMAP.md](ROADMAP.md), with selected captures in [screenshots](screenshots/).
+The meadow chapter is playable: a circular Bliss-style meadow with a continuous full-circle grass carpet, wandered dirt trails, rounded hero trees, branched background trees and bushes, detailed Aero villas and a large Studio portal house, an anime-lite reflective pond, a full day/night sky with clouds, aurora and fireflies, a distant skyline and wind turbines. The Studio remains available from the in-app map switch and the diegetic door. The next simulation chapters (food, AI, growth) are in [ROADMAP.md](ROADMAP.md), with selected captures in [screenshots](screenshots/).
 
 ## Launch it
 
@@ -46,6 +46,7 @@ The app uses ES modules and a `.wasm` file, so it must be served over HTTP (open
 - **F** fires a firework at the cursor, hold to spray, `Shift+F` fans; the EXPLODE button fires a volley. `?` opens the controls sheet.
 - **L / Launch bear** arms the glass cannon. Aim with the mouse (or drag a finger) and release/click to fire a bear on a ballistic arc; `Esc` or the button cancels. The landing ring shows where it will come down.
 - **Move cannon**: drag the cannon itself, or press **Move cannon** and click/tap the table. The footprint ring turns green/red for a valid spot; `Esc` cancels and restores the previous position. The position persists for each map.
+- **Hide UI**: press `U` or use the small top-right UI button to hide every overlay (including on phones). The button remains as the restore control and the choice is remembered.
 - **Wind**: use the Wind slider in the meadow time panel. **Meadow detail** exposes canopy fullness, leaf size, grass coverage and grass draw distance for balancing the look against frame cost.
 - Flavor swatches, custom color + clarity, wobble, bear ceiling (8–256, persisted), upright assist, pour, reset, and a performance overlay.
 
@@ -61,9 +62,11 @@ src/app.js                 renderer, metaball surface, input, UI, fireworks, loo
 src/config.js              flavors + the 24-body bear rig
 src/world.js               map registry + per-map launcher state
 src/launcher.js            movable cannon: build, aim, fire, move/validate
-src/field.js               meadow, pond, grass chunks, props, nav/shadows
+src/field.js               meadow, pond, grass chunks, trails, props, nav/shadows
+src/fieldshape.js          shared wobbled-disc boundary, camera/nav/wall clamp
 src/wind.js                shared world-space wind uniforms + GLSL
 src/trees.js               procedural merged trees, foliage/fruit/hive batches
+src/bushes.js              branched meadow shrubs + canopy-centre foliage shading
 src/homes.js               rounded white/aqua Aero villa visual builder
 src/studiohouse.js         large field-side Studio portal house + return door
 src/backdrop.js            rolling background hills, tree belts and hill detail
@@ -114,35 +117,35 @@ Measured headless in Chrome on Apple silicon (CPU frame cost; surface time varie
 
 | bears | bodies | physics | surface | total |
 |------:|-------:|--------:|--------:|------:|
-| 21 | 504 | ~0.87 ms | ~5.8 ms | ~6.7 ms |
+| 21 | 504 | ~0.90 ms | ~7.5 ms | ~8.4 ms |
 | 128 | 3,072 | ~8.3 ms | ~3 ms | ~11.3 ms |
 
 The 256 ceiling is available (6,144 bodies) but heavy; the crowd tiers reduce surface detail as the count rises.
 
-### Phase 2 meadow profile (post-polish)
+### Phase 2 meadow profile (circular pass)
 
 Headless Chrome on Apple silicon, actual gameplay view at 1440×900, DPR 2, six
 starter bears, forced GPU sync (`readPixels`):
 
 | state | frame | draw calls | triangles |
 |---|---:|---:|---:|
-| baseline | **29.5 ms** | 558 | 2.43 M |
-| grass hidden | **22.5 ms** | 549 | 1.15 M |
-| trees hidden | 27.4 ms | 550 | 2.16 M |
-| pond/reflection hidden | 27.1 ms | 520 | 3.73 M* |
-| villas hidden | 25.4 ms | 111 | 2.35 M |
-| static shadow hidden | 30.2 ms | 557 | 2.43 M |
-| grass coverage 0.50 | 27.7 ms | 558 | 2.43 M |
-| grass draw distance 28 m | 25.8 ms | 553 | 1.72 M |
-| quality 3 / DPR 1.25 | **20.1 ms** | 558 | 2.40 M |
+| baseline | **32.1 ms** | 565 | 3.67 M |
+| grass hidden | **25.3 ms** | 554 | 2.10 M |
+| trees hidden | 30.6 ms | 557 | 3.40 M |
+| pond/reflection hidden | 29.8 ms | 528 | 5.25 M* |
+| villas hidden | 30.3 ms | 118 | 3.59 M |
+| static shadow hidden | 32.9 ms | 564 | 3.67 M |
+| grass coverage 0.50 | 30.3 ms | 565 | 3.67 M |
+| grass draw distance 28 m | 29.5 ms | 559 | 2.84 M |
+| quality 3 / DPR 1.25 | **23.6 ms** | 565 | 3.64 M |
 
 \*Reflection render-target accounting makes the pond-hidden triangle counter
 non-monotonic; the frame-time result is the useful one.
 
 Grass fill/geometry is still the largest single item; the detailed villas remove
-~447 draw calls and now save ~4 ms (they also gained geometry in this pass).
-DPR and grass density are the largest levers. The full report, including the earlier 37.1 ms Phase 2 baseline supplied
-for comparison, is in [PERFORMANCE.md](PERFORMANCE.md).
+~447 draw calls but save only ~2 ms in this run. DPR and grass density are the
+largest levers. The full report, including the previous post-polish and original
+37.1 ms baselines, is in [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Verification
 

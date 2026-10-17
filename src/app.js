@@ -1835,6 +1835,7 @@ addEventListener('keydown', (e)=>{
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   if (helpOpen) return;
   const k = e.key.toLowerCase();
+  if (k === 'u'){ if (!e.repeat) toggleUi(); return; }
   if (k === 'f'){
     if (!e.repeat){
       fwHeld = true;
@@ -1966,8 +1967,36 @@ addEventListener('keydown', (e)=>{
   if (e.key === 'Escape'){ setHelp(false); return; }
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-  if (e.key === '?' || e.key.toLowerCase() === 'h') setHelp(true);
+  if (!uiHidden && (e.key === '?' || e.key.toLowerCase() === 'h')) setHelp(true);
 });
+
+/* whole-interface visibility, including phone layouts */
+let uiHidden = false;
+const uiToggleBtn = document.getElementById('uiToggle');
+function syncUiToggle(){
+  document.body.classList.toggle('ui-hidden', uiHidden);
+  if (!uiToggleBtn) return;
+  const mark = uiToggleBtn.querySelector('.uiToggleMark');
+  const label = uiToggleBtn.querySelector('.uiToggleLabel');
+  uiToggleBtn.setAttribute('aria-pressed', String(uiHidden));
+  uiToggleBtn.setAttribute('aria-label', uiHidden ? 'Show interface' : 'Hide interface');
+  uiToggleBtn.title = `${uiHidden ? 'Show' : 'Hide'} interface (U)`;
+  if (mark) mark.textContent = uiHidden ? '◌' : '◉';
+  if (label) label.textContent = uiHidden ? 'Show UI' : 'Hide UI';
+}
+function setUiHidden(hidden){
+  uiHidden = !!hidden;
+  if (uiHidden){
+    keys.clear();
+    setHelp(false);
+  }
+  syncUiToggle();
+  try { localStorage.setItem('gummy.uiHidden', uiHidden ? '1' : '0'); } catch (err) {}
+}
+function toggleUi(){ setUiHidden(!uiHidden); }
+try { uiHidden = localStorage.getItem('gummy.uiHidden') === '1'; } catch (err) {}
+syncUiToggle();
+uiToggleBtn?.addEventListener('click', toggleUi);
 
 const limitEl = document.getElementById('limit');
 const limitValEl = document.getElementById('limitVal');
@@ -3376,9 +3405,18 @@ window.__gummy = {
       layoutErrors: field.layoutErrors,
       layoutCheck: field.validateLayout(),
       nav: field.navStats,
+      bounds: { shape: getActiveMap().bounds.shape || 'rect', radius: getActiveMap().bounds.radius || null },
       homes: field.homes.length,
       doorClearance: field.aeroHomes ? field.aeroHomes.doorClearance : null,
       blades: field.group.userData.grassBlades || 0,
+      bushes: field.bushes ? { count: field.bushes.count, segments: field.bushes.segments, lobes: field.bushes.lobes } : null,
+      backdrop: field.backdrop ? {
+        trees: field.backdrop.trees,
+        branches: field.backdrop.branches,
+        canopy: field.backdrop.canopy,
+        leaves: field.backdrop.leaves,
+        hedges: field.backdrop.hedges,
+      } : null,
       colliders: field.colliders.length,
       pond: { x:field.pond.x, z:field.pond.z, rx:field.pond.rx, rz:field.pond.rz },
       trees: field.trees ? field.trees.stats : null,
