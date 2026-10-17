@@ -194,6 +194,48 @@ trees, cottages, cannon, arena bounds), stuck detection, and no per-frame
 pathfinding. Homes have a door approach point; bears path to the door, not
 through a wall. AI ticks at 5–10 Hz, staggered across bears.
 
+**Known follow-ups after the Phase 3a motion pass** — recorded for later, not
+current blockers:
+
+- **Transient AI state is not fully reset by every lifecycle path.** In
+  particular, `setEnabled(false)` and `onRelease` do not clear every transient
+  field (`arrived`, `turnWait`, and in some paths `faceYaw`). Re-enabling AI or
+  releasing a throw can therefore cause one stale idle beat or skip the
+  pre-hop turn for a single hop. Audit and centralise the reset with the
+  existing hop/task reset helpers.
+- **Interaction facing is latched at start/resume.** `startEat` / `startDrink`
+  set `faceYaw`, but it is not re-aimed every tick while interacting. If a bear
+  is pushed or drifts while eating/drinking, it can keep facing the original
+  point. Re-aim after meaningful displacement without reintroducing the
+  close-range angle jitter seen when the source is almost at the bear centre.
+- **Interaction timers pause while ungrounded.** `ai.update` handles the
+  grounded gate before the eat/drink timer blocks. A bear launched or knocked
+  airborne without a grab can pause its meal/drink timer (and `animT`) until it
+  lands again. Decide whether a physical launch should suspend or abort the
+  interaction.
+- **`fieldInfo()` assumes the active map has `bounds`.** It dereferences
+  `getActiveMap().bounds.shape`, so calling the debug API while Studio is active
+  throws instead of returning a field-only/`null` result.
+- **Interaction facing and animation are target-pose effects.** A head pressed
+  into a flower/pond edge or a body knocked sideways can lean or clip more than
+  intended. Re-check the face rate and the chew/lap amplitudes after playtest;
+  the current screenshots show the intended nibble/lap poses, but the target-pose
+  approach has no IK/contact solve.
+- **Long-wander chance is intentionally independent.** A 25% roll can produce
+  consecutive long legs. That is the requested behaviour, but revisit if it
+  reads as constant map-crossing during a longer playtest.
+- **`wanderCandidate` accepts a long leg at up to 4 units of nav displacement**
+  and only requires 80% of the nominal 24-unit minimum after snapping. This is
+  deliberate tolerance for the organic boundary, not an exact-distance contract.
+- **Arrival is app-owned.** `updateAiLocomotion` sets `arrived` when it reaches
+  the final waypoint; `thinkWander` consumes it. Any future locomotion path
+  that finishes differently must set or centralise that flag.
+
+Already fixed in the motion pass: `idleT` previously never decremented (which
+could strand a bear in idle after its first task), the old face bias was too weak
+and based on measured rotation, and the performance overlay was hidden with the
+rest of `.hud`. The performance overlay now intentionally survives Hide UI.
+
 ## Health, hives, mating
 
 - Health 0–100. Base regen ~0.6/min; resting/napping ~4/min; starving slowly

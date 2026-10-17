@@ -4,13 +4,19 @@
 // decides what a bear wants and which navigation point it should hop toward.
 // That separation keeps user grabbing/throwing authoritative over the AI.
 
-const WANDER_RADIUS = 8.0;
-const HUNGER_RATE = 0.006;          // per second
-const THIRST_RATE = 0.009;          // per second
-const SEEK_HUNGER = 0.58;
+const WANDER_MIN = 3.0;
+const WANDER_MAX = 12.0;
+const LONG_WANDER_CHANCE = 0.25;
+const LONG_WANDER_MIN = 24.0;
+const LONG_WANDER_MAX = 40.0;
+const HUNGER_RATE = 0.0045;         // per second
+const THIRST_RATE = 0.0065;         // per second
+const SEEK_HUNGER = 0.70;
 const STOP_HUNGER = 0.40;
-const SEEK_THIRST = 0.62;
+const SEEK_THIRST = 0.76;
 const STOP_THIRST = 0.30;
+const CRITICAL_HUNGER = 0.90;
+const CRITICAL_THIRST = 0.92;
 const EAT_TIME = 1.25;
 const DRINK_TIME = 1.35;
 const EAT_DIST = 0.62;
@@ -41,6 +47,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       path: null,
       pathIndex: 0,
       moving: false,
+      arrived: false,
       idleT: 0,
       interrupted: false,
       faceYaw: null,
@@ -48,6 +55,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       hopWait: 0,
       eatT: 0,
       drinkT: 0,
+      animT: 0,
       taskCooldown: 0,
       lastX: b.cx,
       lastZ: b.cz,
@@ -66,6 +74,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     b.ai.path = null;
     b.ai.pathIndex = 0;
     b.ai.moving = false;
+    b.ai.arrived = false;
   }
 
   function onGrab(b) {
@@ -73,6 +82,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     if (!b.ai) return;
     b.ai.interrupted = true;
     b.ai.moving = false;
+    b.ai.arrived = false;
     b.ai.hopState = null;
     b.ai.hopWait = 0;
     b.ai.faceYaw = null;
@@ -123,6 +133,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     b.ai.path = path && path.length ? path : null;
     b.ai.pathIndex = 0;
     b.ai.moving = !!b.ai.path;
+    b.ai.arrived = false;
     b.ai.lastX = b.cx;
     b.ai.lastZ = b.cz;
     b.ai.stuckT = 0;
@@ -175,25 +186,42 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     return best;
   }
 
-  function pickWanderTarget(b) {
-    if (!field || !field.nav) return null;
+  function wanderCandidate(b, minR, maxR, maxShift, requireDistance) {
     for (let i = 0; i < 12; i++) {
       const a = rng() * Math.PI * 2;
-      const r = 2.0 + rng() * WANDER_RADIUS;
+      const r = minR + rng() * (maxR - minR);
       const x = b.cx + Math.cos(a) * r;
       const z = b.cz + Math.sin(a) * r;
       const p = field.nav.nearestWalkable(x, z);
       if (!p) continue;
-      if (Math.hypot(p.x - x, p.z - z) > 2.0) continue;
+      if (Math.hypot(p.x - x, p.z - z) > maxShift) continue;
       if (field.pond && field.pond.contains(p.x, p.z)) continue;
+      const d = Math.hypot(p.x - b.cx, p.z - b.cz);
+      if (d < requireDistance) continue;
       const path = pathTo(b, p.x, p.z);
       if (!path) continue;
-      b.ai.target = { x: p.x, z: p.z };
-      b.ai.faceYaw = Math.atan2(p.x - b.cx, p.z - b.cz);
-      setPath(b, path);
-      return b.ai.target;
+      return { x: p.x, z: p.z, path };
     }
     return null;
+  }
+
+  function pickWanderTarget(b) {
+    if (!field || !field.nav) return null;
+    let target = null;
+    // Most legs are local. Occasionally take a long diagonal/cross-meadow
+    // excursion; the destination is still nav-validated and never forced to
+    // an edge.
+    if (rng() < LONG_WANDER_CHANCE) {
+      target = wanderCandidate(b, LONG_WANDER_MIN, LONG_WANDER_MAX, 4.0, LONG_WANDER_MIN * 0.8);
+    }
+    if (!target) {
+      target = wanderCandidate(b, WANDER_MIN, WANDER_MAX, 2.0, 0);
+    }
+    if (!target) return null;
+    b.ai.target = { x: target.x, z: target.z };
+    b.ai.faceYaw = Math.atan2(target.x - b.cx, target.z - b.cz);
+    setPath(b, target.path);
+    return b.ai.target;
   }
 
   function finishFood(b) {
@@ -231,6 +259,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     if (!b.ai || !b.ai.source) return;
     b.ai.state = 'eat';
     b.ai.eatT = EAT_TIME;
+    b.ai.animT = 0;
     b.ai.moving = false;
     b.ai.path = null;
     b.ai.faceYaw = Math.atan2(b.ai.source.x - b.cx, b.ai.source.z - b.cz);
@@ -241,6 +270,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     const spot = b.ai.waterSpot;
     b.ai.state = 'drink';
     b.ai.drinkT = DRINK_TIME;
+    b.ai.animT = 0;
     b.ai.rippleT = 0;
     b.ai.moving = false;
     b.ai.path = null;
@@ -258,7 +288,9 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
         const d = Math.hypot(source.approachX - b.cx, source.approachZ - b.cz);
         if (d <= EAT_DIST) {
           b.ai.eatT = EAT_TIME;
+          b.ai.animT = 0;
           b.ai.moving = false;
+          b.ai.faceYaw = Math.atan2(source.x - b.cx, source.z - b.cz);
         } else {
           // The player threw the bear away from its meal. Keep the intent and
           // hop back to the source instead of nibbling at thin air.
@@ -277,7 +309,9 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       const d = spot ? Math.hypot(spot.x - b.cx, spot.z - b.cz) : Infinity;
       if (spot && d <= DRINK_DIST) {
         b.ai.drinkT = Math.max(0.7, b.ai.drinkT);
+        b.ai.animT = 0;
         b.ai.moving = false;
+        b.ai.faceYaw = Math.atan2(spot.waterX - b.cx, spot.waterZ - b.cz);
       } else {
         b.ai.state = 'seekWater';
         b.ai.moving = false;
@@ -313,6 +347,20 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
   }
 
   function thinkWander(b) {
+    if (b.ai.state !== 'wander') return;
+    if (b.ai.moving) {
+      // Finish the leg instead of diverting at the first hungry/thirsty tick.
+      // A genuinely critical need still wins over the remaining walk.
+      if (b.thirst >= CRITICAL_THIRST && acquireWater(b)) return;
+      if (b.hunger >= CRITICAL_HUNGER && acquireFood(b)) return;
+      if (b.ai.target && Math.hypot(b.ai.target.x - b.cx, b.ai.target.z - b.cz) < 0.58) {
+        b.ai.moving = false;
+        b.ai.target = null;
+        b.ai.faceYaw = null;
+        b.ai.idleT = 0.9 + rng() * 1.9;
+      }
+      return;
+    }
     if (b.ai.taskCooldown > 0) return;
     if (b.thirst >= SEEK_THIRST) {
       if (acquireWater(b)) return;
@@ -320,14 +368,9 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     if (b.hunger >= SEEK_HUNGER) {
       if (acquireFood(b)) return;
     }
-    if (b.ai.state !== 'wander') return;
-    if (b.ai.moving) {
-      if (b.ai.target && Math.hypot(b.ai.target.x - b.cx, b.ai.target.z - b.cz) < 0.58) {
-        b.ai.moving = false;
-        b.ai.target = null;
-        b.ai.idleT = 1.2 + rng() * 3.0;
-      }
-      return;
+    if (b.ai.arrived) {
+      b.ai.arrived = false;
+      b.ai.idleT = 0.9 + rng() * 1.9;
     }
     if (b.ai.idleT > 0) return;
     if (!pickWanderTarget(b)) b.ai.idleT = 0.7;
@@ -430,6 +473,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     releaseFood(b);
     b.ai.interrupted = false;
     b.ai.moving = false;
+    b.ai.arrived = false;
     b.ai.hopState = null;
     b.ai.hopWait = 0;
     b.ai.faceYaw = null;
@@ -440,6 +484,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     b.ai.waterSpot = null;
     b.ai.eatT = 0;
     b.ai.drinkT = 0;
+    b.ai.animT = 0;
     b.ai.taskCooldown = 0;
     b.ai.nextThink = 0;
 
@@ -503,6 +548,8 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       thirst: +b.thirst.toFixed(3),
       interrupted: !!b.ai.interrupted,
       moving: !!b.ai.moving,
+      faceYaw: b.ai.faceYaw === null || b.ai.faceYaw === undefined ? null : +b.ai.faceYaw.toFixed(3),
+      animT: +(b.ai.animT || 0).toFixed(3),
       source: b.ai.source ? b.ai.source.id : null,
       target: b.ai.target ? { x: +b.ai.target.x.toFixed(2), z: +b.ai.target.z.toFixed(2) } : null,
       path: b.ai.path ? b.ai.path.map(p => ({ x: +p.x.toFixed(2), z: +p.z.toFixed(2) })) : [],
@@ -521,6 +568,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       b.hunger = Math.min(1, finite(b.hunger, 0.3) + HUNGER_RATE * dt);
       b.thirst = Math.min(1, finite(b.thirst, 0.3) + THIRST_RATE * dt);
       if (ai.taskCooldown > 0) ai.taskCooldown = Math.max(0, ai.taskCooldown - dt);
+      if (ai.idleT > 0) ai.idleT = Math.max(0, ai.idleT - dt);
 
       const grounded = !b.airborne && b.contacts > 0 && (b.rMat[4] || 0) > 0.62;
       if (b.grabs > 0 || b.inPond) {
@@ -565,11 +613,13 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       }
 
       if (ai.state === 'eat') {
+        ai.animT += dt;
         ai.eatT -= dt;
         if (ai.eatT <= 0) finishFood(b);
         continue;
       }
       if (ai.state === 'drink') {
+        ai.animT += dt;
         ai.drinkT -= dt;
         ai.rippleT = (ai.rippleT || 0) - dt;
         if (ai.rippleT <= 0 && b.ai.waterSpot && field.splash) {
@@ -602,6 +652,8 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
         moving: !!b.ai.moving,
         interrupted: !!b.ai.interrupted,
         hopState: b.ai.hopState,
+        faceYaw: b.ai.faceYaw === null || b.ai.faceYaw === undefined ? null : +b.ai.faceYaw.toFixed(3),
+        animT: +(b.ai.animT || 0).toFixed(3),
         source: b.ai.source ? b.ai.source.id : null,
         target: b.ai.target ? [+b.ai.target.x.toFixed(2), +b.ai.target.z.toFixed(2)] : null,
         path: b.ai.path ? b.ai.path.length : 0,

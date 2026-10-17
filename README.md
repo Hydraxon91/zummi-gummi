@@ -48,8 +48,8 @@ The app uses ES modules and a `.wasm` file, so it must be served over HTTP (open
 - **F** fires a firework at the cursor, hold to spray, `Shift+F` fans; the EXPLODE button fires a volley. `?` opens the controls sheet.
 - **L / Launch bear** arms the glass cannon. Aim with the mouse (or drag a finger) and release/click to fire a bear on a ballistic arc; `Esc` or the button cancels. The landing ring shows where it will come down.
 - **Move cannon**: drag the cannon itself, or press **Move cannon** and click/tap the table. The footprint ring turns green/red for a valid spot; `Esc` cancels and restores the previous position. The position persists for each map.
-- **Hide UI**: press `U` or use the small top-right UI button to hide every overlay (including on phones). The button remains as the restore control and the choice is remembered.
-- **Autonomous bears**: meadow bears wander, hop toward food, nibble flowers or fallen fruit, and drink at the pond. Grabbing or throwing one interrupts its hop/task; it resumes when it lands and settles. The Studio remains a hands-on sandbox with needs paused.
+- **Hide UI**: press `U` or use the small top-right UI button to hide every gameplay overlay (including on phones); an active performance overlay stays visible. The button remains as the restore control and the choice is remembered.
+- **Autonomous bears**: meadow bears wander locally, occasionally take a longer cross-meadow trip, hop toward food, nibble flowers or fallen fruit with a chew motion, and lap at the pond with a separate drinking motion. Grabbing or throwing one interrupts its hop/task; it resumes when it lands and settles. The Studio remains a hands-on sandbox with needs paused.
 - **AI Debug**: press `G` or click **AI** to open the meadow-only inspector. Select a bear, set hunger/thirst, force a valid state, and show that bear’s planned route and target in the world. Eat/drink fall back to the matching seek state when no target exists.
 - **Wind**: use the Wind slider in the meadow time panel. **Meadow detail** exposes canopy fullness, leaf size, grass coverage and grass draw distance for balancing the look against frame cost.
 - Flavor swatches, custom color + clarity, wobble, bear ceiling (8–256, persisted), upright assist, pour, reset, and a performance overlay.
@@ -164,7 +164,7 @@ The Box3D port passes a 16-check headless self-test covering NaN/bounds, bounce 
 
 A continuous-integration smoke test also runs on every push and pull request (`.github/workflows/smoke.yml`). It boots `launch.py`, then `scripts/smoke.mjs` fetches the page shell, source modules, licenses and `box3d.wasm` over HTTP and instantiates the wasm — asserting the `application/wasm` MIME type, the `\0asm` header, the linear memory and the exported `_g3_*` wrapper API. Run it locally with `python3 launch.py --no-open &` then `node scripts/smoke.mjs`.
 
-Phase 3a debug checks drive `__gummy.ai()` / `__gummy.food()` / `__gummy.foodSources()`, plus `setHunger`, `setThirst`, `setAI`, `setBearState`, `aiPlan` and `aiRoute`. They cover hop travel and airtime, food claims and unique claims, eating, drinking, respawn, grab/throw interruption and resume, Studio AI suppression, map-switch cleanup, and NaN/bounds. The AI debug panel was checked at desktop and 390×844 with a selected-bear route line, target marker and Studio-hidden controls. The AI update itself measured well under the <0.5 ms budget.
+Phase 3a debug checks drive `__gummy.ai()` / `__gummy.food()` / `__gummy.foodSources()`, plus `setHunger`, `setThirst`, `setAI`, `setBearState`, `aiPlan` and `aiRoute`. They cover hop travel, heading/face alignment and airtime, local and long wander legs, food claims and unique claims, eating, drinking, respawn, grab/throw interruption and resume, Studio AI suppression, map-switch cleanup, and NaN/bounds. The AI debug panel was checked at desktop and 390×844 with a selected-bear route line, target marker and Studio-hidden controls. The AI update itself measured well under the <0.5 ms budget.
 
 ## Roadmap status
 
@@ -176,7 +176,7 @@ Phase 3a debug checks drive `__gummy.ai()` / `__gummy.food()` / `__gummy.foodSou
 
 ## Known limitations
 
-- The field is the default playable map; the Studio remains the sandbox. Food, water and autonomous hop behaviour are in place; hives/health, social behaviour and growth are still Phase 3b–5.
+- The field is the default playable map; the Studio remains the sandbox. Food, water and autonomous hop behaviour are in place; hives/health, social behaviour and growth are still Phase 3b–5. Phase 3a AI edge cases (stale transient state, mid-interaction re-aim, Studio `fieldInfo`) are recorded under **Known follow-ups** in [ROADMAP.md](ROADMAP.md).
 - Dense grass is GPU-heavy at high DPR in the headless profile; use the Meadow-detail controls or quality tiers on slower devices. No 60 fps guarantee is made from the headless run.
 - The existing metaball surface remains CPU-bound; very large crowds deliberately drop resolution.
 - Aero villa interiors are implied (door/light) rather than modeled walk-in rooms. The Studio lounge (interactive bar + huge Frutiger Aero TV) is the next required modelled-room pass; the reference moodboard used for it is kept locally and is not part of the repo.

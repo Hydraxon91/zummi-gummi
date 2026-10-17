@@ -710,7 +710,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>Wheel / pinch</dt><dd>Zoom in and out.</dd>
             <dt>W A S D</dt><dd>Pan · Q / E zoom · R resets the view.</dd>
             <dt>U</dt><dd>Hide or show the interface.</dd>
-            <dt>P</dt><dd>Performance overlay.</dd>
+            <dt>P</dt><dd>Performance overlay; it stays visible when the rest of the UI is hidden.</dd>
             <dt>G</dt><dd>Bear AI debug (meadow only).</dd>
           </dl>
         </section>
@@ -720,18 +720,6 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
   </div>
 
   <div class="camhint" id="camHint"></div>
-
-  <div class="perf" id="perf" aria-hidden="true">
-    <div class="phead"><span>Performance</span><b id="pfFps">60</b><span>fps</span></div>
-    <canvas id="pfGraph" width="212" height="34"></canvas>
-    <div class="prow"><span>Frame</span><b id="pfFrame">16.7</b><span>ms</span></div>
-    <div class="prow"><span>Physics</span><b id="pfPhys">0.4</b><span>ms / frame</span></div>
-    <div class="prow"><span>Surface</span><b id="pfSurf">4.2</b><span>ms / frame</span></div>
-    <div class="prow"><span>Builds</span><b id="pfBuilds">1.0</b><span>/ frame</span></div>
-    <div class="prow"><span>Bears</span><b id="pfBears">6</b><span id="pfBearsMax">/ 100</span></div>
-    <div class="prow"><span>Tier</span><b id="pfTier">1</b><span id="pfTierNote">2.00× · g42</span></div>
-    <div class="prow"><span>Draw</span><b id="pfDraw">17</b><span id="pfTris">150k tri</span></div>
-  </div>
 
   <aside class="aidebug" id="aiDebug" aria-hidden="true" aria-label="Bear AI debug">
     <div class="aiHead">
@@ -775,6 +763,20 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
   </aside>
 
   <footer class="studioFooter">Real-time soft bodies · three.js + Box3D</footer>
+</div>
+
+<!-- Kept outside .hud: the performance overlay is a developer readout and stays
+     visible when the rest of the interface is hidden. -->
+<div class="perf" id="perf" aria-hidden="true">
+  <div class="phead"><span>Performance</span><b id="pfFps">60</b><span>fps</span></div>
+  <canvas id="pfGraph" width="212" height="34"></canvas>
+  <div class="prow"><span>Frame</span><b id="pfFrame">16.7</b><span>ms</span></div>
+  <div class="prow"><span>Physics</span><b id="pfPhys">0.4</b><span>ms / frame</span></div>
+  <div class="prow"><span>Surface</span><b id="pfSurf">4.2</b><span>ms / frame</span></div>
+  <div class="prow"><span>Builds</span><b id="pfBuilds">1.0</b><span>/ frame</span></div>
+  <div class="prow"><span>Bears</span><b id="pfBears">6</b><span id="pfBearsMax">/ 100</span></div>
+  <div class="prow"><span>Tier</span><b id="pfTier">1</b><span id="pfTierNote">2.00× · g42</span></div>
+  <div class="prow"><span>Draw</span><b id="pfDraw">17</b><span id="pfTris">150k tri</span></div>
 </div>
 
 <script type="module" src="./src/app.js"></script>

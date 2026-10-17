@@ -528,20 +528,14 @@ function poseAndTargets(b, dt){
       _rmQ.slerp(_qYaw, 1 - Math.exp(-(b.grabs > 0 ? 2.2 : 1.0)*dt*(upY > 0.55 ? 1.3 : 1.0)));
     }
   }
-  // Grounded AI bears face their next hop. This biases the shape-matching target
-  // rather than steering in mid-air; grabbed and airborne bears keep the
-  // player's/ballistic orientation.
-  if (b.ai && b.ai.faceYaw !== null && b.ai.faceYaw !== undefined &&
-      b.grabs === 0 && !b.airborne && b.contacts > 0 && b.rMat[4] > 0.60) {
-    const ex = _v3.set(1, 0, 0).applyQuaternion(_rmQ);
-    const yaw = Math.atan2(-ex.z, ex.x);
-    let delta = b.ai.faceYaw - yaw;
-    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
-    if (Math.abs(delta) > 0.012) {
-      _qYaw.setFromAxisAngle(_yawAxis, yaw + clamp(delta, -4.2*dt, 4.2*dt));
-      _rmQ.slerp(_qYaw, 1 - Math.exp(-10*dt));
-    }
-  }
+  // AI bears face their next hop; while an AI hop is airborne they may still
+  // correct heading, but at a slower rate. Grabbed, carried and thrown bears
+  // keep the player's/ballistic orientation. This is applied after the tracked
+  // pose update below so the visible target cannot be out-voted by the measured
+  // body rotation.
+  const interacting = b.ai && (b.ai.state === 'eat' || b.ai.state === 'drink');
+  const aiFace = b.ai && b.ai.faceYaw !== null && b.ai.faceYaw !== undefined &&
+      b.grabs === 0 && (interacting || (!b.airborne && b.contacts > 0) || b.ai.hopState === 'air');
   // upright assist (force version): compute the tilt axis; the torque itself is
   // applied in accumulateForces so Box3D contacts can resist/yield naturally.
   b.upTilt = 0;
@@ -566,6 +560,16 @@ function poseAndTargets(b, dt){
   const rateStep = 1-Math.exp(-POSE_RATE*dt);
   const stepT = ang > 1e-5 ? Math.min(rateStep, 0.04/ang) : 0;
   if (stepT > 0) b.q.slerp(_rmQ, stepT);
+  if (aiFace && b.rMat[4] > 0.55) {
+    const yaw = Math.atan2(2*(b.q.w*b.q.y + b.q.x*b.q.z), 1 - 2*(b.q.y*b.q.y + b.q.z*b.q.z));
+    let delta = b.ai.faceYaw - yaw;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    if (Math.abs(delta) > 0.012) {
+      const rate = b.ai.hopState === 'air' && b.airborne ? AI_FACE_RATE_AIR : AI_FACE_RATE_GROUND;
+      _qYaw.setFromAxisAngle(_yawAxis, clamp(delta, -rate*dt, rate*dt));
+      b.q.premultiply(_qYaw).normalize();
+    }
+  }
   // volume preservation: *dynamic* compression bulges sideways (and vice versa).
   // Measured on world up rather than the pose axis, and driven by a fast creeping
   // reference, so a bear resting under its own weight can never feed its own pose
@@ -596,12 +600,30 @@ function poseAndTargets(b, dt){
     b.ty[i] = b.cy + iy*qw + iw*(-qy) + iz*(-qx) - ix*(-qz);
     b.tz[i] = b.cz + iz*qw + iw*(-qz) + ix*(-qy) - iy*(-qx);
   }
-  // Eating and drinking dip the snout toward the source/water. It is a target
-  // pose offset, so the soft-body solver still owns contacts and jelly motion.
+  // Eating and drinking are different small target-pose cycles: a nibbling
+  // chew with a forward nudge, versus a lower, faster lap with a slight sway.
+  // The soft-body solver still owns contacts and jelly motion.
   if (b.ai && (b.ai.state === 'eat' || b.ai.state === 'drink') && b.grabs === 0) {
-    const dip = b.ai.state === 'drink' ? 0.17 : 0.10;
-    b.ty[P_HEAD] -= dip;
-    b.ty[P_SNOUT] -= dip * 0.92;
+    const t = b.ai.animT || 0;
+    if (b.ai.state === 'eat') {
+      const chew = 0.5 - 0.5*Math.cos(t * Math.PI * 4.8);
+      const dip = 0.10 + chew * 0.035;
+      const push = 0.035 + chew * 0.015;
+      b.ty[P_HEAD] -= dip;
+      b.ty[P_SNOUT] -= dip * 0.92;
+      b.tz[P_HEAD] += push;
+      b.tz[P_SNOUT] += push * 1.1;
+    } else {
+      const lap = 0.5 - 0.5*Math.cos(t * Math.PI * 6.6);
+      const dip = 0.16 + lap * 0.025;
+      const sway = Math.sin(t * Math.PI * 3.3) * 0.008;
+      b.ty[P_HEAD] -= dip;
+      b.ty[P_SNOUT] -= dip * 1.02;
+      b.tz[P_HEAD] += 0.012;
+      b.tz[P_SNOUT] += 0.018;
+      b.tx[P_HEAD] += sway;
+      b.tx[P_SNOUT] += sway;
+    }
   }
   // finger-press squash: compress the target shape toward the table and let
   // volume preservation bulge it outward (releasing pops back)
@@ -2402,12 +2424,12 @@ let frozen = false;   // debug: pauses idle hops, AI ticks + the quality governo
 
 const AI_HOP_CROUCH = 0.15;
 const AI_HOP_SETTLE = 0.16;
-const AI_HOP_VERTICAL = 2.50;
-const AI_TURN_WAIT = 0.48;
-
-function yawFromMatrix(r) {
-  return Math.atan2(r[2], r[8]);
-}
+const AI_HOP_VERTICAL = 2.90;
+const AI_HOP_SPEED_MIN = 0.80;
+const AI_HOP_SPEED_MAX = 1.65;
+const AI_FACE_RATE_GROUND = 9.0;
+const AI_FACE_RATE_AIR = 4.0;
+const AI_TURN_WAIT = 0.75;
 
 function aiRoutePoint(b) {
   const a = b.ai;
@@ -2431,11 +2453,13 @@ function updateAiLocomotion(dt) {
     if (!b.active || !a) continue;
     if (b.grabs > 0 || b.inPond || a.interrupted || a.state === 'eat' || a.state === 'drink') {
       if (a.hopState === 'crouch') a.hopState = null;
+      a.turnWait = 0;
       continue;
     }
     if (!a.moving) {
       a.hopState = null;
       a.hopWait = 0;
+      a.turnWait = 0;
       continue;
     }
     if (a.hopState === 'air') {
@@ -2459,13 +2483,15 @@ function updateAiLocomotion(dt) {
       // Let the next 5 Hz think switch SEEK -> EAT/DRINK or finish WANDER.
       a.moving = false;
       a.faceYaw = null;
+      if (a.state === 'wander') a.arrived = true;
       continue;
     }
     const wantYaw = Math.atan2(dx, dz);
     a.faceYaw = wantYaw;
-    const dyaw = Math.atan2(Math.sin(wantYaw - yawFromMatrix(b.rMat)),
-                            Math.cos(wantYaw - yawFromMatrix(b.rMat)));
-    if (Math.abs(dyaw) > 0.28) {
+    const visualYaw = yawOfQuat(b.q);
+    const dyaw = Math.atan2(Math.sin(wantYaw - visualYaw),
+                            Math.cos(wantYaw - visualYaw));
+    if (Math.abs(dyaw) > 0.22) {
       a.turnWait = (a.turnWait || 0) + dt;
       if (a.turnWait < AI_TURN_WAIT) continue;
     } else {
@@ -2479,7 +2505,7 @@ function updateAiLocomotion(dt) {
     a.hopWait -= dt;
     if (a.hopWait > 0) continue;
 
-    const speed = clamp(d / 0.34, 1.15, 2.55);
+    const speed = clamp(d / 0.55, AI_HOP_SPEED_MIN, AI_HOP_SPEED_MAX);
     const ux = dx / d, uz = dz / d;
     hopBear(b, AI_HOP_VERTICAL, ux * speed, uz * speed, true);
     a.hopState = 'air';
