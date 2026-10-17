@@ -20,6 +20,9 @@ const STATE_LABELS = {
   visit: 'Home visit',
   seekConflict: 'Seek conflict',
   conflict: 'Conflict',
+  seekMate: 'Seek mate',
+  mate: 'Courting',
+  follow: 'Following',
 };
 
 export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
@@ -129,6 +132,7 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
       const source = a && a.source ? a.source.id : '—';
       const path = a && a.path ? a.path.length : 0;
       const partner = a && a.partner ? (a.partner.name || 'bear') : '—';
+      const follow = a && a.follow ? (a.follow.name || 'parent') : '—';
       const bond = a && a.partner && ai() ? (() => {
         const p = a.partner;
         const k = (x) => String(x.uid !== undefined ? x.uid : x.slot);
@@ -136,10 +140,12 @@ export function createAIDebug({ getBears, getAI, getField, isMeadow }) {
         const bb = Number(p.bonds?.[k(b)] ?? 0);
         return ((ba + bb) * .5).toFixed(2);
       })() : '—';
+      const life = `${b.stage || 'adult'} · age ${(b.age ?? 0).toFixed(0)}s · scale ${(b.scale ?? 1).toFixed(2)}` +
+        (b.pregnant ? ` · expecting ${(b.gestation ?? 0).toFixed(0)}s` : '');
       readoutEl.textContent =
         `${label} · hunger ${(b.hunger ?? 0).toFixed(2)} · thirst ${(b.thirst ?? 0).toFixed(2)}\n` +
-        `health ${(b.health ?? 0).toFixed(0)} · energy ${(b.energy ?? 0).toFixed(2)} · pace ${(b.hopSpeedMin ?? 0).toFixed(2)}–${(b.hopSpeedMax ?? 0).toFixed(2)} · ${b.home || 'no home'}\n` +
-        `social ${(b.social ?? 0).toFixed(2)} · affection ${(b.affection ?? 0).toFixed(2)} · partner ${partner} · bond ${bond}\n` +
+        `${life} · health ${(b.health ?? 0).toFixed(0)} · energy ${(b.energy ?? 0).toFixed(2)} · pace ${(b.hopSpeedMin ?? 0).toFixed(2)}–${(b.hopSpeedMax ?? 0).toFixed(2)} · ${b.home || 'no home'}\n` +
+        `social ${(b.social ?? 0).toFixed(2)} · affection ${(b.affection ?? 0).toFixed(2)} · partner ${partner} · follow ${follow} · bond ${bond}\n` +
         `target ${target} · path ${path} · source ${source}` +
         (a && a.interrupted ? ' · interrupted' : '') +
         (b.sleeping ? ' · sleeping' : '');

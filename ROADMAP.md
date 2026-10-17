@@ -71,8 +71,8 @@ src/sky.js              time-of-day, sun/moon/stars/clouds, lighting
 src/water.js            pond shader + planar reflection + sun/moon glints
 src/field.js            grass, trees, flowers, props, 2D obstacles
 src/food.js             food sources, ripeness, claims, respawn
-src/ai.js               needs, state machine, steering, invites, conflict, emotes
-src/life.js             scale, ages, sexes, health, pregnancy, births
+src/life.js             stage/age rules, courtship/birth gates, inheritance
+src/ai.js               needs, state machine, steering, invites, conflict, mate, follow, emotes
 src/launcher.js         cannon build/move/aim/fire
 src/ui.js / styles.css  Aero/MSN shell and HUD
 src/renderer.js         WebGL/WebGPU backend selection, capabilities, fallback
@@ -98,7 +98,7 @@ rig and soft-body solver stay.
 | **3a ✅** | Food registry/respawn, hunger, thirst, hop locomotion, WANDER / SEEK_FOOD / EAT / SEEK_WATER / DRINK | Bears autonomously get hungry or thirsty, hop to safe food or the pond shore, eat/drink, and food regrows; grab/throw interrupts and resumes the task; no stuck/NaN/perf regressions |
 | **3b ✅** | **3b.0 hop pose/takeoff polish** (level crouch/air target with a small forward lean, upright takeoff gate, transient AI reset, per-bear hop-pace range (inherited in Phase 5)); hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | AI hops stay close to upright through takeoff, apex and landing; player throws still tumble freely; bees can sting, bears avoid hives below the threshold, health regenerates, hurt/tired bears return home and recover, with no death |
 | **4 ✅** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection/bonds, **door-level home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit a villa doorway; MSN-style statuses update |
-| **5** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
+| **5 ✅** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
 | **6a** | **Effects pass before optimization:** improve shading/contact depth, SSAO, shadow maps, god rays, restrained bloom and a gentle color grade; scope/tuning to be discussed when the simulation is complete | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
 | **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
@@ -164,7 +164,20 @@ rig and soft-body solver stay.
   shoving. Headless checks cover natural company seeking, forced accept/decline,
   bond gain, door visits, natural and forced contention, grab interruption and
   social/bond persistence through a map switch with no page errors.
-- **Next:** add voluntary pond play/swimming, then Phase 5 growth and family life.
+- **Phase 5 complete:** `src/life.js` owns stage ages/scales, courtship gates,
+  gestation, inheritance and home capacity. Bears age from baby through teen to
+  adult (7 minutes total), and a stage-up rebuilds Box3D bodies, metaball lattice,
+  surface and instanced eyes together while deferring if grabbed, airborne or in
+  the pond. Babies follow a parent, use the family home and return there at night.
+  Satiated, healthy opposite-sex adults court and may conceive without a prior
+  friendship bond; pregnancy lasts ~25 s and raises hunger. Births require a
+  food reserve and room under the map ceiling and retry briefly when blocked.
+  Newborns inherit mother flavor (8% mutation), a blended pace range, parent uids
+  and the family home. Headless checks cover starter ages, stage/scale rebuilds,
+  natural/forced courtship, pregnancy, birth, cap blocking, flavor/pace
+  inheritance, baby following, family homes and life-state map persistence with
+  no page errors.
+- **Next:** add voluntary pond play/swimming, then the Phase 6a effects pass.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
@@ -200,10 +213,11 @@ utility selector with cooldowns/hysteresis picks a state roughly once per second
 | Invite → Social | near the chosen bear | offer a nuzzle; if accepted **both switch to Social**, bounce/nuzzle, hearts, bond ↑; decline = “needs space” |
 | Seek conflict / Conflict | critical hunger and a claimed safe-food source nearby | approach, face off, short shove; larger/hungrier/bolder bear keeps or takes the source, loser retargets; no injury |
 | Home visit | after a successful social with a bonded friend, daylight | host and guest walk to the host’s villa door, hang out outside, then disperse; interiors are a later pass |
-| Mate | adult, opposite sex, hunger satisfied, healthy, food & population room | hearts, pregnancy for the female, then birth |
+| Seek mate → Mate | adult, opposite sex, satiated, healthy, energy, food reserve and population room | approach, brief readable courtship; female conceives for ~25 s; both enter a mate cooldown |
+| Follow | baby with a living parent | stay near the parent, repath as it moves; return to the family home at night |
 | Seek home / Rest | night, low health, low energy | walk to the bear’s cottage door, enter, sleep and regen; a warm entrance glow marks an occupied villa |
 | Woozy | health near zero | slow, safe food only, no hives/mating/conflict; returns home to recover |
-| Grow | passive age | baby → teen → adult; sparkle at stage-ups |
+| Grow | passive age | baby → teen → adult at 3/7 minutes; scale, body, surface and eyes rebuild together |
 
 **Directives (Phase 8b):** player commands — go to a point, eat a chosen food,
 sleep at home, follow the player, socialize with a chosen bear — enter the
@@ -317,10 +331,37 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **The emote pool caps at 18 sprites.** In a dense group social burst, some
   hearts/marks are silently dropped rather than queued. This is deliberate for
   frame cost; revisit only if it is noticeable at 40 bears.
-- **Only seek states have direct force handlers.** Social, invite, decline, visit
-  and conflict states show “Automatic” in the debug selector; use
-  `__gummy.forceSocial/forceInvite/forceVisit/forceConflict` for deterministic
-  checks until those need in-panel controls.
+- **Only seek states have direct force handlers.** Social, invite, decline, visit,
+  conflict, mate and follow states show “Automatic” in the debug selector; use
+  `__gummy.forceSocial/forceInvite/forceVisit/forceConflict/forceMate` for
+  deterministic checks until those need in-panel controls.
+
+**Known follow-ups after Phase 5** — recorded for later, not current blockers:
+
+- **Home capacity overflows above 32 residents.** Eight authored villas at four
+  residents cover 32 of the 40-bear field ceiling. Additional births share the
+  least-occupied villa until Phase 9 adds player homes. Decide whether to raise
+  the authored capacity or make overflow explicit in the UI.
+- **Nursery interiors remain door-level.** Pregnancy and birth use the existing
+  home/door path; entering a villa together, a modelled nursery and a family
+  interior remain the later interior pass.
+- **A stage-up deferred during a grab can leave the carried bear at its old
+  scale.** The growth is queued until it is grounded, so the badge/age may lead
+  the visible body briefly. This is intentional to avoid rebuilding bodies while
+  the player is stretching them.
+- **Births while the mother sleeps spawn at the villa door.** This keeps the baby
+  visible rather than hidden inside the doorway; revisit with the interior/nursery
+  transition.
+- **Life timing uses real seconds.** World-speed currently controls the sky, not
+  aging, gestation or mate cooldowns. Decide whether a future world-speed control
+  should scale life time as well.
+- **A rare 20-bear ground tunnel was observed once.** One stress run reported
+  `minY -99.66` before the conflict-shove guard; shove impulses now skip airborne,
+  pond and near-rim losers and are clamped. Two immediate reruns were normal
+  (only the expected pond basin dips). Re-check in the Phase 6b 40-bear stress and
+  inspect solver seams/CCD if it returns.
+- **The life schema is now the Phase 8a freeze point.** Any further change to
+  `age`, stages, pregnancy, parent uids or inheritance should add a save migration.
 
 ## Health, hives, mating
 
@@ -361,14 +402,39 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   shows the live state, not the numeric bond. Emotes are a small pooled sprite
   layer in the field and never allocate per frame.
 
+## Growth, mating & family
+
+- Ages are in seconds: baby (scale 0.58) to teen at 180 s, to adult (scale 1.00)
+  at 420 s. Starter adults begin at 600 s, the starter teen at 240 s and the
+  starter baby at 30 s. Growth is paused with AI in the Studio or debug freeze.
+- A stage-up rebuilds the physics radii/joints, metaball lattice, rendered surface
+  and instanced eyes in one operation, scaling points around the current COM. It
+  waits until the bear is grounded and not grabbed; a stage-up emits a sparkle.
+- Courtship requires adult, opposite sex, neither pregnant, health ≥70, hunger
+  ≤0.40, thirst ≤0.60, energy ≥0.30, no mate cooldown, at least 18 ripe safe-food
+  sources and room under the map population ceiling. No friendship bond is
+  required in this pass.
+- Courtship lasts 3 s and raises the pair bond. Pregnancy lasts 25 s, increases
+  hunger by 35%, and blocks further courtship. Birth needs the same food/room
+  gates; a blocked birth retries every 3 s rather than cancelling the pregnancy.
+- Newborns are scale-0.58 babies with a random sex, 8%-mutation mother flavor,
+  averaged parent pace ranges (±0.04 min / ±0.06 max), parent uids and a family
+  home. They follow a parent and return to the family home at night.
+- Villas have a capacity of four residents. A newborn prefers the mother’s home,
+  then the least-occupied home; with 8 authored villas this covers 32 residents,
+  so a full 40-bear field uses shared overflow homes.
+- Interiors/a modelled nursery remain later work; family life currently uses the
+  existing villa door/sleep path and the buddy status list.
+
 ## Homes & no-clipping
 
 - **Aero villas:** 8–12 white/aqua Frutiger-Aero homes arranged around the
   meadow: soft rounded shells, turquoise glazing bands, silver trim, large oval
   windows, aqua doors, bubble lamps, mailboxes and a warm/aqua entrance glow when
   occupied. Silhouettes vary between pavilion, dome, saucer and tower types
-  without changing the authored lots. Each villa has 2–4 beds/residents; the
-  buddy list shows each bear’s home.
+  without changing the authored lots. Each villa currently admits four
+  residents; the buddy list shows each bear’s home and family children inherit
+  a parent’s home when there is room.
 - **Home use:** bears claim a home at spawn (or a baby is assigned to a parent’s
   home). At night, when low on health/energy, or while woozy, they walk to the
   door, enter (a short fade/scale through the doorway — never through a wall),
@@ -445,8 +511,9 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Cannon:** drag the base or use Move cannon; green/red footprint validation
   (bounds, bears, pond/trees/cottages later); remains visual-only; shadow/arc follow.
 - **UI:** Aero glass, aqua gradients, glossy buttons, bubbles; MSN-style buddy
-  list with name, ♀/♂, stage, live social/visit/conflict status, hunger/health,
-  pregnancy, online count and clock; Studio keeps the editorial skin. A persistent Hide UI control (and `U`)
+  list with name, ♀/♂, baby/teen stage, live social/visit/conflict/courtship/
+  follow status, hunger/health, pregnancy, online count and clock; Studio keeps
+  the editorial skin. A persistent Hide UI control (and `U`)
   clears every overlay on desktop and phone while leaving a restore button.
   The field-only AI debug panel (and `G`) exposes needs, forced states and a
   selected-bear planned-route overlay; Studio hides it. Keep contrast, focus and
@@ -677,20 +744,26 @@ bears and stalls. Decide when 9c is scheduled; 9a and 9b do not depend on it.
 
 ## Tuning defaults (subject to playtesting)
 
-- Day 10 min; growth 6–8 min; world speed 1×/2×/4×.
+- Day 10 min; growth 7 min (3 baby + 4 teen; adult at 420 s); world speed
+  1×/2×/4× currently affects the sky, not life timers.
 - Field ceiling 40; hard max 128; Studio ceiling 128.
 - Starting meadow colony: 2 adult ♀, 2 adult ♂, 1 teen, 1 baby.
 - Hive threshold 45 health (bold/shy shifts it, desperation lowers it to a
   25-point floor); sting damage 15; honey 0.55 satiation.
 - Food respawns: flowers 25–45 s, fruit 45–90 s, hives 90–150 s.
 - Per-bear hop pace: min 0.70–0.95, max 1.45–1.80, sampled at spawn and inherited
-  in Phase 5. Health base regen 0.6/min, rest 4/min; energy drains 0.0025/s,
-  restores 0.012/s; woozy below 15 health.
-- Hunger +0.006/s, thirst +0.009/s; seek above 0.58/0.62. Flower satiation 0.20,
-  fallen fruit 0.35; one drink restores 0.55. Hop travel is about 1 m/s with a
-  crouch, low airborne phase and landing settle.
+  by children (averaged with ±0.04/±0.06 mutation). Health base regen 0.6/min,
+  rest 4/min; energy drains 0.0025/s, restores 0.012/s; woozy below 15 health.
+- Hunger +0.0045/s, thirst +0.0065/s; seek above 0.70/0.76. Flower satiation
+  0.20, fallen fruit 0.35; one drink restores 0.55. Hop travel is about 1 m/s
+  with a crouch, low airborne phase and landing settle.
+- Mating: adult opposite-sex pair, hunger ≤0.40, thirst ≤0.60, health ≥70,
+  energy ≥0.30, 18 ripe safe-food sources, room under the ceiling and no mate
+  cooldown. Courtship 3 s, pregnancy 25 s, mate cooldown 90 s. Newborn flavor is
+  the mother’s with an 8% mutation; sex is random.
 - Pond buoyancy/floating is non-lethal; no current; paddles to nearest shore.
-- 8 Aero villas × 3–4 residents; door approach 1.2 m; house-to-house clearance 0.9 m.
+- 8 Aero villas × 4 residents (32 authored capacity; overflow shares the least
+  occupied villa); door approach 1.2 m; house-to-house clearance 0.9 m.
 - Night sleep window 20:00–06:00 (bears leave as the sky brightens); low-health
   returns can happen at any time.
 - Saves: 5 named slots + 1 autosave; autosave every 2 in-game minutes and on

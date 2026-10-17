@@ -1,9 +1,9 @@
-# Phase 2–4 captures
+# Phase 2–5 captures
 
 Visual set from the running app (headless Chrome, 1440×900 unless noted). `00_`
 is retained as the pre-replacement baseline; everything else is the completed
 circular-meadow / dirt-trail / branched-backdrop pass plus the Phase 3a
-autonomous-behaviour and Phase 4 social checks.
+autonomous-behaviour, Phase 4 social and Phase 5 growth/family checks.
 
 | file | view |
 |---|---|
@@ -34,6 +34,11 @@ autonomous-behaviour and Phase 4 social checks.
 | `24_social_nuzzle.webp` | two friends in mutual Social with floating hearts; buddy statuses read “hanging out with …” |
 | `25_home_visit.webp` | bonded pair hanging out at a Thimble Cottage doorway; host/guest statuses |
 | `26_food_conflict.webp` | two hungry bears facing off over a claimed snack; buddy statuses read “shoving over a snack” |
+| `27_life_baby.webp` | baby-stage bear at the authored 0.58 scale, with the BABY roster badge |
+| `28_life_teen.webp` | teen-stage bear at 0.78 scale after a synchronized body/surface rebuild |
+| `29_life_adult.webp` | adult-stage bear at 1.00 scale after the final growth transition |
+| `30_family_home.webp` | mother, father and newborn outside the family villa; baby Clover follows the family home |
+| `31_pregnancy.webp` | post-courtship capture with the mother’s “expecting a cub” status |
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
 the stable circular-pass reading was **32.1 ms / 565 calls / 3.67 M triangles**.
@@ -41,6 +46,7 @@ The later close-up-ground/sheen/water spot check was noisy at **39.7–44.3 ms**
 baseline and **24.8–26.6 ms** at quality 3; a clean rerun is still pending.
 Grass fill/geometry remains the largest single GPU item. Phase 3a AI updates
 measured **0.007–0.045 ms per update** for six bears in headless QA; the Phase 4
-20-bear social/contention stress measured **0.028 ms**. The full frame profile
-has not been re-run. Full method and the earlier supplied baselines are in
-[../PERFORMANCE.md](../PERFORMANCE.md).
+20-bear social/contention stress measured **0.028 ms**, and the Phase 5 20-bear
+life stress measured **0.06–0.12 ms**. Stage rebuilds are event-driven, not
+per-frame. The full frame profile has not been re-run. Full method and the
+earlier supplied baselines are in [../PERFORMANCE.md](../PERFORMANCE.md).

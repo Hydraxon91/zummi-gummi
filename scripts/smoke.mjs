@@ -52,6 +52,7 @@ const modules = [
   "/src/launcher.js",
   "/src/field.js",
   "/src/food.js",
+  "/src/life.js",
   "/src/ai.js",
   "/src/aidebug.js",
   "/src/sky.js",

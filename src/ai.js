@@ -4,6 +4,11 @@
 // decides what a bear wants and which navigation point it should hop toward.
 // That separation keeps user grabbing/throwing authoritative over the AI.
 
+import {
+  canMate, HOME_CAPACITY, MATE_TIME, MATE_COOLDOWN, MATE_FOOD_MIN,
+  GESTATION_TIME, PREGNANCY_HUNGER,
+} from './life.js';
+
 const WANDER_MIN = 3.0;
 const WANDER_MAX = 12.0;
 const LONG_WANDER_CHANCE = 0.25;
@@ -65,6 +70,10 @@ const CONFLICT_TIME = 0.85;
 const CONFLICT_COOLDOWN = 12;
 const CONFLICT_RADIUS = 8;
 
+const MATE_RADIUS = 22;
+const MATE_DIST = 1.25;
+const FOLLOW_DIST = 2.15;
+
 // Hives are high-value and risky. The threshold shifts with boldness; hunger
 // can push a desperate bear a little lower, never below the hard floor.
 const HIVE_HUNGER = 0.95;
@@ -82,11 +91,14 @@ function finite(n, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export function createBearAI({ field, getBears, getHours, rng = Math.random } = {}) {
+export function createBearAI({ field, getBears, getHours, getPopulationCap, rng = Math.random } = {}) {
   const bears = getBears ? getBears() : [];
   let enabled = true;
   const stats = { ticks: 0, ms: 0 };
   const hoursNow = typeof getHours === 'function' ? getHours : () => 12;
+  const populationCap = typeof getPopulationCap === 'function'
+    ? () => Math.max(1, Number(getPopulationCap()) || 40)
+    : () => 40;
   const isNight = () => {
     const h = Number(hoursNow());
     return Number.isFinite(h) && (h >= NIGHT_START || h < NIGHT_END);
@@ -137,16 +149,18 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       p.ai.visitRole = null;
       p.ai.visitPhase = null;
       p.ai.visitArrived = false;
-      if (['social', 'invite', 'decline', 'visit', 'conflict'].includes(p.ai.state)) {
+      if (['social', 'invite', 'decline', 'visit', 'conflict', 'mate'].includes(p.ai.state)) {
         p.ai.state = 'wander';
         p.ai.idleT = 0.5;
         p.ai.taskCooldown = 0.8;
       }
       p.ai.source = null;
+      p.ai.follow = null;
       p.ai.contestBear = null;
       p.ai.contestSource = null;
       p.ai.conflictSource = null;
     }
+    b.ai.follow = null;
     b.ai.partner = null;
     b.ai.visitHome = null;
     b.ai.visitRole = null;
@@ -157,16 +171,45 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     b.ai.conflictSource = null;
   }
 
+  function homeResidents(name) {
+    if (!name) return 0;
+    let n = 0;
+    for (const b of bears) if (b.active && b.home === name) n++;
+    return n;
+  }
+
+  function parentFor(b) {
+    if (!b || !b.parentUids || !b.parentUids.length) return null;
+    for (const uid of b.parentUids) {
+      const p = bears.find(x => x.active && x.uid === uid);
+      if (p) return p;
+    }
+    return null;
+  }
+
   function assignHome(b) {
     if (!b || !field || !field.homes || !field.homes.length) return null;
     if (b.home) {
       const existing = field.homes.find(h => h.name === b.home);
-      if (existing) return existing;
+      if (existing && homeResidents(b.home) < HOME_CAPACITY) return existing;
     }
-    const i = Math.max(0, bears.indexOf(b));
-    const home = field.homes[i % field.homes.length];
-    b.home = home.name;
-    return home;
+    const parent = parentFor(b);
+    if (parent && parent.home) {
+      const preferred = field.homes.find(h => h.name === parent.home);
+      if (preferred && homeResidents(preferred.name) < HOME_CAPACITY) {
+        b.home = preferred.name;
+        return preferred;
+      }
+    }
+    let best = null;
+    let bestCount = Infinity;
+    for (const home of field.homes) {
+      const n = homeResidents(home.name);
+      if (n < bestCount) { best = home; bestCount = n; }
+    }
+    if (!best) return null;
+    b.home = best.name;
+    return best;
   }
 
   function homeFor(b) {
@@ -238,6 +281,9 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       visitT: 0,
       visitArrived: false,
       visitRetryT: 0,
+      follow: null,
+      followRetryT: 0,
+      mateT: 0,
       shove: null,
       lastX: b.cx,
       lastZ: b.cz,
@@ -277,9 +323,11 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     b.ai.socialT = 0;
     b.ai.declineT = 0;
     b.ai.conflictT = 0;
+    b.ai.mateT = 0;
+    b.ai.follow = null;
     b.ai.shove = null;
     b.sleeping = false;
-    if (['sleep', 'social', 'invite', 'decline', 'visit', 'conflict'].includes(b.ai.state)) {
+    if (['sleep', 'social', 'invite', 'decline', 'visit', 'conflict', 'mate', 'follow', 'seekMate'].includes(b.ai.state)) {
       b.ai.state = 'wander';
     }
     b.ai.path = null;
@@ -306,6 +354,8 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       b.ai.path = null;
       b.ai.hopState = null;
       b.ai.partner = null;
+      b.ai.follow = null;
+      b.ai.mateT = 0;
       b.sleeping = false;
     }
     b.ai = null;
@@ -336,9 +386,11 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
         b.ai.socialT = 0;
         b.ai.declineT = 0;
         b.ai.conflictT = 0;
+        b.ai.mateT = 0;
+        b.ai.follow = null;
         b.ai.shove = null;
         b.sleeping = false;
-        if (['sleep', 'social', 'invite', 'decline', 'visit', 'conflict'].includes(b.ai.state)) {
+        if (['sleep', 'social', 'invite', 'decline', 'visit', 'conflict', 'mate', 'follow', 'seekMate'].includes(b.ai.state)) {
           b.ai.state = 'wander';
         }
       }
@@ -964,6 +1016,187 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     b.ai.moving = true;
   }
 
+  function safeFoodCount() {
+    if (!field || !field.food || !field.food.allRipe) return 0;
+    return field.food.allRipe({ kinds: SAFE_FOOD }).length;
+  }
+
+  function canMatePair(a, b) {
+    return canMate(a, b, {
+      room: bears.length < populationCap(),
+      food: safeFoodCount() >= MATE_FOOD_MIN,
+    });
+  }
+
+  function acquireMate(b) {
+    if (!b || !b.ai || b.stage !== 'adult' || b.mateCooldown > 0) return null;
+    let best = null;
+    let bestScore = -Infinity;
+    for (const other of bears) {
+      if (!canMatePair(b, other) || !other.ai) continue;
+      if (!['wander', 'seekMate'].includes(other.ai.state)) continue;
+      if (other.ai.partner && other.ai.partner !== b) continue;
+      const d = Math.hypot(other.cx - b.cx, other.cz - b.cz);
+      if (d > MATE_RADIUS) continue;
+      const score = pairBond(b, other) * .4 - d * .02 + (rng() - .5) * .05;
+      if (score > bestScore) { bestScore = score; best = other; }
+    }
+    if (!best) return null;
+    startSeekMate(b, best);
+    return best;
+  }
+
+  function startSeekMate(b, partner) {
+    if (!b || !b.ai || !partner || !partner.ai) return false;
+    releaseFood(b);
+    b.ai.source = null;
+    b.ai.waterSpot = null;
+    b.ai.partner = partner;
+    b.ai.state = 'seekMate';
+    b.ai.target = { x: partner.cx, z: partner.cz };
+    b.ai.faceYaw = Math.atan2(partner.cx - b.cx, partner.cz - b.cz);
+    b.ai.moving = false;
+    setPath(b, pathTo(b, partner.cx, partner.cz) || [{ x: partner.cx, z: partner.cz }]);
+    return true;
+  }
+
+  function thinkSeekMate(b) {
+    if (!b || !b.ai) return;
+    const p = b.ai.partner;
+    if (!p || !p.ai || !canMatePair(b, p) || !['wander', 'seekMate'].includes(p.ai.state) ||
+        (p.ai.partner && p.ai.partner !== b)) {
+      b.ai.partner = null;
+      b.ai.state = 'wander';
+      b.ai.idleT = .5;
+      b.ai.taskCooldown = Math.max(b.ai.taskCooldown, 1.2);
+      clearPath(b);
+      return;
+    }
+    const d = Math.hypot(p.cx - b.cx, p.cz - b.cz);
+    if (d <= MATE_DIST) { startMatePair(b, p); return; }
+    b.ai.target = { x: p.cx, z: p.cz };
+    b.ai.faceYaw = Math.atan2(p.cx - b.cx, p.cz - b.cz);
+    if (!b.ai.path || !b.ai.path.length) {
+      const path = pathTo(b, p.cx, p.cz);
+      if (!path) {
+        b.ai.partner = null;
+        b.ai.state = 'wander';
+        b.ai.idleT = .6;
+        b.ai.taskCooldown = Math.max(b.ai.taskCooldown, 1.5);
+        return;
+      }
+      setPath(b, path);
+    }
+    b.ai.moving = true;
+  }
+
+  function startMatePair(a, b) {
+    if (!a || !b || !a.ai || !b.ai || a === b) return false;
+    a.ai.state = 'mate';
+    b.ai.state = 'mate';
+    a.ai.partner = b;
+    b.ai.partner = a;
+    a.ai.mateT = MATE_TIME;
+    b.ai.mateT = MATE_TIME;
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.target = { x: b.cx, z: b.cz };
+    b.ai.target = { x: a.cx, z: a.cz };
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    a.ai.animT = 0;
+    b.ai.animT = 0;
+    if (field && field.emote) {
+      field.emote(a.cx, a.cy + 1.05, a.cz, 'heart');
+      field.emote(b.cx, b.cy + 1.05, b.cz, 'heart');
+    }
+    return true;
+  }
+
+  function finishMatePair(a) {
+    if (!a || !a.ai || a.ai.state !== 'mate') return;
+    const b = a.ai.partner;
+    if (!b || !b.ai) {
+      a.ai.state = 'wander';
+      a.ai.partner = null;
+      a.ai.mateT = 0;
+      clearPath(a);
+      return;
+    }
+    const female = a.sex === 'F' ? a : b;
+    const male = female === a ? b : a;
+    if (!female.pregnant) {
+      female.pregnant = true;
+      female.gestation = GESTATION_TIME;
+      female.fatherUid = male.uid;
+      female.birthRetryT = 0;
+    }
+    a.mateCooldown = MATE_COOLDOWN;
+    b.mateCooldown = MATE_COOLDOWN;
+    addBond(a, b, .12);
+    a.ai.mateT = 0;
+    b.ai.mateT = 0;
+    a.ai.state = 'wander';
+    b.ai.state = 'wander';
+    a.ai.idleT = .7;
+    b.ai.idleT = .7;
+    a.ai.taskCooldown = 2.0;
+    b.ai.taskCooldown = 2.0;
+    a.ai.partner = null;
+    b.ai.partner = null;
+    clearPath(a);
+    clearPath(b);
+    if (field && field.emote) field.emote(female.cx, female.cy + 1.1, female.cz, 'heart');
+  }
+
+  function startFollow(b, parent) {
+    if (!b || !b.ai || !parent || !parent.ai) return false;
+    releaseFood(b);
+    b.ai.source = null;
+    b.ai.waterSpot = null;
+    b.ai.follow = parent;
+    b.ai.state = 'follow';
+    b.ai.target = { x: parent.cx, z: parent.cz };
+    b.ai.faceYaw = Math.atan2(parent.cx - b.cx, parent.cz - b.cz);
+    b.ai.moving = false;
+    setPath(b, pathTo(b, parent.cx, parent.cz) || [{ x: parent.cx, z: parent.cz }]);
+    return true;
+  }
+
+  function thinkFollow(b) {
+    if (!b || !b.ai) return;
+    const p = b.ai.follow;
+    if (!p || !p.ai || !p.active || p.sleeping || p.grabs > 0 || p.inPond) {
+      b.ai.follow = null;
+      b.ai.state = 'wander';
+      b.ai.idleT = .5;
+      clearPath(b);
+      return;
+    }
+    const d = Math.hypot(p.cx - b.cx, p.cz - b.cz);
+    if (d <= FOLLOW_DIST) {
+      b.ai.moving = false;
+      b.ai.path = null;
+      b.ai.faceYaw = Math.atan2(p.cx - b.cx, p.cz - b.cz);
+      return;
+    }
+    b.ai.target = { x: p.cx, z: p.cz };
+    b.ai.faceYaw = Math.atan2(p.cx - b.cx, p.cz - b.cz);
+    if (!b.ai.path || !b.ai.path.length) {
+      const path = pathTo(b, p.cx, p.cz);
+      if (!path) {
+        b.ai.follow = null;
+        b.ai.state = 'wander';
+        b.ai.idleT = .6;
+        return;
+      }
+      setPath(b, path);
+    }
+    b.ai.moving = true;
+  }
+
   function findContest(b) {
     if (!b || !b.ai || !field || !field.food || !field.food.sources) return null;
     if (b.hunger < SEEK_HUNGER || b.health < HEALTH_WOOZY || b.ai.conflictCooldown > 0) return null;
@@ -1169,6 +1402,14 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       if (acquireFood(b)) return;
       if (acquireContest(b)) return;
     }
+    if (b.stage === 'adult' && b.mateCooldown <= 0 && acquireMate(b)) return;
+    if (b.stage === 'baby') {
+      const parent = parentFor(b);
+      if (parent && !parent.sleeping && !parent.inPond && parent.grabs === 0 &&
+          Math.hypot(parent.cx - b.cx, parent.cz - b.cz) > FOLLOW_DIST) {
+        if (startFollow(b, parent)) return;
+      }
+    }
     if (b.social >= SEEK_SOCIAL || b.affection >= SEEK_AFFECTION) {
       if (acquireCompany(b)) return;
     }
@@ -1321,6 +1562,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     breakPair(b);
     releaseFood(b);
     b.ai.source = null;
+    b.ai.follow = null;
     b.ai.target = null;
     b.ai.faceYaw = null;
     b.ai.state = 'flee';
@@ -1353,6 +1595,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     releaseFood(b);
     b.ai.source = null;
     b.ai.waterSpot = null;
+    b.ai.follow = null;
     b.ai.target = null;
     b.ai.faceYaw = null;
     b.ai.state = 'seekHome';
@@ -1413,7 +1656,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
 
   function think(b) {
     if (!b.ai) return;
-    if (['sleep', 'invite', 'social', 'decline', 'conflict'].includes(b.ai.state)) return;
+    if (['sleep', 'invite', 'social', 'decline', 'conflict', 'mate'].includes(b.ai.state)) return;
     if (needsHome(b) && b.ai.state !== 'seekHome') {
       startSeekHome(b);
       return;
@@ -1425,7 +1668,9 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     else if (b.ai.state === 'seekHome') thinkSeekHome(b);
     else if (b.ai.state === 'seekCompany') thinkSeekCompany(b);
     else if (b.ai.state === 'seekConflict') thinkSeekConflict(b);
+    else if (b.ai.state === 'seekMate') thinkSeekMate(b);
     else if (b.ai.state === 'visit') thinkVisit(b);
+    else if (b.ai.state === 'follow') thinkFollow(b);
     // eat/drink/raid are timer states; update() finishes them.
   }
 
@@ -1444,7 +1689,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
   function debugState(b, state) {
     if (!b) return { ok: false, note: 'no bear' };
     if (!b.ai) attach(b);
-    if (!['wander', 'seekFood', 'seekWater', 'eat', 'drink', 'seekCompany', 'seekConflict', 'seekHome', 'seekHive'].includes(state)) {
+    if (!['wander', 'seekFood', 'seekWater', 'eat', 'drink', 'seekCompany', 'seekConflict', 'seekHome', 'seekHive', 'seekMate'].includes(state)) {
       return { ok: false, note: 'unknown state' };
     }
     breakPair(b);
@@ -1470,6 +1715,8 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     b.ai.socialT = 0;
     b.ai.declineT = 0;
     b.ai.conflictT = 0;
+    b.ai.mateT = 0;
+    b.ai.follow = null;
     b.ai.contestBear = null;
     b.ai.contestSource = null;
     b.ai.conflictSource = null;
@@ -1503,6 +1750,13 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       return {
         ok: !!source, state: b.ai.state,
         note: source ? 'looking for a contested snack' : 'no contested snack',
+      };
+    }
+    if (state === 'seekMate') {
+      const partner = acquireMate(b);
+      return {
+        ok: !!partner, state: b.ai.state,
+        note: partner ? `seeking ${partner.name || 'a mate'}` : 'no eligible mate',
       };
     }
     if (state === 'seekHome') {
@@ -1563,8 +1817,35 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
     return n;
   }
 
+  function debugMate(a, b) {
+    if (!a || !b || a === b || !a.active || !b.active) return { ok: false, note: 'need two active bears' };
+    if (!a.ai) attach(a);
+    if (!b.ai) attach(b);
+    if (a.stage !== 'adult' || b.stage !== 'adult') return { ok: false, note: 'adults only' };
+    if (a.sex === b.sex) return { ok: false, note: 'opposite sexes required' };
+    if (a.pregnant || b.pregnant) return { ok: false, note: 'already pregnant' };
+    breakPair(a);
+    breakPair(b);
+    releaseFood(a);
+    releaseFood(b);
+    a.ai.source = null;
+    b.ai.source = null;
+    a.ai.state = 'wander';
+    b.ai.state = 'wander';
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    startMatePair(a, b);
+    return { ok: true, state: a.ai.state, partner: b.name || 'bear' };
+  }
+
   function debugSocial(a, b, accept = true) {
-    if (!a || !b || a === b || !a.ai || !b.ai) return { ok: false, note: 'need two active bears' };
+    if (!a || !b || a === b || !a.active || !b.active) return { ok: false, note: 'need two active bears' };
+    if (!a.ai) attach(a);
+    if (!b.ai) attach(b);
     breakPair(a);
     breakPair(b);
     releaseFood(a);
@@ -1588,7 +1869,9 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
   }
 
   function debugInvite(a, b, accept = true) {
-    if (!a || !b || a === b || !a.ai || !b.ai) return { ok: false, note: 'need two active bears' };
+    if (!a || !b || a === b || !a.active || !b.active) return { ok: false, note: 'need two active bears' };
+    if (!a.ai) attach(a);
+    if (!b.ai) attach(b);
     breakPair(a);
     breakPair(b);
     releaseFood(a);
@@ -1608,7 +1891,9 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
   }
 
   function debugVisit(a, b) {
-    if (!a || !b || a === b || !a.ai || !b.ai) return { ok: false, note: 'need two active bears' };
+    if (!a || !b || a === b || !a.active || !b.active) return { ok: false, note: 'need two active bears' };
+    if (!a.ai) attach(a);
+    if (!b.ai) attach(b);
     breakPair(a);
     breakPair(b);
     releaseFood(a);
@@ -1622,9 +1907,11 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
   }
 
   function debugConflict(a, b) {
-    if (!a || !b || a === b || !a.ai || !b.ai || !field || !field.food) {
+    if (!a || !b || a === b || !a.active || !b.active || !field || !field.food) {
       return { ok: false, note: 'need two active bears and food' };
     }
+    if (!a.ai) attach(a);
+    if (!b.ai) attach(b);
     breakPair(a);
     breakPair(b);
     releaseFood(a);
@@ -1663,10 +1950,15 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       thirst: +b.thirst.toFixed(3),
       health: +b.health.toFixed(1),
       energy: +b.energy.toFixed(3),
+      age: +b.age.toFixed(1),
+      stage: b.stage,
+      pregnant: !!b.pregnant,
+      gestation: +(b.gestation || 0).toFixed(1),
       social: +b.social.toFixed(3),
       affection: +b.affection.toFixed(3),
       partner: partnerName(b) || null,
       bond: b.ai.partner ? +pairBond(b, b.ai.partner).toFixed(3) : null,
+      follow: b.ai.follow ? (b.ai.follow.name || 'parent') : null,
       visitHome: b.ai.visitHome || null,
       visitRole: b.ai.visitRole || null,
       home: b.home || '',
@@ -1691,7 +1983,8 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
       const ai = b.ai;
       if (!ai) continue;
 
-      b.hunger = Math.min(1, finite(b.hunger, 0.3) + HUNGER_RATE * dt);
+      b.hunger = Math.min(1, finite(b.hunger, 0.3) +
+        HUNGER_RATE * (b.pregnant ? PREGNANCY_HUNGER : 1) * dt);
       b.thirst = Math.min(1, finite(b.thirst, 0.3) + THIRST_RATE * dt);
       if (ai.taskCooldown > 0) ai.taskCooldown = Math.max(0, ai.taskCooldown - dt);
       if (ai.idleT > 0) ai.idleT = Math.max(0, ai.idleT - dt);
@@ -1784,6 +2077,12 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
         if (ai.conflictT <= 0) finishConflict(b);
         continue;
       }
+      if (ai.state === 'mate') {
+        ai.animT += dt;
+        ai.mateT -= dt;
+        if (ai.mateT <= 0) finishMatePair(b);
+        continue;
+      }
       if (ai.state === 'visit' && ai.visitPhase !== 'hangout') ai.animT += dt;
       if (ai.state === 'visit' && ai.visitPhase === 'hangout') {
         ai.animT += dt;
@@ -1851,10 +2150,15 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
         thirst: +b.thirst.toFixed(3),
         health: +b.health.toFixed(1),
         energy: +b.energy.toFixed(3),
+        age: +b.age.toFixed(1),
+        stage: b.stage,
+        pregnant: !!b.pregnant,
+        gestation: +(b.gestation || 0).toFixed(1),
         social: +b.social.toFixed(3),
         affection: +b.affection.toFixed(3),
         partner: partnerName(b) || null,
         bond: b.ai.partner ? +pairBond(b, b.ai.partner).toFixed(3) : null,
+        follow: b.ai.follow ? (b.ai.follow.name || 'parent') : null,
         visitHome: b.ai.visitHome || null,
         visitRole: b.ai.visitRole || null,
         visitPhase: b.ai.visitPhase || null,
@@ -1878,7 +2182,7 @@ export function createBearAI({ field, getBears, getHours, rng = Math.random } = 
 
   return {
     update, onGrab, onRelease, detach, setEnabled,
-    setNeed, setBond, debugState, debugSocial, debugInvite, debugVisit, debugConflict,
+    setNeed, setBond, debugState, debugSocial, debugInvite, debugVisit, debugConflict, debugMate,
     plan, stats: statsNow,
     get enabled() { return enabled; },
   };

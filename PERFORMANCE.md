@@ -99,6 +99,17 @@ or material is allocated per frame. This is a CPU-only measurement; the last
 stable GPU frame profile above is still the reference, and the visible sprites
 have not been included in a fresh frame benchmark.
 
+## Phase 5 life spot check
+
+Phase 5 adds one age/pregnancy pass per active meadow bear and a stage rebuild
+that is paid only when a bear crosses baby→teen→adult, not per frame. The 20-bear
+AI stress run remained at **0.06–0.12 ms** per update with no NaN positions.
+Stage rebuilds scale 24 body points, recreate their Box3D handles and joints, and
+rebuild one metaball surface/eye set; a forced growth check showed the vertex
+counts and scale increasing together without page errors. Mating/birth decisions
+only scan adults and the existing food list, and emotes stay in the fixed pool.
+No new full-frame GPU profile was taken in this pass.
+
 ## Ground-detail / water spot check
 
 Two forced-sync runs after adding the close-up grass ground texture, its Aero

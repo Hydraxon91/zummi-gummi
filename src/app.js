@@ -4,6 +4,11 @@ import { createSky } from './sky.js';
 import { buildField, POND_HOLE, POND } from './field.js';
 import { createBearAI } from './ai.js';
 import { createAIDebug } from './aidebug.js';
+import {
+  HOME_CAPACITY, MATE_COOLDOWN, GESTATION_TIME, MATE_FOOD_MIN, STAGE_ORDER,
+  advanceAge, advanceGestation, ageForStage, scaleForStage, stageForAge,
+  blendPace, inheritedFlavor,
+} from './life.js';
 import { createStudioReturnPortal } from './studiohouse.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
@@ -347,7 +352,8 @@ class Bear{
     this.uid=0; this.social=0.3; this.affection=0.25; this.bonds={};
     // Heritable pace range; sampled per bear at spawn and inherited in Phase 5.
     this.hopSpeedMin=0.80; this.hopSpeedMax=1.65;
-    this.pregnant=false; this.gestation=0;
+    this.pregnant=false; this.gestation=0; this.mateCooldown=0; this.birthRetryT=0;
+    this.parentUids=[]; this.fatherUid=0; this.pendingStage=null;
     this.name=''; this.home=''; this.inPond=false;
     this.ai=null;
     this.needsBuild=true;
@@ -397,6 +403,7 @@ function getFreeBear(){
 const bears = [];
 let nextBearUid = 1;
 let bounces = 0;
+const lifeStats = { births: 0, stageUps: 0, blockedBirths: 0 };
 
 function spawn(x, z, y, flavor, opts={}){
   if (bears.length >= bearCeiling) removeBear(bears[0]);
@@ -409,9 +416,13 @@ function spawn(x, z, y, flavor, opts={}){
   b.spriteId = FLAVORS[flavor].id;
   b.mesh.material = b.material;
   b.mesh.visible = true;
-  const sc = Number.isFinite(opts.scale) ? clamp(opts.scale, 0.42, 1.2) : 1;
+  const stage = opts.stage || 'adult';
+  const sc = Number.isFinite(opts.scale)
+    ? clamp(opts.scale, 0.42, 1.2)
+    : scaleForStage(stage);
   b.scale = sc;
-  b.stage = opts.stage || 'adult';
+  b.stage = stage;
+  b.pendingStage = null;
   if (opts.quat){
     b.q.copy(opts.quat); b.q.normalize();
   } else {
@@ -429,7 +440,8 @@ function spawn(x, z, y, flavor, opts={}){
   b.vol=1; b.volSlow=1; b.sy=1; b.sx=1; b.contacts=0; b.airborne=false; b.upTilt=0; b.press=0;
   b.antic=0; b.hopT=HOP_MIN+Math.random()*(HOP_MAX-HOP_MIN);
   b.grabs=0; b.stretch=1; b.stretchPt=P_HEAD; b.devSlow=0.05;
-  b.age=0; b.sex=(Math.random()<0.5?'F':'M');
+  b.age = Number.isFinite(opts.age) ? Math.max(0, opts.age) : ageForStage(stage);
+  b.sex=(Math.random()<0.5?'F':'M');
   b.health=100; b.hunger=0.3; b.thirst=0.3; b.energy=1;
   b.bold=0.25+Math.random()*0.5; b.sleeping=false;
   b.uid = Number.isFinite(opts.uid) ? opts.uid : nextBearUid++;
@@ -437,10 +449,13 @@ function spawn(x, z, y, flavor, opts={}){
   b.social = 0.28 + Math.random()*0.18;
   b.affection = 0.18 + Math.random()*0.18;
   b.bonds = {};
-  // Phase 5 births will blend the parents' ranges with a small mutation.
-  b.hopSpeedMin=0.70+Math.random()*0.25;
-  b.hopSpeedMax=1.45+Math.random()*0.35;
-  b.pregnant=false; b.gestation=0;
+  b.hopSpeedMin=Number.isFinite(opts.hopSpeedMin) ? opts.hopSpeedMin : 0.70+Math.random()*0.25;
+  b.hopSpeedMax=Number.isFinite(opts.hopSpeedMax) ? opts.hopSpeedMax : 1.45+Math.random()*0.35;
+  b.pregnant=!!opts.pregnant; b.gestation=Number.isFinite(opts.gestation) ? Math.max(0, opts.gestation) : 0;
+  b.mateCooldown=Number.isFinite(opts.mateCooldown) ? Math.max(0, opts.mateCooldown) : 0;
+  b.birthRetryT=0;
+  b.parentUids=Array.isArray(opts.parentUids) ? opts.parentUids.slice() : [];
+  b.fatherUid=Number.isFinite(opts.fatherUid) ? opts.fatherUid : 0;
   b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
   b.ai=null;
   if (opts.sex) b.sex = opts.sex;
@@ -463,6 +478,145 @@ function removeBear(b){
   writeEyeInstance(b, true);
 }
 function despawnAll(){ while (bears.length) removeBear(bears[0]); }
+
+function homeResidents(name) {
+  if (!name) return 0;
+  let n = 0;
+  for (const b of bears) if (b.active && b.home === name) n++;
+  return n;
+}
+
+function chooseBirthHome(mother) {
+  if (mother && mother.home && homeResidents(mother.home) < HOME_CAPACITY) return mother.home;
+  if (!field || !field.homes) return mother ? mother.home || '' : '';
+  let best = null;
+  let bestCount = Infinity;
+  for (const home of field.homes) {
+    const n = homeResidents(home.name);
+    if (n < bestCount) { best = home; bestCount = n; }
+  }
+  return best ? best.name : (mother ? mother.home || '' : '');
+}
+
+// Rebuild every representation of a bear together: physics radii/joints, the
+// metaball lattice, the rendered surface and the instanced eyes. Scale the live
+// points around the current COM so the bear grows in place instead of snapping
+// to a new origin.
+function applyBearStage(b, nextStage) {
+  if (!b || !b.active || !STAGE_ORDER.includes(nextStage) || b.stage === nextStage) {
+    if (b) b.pendingStage = null;
+    return false;
+  }
+  if (b.grabs > 0 || b.airborne || b.inPond) {
+    b.pendingStage = nextStage;
+    return false;
+  }
+  const oldScale = b.scale || 1;
+  const nextScale = scaleForStage(nextStage);
+  const factor = nextScale / oldScale;
+  for (let i = 0; i < NP; i++) {
+    b.px[i] = b.cx + (b.px[i] - b.cx) * factor;
+    b.py[i] = b.cy + (b.py[i] - b.cy) * factor;
+    b.pz[i] = b.cz + (b.pz[i] - b.cz) * factor;
+    b.vx[i] *= factor;
+    b.vy[i] *= factor;
+    b.vz[i] *= factor;
+    b.snap[i*3] = b.px[i];
+    b.snap[i*3+1] = b.py[i];
+    b.snap[i*3+2] = b.pz[i];
+  }
+  b.scale = nextScale;
+  b.stage = nextStage;
+  b.pendingStage = null;
+  if (nextStage !== 'baby' && b.ai && b.ai.state === 'follow') {
+    b.ai.follow = null;
+    b.ai.state = 'wander';
+    b.ai.idleT = .5;
+    b.ai.path = null;
+    b.ai.moving = false;
+  }
+  destroyBearBodies(b);
+  createBearBodies(b);
+  b.lat = null;
+  b.needsBuild = true;
+  buildBear(b);
+  for (let i = 0; i < 12; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 0.12 + Math.random() * 0.34;
+    spawnSpark(
+      b.cx + Math.cos(a) * r, b.cy + 0.25 + Math.random() * 0.55, b.cz + Math.sin(a) * r,
+      Math.cos(a) * 0.45, 0.7 + Math.random() * 0.8, Math.sin(a) * 0.45,
+      0.92, 0.78, 1.0, 0.035 + Math.random() * 0.03, 0.7 + Math.random() * 0.5, -0.35,
+    );
+  }
+  lifeStats.stageUps++;
+  return true;
+}
+
+function tryBirth(mother) {
+  if (!mother || !mother.active || !mother.pregnant) return false;
+  if (mother.grabs > 0 || mother.inPond || mother.airborne) return false;
+  if (bears.length >= bearCeiling) return false;
+  const safeFood = field && field.food ? field.food.allRipe({ kinds: ['flower', 'fruit'] }).length : 0;
+  if (safeFood < MATE_FOOD_MIN) return false;
+  const father = bears.find(b => b.active && b.uid === mother.fatherUid) || null;
+  const flavor = inheritedFlavor(mother.flavor, FLAVORS.length, Math.random);
+  const pace = blendPace(mother, father || mother, Math.random);
+  const home = chooseBirthHome(mother);
+  let x = mother.cx;
+  let z = mother.cz;
+  if (mother.sleeping && home) {
+    const h = field && field.homes ? field.homes.find(item => item.name === home) : null;
+    if (h) { x = h.door.x; z = h.door.z; }
+  }
+  const p = field && field.nav ? field.nav.nearestWalkable(x, z) : null;
+  if (p) { x = p.x; z = p.z; }
+  const baby = spawn(x, z, 0.004, flavor, {
+    stage: 'baby',
+    scale: scaleForStage('baby'),
+    age: 0,
+    sex: Math.random() < 0.5 ? 'F' : 'M',
+    home,
+    parentUids: [mother.uid, father ? father.uid : 0].filter(Boolean),
+    fatherUid: father ? father.uid : 0,
+    hopSpeedMin: pace.min,
+    hopSpeedMax: pace.max,
+  });
+  if (!baby) return false;
+  baby.needsBuild = true;
+  mother.pregnant = false;
+  mother.gestation = 0;
+  mother.birthRetryT = 0;
+  mother.mateCooldown = MATE_COOLDOWN;
+  lifeStats.births++;
+  if (field && field.emote) field.emote(mother.cx, mother.cy + 1.05, mother.cz, 'heart');
+  return true;
+}
+
+function stepLife(dt) {
+  if (!isMeadow() || !field || frozen) return;
+  for (const b of bears) {
+    if (!b.active) continue;
+    if (b.mateCooldown > 0) b.mateCooldown = Math.max(0, b.mateCooldown - dt);
+    if (b.birthRetryT > 0) b.birthRetryT = Math.max(0, b.birthRetryT - dt);
+    if (b.pendingStage && b.grabs === 0 && !b.airborne && !b.inPond) {
+      applyBearStage(b, b.pendingStage);
+    }
+    const nextStage = advanceAge(b, dt);
+    if (nextStage !== b.stage) {
+      if (b.grabs === 0 && !b.airborne && !b.inPond) applyBearStage(b, nextStage);
+      else b.pendingStage = nextStage;
+    }
+    if (b.pregnant && advanceGestation(b, dt)) {
+      if (b.birthRetryT <= 0) {
+        if (!tryBirth(b)) {
+          lifeStats.blockedBirths++;
+          b.birthRetryT = 3.0;
+        }
+      }
+    }
+  }
+}
 
 /* ================================ PHYSICS ================================= */
 const _up = new THREE.Vector3(), _yawAxis = new THREE.Vector3(0,1,0), _pitchAxis = new THREE.Vector3(1,0,0);
@@ -658,7 +812,7 @@ function poseAndTargets(b, dt){
   // braced shove during a food contest.
   if (b.ai && b.grabs === 0) {
     const t = b.ai.animT || 0;
-    if (b.ai.state === 'social' || b.ai.state === 'visit') {
+    if (b.ai.state === 'social' || b.ai.state === 'visit' || b.ai.state === 'mate') {
       const bob = Math.max(0, Math.sin(t * 5.4));
       const sway = Math.sin(t * 3.0) * .012;
       b.ty[P_HEAD] += .012 + bob * .022;
@@ -2038,6 +2192,9 @@ function resetBears(){
   dropQueue.length = 0;
   bounces = 0;
   bouncePulse = 0;
+  lifeStats.births = 0;
+  lifeStats.stageUps = 0;
+  lifeStats.blockedBirths = 0;
   elStretch.textContent = '1.00×';
   elBounces.textContent = '0';
   elBears.textContent = '0';
@@ -2190,7 +2347,11 @@ function buddyStatus(b){
   if (!field) return 'settling in';
   if (b.ai && b.ai.state === 'sleep') return `sleeping at ${b.home || 'home'}`;
   if (b.health < 15) return 'woozy — needs a quiet corner';
+  if (b.pregnant) return b.gestation > 0 ? 'expecting a cub' : 'ready to welcome a cub';
   if (b.ai) {
+    if (b.ai.state === 'seekMate') return 'looking for a mate';
+    if (b.ai.state === 'mate') return 'courting';
+    if (b.ai.state === 'follow') return `following ${b.ai.follow ? (b.ai.follow.name || 'a parent') : 'a parent'}`;
     if (b.ai.state === 'seekCompany') return 'looking for a friend';
     if (b.ai.state === 'invite') return 'offering a nuzzle';
     if (b.ai.state === 'social') return `hanging out with ${buddyPartnerName(b)}`;
@@ -2641,13 +2802,20 @@ function stepMeadowAI(dt) {
   if (field.food) field.food.update(dt);
   if (!ai || !ai.enabled) return;
   ai.update(dt);
+  stepLife(dt);
   // Social conflicts queue a small shove; app.js owns body impulses.
   for (const b of bears) {
     if (!b.active || !b.ai || !b.ai.shove) continue;
     const s = b.ai.shove;
     b.ai.shove = null;
-    if (b.grabs > 0 || b.inPond) continue;
-    hopBear(b, 0, s.x, s.z, true);
+    if (b.grabs > 0 || b.inPond || b.airborne) continue;
+    if (field && field.pond && field.pond.contains(b.cx, b.cz)) continue;
+    if (Number.isFinite(FIELD_RADIUS) && Math.hypot(b.cx, b.cz) > FIELD_RADIUS - 1.8) continue;
+    // A conflict nudge is a small horizontal impulse, not a launch. Keeping it
+    // away from the pond and arena rim avoids the rare solver tunnel at a seam.
+    const sx = clamp(s.x, -0.65, 0.65);
+    const sz = clamp(s.z, -0.65, 0.65);
+    hopBear(b, 0, sx, sz, true);
   }
   updateAiLocomotion(dt);
 }
@@ -3246,12 +3414,12 @@ function seedStudioBears(){
 function seedMeadowBears(){
   const spots = [[-2.2,4.0],[2.4,3.4],[-3.6,0.4],[4.2,0.2],[-0.8,-3.0],[2.2,-5.2]];
   const colony = [
-    { sex:'F', stage:'adult', scale:1.00 },
-    { sex:'F', stage:'adult', scale:1.00 },
-    { sex:'M', stage:'adult', scale:1.00 },
-    { sex:'M', stage:'adult', scale:1.00 },
-    { sex:'F', stage:'teen',  scale:0.78 },
-    { sex:'M', stage:'baby',  scale:0.58 },
+    { sex:'F', stage:'adult', scale:1.00, age:600 },
+    { sex:'F', stage:'adult', scale:1.00, age:600 },
+    { sex:'M', stage:'adult', scale:1.00, age:600 },
+    { sex:'M', stage:'adult', scale:1.00, age:600 },
+    { sex:'F', stage:'teen',  scale:0.78, age:240 },
+    { sex:'M', stage:'baby',  scale:0.58, age:30 },
   ];
   const flavors = [0,1,2,3,4,3];
   for (let i=0;i<spots.length;i++){
@@ -3263,9 +3431,17 @@ function seedMeadowBears(){
     const home = field && field.homes.length ? field.homes[i % field.homes.length].name : '';
     const c = colony[i];
     const b = spawn(x, z, 0.004, flavors[i], {
-      tilt:0.02, name:takeBearName(), sex:c.sex, stage:c.stage, scale:c.scale,
+      tilt:0.02, name:takeBearName(), sex:c.sex, stage:c.stage, scale:c.scale, age:c.age,
     });
-    if (b){ b.home=home; }
+    if (b){
+      b.home=home;
+      // The starter teen and baby belong to the first adult pair; their home
+      // moves with the family instead of remaining a round-robin slot.
+      if (i >= 4 && bears[0]) {
+        b.parentUids = [bears[0].uid, bears[2] ? bears[2].uid : 0].filter(Boolean);
+        b.home = bears[0].home || home;
+      }
+    }
   }
 }
 
@@ -3278,7 +3454,9 @@ function snapshotBear(b){
     health: b.health, hunger: b.hunger, thirst: b.thirst,
     energy: b.energy, bold: b.bold,
     social: b.social, affection: b.affection, bonds: { ...(b.bonds || {}) },
-    uid: b.uid,
+    uid: b.uid, age: b.age, pregnant: !!b.pregnant, gestation: b.gestation,
+    mateCooldown: b.mateCooldown || 0, parentUids: (b.parentUids || []).slice(),
+    fatherUid: b.fatherUid || 0,
     hopSpeedMin: b.hopSpeedMin, hopSpeedMax: b.hopSpeedMax,
     name: b.name, home: b.home,
     x: b.cx, z: b.cz, yaw: yawOfQuat(b.q),
@@ -3298,7 +3476,12 @@ function spawnFromState(st){
   const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), st.yaw || 0);
   const b = spawn(x, z, 0.004, st.flavor >= 0 ? st.flavor : 0, {
     quat: q, lift: 0, name: st.name || takeBearName(), sex: st.sex || 'F', home: st.home || '',
-    stage: st.stage || 'adult', scale: st.scale || 1, uid: st.uid,
+    stage: st.stage || 'adult', scale: st.scale || scaleForStage(st.stage || 'adult'), uid: st.uid,
+    age: Number.isFinite(st.age) ? st.age : ageForStage(st.stage || 'adult'),
+    pregnant: !!st.pregnant, gestation: Number.isFinite(st.gestation) ? st.gestation : 0,
+    mateCooldown: Number.isFinite(st.mateCooldown) ? st.mateCooldown : 0,
+    parentUids: Array.isArray(st.parentUids) ? st.parentUids : [],
+    fatherUid: Number.isFinite(st.fatherUid) ? st.fatherUid : 0,
   });
   if (!b) return null;
   b.health = Number.isFinite(st.health) ? st.health : 100;
@@ -3552,6 +3735,7 @@ function fitWallsToTable(){
     field,
     getBears: () => bears,
     getHours: () => (sky ? sky.hours : 12),
+    getPopulationCap: () => bearCeiling,
   });
   aiDebug = createAIDebug({
     getBears: () => bears,
@@ -3816,7 +4000,7 @@ window.__gummy = {
   launcherScreenOf(x, z){ return launcher ? launcher.screenOf(x, z) : null; },
   launcherMoveMode(on){ return launcher ? launcher.toggleMoveMode(on) : false; },
   world(){ return { map: activeWorld.mapId, wallHeight: getActiveMap().wallHeight, walls: worldWalls.walls.slice(), ground: worldWalls.ground, bounds: [worldWalls.hx, worldWalls.hz], launcher: launcher ? launcher.state() : null }; },
-  traits(){ return bears.map(b => ({ uid:b.uid, sex:b.sex, stage:b.stage, scale:b.scale, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, social:b.social, affection:b.affection, bonds:{ ...(b.bonds || {}) }, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null, partner:b.ai && b.ai.partner ? b.ai.partner.name : null })); },
+  traits(){ return bears.map(b => ({ uid:b.uid, sex:b.sex, stage:b.stage, scale:b.scale, age:b.age, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, social:b.social, affection:b.affection, bonds:{ ...(b.bonds || {}) }, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, pregnant:!!b.pregnant, gestation:b.gestation, mateCooldown:b.mateCooldown, parentUids:(b.parentUids || []).slice(), fatherUid:b.fatherUid || 0, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null, partner:b.ai && b.ai.partner ? b.ai.partner.name : null })); },
   ai(){ return ai ? ai.stats() : null; },
   setAI(v){ return ai ? ai.setEnabled(v) : false; },
   food(){ return field && field.food ? field.food.stats() : null; },
@@ -3879,6 +4063,43 @@ window.__gummy = {
     if (!ai) return { ok:false, note:'meadow only' };
     return ai.debugConflict(bears[i], bears[j]);
   },
+  forceMate(i, j){
+    if (!ai) return { ok:false, note:'meadow only' };
+    return ai.debugMate(bears[i], bears[j]);
+  },
+  forceBirth(i){
+    const b = bears[i];
+    if (!b) return false;
+    b.pregnant = true;
+    b.gestation = 0;
+    b.birthRetryT = 0;
+    return tryBirth(b);
+  },
+  setAge(i, v){
+    const b = bears[i];
+    const n = Number(v);
+    if (!b || !Number.isFinite(n)) return false;
+    b.age = Math.max(0, n);
+    b.pendingStage = stageForAge(b.age);
+    return b.pendingStage;
+  },
+  setStage(i, stage){
+    const b = bears[i];
+    if (!b || !STAGE_ORDER.includes(stage)) return false;
+    b.age = ageForStage(stage);
+    if (b.grabs > 0 || b.airborne || b.inPond) { b.pendingStage = stage; return false; }
+    return applyBearStage(b, stage);
+  },
+  setPregnant(i, on, gestation = GESTATION_TIME){
+    const b = bears[i];
+    if (!b) return false;
+    b.pregnant = !!on;
+    b.gestation = b.pregnant ? Math.max(0, Number(gestation) || 0) : 0;
+    b.birthRetryT = 0;
+    return b.pregnant;
+  },
+  setCeiling(n){ setCeiling(Number(n), false); return bearCeiling; },
+  life(){ return { ...lifeStats, bears: bears.length }; },
   setBearState(i, state){
     const b = bears[i];
     if (!b || !ai || !isMeadow()) return { ok:false, note:'meadow only or no bear' };
