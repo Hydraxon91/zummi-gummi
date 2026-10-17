@@ -163,6 +163,7 @@ A continuous-integration smoke test also runs on every push and pull request (`.
 - **Phase 1 ✅** — movable cannon, placement validation, persistent position, 8-unit walls.
 - **Phase 2 ✅ (current scope)** — Grass Field default with Studio switch, sky/clouds/aurora/mist, reflective anime-lite pond, detailed Aero villas and Studio portal house, circular dirt-trail meadow, full-circle grass with close-up ground texture and Aero sheen, procedural hero trees, branched backdrop trees and bushes, shared wind, Wind/Meadow-detail controls, mixed starter colony, distant skyline/wind turbines, lit night fireflies, and Hide UI. Door openings are validated at 1.646 m against a 1.375 m adult bear. Studio modelling is queued as the parallel required track in the roadmap.
 - **Next** — Phase 3a: food registry/respawn, hunger, waddle locomotion and WANDER / SEEK_FOOD / EAT. Phase 6a is the reserved effects pass; Phase 7 is the opt-in WebGPU upgrade.
+- **Queued after the simulation** — Phase 8a persistence (IndexedDB save slots, JSON export/import, autosave, New Game), 8b bear directives the bears can refuse, 8c third-person possession, and Phase 9: a curated village placement editor, village homes/hub/naming and light jobs/shops. See [ROADMAP.md](ROADMAP.md).
 
 ## Known limitations
 

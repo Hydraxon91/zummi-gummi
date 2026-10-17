@@ -32,6 +32,9 @@ fireworks and cannon remain the foundation.
   claim as homes, return to at night or when hurt, sleep in, raise babies in and
   invite friends to. Houses are placed on validated lots with no clipping into
   the pond, trees/canopies, food, the cannon, each other or the field walls.
+- **Player agency is additive:** saves/New Game, bear directives (which a bear may
+  refuse) and a curated village placement editor sit on top of the autonomous
+  simulation; bears stay autonomous unless the player takes direct control of one.
 
 ## Architecture
 
@@ -75,6 +78,10 @@ src/ui.js / styles.css  Aero/MSN shell and HUD
 src/renderer.js         WebGL/WebGPU backend selection, capabilities, fallback
 src/studio-room.js      authored Studio lounge/bar/TV interaction surface
 assets/studio/          exported glTF/GLB room kit, collision proxies, credits
+src/save.js             IndexedDB slots, save format/migration, New Game
+src/player.js           bear selection, directives, possession camera/input
+src/editor.js           placement editor: ghost preview, validation, undo
+src/village.js          village homes, naming, hub/plaza, roles and shops
 src/app.js              orchestration only
 ```
 
@@ -95,6 +102,10 @@ rig and soft-body solver stay.
 | **6a** | **Effects pass before optimization:** improve shading/contact depth, SSAO, shadow maps, god rays, restrained bloom and a gentle color grade; scope/tuning to be discussed when the simulation is complete | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
 | **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
+| **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
+| **8b** (after 8a) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
+| **8c** (after 8b) | **Possession / third-person:** direct control of one bear with a follow camera and input-driven waddle; AI suspended for that bear only; grab/throw and a clean exit | Possessed movement is continuous (no jitter/NaN) and stays in the arena; exit returns the bear to AI in place with needs intact; the camera never clips ground or field walls; grabbing other bears still works |
+| **9** (after 8a) | **Village & placement editor:** player-authored meadow from the curated library on validated footprints — (9a) editor, (9b) village homes + naming + shared hub, (9c) light jobs and shops; every edit rebuilds nav and re-checks reachability | Zero overlaps and clear door approaches after any edit; no unreachable home or trapped bear in a placement stress test; a layout survives save/load; New Game returns the authored starter layout; a full village stays inside the Phase 6b frame budget |
 | **S — Studio modelling** (parallel, required; can run alongside 3–6) | Authored Studio interior/architecture: modular bar, lounge and giant Frutiger-Aero TV; Blender-to-glTF asset pipeline; evaluate Blender MCP as an authoring-time helper | Bar is interactable and navigable; TV lounge is visually complete; modular assets are exported to the repo with license/provenance, tested at bear scale, and integrated without a runtime MCP/Blender dependency |
 
 ## Status
@@ -122,6 +133,12 @@ rig and soft-body solver stay.
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
   assistant only; see the dedicated track below.
+- **Queued after the simulation (Phases 8–9):** 8a persistence (IndexedDB slots +
+  JSON export/import, New Game, autosave) starts once the Phase 5 life schema is
+  frozen, before the 6a/6b passes; 8b bear directives and 8c possession follow;
+  then 9a placement, 9b village homes/hub/naming and 9c jobs and shops. Phase 6b's
+  "full test suite" therefore also covers save/load, directives, possession and
+  placement/nav reachability.
 - **Later, opt-in:** Phase 6a is the effects pass (before Phase 6b optimization);
   Phase 7 adds the WebGPU renderer path, with WebGL2 as the fallback.
 
@@ -147,6 +164,13 @@ selector with cooldowns/hysteresis picks a state roughly once per second.
 | Seek home / Rest | night, low health, low energy | walk to the bear’s cottage door, enter, sleep and regen; window glows while occupied |
 | Woozy | health near zero | slow, safe food only, no hives/mating/conflict; returns home to recover |
 | Grow | passive age | baby → teen → adult; sparkle at stage-ups |
+
+**Directives (Phase 8b):** player commands — go to a point, eat a chosen food,
+sleep at home, follow the player, socialize with a chosen bear — enter the
+utility selector as high-priority, time-limited proposals instead of overriding
+it. The bear weighs them against its needs, personality, health and cooldowns and
+can refuse with a visible "no". Possession (8c) suspends the selector for the
+controlled bear only; every other bear keeps running its own.
 
 **Locomotion** is procedural: steering forces plus a waddle/lean cycle driven
 through the shape targets and tiny hops. No skeleton; the metaball jiggle does
@@ -193,7 +217,10 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
   - other cottages: sum of radii + 0.9 m,
   - cannon: reserved placement disc + 1.5 m,
   - food/decor: placed after homes and rejected if they enter any clearance,
-  - field walls: house + door approach + 1.6 m margin.
+  - field walls: house + door approach + 1.6 m margin,
+  - player-placed props (Phase 9): the same footprint + clearance rules as their
+    authored counterparts, plus a nav reachability re-check and an instanced-batch
+    rebuild on edit.
   Each cottage also reserves a clear **door approach wedge** (1.2 m) facing open
   ground. Every door is mounted on a shallow body-coloured entry drum so tall
   glazing stays flush to curved shells; the opening is validated at **1.646 m**
@@ -207,6 +234,8 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
 - **Tests:** assert houses are inside the field, every pair of footprints has
   positive separation, every door approach is clear, no food/tree/cannon overlaps
   a home, and residents are unique; a debug footprint overlay makes it visible.
+  After Phase 9, the same checks rerun on every placement and add a nav
+  reachability assertion: every door must still reach the hub.
 
 ## World, sky, pond, presentation
 
@@ -368,6 +397,114 @@ passes. WebGL2 remains the automatic fallback and a fully supported path.
   content, a UI rewrite, or removing the WebGL renderer. The upgrade is
   successful only if the meadow still feels and plays the same.
 
+## Persistence (Phase 8a)
+
+**A save is life state, not physics state.** For every bear it stores flavor, sex,
+age/scale, health, hunger and needs, personality, home/ownership, pregnancy and
+timers; per map the clock/speed/auto-cycle, cannon position and camera pose; the
+food registry with ripeness/respawn timers; and, once Phase 9 lands, the placed
+village layout. Physics bodies, metaball grids and meshes are **never**
+serialized — bears respawn from their life fields on load. That is why this
+phase starts after the Phase 5 schema freeze rather than during Phase 3.
+
+**Storage.** Named slots live in IndexedDB (`gummy.saves`, one record per slot)
+and can be exported to a `.json` file and imported back. Nothing leaves the
+machine, so the "no cloud saves/accounts" non-goal is unchanged. The existing
+`localStorage` preference keys (map, launcher, time) stay as the quick-resume
+path.
+
+**Slots and New Game.** 5 named slots plus one autosave slot; slots can be
+renamed, overwritten and deleted. New Game regenerates the authored starter
+colony (2 adult ♀, 2 adult ♂, one teen, one baby), the authored home lots, the
+default clock and the default camera, and never reuses leftover state.
+
+**Format.** Every save carries `version` and the map ids. Loading an older save
+runs a migration step or refuses with a visible message rather than half-loading.
+Saving captures the active map exactly and re-enters it on load, Studio included.
+
+**Acceptance:**
+
+- A save reloads both maps exactly: bear count, flavors, sexes, ages/scales,
+  health, needs, homes, food ripeness, clock, cannon and camera.
+- New Game restores the starter colony on both maps.
+- 5 slots + autosave coexist; rename/delete works; an export → import round trip
+  behaves identically.
+- A corrupt or incompatible save surfaces an error and leaves the running game
+  untouched.
+- `window.__gummy.save()/load()/slots()/newGame()` drive the checks headlessly.
+
+**Risks:** any life-schema change after Phase 5 invalidates old saves (the
+`version` field and a migration hook are the mitigation); IndexedDB is
+asynchronous, so load needs a loading state and must not race boot.
+
+## Player control (8b directives, 8c possession)
+
+Two stages, both reusing systems that already exist.
+
+**8b — directives.** Select a bear, then issue a command from a short panel:
+go to a point, eat that food, sleep at home, follow the player, socialize with
+another bear. A directive does not replace the AI — it enters the existing
+utility selector as a high-priority, time-limited proposal, and the bear may
+refuse. Refusal is decided by needs, personality (bold/shy), health, hysteresis
+and cooldowns, and it is visible: an accept nod or a "no" emote plus a status
+line. The queue is at most 3 deep and expires; the selector keeps authority, so
+a starving bear still abandons "follow me" to eat.
+
+**8c — possession.** Direct control of the selected bear: a third-person follow
+camera, WASD/arrow or on-screen stick locomotion feeding the existing waddle/lean
+cycle, grab/throw still on the pointer, and one key/button to exit. The AI is
+suspended for that bear only — the rest of the meadow keeps simulating — needs
+still tick, and exiting returns the bear to the selector in place. Reuse the
+existing pointer picking and grab paths; do not add a second input stack.
+
+**Acceptance:** a directive visibly changes behaviour and a refusal is legible
+and explainable from the bear's state; directives survive save/load; possessed
+movement is continuous with no jitter/NaN and cannot leave the arena; the camera
+never clips ground or field walls; grabbing other bears still works while one is
+possessed; needs, health and the no-death rule are unchanged in both modes.
+
+## Village & placement editor (Phase 9)
+
+The player shapes the meadow from the curated library — the authored villa
+shells, trees, food and decor — rather than authoring new geometry. Each
+sub-phase ships on its own:
+
+| Sub-phase | Work | Done when |
+|---|---|---|
+| **9a — Placement editor** | Inspect mode with a ghost preview, rotate, valid/invalid tint, place/remove/undo; library of existing villa shells, tree types, food and decor; layout state in `world.js` and the save file | Every placement passes `validateLayout()` (bounds, pond edge + 1.2 m, tree canopy + 0.6 m, other homes + 0.9 m, cannon disc + 1.5 m, wall margin) and reserves a clear door approach; invalid previews say why; undo restores the previous layout |
+| **9b — Village homes, naming, hub** | Player-placed homes join the home pool and can be claimed; village/bear naming; a shared hub — plaza, connecting paths, well/fountain — bears gather at | A placed home is claimed, slept in and shows the occupancy glow; paths connect the hub to homes and the hub is reachable from every door; naming persists through save/load |
+| **9c — Light jobs and shops** | Roles for adult bears (shopkeeper at the hub, gardener, baker) with a small stock loop and daytime stalls | A bear holds a role, opens its stall in daylight, and the loop reads as village life without breaking needs, mating or performance |
+
+**Collision and nav are the contract, not a follow-up.** Every placement goes
+through the same exclusion map and footprint + clearance rules in
+`## Homes & no-clipping`, and must then:
+
+- rebuild/extend the nav mesh for the changed footprint on edit only — never per
+  frame,
+- reject a placement or removal that disconnects any home's door approach from
+  the hub or traps a bear in a pocket (a reachability check, not just overlap),
+- keep the instanced/batched prop structure — placed props join the existing
+  batches and geometry is rebuilt on edit,
+- reserve nothing that blocks the cannon placement disc or the pond shoreline.
+
+**Acceptance:** zero overlaps and clear doors after any edit sequence; no
+unreachable home or trapped bear in a randomized placement stress test; a village
+layout round-trips through save/load; New Game returns the authored starter
+layout; frame time after a fully built village stays inside the Phase 6b budget
+(measure, don't assume).
+
+**Still deferred:** freeform/room-by-room building (walls, floors, roofs) and
+modelled interiors; the editor places authored units only.
+
+## Jobs & shops (Phase 9c, scope note)
+
+This is the largest Phase 9 item and is deliberately last, because it adds needs
+and AI states on top of the Phase 3–5 simulation. Scope assumed: roles for adult
+bears, a stall at the village hub, a small stock/consumption loop and a daytime
+schedule. **Open decision — not settled here:** whether shops use a currency
+(coin/barter loop with a HUD counter) or stay an abstract stock swap between
+bears and stalls. Decide when 9c is scheduled; 9a and 9b do not depend on it.
+
 ## Tuning defaults (subject to playtesting)
 
 - Day 10 min; growth 6–8 min; world speed 1×/2×/4×.
@@ -379,6 +516,11 @@ passes. WebGL2 remains the automatic fallback and a fully supported path.
 - 8 Aero villas × 3–4 residents; door approach 1.2 m; house-to-house clearance 0.9 m.
 - Night sleep window 20:00–06:00 (bears leave as the sky brightens); low-health
   returns can happen at any time.
+- Saves: 5 named slots + 1 autosave; autosave every 2 in-game minutes and on
+  nightfall.
+- Village: up to 8 player-placed homes on top of the authored 8; placed props
+  count against the existing field prop/instance budget.
+- Directives: at most 3 queued commands, each expiring after ~45 s.
 
 ## Studio modelling track (parallel, required)
 
@@ -452,8 +594,11 @@ These are must-have Studio requirements. The references are saved locally in
 
 - No death, predation or combat beyond food shoving.
 - No bear migration between maps (each world is independent).
-- No multiplayer, accounts or cloud saves.
+- No multiplayer, accounts or cloud saves; saves are local-only (IndexedDB slots
+  plus JSON export/import).
 - No full skeletal animation; locomotion remains procedural soft-body movement.
 - Swimming is a recovered float, not free swimming.
-- No player house-building/decorating yet; cottages use authored lots. Interiors
-  are implied (door entry + window glow), not fully modeled walk-in rooms.
+- No freeform building kit: the Phase 9 editor places authored units (villa
+  shells, trees, food, decor) on validated footprints, not player-drawn
+  walls/floors/roofs. Interiors stay implied (door entry + window glow), not
+  modeled walk-in rooms.
