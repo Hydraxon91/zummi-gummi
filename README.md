@@ -6,6 +6,8 @@ The meadow chapter is playable: a circular Bliss-style meadow with a continuous 
 
 ## Launch it
 
+Play the current `main` build in a browser: <https://hydraxon91.github.io/zummi-gummi/>. Or run it locally:
+
 Double-click the launcher for your system:
 
 | System | File |
