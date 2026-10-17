@@ -53,6 +53,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
       faceYaw: null,
       hopState: null,
       hopWait: 0,
+      turnWait: 0,
       eatT: 0,
       drinkT: 0,
       animT: 0,
@@ -85,6 +86,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     b.ai.arrived = false;
     b.ai.hopState = null;
     b.ai.hopWait = 0;
+    b.ai.turnWait = 0;
     b.ai.faceYaw = null;
     b.ai.path = null;
     b.ai.pathIndex = 0;
@@ -95,8 +97,11 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
   function onRelease(b) {
     if (!b.ai) return;
     b.ai.nextThink = 0;
+    b.ai.arrived = false;
     b.ai.hopState = null;
     b.ai.hopWait = 0;
+    b.ai.turnWait = 0;
+    b.ai.faceYaw = null;
   }
 
   function detach(b) {
@@ -116,8 +121,12 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
         if (!b.active || !b.ai) continue;
         releaseFood(b);
         b.ai.moving = false;
+        b.ai.arrived = false;
         b.ai.path = null;
         b.ai.hopState = null;
+        b.ai.hopWait = 0;
+        b.ai.turnWait = 0;
+        b.ai.faceYaw = null;
       }
     }
     return enabled;
@@ -476,6 +485,7 @@ export function createBearAI({ field, getBears, rng = Math.random } = {}) {
     b.ai.arrived = false;
     b.ai.hopState = null;
     b.ai.hopWait = 0;
+    b.ai.turnWait = 0;
     b.ai.faceYaw = null;
     b.ai.path = null;
     b.ai.pathIndex = 0;

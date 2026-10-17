@@ -96,7 +96,7 @@ rig and soft-body solver stay.
 | **1 ✅** | Movable cannon + taller/larger walls on the Studio (quick playable win) | Cannon can be dragged/moved with validation; it stays in bounds; max-power shots are contained; aim/fire still work |
 | **2 ✅** | Grass Field, sky, pond, Aero shell, map switcher; field default; **mixed starter colony (2 adult ♀, 2 adult ♂, 1 teen, 1 baby)**; **rounded white/aqua Aero villas on validated home lots**; **distant Frutiger-Aero skyline + three-blade wind turbines**; pond splash/buoyancy; **procedural gummy-tree replacement with rounded leafy puffs/fruit/hives; shared travelling wind for trees + grass; Wind and Meadow-detail controls; procedural clouds, aurora and sporadic morning mist**; **circular wobbled-disc playfield, wandered dirt trails, full-circle grass, branched backdrop trees/bushes and anime-lite water**; **Hide UI** | Both maps load and switch with independent state; field has grass/trees/flowers/pond/sky/villas; no layout overlaps; day/night slider and dawn look work; pond reflects sun/moon and splashes; trees use the fixed TREE_LOTS/colliders with merged foliage batches and no per-frame CPU branch loops; one shared gust visibly crosses grass and trees; night sky shows aurora; starting colony has the four adults, teen and baby; villa silhouettes are distinct without changing their lots; skyline/windmills read as distant scenery; 16/16 self-test, mobile layouts, layout and map-switch checks pass; circular camera/containment and UI hide checks pass |
 | **3a ✅** | Food registry/respawn, hunger, thirst, hop locomotion, WANDER / SEEK_FOOD / EAT / SEEK_WATER / DRINK | Bears autonomously get hungry or thirsty, hop to safe food or the pond shore, eat/drink, and food regrows; grab/throw interrupts and resumes the task; no stuck/NaN/perf regressions |
-| **3b** | Hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | Bees can sting; bears avoid hives below the threshold; health regenerates; hurt/tired bears return to their home and recover; no death |
+| **3b** | **3b.0 hop pose/takeoff polish** (level crouch/air target with a small forward lean, upright takeoff gate, transient AI reset); hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | AI hops stay close to upright through takeoff, apex and landing; player throws still tumble freely; then bees can sting, bears avoid hives below the threshold, health regenerates, hurt/tired bears return home and recover, with no death |
 | **4** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection, **home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit homes; MSN-style statuses update |
 | **5** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
 | **6a** | **Effects pass before optimization:** improve shading/contact depth, SSAO, shadow maps, god rays, restrained bloom and a gentle color grade; scope/tuning to be discussed when the simulation is complete | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
@@ -135,8 +135,14 @@ rig and soft-body solver stay.
   their task while grabbed or thrown. The Studio remains AI-free. Headless QA
   covered hop airtime, unique claims, eating, drinking, respawn, throw/resume,
   Studio suppression and a 20-bear stress run with no NaN or stuck states.
-- **Next:** add voluntary pond play/swimming, then Phase 3b — hives, health,
-  home return and night sleep.
+- **Phase 3b.0 complete:** travelling AI hops now use a level crouch/air target
+  pose with a ~10° forward lean, and takeoff waits for the measured body to be
+  upright. Headless sampling found no airborne ticks below 0.955 measured body
+  up (~17°), with the visible pose capped at 10°; smoke, Phase 3a QA and side
+  captures pass. Transient `arrived` / `turnWait` / `faceYaw` / hop timing state
+  is now cleared on disable, grab and release.
+- **Next:** add voluntary pond play/swimming, then continue Phase 3b with hives,
+  health, home return and night sleep.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
@@ -185,9 +191,13 @@ controlled bear only; every other bear keeps running its own.
 **Locomotion** is procedural directional hopping: a crouch/anticipation, a
 forward impulse with a small vertical lift, a grounded turn toward the next
 waypoint, and a landing settle. There is no continuous drive and no skeleton;
-the metaball jiggle does the acting. Bears pause their AI while grabbed or
-airborne, release food claims on a grab, and resume/retarget after release or a
-throw. The same interruption hook is the contract for future partner states.
+the metaball jiggle does the acting. Travelling AI hops use a level target pose
+with a small (~10°) forward lean, and only launch once the measured body is
+upright enough; this keeps takeoff, airtime and landing from retaining a
+slouched pose. Player-carried and thrown bears keep their ballistic
+orientation. Bears pause their AI while grabbed or airborne, release food claims
+on a grab, and resume/retarget after release or a throw. The same interruption
+hook is the contract for future partner states.
 
 **Navigation:** open-field steering with separation, obstacle avoidance (pond,
 trees, cottages, cannon, arena bounds), stuck detection, and no per-frame
@@ -197,12 +207,6 @@ through a wall. AI ticks at 5–10 Hz, staggered across bears.
 **Known follow-ups after the Phase 3a motion pass** — recorded for later, not
 current blockers:
 
-- **Transient AI state is not fully reset by every lifecycle path.** In
-  particular, `setEnabled(false)` and `onRelease` do not clear every transient
-  field (`arrived`, `turnWait`, and in some paths `faceYaw`). Re-enabling AI or
-  releasing a throw can therefore cause one stale idle beat or skip the
-  pre-hop turn for a single hop. Audit and centralise the reset with the
-  existing hop/task reset helpers.
 - **Interaction facing is latched at start/resume.** `startEat` / `startDrink`
   set `faceYaw`, but it is not re-aimed every tick while interacting. If a bear
   is pushed or drifts while eating/drinking, it can keep facing the original
@@ -230,6 +234,12 @@ current blockers:
 - **Arrival is app-owned.** `updateAiLocomotion` sets `arrived` when it reaches
   the final waypoint; `thinkWander` consumes it. Any future locomotion path
   that finishes differently must set or centralise that flag.
+
+Fixed in 3b.0: AI hop targets now level the crouch/air pose to a small forward
+lean and takeoff waits for an upright body, rather than carrying a slouched
+pitch through the arc. `setEnabled(false)`, `onGrab` and `onRelease` also clear
+`arrived`, `turnWait`, `faceYaw` and hop timing so a re-enabled or thrown bear
+cannot inherit a stale idle beat or skip a pre-hop turn.
 
 Already fixed in the motion pass: `idleT` previously never decremented (which
 could strand a bear in idle after its first task), the old face bias was too weak

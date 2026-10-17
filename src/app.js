@@ -450,8 +450,8 @@ function removeBear(b){
 function despawnAll(){ while (bears.length) removeBear(bears[0]); }
 
 /* ================================ PHYSICS ================================= */
-const _up = new THREE.Vector3(), _yawAxis = new THREE.Vector3(0,1,0);
-const _rmQ = new THREE.Quaternion(), _qYaw = new THREE.Quaternion();
+const _up = new THREE.Vector3(), _yawAxis = new THREE.Vector3(0,1,0), _pitchAxis = new THREE.Vector3(1,0,0);
+const _rmQ = new THREE.Quaternion(), _qYaw = new THREE.Quaternion(), _qPitch = new THREE.Quaternion();
 const A3 = new Float64Array(9), R3 = new Float64Array(9), T3 = new Float64Array(9);
 
 function matMul(out, a, b){
@@ -527,6 +527,19 @@ function poseAndTargets(b, dt){
       _qYaw.setFromAxisAngle(_yawAxis, yaw);
       _rmQ.slerp(_qYaw, 1 - Math.exp(-(b.grabs > 0 ? 2.2 : 1.0)*dt*(upY > 0.55 ? 1.3 : 1.0)));
     }
+  }
+  // A travelling AI hop gets a level target pose with a small forward lean.
+  // The contact-gated righting below is deliberately off in the air, so without
+  // this the measured takeoff/landing pitch would persist through the whole arc
+  // and make the bear look hunched over. Only the AI hop owns this pose; tossed
+  // and carried bears keep their ballistic orientation.
+  const aiHopping = b.ai && b.grabs === 0 && !b.inPond &&
+      (b.ai.hopState === 'crouch' || b.ai.hopState === 'air' || b.ai.hopState === 'settle');
+  if (aiHopping){
+    const yaw = yawOfQuat(b.q);
+    _qYaw.setFromAxisAngle(_yawAxis, yaw);
+    _qPitch.setFromAxisAngle(_pitchAxis, AI_HOP_LEAN);
+    _rmQ.copy(_qYaw).multiply(_qPitch);
   }
   // AI bears face their next hop; while an AI hop is airborne they may still
   // correct heading, but at a slower rate. Grabbed, carried and thrown bears
@@ -2427,6 +2440,8 @@ const AI_HOP_SETTLE = 0.16;
 const AI_HOP_VERTICAL = 2.90;
 const AI_HOP_SPEED_MIN = 0.80;
 const AI_HOP_SPEED_MAX = 1.65;
+const AI_HOP_MIN_UP = 0.86;
+const AI_HOP_LEAN = 10 * Math.PI / 180;
 const AI_FACE_RATE_GROUND = 9.0;
 const AI_FACE_RATE_AIR = 4.0;
 const AI_TURN_WAIT = 0.75;
@@ -2473,7 +2488,7 @@ function updateAiLocomotion(dt) {
       if (a.hopWait > 0) continue;
       a.hopState = null;
     }
-    if (b.airborne || b.contacts === 0 || b.rMat[4] < 0.62) continue;
+    if (b.airborne || b.contacts === 0 || b.rMat[4] < AI_HOP_MIN_UP) continue;
 
     const p = aiRoutePoint(b);
     if (!p) { a.moving = false; continue; }
