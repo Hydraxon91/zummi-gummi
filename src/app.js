@@ -4,6 +4,7 @@ import { createSky } from './sky.js';
 import { buildField, POND_HOLE, POND } from './field.js';
 import { createBearAI } from './ai.js';
 import { createAIDebug } from './aidebug.js';
+import { createEffects } from './effects.js';
 import {
   HOME_CAPACITY, MATE_COOLDOWN, GESTATION_TIME, MATE_FOOD_MIN, STAGE_ORDER,
   advanceAge, advanceGestation, ageForStage, scaleForStage, stageForAge,
@@ -18,6 +19,7 @@ let field = null;
 let sky = null;
 let ai = null;
 let aiDebug = null;
+let effects = null;
 let studioReturnPortal = null;
 const fieldColliderHandles = [];
 const cannonColliderHandles = { studio: -1, field: -1 };
@@ -1602,6 +1604,12 @@ function drawStudioShadows(){
 /* =============================== VIEW / QUALITY ============================ */
 const quality = { dpr:2, grid:42, shadowEvery:1, transmission:0.5, dispersion:true, snap:true, level:0 };
 const surfaceStats = { built:0, builtMs:0, crowdGrid:42 };
+let effectsMode = 'soft';
+try {
+  const saved = localStorage.getItem('gummy.effects');
+  if (saved === 'off' || saved === 'soft' || saved === 'full') effectsMode = saved;
+  else if (matchMedia('(pointer: coarse)').matches || innerWidth < 720) effectsMode = 'off';
+} catch (err) {}
 const LEVELS = [
   { dpr:2.0,  grid:42, shadowEvery:1, transmission:0.50, dispersion:true,  snap:true  },
   { dpr:1.75, grid:36, shadowEvery:1, transmission:0.50, dispersion:true,  snap:true  },
@@ -1613,6 +1621,11 @@ function applyQuality(){
   quality.grid=q.grid; quality.shadowEvery=q.shadowEvery; quality.transmission=q.transmission; quality.dispersion=q.dispersion; quality.snap=q.snap;
   setPixelRatioBudget();
   if ('transmissionResolutionScale' in renderer) renderer.transmissionResolutionScale = q.transmission;
+  if (effects){
+    effects.setQuality(quality.level);
+    effects.resize(innerWidth, innerHeight);
+    syncEffectsUI();
+  }
   for (const m of [...FLAVOR_MATS, ...customMats.values()]){
     if ('dispersion' in m){
       const v = q.dispersion ? 0.018 : 0;
@@ -1664,6 +1677,7 @@ function onResize(){
   const w = innerWidth, h = innerHeight;
   setPixelRatioBudget();
   renderer.setSize(w, h, false);
+  if (effects) effects.resize(w, h);
   camera.aspect = w/Math.max(1,h);
   camera.updateProjectionMatrix();
   fitView();
@@ -2310,6 +2324,7 @@ const canopyFullnessEl = document.getElementById('canopyFullness');
 const leafSizeEl = document.getElementById('leafSize');
 const grassCoverageEl = document.getElementById('grassCoverage');
 const grassDistanceEl = document.getElementById('grassDistance');
+const effectsLevelEl = document.getElementById('effectsLevel');
 const meadowMoodEl = document.getElementById('meadowMood');
 let buddySig = '';
 let lastBuddyStatusTick = 0;
@@ -2575,6 +2590,32 @@ function applyNatureUI() {
 }
 for (const el of [canopyFullnessEl, leafSizeEl, grassCoverageEl, grassDistanceEl]) {
   if (el) el.addEventListener('input', applyNatureUI);
+}
+function syncEffectsUI(){
+  if (!effectsLevelEl) return;
+  effectsLevelEl.value = effectsMode;
+  if (effects){
+    const state = effects.state();
+    effectsLevelEl.title = state.active !== state.requested
+      ? `Active: ${state.active} (quality fallback)`
+      : '';
+  }
+}
+function applyEffectsUI(){
+  if (effects){
+    effects.setMode(effectsMode);
+    effects.setQuality(quality.level);
+  }
+  syncEffectsUI();
+}
+if (effectsLevelEl) {
+  effectsLevelEl.value = effectsMode;
+  effectsLevelEl.addEventListener('change', () => {
+    effectsMode = ['off', 'soft', 'full'].includes(effectsLevelEl.value)
+      ? effectsLevelEl.value : 'soft';
+    try { localStorage.setItem('gummy.effects', effectsMode); } catch (err) {}
+    applyEffectsUI();
+  });
 }
 
 /* --------------------------- performance overlay -------------------------- */
@@ -3316,9 +3357,18 @@ function animate(now){
   perfLive.surfMs += ((tSurf1-tPhys1) - perfLive.surfMs)*0.08;
   perfLive.builds += (surfaceStats.built - perfLive.builds)*0.18;
 
-  renderer.render(scene, camera);
-  perfLive.calls = renderer.info.render.calls;
-  perfLive.tris = renderer.info.render.triangles;
+  if (effects){
+    effects.setEnabled(isMeadow());
+    if (sky) effects.setTimeOfDay(sky.hours);
+  }
+  const fxRendered = effects ? effects.render(dt) : false;
+  if (!fxRendered) renderer.render(scene, camera);
+  const renderStats = fxRendered && effects ? effects.stats() : {
+    calls: renderer.info.render.calls,
+    tris: renderer.info.render.triangles,
+  };
+  perfLive.calls = renderStats.calls;
+  perfLive.tris = renderStats.tris;
 
   // frame-time history for the perf sparkline
   frameHist[frameHistI] = dtMs;
@@ -3551,6 +3601,7 @@ function applyMapVisuals(id){
   }
   updateMapButtons();
   updateAeroVisibility();
+  if (effects) effects.setEnabled(!!meadow);
   if (aiDebug) aiDebug.onMapChanged();
 }
 
@@ -3727,8 +3778,21 @@ function fitWallsToTable(){
   }
 }
 (async function boot(){
+  try {
+    effects = createEffects({
+      renderer, scene, camera,
+      width: innerWidth, height: innerHeight,
+    });
+    effects.setMode(effectsMode);
+    effects.setQuality(quality.level);
+  } catch (err) {
+    console.warn('[effects] post-processing unavailable, using direct render:', err);
+    effects = null;
+  }
+  syncEffectsUI();
   onResize();
   applyQuality();
+
   PHYS = await initPhysics(24 * BEAR_HARD_MAX, { x: 0, y: GRAV, z: 0 });
   ensureMeadow();
   ai = createBearAI({
@@ -3817,6 +3881,7 @@ window.__gummy = {
   rig: { rest: Array.from(REST), parent: Array.from(PARENT), parentLen: Array.from(PARENT_LEN), comY: REST_COM_Y }, get bounces(){ return bounces; },
   stats(){
     let nan=false, minY=1e9, maxY=-1e9, maxXZ=0, verts=[], stretch=1, syMin=9, syMax=-9, sxMin=9, sxMax=-9, built=surfaceStats.built||0;
+    const fx = effects && effects.enabled ? effects.stats() : null;
     for (const b of bears){
       verts.push(b.vertCount);
       stretch = Math.max(stretch, b.stretch);
@@ -3831,7 +3896,8 @@ window.__gummy = {
     return { nan, bears:bears.length, bounces, activeGrabs:grabs.size, stretchShown:+stretchShown.toFixed(2), minY, maxY, maxXZ, verts, stretch, sy:[+syMin.toFixed(2),+syMax.toFixed(2)], sx:[+sxMin.toFixed(2),+sxMax.toFixed(2)],
              builtThisFrame:built, fps:Math.round(fpsEma), frameMs:+frameMsEma.toFixed(2),
              table:{hx:+TABLE.hx.toFixed(2),hz:+TABLE.hz.toFixed(2)}, dpr:renderer.getPixelRatio(), quality:quality.level,
-             calls:renderer.info.render.calls, tris:renderer.info.render.triangles };
+             calls:fx ? fx.calls : renderer.info.render.calls,
+             tris:fx ? fx.tris : renderer.info.render.triangles };
   },
   pour: pourBears,
   drop(f){ dropFromAbove(f===undefined?0:f); },
@@ -4099,6 +4165,25 @@ window.__gummy = {
     return b.pregnant;
   },
   setCeiling(n){ setCeiling(Number(n), false); return bearCeiling; },
+  setEffects(mode){
+    effectsMode = ['off', 'soft', 'full'].includes(mode) ? mode : 'soft';
+    try { localStorage.setItem('gummy.effects', effectsMode); } catch (err) {}
+    applyEffectsUI();
+    return effects ? effects.state() : null;
+  },
+  effectsState(){ return effects ? effects.state() : null; },
+  setEffectsBloom(v){ return effects ? effects.setBloomScale(v) : null; },
+  setEffectsExposure(v){ return effects ? effects.setExposureScale(v) : null; },
+  renderProbe(frames = 30){
+    const n = Math.max(1, frames | 0);
+    const gl = renderer.getContext();
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) {
+      if (!(effects && effects.render(0.016))) renderer.render(scene, camera);
+      gl.finish();
+    }
+    return { frames:n, msPerFrame:+((performance.now() - t0) / n).toFixed(2) };
+  },
   life(){ return { ...lifeStats, bears: bears.length }; },
   setBearState(i, state){
     const b = bears[i];

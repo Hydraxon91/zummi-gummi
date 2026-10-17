@@ -73,6 +73,7 @@ src/field.js            grass, trees, flowers, props, 2D obstacles
 src/food.js             food sources, ripeness, claims, respawn
 src/life.js             stage/age rules, courtship/birth gates, inheritance
 src/ai.js               needs, state machine, steering, invites, conflict, mate, follow, emotes
+src/effects.js          optional meadow composer: grade, bloom, GTAO, SMAA
 src/launcher.js         cannon build/move/aim/fire
 src/ui.js / styles.css  Aero/MSN shell and HUD
 src/renderer.js         WebGL/WebGPU backend selection, capabilities, fallback
@@ -99,7 +100,7 @@ rig and soft-body solver stay.
 | **3b ✅** | **3b.0 hop pose/takeoff polish** (level crouch/air target with a small forward lean, upright takeoff gate, transient AI reset, per-bear hop-pace range (inherited in Phase 5)); hives, health, sting/risk logic, rest/recover/woozy, **home return + night sleep**, health UI | AI hops stay close to upright through takeoff, apex and landing; player throws still tumble freely; bees can sting, bears avoid hives below the threshold, health regenerates, hurt/tired bears return home and recover, with no death |
 | **4 ✅** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection/bonds, **door-level home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit a villa doorway; MSN-style statuses update |
 | **5 ✅** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
-| **6a** | **Effects pass before optimization:** improve shading/contact depth, SSAO, shadow maps, god rays, restrained bloom and a gentle color grade; scope/tuning to be discussed when the simulation is complete | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
+| **6a core ✅** | **Effects pass before optimization:** gentle color grade, restrained thresholded bloom, SMAA and high-tier GTAO contact AO; true god rays and dynamic sun shadow maps deferred | Effects are optional/tiered, preserve readable UI/transmission, and are profiled before Phase 6b commits to them |
 | **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
 | **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
@@ -177,7 +178,19 @@ rig and soft-body solver stay.
   natural/forced courtship, pregnancy, birth, cap blocking, flavor/pace
   inheritance, baby following, family homes and life-state map persistence with
   no page errors.
-- **Next:** add voluntary pond play/swimming, then the Phase 6a effects pass.
+- **Phase 6a core complete:** the meadow has an optional composer with **Off / Soft /
+  Full** selection persisted locally. Soft adds a gentle time-of-day grade and
+  restrained thresholded bloom; Full adds GTAO contact AO on the high tier.
+  SMAA replaces the composer's multisample target so AO and the final sRGB output
+  stay stable. Studio remains on the direct renderer. The stack preserves the
+  existing transmission and planar-reflection passes, uses half-resolution AO
+  and bloom, and exposes `setEffects` / `effectsState` / `setEffectsBloom` /
+  `setEffectsExposure` for headless checks. The post stack tone-maps sky/cloud
+  materials that bypass ACES in the direct path, so the optional tiers have a
+  slightly softer sky. True god rays and dynamic sun shadow maps are deferred
+  until a measured comparison against the baked/contact-shadow baseline.
+- **Next:** add voluntary pond play/swimming, then the Phase 6b effects/profile
+  pass.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
@@ -363,6 +376,25 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **The life schema is now the Phase 8a freeze point.** Any further change to
   `age`, stages, pregnancy, parent uids or inheritance should add a save migration.
 
+**Known follow-ups after Phase 6a core** — recorded for later:
+
+- **The composed frame tone-maps sky/clouds that bypass ACES in the direct path.**
+  Soft/Full therefore have a slightly softer, brighter sky; mood exposure and
+  the display-space grade keep it within the Aero palette. A depth/mask output
+  pass is the clean future fix if exact Off/Soft parity is required.
+- **GTAO is the expensive tier and is opt-in.** Full AO is half-resolution with
+  eight samples and Poisson denoise; the quality governor may fall back to Soft
+  or Off. Phase 6b owns the full 40-bear effect profile and final defaults.
+- **The composer uses SMAA rather than multisampled AO targets.** A multisampled
+  composer target plus GTAO produced an unreliable/black headless path; SMAA is
+  the stable path. Re-test MSAA on hardware before changing this.
+- **True god rays and dynamic sun shadow maps remain deferred.** The existing
+  baked/blob shadows and planar reflection already carry the stylized depth; add
+  these only after a measured comparison, not as a default.
+- **Effect timing is not a final frame-rate claim.** The headless effect probe is
+  noisy and GPU-async; Phase 6b must profile Off/Soft/Full at 6/20/40 bears and
+  record the method before committing to defaults.
+
 ## Health, hives, mating
 
 - Health 0–100. Base regen ~0.6/min; resting/napping ~4/min; starving slowly
@@ -425,6 +457,31 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   so a full 40-bear field uses shared overflow homes.
 - Interiors/a modelled nursery remain later work; family life currently uses the
   existing villa door/sleep path and the buddy status list.
+
+## Effects & post stack
+
+- **Off / Soft / Full** is a local preference in Meadow detail. Soft is the
+  desktop default; Off is the low-width/coarse-pointer default. Studio always
+  uses the direct renderer so its editorial white-table look stays crisp.
+- **Soft:** half-resolution thresholded bloom + a gentle time-of-day grade + SMAA.
+  The grade is applied after the output/color-space pass, so its saturation,
+  contrast, lift and vignette operate in display space. Bloom strength/emissive
+  threshold and exposure are time-of-day interpolated.
+- **Full:** adds GTAO contact AO on the high quality tiers, with half-resolution
+  AO targets and Poisson denoise. It is deliberately opt-in because GTAO is the
+  expensive tier; the quality governor can fall back to Soft/Off.
+- **Deferred:** true screen-space god rays and dynamic sun shadow maps. The
+  meadow already uses baked static/blob shadows and a planar pond reflection;
+  adding these without a measured comparison would risk fighting the stylized
+  depth and the 40-bear budget.
+- **Known tone-map difference:** three's direct path leaves `toneMapped:false`
+  sky/cloud materials untonemapped, while `OutputPass` tone-maps the composed
+  frame. The mood exposure and display-space grade keep this subtle, but a
+  depth/mask output pass is the cleaner future fix.
+- **Testing:** Off/Soft/Full persistence, day/night captures, Studio direct
+  rendering, transmission/reflection parity and no page errors are checked
+  headlessly. Effect timing is not yet a final frame profile; Phase 6b owns the
+  full 40-bear measurement.
 
 ## Homes & no-clipping
 
@@ -516,8 +573,8 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   the editorial skin. A persistent Hide UI control (and `U`)
   clears every overlay on desktop and phone while leaving a restore button.
   The field-only AI debug panel (and `G`) exposes needs, forced states and a
-  selected-bear planned-route overlay; Studio hides it. Keep contrast, focus and
-  keyboard use.
+  selected-bear planned-route overlay; Studio hides it. Meadow detail also has
+  the Off/Soft/Full **Effects** selector. Keep contrast, focus and keyboard use.
 
 ## Performance & testing
 
@@ -766,6 +823,9 @@ bears and stalls. Decide when 9c is scheduled; 9a and 9b do not depend on it.
   occupied villa); door approach 1.2 m; house-to-house clearance 0.9 m.
 - Night sleep window 20:00–06:00 (bears leave as the sky brightens); low-health
   returns can happen at any time.
+- Effects: **Soft** default on desktop, **Off** default on coarse-pointer/low
+  width; **Full** opt-in. Bloom is half-resolution and thresholded; GTAO is
+  half-resolution on the high tiers; SMAA handles edges.
 - Saves: 5 named slots + 1 autosave; autosave every 2 in-game minutes and on
   nightfall.
 - Village: up to 8 player-placed homes on top of the authored 8; placed props

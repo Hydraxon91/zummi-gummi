@@ -54,6 +54,7 @@ const modules = [
   "/src/food.js",
   "/src/life.js",
   "/src/ai.js",
+  "/src/effects.js",
   "/src/aidebug.js",
   "/src/sky.js",
   "/src/box3d.js",

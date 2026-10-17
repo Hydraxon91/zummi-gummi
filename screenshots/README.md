@@ -1,9 +1,10 @@
-# Phase 2–5 captures
+# Phase 2–6a captures
 
 Visual set from the running app (headless Chrome, 1440×900 unless noted). `00_`
 is retained as the pre-replacement baseline; everything else is the completed
 circular-meadow / dirt-trail / branched-backdrop pass plus the Phase 3a
-autonomous-behaviour, Phase 4 social and Phase 5 growth/family checks.
+autonomous-behaviour, Phase 4 social, Phase 5 growth/family and Phase 6a
+optional-effects checks.
 
 | file | view |
 |---|---|
@@ -39,6 +40,11 @@ autonomous-behaviour, Phase 4 social and Phase 5 growth/family checks.
 | `29_life_adult.webp` | adult-stage bear at 1.00 scale after the final growth transition |
 | `30_family_home.webp` | mother, father and newborn outside the family villa; baby Clover follows the family home |
 | `31_pregnancy.webp` | post-courtship capture with the mother’s “expecting a cub” status |
+| `32_effects_off.webp` | meadow with effects Off, the direct-renderer baseline |
+| `33_effects_soft.webp` | Soft effects close-up: gentle grade and restrained bloom with SMAA |
+| `34_effects_full.webp` | Full effects: Soft plus high-tier GTAO contact AO |
+| `35_effects_night.webp` | Full effects at night; villa lamps, fireflies and bears with bloom/AO |
+| `36_effects_control.webp` | Meadow-detail Effects selector (Off/Soft/Full) open with the scene live |
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
 the stable circular-pass reading was **32.1 ms / 565 calls / 3.67 M triangles**.
@@ -48,5 +54,7 @@ Grass fill/geometry remains the largest single GPU item. Phase 3a AI updates
 measured **0.007–0.045 ms per update** for six bears in headless QA; the Phase 4
 20-bear social/contention stress measured **0.028 ms**, and the Phase 5 20-bear
 life stress measured **0.06–0.12 ms**. Stage rebuilds are event-driven, not
-per-frame. The full frame profile has not been re-run. Full method and the
-earlier supplied baselines are in [../PERFORMANCE.md](../PERFORMANCE.md).
+per-frame. The Phase 6a effects stack is optional and tiered; Soft is the
+desktop default and Full (GTAO) is opt-in. Effect timing is not yet a final
+frame profile. Full method and the earlier supplied baselines are in
+[../PERFORMANCE.md](../PERFORMANCE.md).
