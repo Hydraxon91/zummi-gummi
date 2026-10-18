@@ -55,6 +55,16 @@ The earlier disappearing-card result did not establish causation; shader and
 visibility failures also affected those runs. `renderer.antialias` and the
 `Math.min(devicePixelRatio, 2)` cap are confirmed in `src/app.js`.
 
+Hero-tree foliage moved from 38.6k to 88.7k leaf cards at the peak of the
+lush-foliage pass (small-leaf procedural clusters, denser crowns, interior
+filler); grow-form archetypes later brought it to 72.8k. At the same 1440×900,
+DPR 1, quality 2, effects-off, tree-focused camera the 88.7k state measured
+**23.0–23.8 ms** versus **19.9–20.1 ms** before (five 60-frame runs after
+warm-up, ~+3.4 ms). A later re-measure was discarded: the machine was thermally
+throttled and the unmodified live build also read ~62–75 ms, so only
+same-session comparisons are meaningful. Re-profile the current build on an idle
+machine before quoting it.
+
 The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
 and the original supplied 37.1 ms baseline are retained below as historical
 comparisons; they describe earlier scene states, not the current disc.

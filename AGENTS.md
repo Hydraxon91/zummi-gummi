@@ -266,6 +266,12 @@ driving it.
   `git diff` on that file.
 - **After a dropped call, or when the user says "continue", verify state before acting.**
   Run `git status --short` and re-read every file you were mid-edit on.
+- **Tear down verification processes at the end of a pass.** Stop the headless browser,
+  capture harness and any temporary static server you started before reporting; do not leave
+  orphaned headless Chrome/Brave instances or temp servers holding GPU, CPU or battery. A
+  long-lived server is only acceptable while work is actively in progress, and the process
+  still running must be named in the report. Check with `pgrep -fl` before finishing, and
+  name any server you intentionally leave up (for example the user's `launch.py`).
 
 ## 12. Commit Discipline
 

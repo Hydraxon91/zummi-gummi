@@ -395,6 +395,30 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 
 **Known follow-ups after the effects pass** — recorded for later:
 
+- **Hero trees and bushes — lush-foliage pass, stage 2 implemented:** leaf cards
+  now carry a procedural cluster of ~58 small, randomly oriented leaves instead
+  of four oversized sprays. Trees gained clump-outward normals (55% mix) with a
+  per-leaf tilt, shared-sun wrap/backlit translucency, darker interiors and
+  interior filler cards that close crown see-through holes. Five grow-form
+  archetypes now vary the stand — mature, old (thick flared base, wide drooping
+  crown), slim (tall with a deliberately thin trunk base), young (short trunk,
+  small crown) — and each tree draws its own size and trunk girth inside its
+  kind's range, so two trees of one kind still differ. Trunk, crown, fill and
+  leaf scaling all follow the kind; trees 0 and 1 stay large because they
+  host the hives. Each tree also picks a colour family (mostly green, some
+  olive/yellow, rare gold). Bushes now use their own 30-leaf alpha-tested sprig
+  card (previously solid untextured leaf strips), placed as 13-14 outward-angled
+  sprays per lobe, with smaller and slightly darker lobes so the leaves define
+  the silhouette. 72.8k hero-tree leaf cards total. Headless 1440x900, DPR 1,
+  quality 2, effects off, tree-focused camera: **23.0–23.8 ms** at 88.7k cards
+  vs **19.9–20.1 ms** at the pre-pass baseline. A later re-measure of the
+  archetype/bush build was invalid: the machine was thermally throttled and the
+  unmodified live build also measured ~62–75 ms in the same window. Re-profile
+  on an idle machine before quoting a frame time for this state. Still
+  card-based: hard leaf edges when viewed edge-on and no leaf-level shadowing
+  remain; edge-on fading is a follow-up. Enlarged crowns keep trunk colliders
+  and nav unchanged; the widest crown reaches about 3.0x lot scale.
+  Distant backdrop trees and hill grass are untouched.
 - **White pond-adjacent grass clumps — fixed:** `meadowBankFringe` used the
   grass material without instance colours and placed pond-local coordinates in
   the world group. The main-grass-only audit missed this separate batch. It now

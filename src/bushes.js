@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { REFLECT_LAYER } from './sky.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
 const TAU = Math.PI * 2;
 
 function makeRand(seed) {
@@ -22,13 +23,67 @@ function makeRand(seed) {
 const leafGeo = (() => {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute([
-    0, 0, 0, -.26, .32, .04, .26, .32, .04,
-    -.17, .62, .06, .17, .62, .06, 0, .82, .08,
+    -.5, 0, 0,  .5, 0, 0,  -.5, 1, 0,  .5, 1, 0,
   ], 3));
-  g.setIndex([0, 1, 2, 1, 4, 2, 1, 3, 4, 3, 5, 4]);
+  g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 1, 1], 2));
+  g.setIndex([0, 2, 1, 1, 2, 3]);
   g.computeVertexNormals();
   return g;
 })();
+
+// Bush foliage gets its own leaf-cluster card: fewer, larger leaves than the
+// hero tree so the silhouette reads at bush scale. The map is near-white so the
+// per-instance bush tint still controls the colour.
+function bushLeafTexture() {
+  const S = 256;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, S, S);
+  const r = makeRand(6197);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const drawLeaf = (x, y, len, width, angle, shade) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(width * .84, -len * .22, width * .76, -len * .62, 0, -len);
+    ctx.bezierCurveTo(-width * .76, -len * .62, -width * .84, -len * .22, 0, 0);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, 0, 0, -len);
+    const lo = 206 + shade, mid = 232 + shade, hi = 246 + shade;
+    g.addColorStop(0, `rgb(${lo - 12},${lo + 8},${lo - 28})`);
+    g.addColorStop(.55, `rgb(${mid - 6},${mid + 10},${mid - 22})`);
+    g.addColorStop(1, `rgb(${hi},${hi + 4},${hi - 8})`);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(84,120,56,.20)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -len * .08);
+    ctx.quadraticCurveTo(width * .06, -len * .5, 0, -len * .93);
+    ctx.stroke();
+    ctx.restore();
+  };
+  const cx = .5, cy = .54;
+  for (let i = 0; i < 30; i++) {
+    const a = r() * Math.PI * 2;
+    const rad = Math.sqrt(r()) * (0.82 + r() * .22);
+    const x = cx + Math.cos(a) * rad * .34;
+    const y = cy + Math.sin(a) * rad * .38;
+    const angle = (r() < .7 ? r() * Math.PI * 2 : Math.atan2(x - cx, -(y - cy)) + (r() - .5) * .8);
+    const len = (.095 + r() * .095) * (1.08 - rad * .28);
+    drawLeaf(x * S, y * S, len * S, len * S * (.44 + r() * .14), angle, (r() - .5) * 18);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = 4;
+  return tex;
+}
 
 const branchGeo = (() => {
   const g = new THREE.CylinderGeometry(.10, .16, 1, 6);
@@ -45,19 +100,36 @@ const foliageUniforms = {
   uHigh: { value: new THREE.Color(0xc1df91) },
 };
 
-function foliageMaterial(side) {
+function foliageMaterial(side, leafNormals = false, map = null) {
   const m = new THREE.MeshLambertMaterial({ color: 0xffffff, side });
+  if (map) {
+    m.map = map;
+    m.alphaTest = .42;
+  }
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, foliageUniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 aBushCenter;\nattribute vec3 aBushTint;\nvarying vec3 vBushWorld;\nvarying vec3 vBushCenter;\nvarying vec3 vBushTint;')
+      .replace('#include <common>', '#include <common>\nattribute vec3 aBushCenter;\nattribute vec3 aBushTint;\nvarying vec3 vBushWorld;\nvarying vec3 vBushCenter;\nvarying vec3 vBushTint;'
+        + (leafNormals ? '\nattribute vec3 aLeafCenter;\nvarying vec3 vLeafOut;' : ''))
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vBushWorld = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
         vBushCenter = aBushCenter;
         vBushTint = aBushTint;
+        ${leafNormals ? `
+        // Point leaf cards away from their own foliage lobe so the sprays are
+        // lit as small clumps instead of flat triangles, matching the trees.
+        vec3 leafOut = normalize(vBushWorld - aLeafCenter + vec3(1e-4));
+        float leafTilt = (fract(sin(dot(aLeafCenter, vec3(12.9898, 78.233, 37.719))) * 43758.5453) - .5) * .5;
+        float leafC = cos(leafTilt), leafS = sin(leafTilt);
+        vLeafOut = normalize(mat3(modelViewMatrix) * vec3(
+          leafOut.x * leafC - leafOut.z * leafS,
+          leafOut.y,
+          leafOut.x * leafS + leafOut.z * leafC));
+        ` : ''}
       `);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uSunDir;\nuniform vec3 uShadow;\nuniform vec3 uLit;\nuniform vec3 uHigh;\nvarying vec3 vBushWorld;\nvarying vec3 vBushCenter;\nvarying vec3 vBushTint;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uSunDir;\nuniform vec3 uShadow;\nuniform vec3 uLit;\nuniform vec3 uHigh;\nvarying vec3 vBushWorld;\nvarying vec3 vBushCenter;\nvarying vec3 vBushTint;'
+        + (leafNormals ? '\nvarying vec3 vLeafOut;' : ''))
       .replace('#include <color_fragment>', `#include <color_fragment>
         vec3 d = normalize(vBushWorld - vBushCenter);
         float a = dot(d, uSunDir);
@@ -66,10 +138,14 @@ function foliageMaterial(side) {
         vec3 col = mix(uShadow, uLit, lit);
         col = mix(col, uHigh, hi * .55);
         col *= mix(vec3(1.0), vBushTint, .24);
-        diffuseColor.rgb = col;
-      `);
+        diffuseColor.rgb *= col;
+      `)
+      .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>'
+        + (leafNormals ? `
+        normal = normalize(mix(normal, normalize(vLeafOut), .50) + vec3(1e-4));
+        ` : ''));
   };
-  m.customProgramCacheKey = () => 'meadowBushFoliageV1';
+  m.customProgramCacheKey = () => leafNormals ? 'meadowBushLeavesV1' : 'meadowBushFoliageV1';
   return m;
 }
 
@@ -87,6 +163,15 @@ function addInstanceAttributes(mesh, parts) {
   mesh.geometry = mesh.geometry.clone();
   mesh.geometry.setAttribute('aBushCenter', new THREE.InstancedBufferAttribute(centers, 3));
   mesh.geometry.setAttribute('aBushTint', new THREE.InstancedBufferAttribute(tints, 3));
+  if (parts.some(p => p.clump)) {
+    const clump = new Float32Array(parts.length * 3);
+    for (let i = 0; i < parts.length; i++) {
+      clump[i * 3] = parts[i].clump.x;
+      clump[i * 3 + 1] = parts[i].clump.y;
+      clump[i * 3 + 2] = parts[i].clump.z;
+    }
+    mesh.geometry.setAttribute('aLeafCenter', new THREE.InstancedBufferAttribute(clump, 3));
+  }
 }
 
 export function createBushCollection({ lots }) {
@@ -140,29 +225,45 @@ export function createBushCollection({ lots }) {
           (rand() - .25) * .20 * s,
           (rand() - .5) * .34 * s
         ));
+        const lobeScale = new THREE.Vector3((.19 + rand() * .17) * s, (.17 + rand() * .15) * s, (.19 + rand() * .17) * s);
         lobes.push({
           m: new THREE.Matrix4().compose(
             p,
             new THREE.Quaternion().setFromAxisAngle(UP, rand() * TAU),
-            new THREE.Vector3((.26 + rand() * .25) * s, (.24 + rand() * .22) * s, (.26 + rand() * .25) * s)
+            lobeScale
           ),
-          c: green.clone().offsetHSL(0, .02, (rand() - .5) * .08),
+          c: green.clone().offsetHSL(0, .02, (rand() - .5) * .08).multiplyScalar(.90),
           center: crown,
         });
-        const leafCount = 1 + Math.floor(rand() * 2);
+        // Several sprigs per lobe cover it in small leaves. The card has to be
+        // large enough that its individual leaves read at bush scale: a small
+        // card made every leaf only a couple of centimetres wide and invisible.
+        const leafCount = 13 + (rand() < .4 ? 1 : 0);
         for (let lf = 0; lf < leafCount; lf++) {
+          const dir = new THREE.Vector3(rand() - .5, rand() - .52, rand() - .5).normalize();
+          const pos = p.clone().add(new THREE.Vector3(
+            dir.x * lobeScale.x * 1.00 + (rand() - .5) * .10 * s,
+            dir.y * lobeScale.y * 1.00 + (rand() - .5) * .08 * s,
+            dir.z * lobeScale.z * 1.00 + (rand() - .5) * .10 * s
+          ));
+          const q = new THREE.Quaternion().setFromUnitVectors(Z_AXIS, dir);
+          // Tilt away from the pure tangent plane: a card lying flat on the
+          // lobe is edge-on from the side and disappears. Angled sprigs read
+          // from every direction and catch the canopy gradient.
+          q.multiply(new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(rand() - .5, rand() - .5, rand() - .5).normalize(),
+            .35 + rand() * .65
+          ));
+          q.multiply(new THREE.Quaternion().setFromAxisAngle(Z_AXIS, rand() * TAU));
           leaves.push({
             m: new THREE.Matrix4().compose(
-              p.clone().add(new THREE.Vector3(
-                (rand() - .5) * .48 * s,
-                (rand() - .3) * .34 * s,
-                (rand() - .5) * .48 * s
-              )),
-              new THREE.Quaternion().setFromEuler(new THREE.Euler((rand() - .5) * 1.2, rand() * TAU, (rand() - .5) * 1.0)),
-              new THREE.Vector3(.24 * s, (.30 + rand() * .12) * s, .24 * s)
+              pos,
+              q,
+              new THREE.Vector3(.50 * s, (.54 + rand() * .12) * s, .50 * s)
             ),
             c: green.clone().offsetHSL(0, .01, (rand() - .5) * .09),
             center: crown,
+            clump: p,
           });
         }
       }
@@ -200,7 +301,7 @@ export function createBushCollection({ lots }) {
   lobeMesh.layers.enable(REFLECT_LAYER);
   group.add(lobeMesh);
 
-  const leafMesh = new THREE.InstancedMesh(leafGeo, foliageMaterial(THREE.DoubleSide), leaves.length);
+  const leafMesh = new THREE.InstancedMesh(leafGeo, foliageMaterial(THREE.DoubleSide, true, bushLeafTexture()), leaves.length);
   for (let i = 0; i < leaves.length; i++) leafMesh.setMatrixAt(i, leaves[i].m);
   leafMesh.instanceMatrix.needsUpdate = true;
   addInstanceAttributes(leafMesh, leaves);

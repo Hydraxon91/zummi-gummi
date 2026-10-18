@@ -79,57 +79,81 @@ function leafTexture() {
   c.width = c.height = S;
   const ctx = c.getContext('2d');
   ctx.clearRect(0, 0, S, S);
-  // One card is a small leaf spray: several leaves share a stem rooted at the
-  // card base, so a single card reads as attached foliage rather than a lone
-  // floating leaf. The alpha silhouette is generated procedurally.
-  const px = S * .5;
-  ctx.strokeStyle = 'rgba(255,255,255,.92)';
-  ctx.lineWidth = S * .012;
+  const r = makeRand(4813);
   ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(px, S * .96);
-  ctx.quadraticCurveTo(px - S * .02, S * .65, px, S * .35);
-  ctx.stroke();
+  ctx.lineJoin = 'round';
 
-  const drawLeaf = (x, y, len, width, angle) => {
+  // A card is a twiglet carrying many small, individual leaves rather than one
+  // oversized leaf spray. Small silhouettes read as foliage up close and
+  // average into a soft mass at distance, without extra card instances.
+  const drawLeaf = (x, y, len, width, angle, shade) => {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(width, -len * .32, width * .92, -len * .78, 0, -len);
-    ctx.bezierCurveTo(-width * .92, -len * .78, -width, -len * .32, 0, 0);
+    ctx.bezierCurveTo(width * .86, -len * .20, width * .78, -len * .62, 0, -len);
+    ctx.bezierCurveTo(-width * .78, -len * .62, -width * .86, -len * .20, 0, 0);
     ctx.closePath();
     const g = ctx.createLinearGradient(0, 0, 0, -len);
-    g.addColorStop(0, 'rgba(220,239,190,1)');
-    g.addColorStop(.55, 'rgba(250,255,232,1)');
-    g.addColorStop(1, 'rgba(255,255,246,1)');
+    const lo = 208 + shade, mid = 232 + shade, hi = 246 + shade;
+    g.addColorStop(0, `rgb(${lo - 14},${lo + 8},${lo - 30})`);
+    g.addColorStop(.55, `rgb(${mid - 6},${mid + 10},${mid - 24})`);
+    g.addColorStop(1, `rgb(${hi},${hi + 4},${hi - 10})`);
     ctx.fillStyle = g;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(94,138,66,.20)';
-    ctx.lineWidth = S * .0025;
+    // A light midrib and side veins give the small leaf some internal shape
+    // without a second texture or another draw call.
+    ctx.strokeStyle = 'rgba(88,126,60,.20)';
+    ctx.lineWidth = Math.max(1, S * .0016);
     ctx.beginPath();
-    ctx.moveTo(0, -len * .08);
-    ctx.quadraticCurveTo(width * .10, -len * .5, 0, -len * .94);
+    ctx.moveTo(0, -len * .06);
+    ctx.quadraticCurveTo(width * .07, -len * .52, 0, -len * .94);
     ctx.stroke();
-    for (let i = 1; i <= 3; i++) {
-      const yy = -len * (.18 + i * .18);
+    for (let i = 1; i <= 2; i++) {
+      const yy = -len * (.20 + i * .26);
       ctx.beginPath();
       ctx.moveTo(0, yy);
-      ctx.quadraticCurveTo(width * .32, yy - len * .07, width * .62, yy - len * .15);
+      ctx.quadraticCurveTo(width * .24, yy - len * .04, width * .46, yy - len * .11);
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(0, yy);
-      ctx.quadraticCurveTo(-width * .32, yy - len * .07, -width * .62, yy - len * .15);
+      ctx.quadraticCurveTo(-width * .24, yy - len * .04, -width * .46, yy - len * .11);
       ctx.stroke();
     }
     ctx.restore();
   };
 
-  drawLeaf(px, S * .35, S * .58, S * .30, -.05);
-  drawLeaf(px - S * .020, S * .52, S * .47, S * .26, -.78);
-  drawLeaf(px + S * .018, S * .52, S * .47, S * .26, .78);
-  drawLeaf(px, S * .72, S * .31, S * .18, .08);
+  const twig = (x0, y0, cx, cy, x1, y1, width) => {
+    ctx.strokeStyle = 'rgba(214,232,192,.85)';
+    ctx.lineWidth = width * S;
+    ctx.beginPath();
+    ctx.moveTo(x0 * S, y0 * S);
+    ctx.quadraticCurveTo(cx * S, cy * S, x1 * S, y1 * S);
+    ctx.stroke();
+  };
+  twig(.500, .985, .492, .780, .500, .560, .009);
+  twig(.494, .960, .400, .760, .360, .600, .006);
+  twig(.506, .950, .600, .750, .648, .585, .006);
+
+  // Scatter small leaves through an irregular elliptical cluster instead of
+  // combing them along one stem: every leaf points outward from the cluster
+  // centre with its own tilt, so a card reads as a soft puff of foliage.
+  const cx = .500, cy = .560;
+  const count = 58;
+  for (let i = 0; i < count; i++) {
+    const a = r() * Math.PI * 2;
+    const rad = Math.sqrt(r()) * (0.86 + r() * 0.20);
+    const x = cx + Math.cos(a) * rad * .345;
+    const y = cy + Math.sin(a) * rad * .385;
+    const dx = x - cx, dy = y - cy;
+    const radial = Math.atan2(dx, -dy);
+    // Mostly random orientations, with only a light nod outward. Biasing every
+    // leaf away from the cluster centre combed the canopy into one direction.
+    const angle = r() < .65 ? r() * Math.PI * 2 : radial + (r() - .5) * .9;
+    const len = (.070 + r() * .085) * (1.10 - rad * .22);
+    drawLeaf(x * S, y * S, len * S, len * S * (0.46 + r() * 0.14), angle, (r() - .5) * 18);
+  }
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -304,7 +328,7 @@ function windPrefix(attrs, mode) {
     attribute float aTreePhase;
     attribute float aBranchPhase;
     ${mode === 'leaf' || mode === 'fruit' || mode === 'hive' ? 'attribute vec3 aAnchor;' : ''}
-    ${mode === 'leaf' ? 'attribute float aFlutterPhase;' : ''}
+    ${mode === 'leaf' ? 'attribute float aFlutterPhase;\nattribute vec3 aLeafClump;\nvarying vec3 vLeafView;\nvarying vec3 vLeafOut;' : ''}
 
     vec3 treeWindAt(vec3 p, float flex, float treePhase, float branchPhase) {
       vec2 w = meadowWindVec(p.xz, branchPhase + treePhase * 0.73);
@@ -315,12 +339,17 @@ function windPrefix(attrs, mode) {
   `;
 }
 
-function makeWindMaterial(material, wind, mode, controls) {
+function makeWindMaterial(material, wind, mode, controls, sun = null) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, wind.uniforms);
     if (mode === 'leaf' && controls) {
       shader.uniforms.uLeafFullness = controls.fullness;
       shader.uniforms.uLeafScale = controls.scale;
+      if (sun) {
+        shader.uniforms.uSunDir = sun.uniforms.uSunDir;
+        shader.uniforms.uSunColor = sun.uniforms.uSunColor;
+        shader.uniforms.uSunIntensity = sun.uniforms.uSunIntensity;
+      }
     }
     shader.vertexShader = windPrefix(null, mode) + shader.vertexShader;
     if (mode === 'bark') {
@@ -356,13 +385,54 @@ function makeWindMaterial(material, wind, mode, controls) {
             float h = clamp(position.y, 0.0, 1.0);
             transformed.x += sin(uWindTime * 3.05 + aFlutterPhase + position.y * 2.4) * 0.052 * h;
             transformed.z += cos(uWindTime * 2.65 + aFlutterPhase * 1.3 + position.y * 1.9) * 0.032 * h;
+            vec4 leafWP = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+            vLeafView = cameraPosition - leafWP.xyz;
+            // Fan normals out of the clump, but keep a per-leaf tilt so the
+            // canopy does not become one smoothly-lit sphere.
+            vec3 leafOutW = normalize(leafWP.xyz - aLeafClump + vec3(1e-4));
+            float leafTilt = (fract(sin(aFlutterPhase * 91.7) * 43758.5453) - .5) * .55;
+            float leafC = cos(leafTilt), leafS = sin(leafTilt);
+            vLeafOut = normalize(vec3(leafOutW.x * leafC - leafOutW.z * leafS,
+                                      leafOutW.y,
+                                      leafOutW.x * leafS + leafOutW.z * leafC));
             ` : ''}
           }
         #endif
       `);
     }
+    if (mode === 'leaf') {
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>
+          uniform vec3 uSunDir;
+          uniform vec3 uSunColor;
+          uniform float uSunIntensity;
+          varying vec3 vLeafView;
+          varying vec3 vLeafOut;
+        `)
+        .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+          // Blend toward the clump-outward direction so stacked cards cannot
+          // read as separately-lit flat planes. Kept below full strength so
+          // leaf-level variation and interior shadow survive.
+          normal = normalize(mix(normal, mat3(viewMatrix) * normalize(vLeafOut), .55) + vec3(1e-4));
+        `)
+        .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+          vec3 leafV = normalize(vLeafView + vec3(1e-4));
+          // Backlit leaves glow most at the silhouette and toward the sun.
+          float leafBack = pow(max(0.0, -dot(leafV, uSunDir)), 1.6);
+          float leafEdge = pow(clamp(1.0 - abs(leafV.y), 0.0, 1.0), 1.6);
+          reflectedLight.directDiffuse += uSunColor * uSunIntensity
+            * (.008 + .022 * leafBack * leafEdge);
+          // Wrap fill keeps deep, shadowed clumps green instead of black.
+          vec3 leafSunView = normalize((viewMatrix * vec4(uSunDir, 0.0)).xyz + vec3(1e-4));
+          float leafNdl = dot(normal, leafSunView);
+          float leafWrap = clamp((leafNdl + .40) / 1.40, 0.0, 1.0);
+          reflectedLight.directDiffuse += diffuseColor.rgb * uSunColor * uSunIntensity
+            * max(0.0, leafWrap - max(leafNdl, 0.0)) * .055;
+          reflectedLight.directDiffuse = clamp(reflectedLight.directDiffuse, 0.0, 4.0);
+        `);
+    }
   };
-  material.customProgramCacheKey = () => `meadowTree-${mode}-v1`;
+  material.customProgramCacheKey = () => `meadowTree-${mode}-v2`;
   return material;
 }
 
@@ -387,6 +457,15 @@ function addInstancedAttributes(geometry, rows) {
   geometry.setAttribute('aBranchPhase', new THREE.InstancedBufferAttribute(branch, 1));
   if (rows.some(r => r.flutterPhase !== undefined)) {
     geometry.setAttribute('aFlutterPhase', new THREE.InstancedBufferAttribute(flutter, 1));
+  }
+  if (rows.some(r => r.clump)) {
+    const clump = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      clump[i*3] = rows[i].clump.x;
+      clump[i*3+1] = rows[i].clump.y;
+      clump[i*3+2] = rows[i].clump.z;
+    }
+    geometry.setAttribute('aLeafClump', new THREE.InstancedBufferAttribute(clump, 3));
   }
 }
 
@@ -456,6 +535,21 @@ function hiveGeometryAt(center, anchor, flex, treePhase, branchPhase) {
 }
 
 /**
+ * Grow-form archetypes. Each lot picks one so the meadow reads as a varied
+ * stand instead of ten copies of the same tree. Multipliers apply on top of the
+ * lot scale; trunk colliders and nav stay untouched.
+ */
+const TREE_KINDS = [
+  { name: 'mature', trunk: 1.00, trunkR: 1.00, flare: .38, crownY: 1.00, crownR: 1.00, crownH: 1.00, primary: 4, fill: 1.00, leaf: 1.00, droop: .00, tint: 1.00 },
+  { name: 'old',    trunk: 0.92, trunkR: 1.22, flare: .52, crownY: 0.96, crownR: 1.08, crownH: 0.94, primary: 5, fill: 1.10, leaf: 1.06, droop: .35, tint: 0.94 },
+  { name: 'slim',   trunk: 1.14, trunkR: 0.58, flare: .16, crownY: 1.08, crownR: 0.76, crownH: 1.16, primary: 3, fill: 0.82, leaf: 0.94, droop: .00, tint: 1.02 },
+  { name: 'young',  trunk: 0.62, trunkR: 0.56, flare: .22, crownY: 0.66, crownR: 0.66, crownH: 0.74, primary: 3, fill: 0.56, leaf: 0.84, droop: .00, tint: 1.07 },
+  { name: 'mature', trunk: 1.04, trunkR: 1.02, flare: .40, crownY: 1.02, crownR: 1.02, crownH: 1.03, primary: 4, fill: 1.02, leaf: 1.00, droop: .05, tint: 1.00 },
+];
+// Fixed assignment keeps tree 0/1 (the hive hosts) large and stable.
+const TREE_KIND_ORDER = [0, 1, 2, 3, 4, 2, 1, 0, 3, 2];
+
+/**
  * Build the complete visual tree collection.
  * @param {{lots: Array<{x:number,z:number,s:number}>, wind: any}} opts
  */
@@ -467,6 +561,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
   const fruitRows = [];
   const hiveRecords = [];
   const treeMeta = [];
+  const kindCounts = {};
   let branchCount = 0;
   let anchorCount = 0;
 
@@ -486,7 +581,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
     color: 0xc3d4ad, map: leafTex, alphaTest: .42, transparent: false, depthWrite: true,
     side: THREE.DoubleSide, vertexColors: true,
     roughness: .72, clearcoat: .10, clearcoatRoughness: .66, metalness: 0,
-  }), wind, 'leaf', leafControls);
+  }), wind, 'leaf', leafControls, sun);
   const fruitMat = makeWindMaterial(new THREE.MeshPhysicalMaterial({
     color: 0xffffff, roughness: .17, clearcoat: .85, clearcoatRoughness: .16, metalness: 0,
   }), wind, 'fruit');
@@ -498,13 +593,32 @@ export function createTreeCollection({ lots, wind, sun = null }) {
 
   lots.forEach((lot, index) => {
     const s = lot.s;
+    const kind = TREE_KINDS[TREE_KIND_ORDER[index % TREE_KIND_ORDER.length]];
+    kindCounts[kind.name] = (kindCounts[kind.name] || 0) + 1;
     const rand = makeRand((index + 1) * 2654435761 ^ Math.round(lot.x * 137 + lot.z * 311));
     const treePhase = rand() * TWO_PI;
-    const crown = new THREE.Vector3(lot.x, 3.02 * s, lot.z);
-    const maxR = 2.08 * s;
-    const minY = 1.42 * s;
-    const maxY = 4.45 * s;
-    const trunkTop = 1.68 * s + rand() * .20 * s;
+    // Per-tree colour family: mostly meadow green, some olive/yellow-green and
+    // the occasional warm gold accent. Every leaf then varies within its tree's
+    // family so the canopy is not one flat green.
+    const family = rand();
+    const hueBase = family < .10 ? .080 + rand() * .022
+      : family < .30 ? .168 + rand() * .026
+      : .218 + rand() * .022;
+    const hueSpread = family < .30 ? .030 : .042;
+    // Each tree rolls its own size inside its kind's range, so two old trees
+    // are not the same old tree. Height/crown and trunk girth vary separately.
+    const sizeT = .90 + rand() * .22;
+    const girthT = .88 + rand() * .26;
+    const crownY = 3.22 * s * kind.crownY * sizeT;
+    const crownFillR = 1.91 * s * kind.crownR * sizeT;
+    const crownFillH = 1.34 * s * kind.crownH * sizeT;
+    const canopyR = 2.83 * s * kind.crownR * sizeT;
+    const canopyTop = 5.06 * s * kind.crownH * sizeT;
+    const crown = new THREE.Vector3(lot.x, crownY, lot.z);
+    const maxR = 2.30 * s * kind.crownR * sizeT;
+    const minY = 1.42 * s * kind.crownY * sizeT;
+    const maxY = crownY + 1.68 * s * kind.crownH * sizeT;
+    const trunkTop = (1.80 * s * kind.trunk + rand() * .20 * s) * sizeT;
     const bendX = (rand() - .5) * .14 * s;
     const bendZ = (rand() - .5) * .14 * s;
     const trunkCurve = new THREE.CatmullRomCurve3([
@@ -515,9 +629,9 @@ export function createTreeCollection({ lots, wind, sun = null }) {
       new THREE.Vector3(lot.x + bendX * .92, trunkTop, lot.z + bendZ * .92),
     ]);
     const trunkRadius = (t) => {
-      const flare = 1 + .38 * Math.exp(-t * 14);
+      const flare = 1 + kind.flare * Math.exp(-t * 14);
       const taper = 1 - .84 * Math.pow(t, 2.2);
-      return Math.max(.018 * s, s * (.20 + .14 * (1 - t)) * flare * taper);
+      return Math.max(.018 * s, s * (.20 + .14 * (1 - t)) * flare * taper * kind.trunkR * girthT);
     };
     const trunkFlex = (t) => .02 + .20 * smooth(clamp(t, 0, 1));
     const trunkCol = new THREE.Color().setHSL(.075, .38, .31 + rand() * .05);
@@ -556,7 +670,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
 
     const treeAnchors = [];
     const maxLevel = s >= .97 ? 4 : 3;
-    const primaryCount = 4;
+    const primaryCount = kind.primary;
 
     const limit = (p) => {
       const dx = p.x - lot.x, dz = p.z - lot.z;
@@ -602,7 +716,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
           dir: dir.clone(),
           flex: flexTip,
           branchPhase: phase,
-          clumpR: (.60 + rand() * .17) * s,
+          clumpR: (.60 + rand() * .17) * s * kind.leaf,
           level,
           supports: [{ curve, flexFn, phaseFn: phaseAt, startT: .52 }],
         });
@@ -614,7 +728,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
             dir: dir.clone(),
             flex: flexFn(.86),
             branchPhase: phaseAt(.86),
-            clumpR: (.34 + rand() * .12) * s,
+            clumpR: (.34 + rand() * .12) * s * kind.leaf,
             small: true,
             level,
             supports: [{ curve, flexFn, phaseFn: phaseAt, startT: .66 }],
@@ -644,7 +758,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
       const a = i / primaryCount * TWO_PI + rand() * .55;
       const attachT = .56 + rand() * .26;
       const start = trunkCurve.getPointAt(attachT);
-      const dir = new THREE.Vector3(Math.cos(a), .34 + rand() * .22, Math.sin(a)).normalize();
+      const dir = new THREE.Vector3(Math.cos(a), (.34 + rand() * .22) * (1 - kind.droop), Math.sin(a)).normalize();
       const len = (1.02 + rand() * .28) * s;
       // Keep the branch root inside the trunk silhouette; a branch wider than
       // its host reads as a flat stump at the junction.
@@ -689,9 +803,9 @@ export function createTreeCollection({ lots, wind, sun = null }) {
         dir.normalize();
         const len = rad * (.72 + rand() * .30);
         const end = p.clone().addScaledVector(dir, len);
-        end.x = clamp(end.x, lot.x - 2.56 * s, lot.x + 2.56 * s);
-        end.z = clamp(end.z, lot.z - 2.56 * s, lot.z + 2.56 * s);
-        end.y = clamp(end.y, 1.0 * s, 4.58 * s);
+        end.x = clamp(end.x, lot.x - canopyR * .9, lot.x + canopyR * .9);
+        end.z = clamp(end.z, lot.z - canopyR * .9, lot.z + canopyR * .9);
+        end.y = clamp(end.y, 1.0 * s, canopyTop * .9);
         const midArm = p.clone().lerp(end, .5);
         midArm.y += .08 * s;
         supports.push(addFoliageTwig([p, midArm, end], nearest.flex, nearest.branchPhase, .008 * s));
@@ -711,7 +825,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
 
     // Fill the crown with overlapping rounded puffs so the silhouette reads as
     // one soft ball of leaves rather than a handful of branch-end tufts.
-    const fillCount = s >= .98 ? 28 : 23;
+    const fillCount = Math.round((s >= .98 ? 48 : 40) * kind.fill);
     for (let i = 0; i < fillCount; i++) {
       const phi = i * 2.399963 + rand() * .24;
       const yy = -.62 + (fillCount === 1 ? .3 : i / (fillCount - 1)) * 1.46 + (rand() - .5) * .08;
@@ -719,12 +833,15 @@ export function createTreeCollection({ lots, wind, sun = null }) {
       const shell = (i % 5 === 0) ? .30 + rand() * .12
         : (i % 3 === 0) ? .55 + rand() * .10
         : .84 + rand() * .10;
+      // Break the dome: a slow radial ripple gives the crown alternating
+      // shoulders and notches instead of a smooth sphere.
+      const ripple = 1 + .10 * Math.sin(phi * 3.1 + .7) + .055 * Math.sin(phi * 5.3 - 1.9);
       const p = new THREE.Vector3(
-        lot.x + Math.cos(phi) * rr * 1.78 * s * shell,
-        3.08 * s + yy * 1.14 * s * shell,
-        lot.z + Math.sin(phi) * rr * 1.78 * s * shell
+        lot.x + Math.cos(phi) * rr * crownFillR * shell * ripple,
+        crownY + yy * crownFillH * shell,
+        lot.z + Math.sin(phi) * rr * crownFillR * shell * ripple
       );
-      p.y = clamp(p.y, 1.7 * s, 4.36 * s);
+      p.y = clamp(p.y, 1.7 * s * kind.crownY, canopyTop - .20 * s);
       let nearest = null, best = Infinity;
       for (const a of treeAnchors) {
         if (a.fill) continue;
@@ -732,7 +849,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
         if (d < best) { best = d; nearest = a; }
       }
       if (!nearest) continue;
-      addFillCluster(p, (.56 + rand() * .17) * s, nearest);
+      addFillCluster(p, (.60 + rand() * .18) * s * kind.crownR, nearest);
     }
 
     // A few interior/under-crown puffs close the central gaps so trunks and
@@ -753,7 +870,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
       [0, .62, -.15, .64],
     ];
     for (const [dx, dy, dz, rad] of corePuffs) {
-      const p = new THREE.Vector3(lot.x + dx * s, 3.06 * s + dy * s, lot.z + dz * s);
+      const p = new THREE.Vector3(lot.x + dx * s, crownY + dy * s * kind.crownH, lot.z + dz * s);
       let nearest = null, best = Infinity;
       for (const a of treeAnchors) {
         if (a.fill) continue;
@@ -761,7 +878,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
         if (d < best) { best = d; nearest = a; }
       }
       if (!nearest) continue;
-      addFillCluster(p, rad * s, nearest);
+      addFillCluster(p, rad * s * kind.crownR, nearest);
     }
 
     anchorCount += treeAnchors.length;
@@ -769,10 +886,19 @@ export function createTreeCollection({ lots, wind, sun = null }) {
 
     // Foliage is rooted on real branch/twig curves. Terminal and shoulder
     // leaves use the parent branch; fill clusters use their connector arms.
+    const leafColorAt = (p) => {
+      const radial = clamp(Math.hypot(p.x - lot.x, p.z - lot.z) / (2.65 * s * kind.crownR), 0, 1);
+      const top = clamp((p.y - (crown.y - .9 * s)) / (2.45 * s * kind.crownH), 0, 1);
+      const interior = (1 - radial) * .62;
+      const hue = hueBase + rand() * hueSpread;
+      const sat = .68 + rand() * .16;
+      const light = (.130 + radial * .085 + top * .050 + rand() * .022 - interior * .070) * kind.tint;
+      return new THREE.Color().setHSL(hue, sat, clamp(light, .10, .27));
+    };
     for (const anchor of treeAnchors) {
-      const n = anchor.fill ? 44 + Math.floor(rand() * 14)
-        : anchor.small ? 24 + Math.floor(rand() * 12)
-        : 52 + Math.floor(rand() * 20);
+      const n = Math.round((anchor.fill ? 72 + Math.floor(rand() * 22)
+        : anchor.small ? 40 + Math.floor(rand() * 18)
+        : 82 + Math.floor(rand() * 28)) * kind.fill);
       const supports = anchor.supports || [];
       if (!supports.length) continue;
       for (let i = 0; i < n; i++) {
@@ -784,21 +910,14 @@ export function createTreeCollection({ lots, wind, sun = null }) {
             : .72 + rand() * .28;
         const p = sup.curve.getPointAt(t);
         const dx = p.x - lot.x, dz = p.z - lot.z;
-        const rmax = 2.56 * s;
         const rCanopy = Math.hypot(dx, dz);
-        if (rCanopy > rmax) {
-          p.x = lot.x + dx / rCanopy * rmax;
-          p.z = lot.z + dz / rCanopy * rmax;
+        if (rCanopy > canopyR) {
+          p.x = lot.x + dx / rCanopy * canopyR;
+          p.z = lot.z + dz / rCanopy * canopyR;
         }
-        p.y = clamp(p.y, 1.0 * s, 4.60 * s);
+        p.y = clamp(p.y, 1.0 * s, canopyTop);
 
-        const radial = clamp(Math.hypot(p.x - lot.x, p.z - lot.z) / (2.4 * s), 0, 1);
-        const top = clamp((p.y - (crown.y - .9 * s)) / (2.3 * s), 0, 1);
-        const interior = (1 - radial) * .62;
-        const hue = .220 + rand() * .038;
-        const sat = .72 + rand() * .14;
-        const light = .130 + radial * .085 + top * .050 + rand() * .022 - interior * .040;
-        const color = new THREE.Color().setHSL(hue, sat, clamp(light, .10, .27));
+        const color = leafColorAt(p);
 
         // The card base is exactly the branch/twig point. Point the leaf tip
         // outward/up and roll its face around that axis for a dense spray.
@@ -816,15 +935,47 @@ export function createTreeCollection({ lots, wind, sun = null }) {
             new THREE.Euler((rand() - .5) * .6, 0, (rand() - .5) * .6, 'YXZ')
           ));
         }
-        const scale = s * (.42 + rand() * .12);
+        const scale = s * (.52 + rand() * .15) * kind.leaf;
         const matrix = new THREE.Matrix4().compose(
           p,
           q,
           new THREE.Vector3(scale, scale * (1.02 + rand() * .32), scale)
         );
         leafRows.push({
-          matrix, color, anchor: p, flex: sup.flexFn(t), treePhase,
+          matrix, color, anchor: p, clump: anchor.pos, flex: sup.flexFn(t), treePhase,
           branchPhase: sup.phaseFn(t), flutterPhase: rand() * TWO_PI,
+        });
+      }
+    }
+
+    // Twig-rooted leaves only cover the outside of each clump, so a big crown
+    // can still show sky through its middle. These interior cards sit inside
+    // the clump volume, tinted by the same interior falloff, and close those
+    // see-through holes without changing the silhouette.
+    for (const anchor of treeAnchors) {
+      const count = Math.round((anchor.fill ? 14 : 5) * kind.fill);
+      for (let i = 0; i < count; i++) {
+        const u = rand() * 2 - 1;
+        const a = rand() * TWO_PI;
+        const rxz = Math.sqrt(Math.max(0, 1 - u * u));
+        const rad = anchor.clumpR * (.15 + rand() * .85);
+        const p = new THREE.Vector3(
+          anchor.pos.x + Math.cos(a) * rxz * rad,
+          anchor.pos.y + u * rad,
+          anchor.pos.z + Math.sin(a) * rxz * rad
+        );
+        p.y = clamp(p.y, 1.1 * s, canopyTop - .04 * s);
+        const q = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(rand() * TWO_PI, rand() * TWO_PI, rand() * TWO_PI)
+        );
+        const scale = s * (.44 + rand() * .12) * kind.leaf;
+        leafRows.push({
+          matrix: new THREE.Matrix4().compose(
+            p, q, new THREE.Vector3(scale, scale * (1.0 + rand() * .25), scale)
+          ),
+          color: leafColorAt(p),
+          anchor: p, clump: anchor.pos, flex: anchor.flex, treePhase,
+          branchPhase: anchor.branchPhase, flutterPhase: rand() * TWO_PI,
         });
       }
     }
@@ -893,6 +1044,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
   const fruitTris = (fruitGeo.index ? fruitGeo.index.count / 3 : 0) * fruitRows.length;
   const stats = {
     trees: lots.length,
+    kinds: kindCounts,
     branches: branchCount,
     anchors: anchorCount,
     leaves: leafRows.length,
