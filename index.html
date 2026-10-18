@@ -777,8 +777,9 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>W A S D</dt><dd>Pan · Q / E zoom · R resets the view.</dd>
             <dt>U</dt><dd>Hide or show the interface.</dd>
             <dt>P</dt><dd>Performance overlay; it stays visible when the rest of the UI is hidden.</dd>
-            <dt>Settings</dt><dd>The gear opens graphics profiles, resolution, effects, depth of field and meadow detail. Profiles are starting points; tweaking a control switches to Custom.</dd>
-            <dt>Effects</dt><dd>Off, Soft or Full meadow post-processing. Soft adds bloom and a gentle grade; Full also adds ambient occlusion, depth-aware god rays and, on high tiers, directional sun/moon shadows. Studio stays crisp.</dd>
+            <dt>Settings</dt><dd>The gear opens graphics profiles, resolution, effects, depth of field, toon shading and meadow detail. Profiles are starting points; tweaking a control switches to Custom.</dd>
+            <dt>Toon shading</dt><dd>Swaps compatible ordinary materials to <b>MeshToonMaterial</b> for a banded cel look. Custom water, sky and particle shaders keep their own programs.</dd>
+            <dt>Effects</dt><dd>Off, Soft or Full meadow post-processing. Soft adds bloom and a gentle grade; Full also adds ambient occlusion, depth-aware god rays and, on high tiers, directional sun/moon shadows. Depth of field focuses on the object under the view centre and softens only the background. Studio stays crisp.</dd>
             <dt>G</dt><dd>Bear AI debug (meadow only).</dd>
           </dl>
         </section>
@@ -815,6 +816,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
           <h3>Effects</h3>
           <label class="settingsRow"><span>Post</span><select id="settingsEffects" aria-label="Post-processing effects"><option value="off">Off</option><option value="soft">Soft</option><option value="full">Full</option></select></label>
           <label class="settingsRow"><span>Depth of field</span><select id="settingsDof" aria-label="Depth of field"><option value="off">Off</option><option value="on">On</option></select></label>
+          <label class="settingsRow"><span>Toon shading</span><input id="settingsToon" type="checkbox" aria-label="Toon shading"><b id="settingsToonVal">Off</b></label>
           <h3 class="settingsSubhead">Meadow</h3>
           <label class="settingsRow"><span>Canopy</span><input id="settingsCanopy" type="range" min="0.35" max="1" step="0.01" value="1" aria-label="Canopy fullness"><b id="settingsCanopyVal">1.00</b></label>
           <label class="settingsRow"><span>Leaf size</span><input id="settingsLeafSize" type="range" min="0.65" max="1.4" step="0.01" value="1" aria-label="Leaf size"><b id="settingsLeafSizeVal">1.00</b></label>

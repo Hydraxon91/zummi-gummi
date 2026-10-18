@@ -428,9 +428,11 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   glints and splash rings still move. Re-check in a slow-motion 6/20/40-bear
   pass; if it persists, compare transmission resolution/dispersion and consider
   fading the remaining reflection ripple behind foreground silhouettes.
-- **DOF is a fixed look, not an autofocus system.** Focus follows the orbit
-  distance; aperture/max-blur are constants. Expose them only if a future shot
-  system needs authored focus.
+- **DOF now uses a view-centre target and a far-only blur.** In the meadow it
+  raycasts bears, villas, the Studio house, trees and bushes, smooths the focus
+  distance, and disables the pass when the centre ray finds no target. Near
+  objects stay sharp while the background softens; aperture/max-blur remain
+  fixed look controls. Revisit if a future shot system needs authored focus.
 - **Effect timing is not a final frame-rate claim.** The headless effect probe is
   noisy and GPU-async; Phase 6b must profile Off/Soft/Full at 6/20/40 bears and
   record the method before committing to defaults.
@@ -505,9 +507,15 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 
 - **Graphics profiles:** the gear-accessed Settings sheet bundles Auto,
   Performance, Balanced, Quality and Ultra presets across quality tier, render
-  scale, post effects, DoF, meadow density and the shadow tier. Auto preserves
-  the adaptive default; explicit presets lock their tier unless Adaptive is
-  re-enabled. Manual changes mark the sheet Custom. Individual values persist.
+  scale, post effects, DoF, Toon shading, meadow density and the shadow tier.
+  Auto preserves the adaptive default; explicit presets lock their tier unless
+  Adaptive is re-enabled. Manual changes mark the sheet Custom. Individual
+  values persist.
+- **Toon material mode:** a settings toggle swaps compatible
+  Standard/Physical/Lambert/Phong materials to `MeshToonMaterial` with a stepped
+  gradient map, preserving maps, vertex colors, alpha test, side and custom
+  vertex/fragment hooks where present. Custom water, sky and particle shaders
+  stay on their own programs. The toggle restores original materials live.
 - **Off / Soft / Full** is a local preference in Meadow detail. Soft is the
   desktop default; Off is the low-width/coarse-pointer default. Studio always
   uses the direct renderer so its editorial white-table look stays crisp.

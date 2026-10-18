@@ -417,7 +417,7 @@ function spawn(x, z, y, flavor, opts={}){
   if (!b) return null;
   b.active = true; bears.push(b);
   b.flavor = flavor;
-  b.material = FLAVOR_MATS[flavor];
+  b.material = toonEnabled ? (toonMaterialFor(FLAVOR_MATS[flavor]) || FLAVOR_MATS[flavor]) : FLAVOR_MATS[flavor];
   b.sprite = FLAVOR_SPRITES[flavor];
   b.spriteId = FLAVORS[flavor].id;
   b.mesh.material = b.material;
@@ -1666,6 +1666,7 @@ let effectsMode = DEFAULT_EFFECTS;
 let effectsDof = false;
 let natureState = { ...DEFAULT_NATURE };
 let settingsProfile = 'auto';
+let toonEnabled = false;
 try {
   const saved = localStorage.getItem('gummy.effects');
   if (saved === 'off' || saved === 'soft' || saved === 'full') effectsMode = saved;
@@ -1697,6 +1698,7 @@ try {
   }
   const savedNature = JSON.parse(localStorage.getItem('gummy.nature') || 'null');
   if (savedNature && typeof savedNature === 'object') natureState = normalizeNature(savedNature);
+  toonEnabled = localStorage.getItem('gummy.toon') === '1';
 } catch (err) {}
 function applyRealShadows(){
   const size = quality.shadowMap | 0;
@@ -1754,6 +1756,7 @@ function saveSettings() {
     localStorage.setItem('gummy.adaptive', quality.adaptive ? '1' : '0');
     localStorage.setItem('gummy.renderScale', String(quality.renderScale));
     localStorage.setItem('gummy.nature', JSON.stringify(natureState));
+    localStorage.setItem('gummy.toon', toonEnabled ? '1' : '0');
     localStorage.setItem('gummy.effects', effectsMode);
     localStorage.setItem('gummy.effectsDof', effectsDof ? 'on' : 'off');
   } catch (err) {}
@@ -1775,6 +1778,7 @@ function settingsSummary() {
     effects: effectsMode,
     activeEffects: effects ? effects.active : null,
     dof: effectsDof,
+    toon: toonEnabled,
     nature: { ...natureState },
     shadows: sky && sky.shadowState ? sky.shadowState : null,
   };
@@ -1807,6 +1811,114 @@ function applyRenderScale(v) {
   syncSettingsUI();
   saveSettings();
   return quality.renderScale;
+}
+
+// A lightweight material-mode toggle. Custom shader systems (water, sky,
+// mist, grass path injection) keep their own programs; standard/physical
+// environment materials get a MeshToonMaterial equivalent. Bears and eyes are
+// deliberately excluded because transmission is the jelly look.
+let toonGradient = null;
+const toonCache = new Map();
+const toonSwaps = [];
+
+function toonGradientTexture() {
+  if (toonGradient) return toonGradient;
+  toonGradient = new THREE.DataTexture(new Uint8Array([
+    42, 42, 42, 255,
+    105, 105, 105, 255,
+    180, 180, 180, 255,
+    255, 255, 255, 255,
+  ]), 4, 1, THREE.RGBAFormat);
+  toonGradient.minFilter = THREE.NearestFilter;
+  toonGradient.magFilter = THREE.NearestFilter;
+  toonGradient.generateMipmaps = false;
+  toonGradient.colorSpace = THREE.NoColorSpace;
+  toonGradient.needsUpdate = true;
+  return toonGradient;
+}
+
+function toonMaterialFor(src) {
+  if (!src || src.isShaderMaterial || src.isMeshBasicMaterial || src.isMeshToonMaterial) return null;
+  if (!(src.isMeshStandardMaterial || src.isMeshPhysicalMaterial ||
+        src.isMeshLambertMaterial || src.isMeshPhongMaterial)) return null;
+  if (toonCache.has(src)) return toonCache.get(src);
+  const t = new THREE.MeshToonMaterial({
+    color: src.color ? src.color.clone() : 0xffffff,
+    map: src.map || null,
+    gradientMap: toonGradientTexture(),
+    vertexColors: !!src.vertexColors,
+    transparent: !!src.transparent,
+    opacity: src.opacity !== undefined ? src.opacity : 1,
+    alphaTest: src.alphaTest || 0,
+    side: src.side,
+    shadowSide: src.shadowSide,
+    emissive: src.emissive ? src.emissive.clone() : 0x000000,
+    emissiveIntensity: src.emissiveIntensity !== undefined ? src.emissiveIntensity : 1,
+    emissiveMap: src.emissiveMap || null,
+    alphaMap: src.alphaMap || null,
+    depthWrite: src.depthWrite,
+    depthTest: src.depthTest,
+    toneMapped: src.toneMapped,
+  });
+  t.name = `${src.name || src.type} · toon`;
+  t.fog = src.fog;
+  t.flatShading = !!src.flatShading;
+  t.onBeforeCompile = src.onBeforeCompile.bind(src);
+  const key = src.customProgramCacheKey ? src.customProgramCacheKey() : src.type;
+  t.customProgramCacheKey = () => `toon:${key}`;
+  toonCache.set(src, t);
+  return t;
+}
+
+function applyToonMaterials() {
+  if (!scene || toonSwaps.length) return;
+  const swap = (object, source) => {
+    if (Array.isArray(source)) {
+      let changed = false;
+      const next = source.map(m => {
+        const t = toonMaterialFor(m);
+        if (t) changed = true;
+        return t || m;
+      });
+      if (changed) {
+        toonSwaps.push({ object, source });
+        object.material = next;
+      }
+    } else {
+      const t = toonMaterialFor(source);
+      if (t) {
+        toonSwaps.push({ object, source });
+        object.material = t;
+      }
+    }
+  };
+  scene.traverse(object => {
+    if (object.isMesh && object.material) swap(object, object.material);
+  });
+}
+
+function restoreToonMaterials() {
+  for (const { object, source } of toonSwaps) object.material = source;
+  toonSwaps.length = 0;
+  for (const b of bears) {
+    if (!b.active || !b.material || !b.material.isMeshToonMaterial) continue;
+    b.material = FLAVOR_MATS[b.flavor] || b.material;
+    b.mesh.material = b.material;
+  }
+}
+
+function setToonMode(on, persist = true) {
+  const next = !!on;
+  if (next === toonEnabled) {
+    syncSettingsUI();
+    return toonEnabled;
+  }
+  toonEnabled = next;
+  if (toonEnabled) applyToonMaterials();
+  else restoreToonMaterials();
+  if (persist) saveSettings();
+  syncSettingsUI();
+  return toonEnabled;
 }
 function applyQuality(){
   const q = LEVELS[quality.level];
@@ -1896,6 +2008,12 @@ const cam = {
 };
 const _camHome = new THREE.Vector3();
 const _lookTarget = new THREE.Vector3();
+const _dofRay = new THREE.Raycaster();
+const _dofNdc = new THREE.Vector2(0, 0);
+let dofFocusClock = 0;
+let dofFocusDistance = 8;
+let dofFocusTarget = 8;
+let dofFocusHas = false;
 function cameraHome(){
   const map = getActiveMap();
   if (map.kind === 'life') {
@@ -1945,6 +2063,39 @@ function applyCamera(dt){
   }
   camera.updateMatrixWorld(true);
 }
+
+function updateDofFocus(dt) {
+  if (!effects || !effectsDof) return;
+  dofFocusClock -= dt;
+  if (dofFocusClock <= 0) {
+    dofFocusClock = .11;
+    _dofRay.setFromCamera(_dofNdc, camera);
+    const roots = [];
+    if (isMeadow() && field) {
+      if (field.aeroHomes && field.aeroHomes.group) roots.push(field.aeroHomes.group);
+      if (field.studioHouse && field.studioHouse.group) roots.push(field.studioHouse.group);
+      if (field.trees && field.trees.group) roots.push(field.trees.group);
+      if (field.bushes && field.bushes.group) roots.push(field.bushes.group);
+    }
+    for (const b of bears) {
+      if (b.active && b.mesh && b.mesh.visible) roots.push(b.mesh);
+    }
+    const hits = roots.length ? _dofRay.intersectObjects(roots, true) : [];
+    if (hits.length) {
+      dofFocusTarget = clamp(hits[0].distance, .6, 60);
+      dofFocusHas = true;
+    } else {
+      dofFocusHas = false;
+    }
+  }
+  if (dofFocusHas) {
+    dofFocusDistance += (dofFocusTarget - dofFocusDistance) * Math.min(1, dt * 8);
+    effects.setFocus(dofFocusDistance, true);
+  } else {
+    effects.setFocus(dofFocusDistance, false);
+  }
+}
+
 function clampCamGoal(){
   if (isMeadow()) {
     const c = fieldClamp(cam.goal.x, cam.goal.z, 2.5);
@@ -2549,6 +2700,8 @@ const settingsScaleEl = document.getElementById('settingsScale');
 const settingsScaleVal = document.getElementById('settingsScaleVal');
 const settingsEffectsEl = document.getElementById('settingsEffects');
 const settingsDofEl = document.getElementById('settingsDof');
+const settingsToonEl = document.getElementById('settingsToon');
+const settingsToonVal = document.getElementById('settingsToonVal');
 const settingsTierEl = document.getElementById('settingsTier');
 const settingsShadowEl = document.getElementById('settingsShadow');
 const settingsCanopyEl = document.getElementById('settingsCanopy');
@@ -2873,6 +3026,8 @@ function syncSettingsUI(){
   }
   if (settingsAdaptiveEl) settingsAdaptiveEl.checked = quality.adaptive;
   if (settingsAdaptiveVal) settingsAdaptiveVal.textContent = quality.adaptive ? 'On' : 'Off';
+  if (settingsToonEl) settingsToonEl.checked = toonEnabled;
+  if (settingsToonVal) settingsToonVal.textContent = toonEnabled ? 'On' : 'Off';
   if (settingsScaleEl && document.activeElement !== settingsScaleEl){
     settingsScaleEl.value = String(quality.renderScale);
   }
@@ -2924,6 +3079,12 @@ if (effectsDofEl) {
 if (settingsDofEl) {
   settingsDofEl.addEventListener('change', () => setDofFromUI(settingsDofEl.value === 'on'));
 }
+if (settingsToonEl) {
+  settingsToonEl.addEventListener('change', () => {
+    markSettingsCustom();
+    setToonMode(settingsToonEl.checked);
+  });
+}
 for (const btn of settingsProfileBtns) {
   btn.addEventListener('click', () => applyProfile(btn.dataset.profile));
 }
@@ -2945,7 +3106,10 @@ if (settingsScaleEl) {
   });
 }
 if (settingsReset) {
-  settingsReset.addEventListener('click', () => applyProfile('auto'));
+  settingsReset.addEventListener('click', () => {
+    setToonMode(false);
+    applyProfile('auto');
+  });
 }
 
 /* --------------------------- performance overlay -------------------------- */
@@ -3690,7 +3854,7 @@ function animate(now){
   if (effects){
     effects.setEnabled(isMeadow());
     if (sky) effects.setTimeOfDay(sky.hours);
-    effects.setFocus(cam.dist);
+    updateDofFocus(dt);
   }
   const fxRendered = effects ? effects.render(dt) : false;
   if (!fxRendered){
@@ -4220,6 +4384,7 @@ function fitWallsToTable(){
   scene.add(studioReturnPortal.group);
   layoutStudioReturnPortal();
   activateMap(activeWorld.mapId, { initial: true });
+  if (toonEnabled) applyToonMaterials();
   drawShadows();
   addEventListener('resize', onResize);
   addEventListener('orientationchange', ()=>setTimeout(onResize, 120));
@@ -4567,7 +4732,14 @@ window.__gummy = {
     applyRenderScale(v);
     return settingsSummary();
   },
-  resetSettings(){ return applyProfile('auto'); },
+  setToon(v){
+    markSettingsCustom();
+    return setToonMode(!!v);
+  },
+  resetSettings(){
+    setToonMode(false);
+    return applyProfile('auto');
+  },
   setEffectsBloom(v){ return effects ? effects.setBloomScale(v) : null; },
   setEffectsExposure(v){ return effects ? effects.setExposureScale(v) : null; },
   renderProbe(frames = 30){

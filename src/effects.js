@@ -146,6 +146,7 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
   let moodExposure = .89;
   let dofEnabled = false;
   let focusDistance = 8;
+  let focusActive = false;
   let raysActive = false;
   const tint = new THREE.Color();
   const bufferSize = new THREE.Vector2();
@@ -212,6 +213,13 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
   const bokehPass = new BokehPass(scene, camera, {
     focus: 8, aperture: .0012, maxblur: .007,
   });
+  // BokehPass blurs on both sides of the focal plane. For a camera-focus look
+  // we only want the background behind the focal object to soften.
+  bokehPass.materialBokeh.fragmentShader = bokehPass.materialBokeh.fragmentShader.replace(
+    'float factor = ( focus + viewZ );',
+    'float factor = min( 0.0, focus + viewZ );'
+  );
+  bokehPass.materialBokeh.needsUpdate = true;
   const gradePass = new ShaderPass(GradeShader);
   const smaaPass = new SMAAPass();
   const outputPass = new OutputPass();
@@ -310,7 +318,7 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     if (mode === 'soft' && qualityLevel >= 3) mode = 'off';
     activeMode = mapEnabled ? mode : 'off';
     aoPass.enabled = activeMode === 'full';
-    bokehPass.enabled = dofEnabled && activeMode !== 'off';
+    bokehPass.enabled = dofEnabled && focusActive && activeMode !== 'off';
     godRaysPass.enabled = activeMode !== 'off';
     bloomPass.enabled = activeMode !== 'off';
     gradePass.enabled = activeMode !== 'off';
@@ -394,6 +402,8 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
       exposureScale,
       moodExposure,
       dof: dofEnabled,
+      dofFocus: focusActive,
+      focusDistance,
       rays: raysActive,
       scene: { calls: sceneCalls, tris: sceneTris },
       composer: { w: composer._width, h: composer._height, ratio: composer._pixelRatio },
@@ -424,8 +434,13 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     return dofEnabled;
   }
 
-  function setFocus(v) {
+  function setFocus(v, active = true) {
     focusDistance = Math.max(.5, Math.min(40, Number(v) || 8));
+    const next = !!active;
+    if (next !== focusActive) {
+      focusActive = next;
+      resolveMode();
+    }
     return focusDistance;
   }
 
