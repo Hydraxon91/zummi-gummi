@@ -628,15 +628,15 @@ export function buildField({ scene, camera, renderer, sky }) {
         // the smooth far fade and instance scale instead.
         float camDist = distance(wp, cameraPosition.xz);
         float farFade = 1.0 - smoothstep(uGrassDrawDistance, uGrassDrawDistance + 12.0, camDist);
-        float coverage = step(
-          fract(sin(dot(wp + vec2(7.13, 3.31), vec2(41.93, 91.17))) * 43758.5453),
-          uGrassCoverage
-        );
-        float lod = farFade * coverage;
+        float lod = farFade;
         if (lod < 0.02) {
           transformed = vec3(0.0);
         } else {
-          transformed.y *= farFade;
+          // Coverage shortens the tufts instead of deleting instances.
+          // Random removal leaves visible holes in the carpet, especially on
+          // the lower graphics profiles; keeping the footprint also preserves
+          // the continuous lawn silhouette.
+          transformed.y *= farFade * mix(.62, 1.0, uGrassCoverage);
           transformed.xz *= mix(0.25, 1.0, farFade);
 
           // Shared world-space wind + the existing bear-parting field. Both are
@@ -692,7 +692,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         normal = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));
       `);
   };
-  grassMat.customProgramCacheKey = () => 'meadowGrassV9';
+  grassMat.customProgramCacheKey = () => 'meadowGrassV11';
 
   const grassChunks = [];
   let grassEnabled = true;
@@ -1205,7 +1205,9 @@ export function buildField({ scene, camera, renderer, sky }) {
         // Anime/Aero cell lines. They drift slowly downwind, but stay
         // low-contrast and anti-aliased so they do not shimmer behind
         // foreground silhouettes.
-        vec2 cellUv = p * uCellScale + wd * (uTime * (.010 + uWindStrength * .008));
+        // Pattern coordinates must move *against* the sampled offset so the
+        // visible cells travel downwind with the wave phase above.
+        vec2 cellUv = p * uCellScale - wd * (uTime * (.010 + uWindStrength * .008));
         float f1 = wf1(cellUv);
         float sf1 = wsf1(cellUv);
         float cellEdge = f1 - sf1;

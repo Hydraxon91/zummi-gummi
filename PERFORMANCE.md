@@ -34,10 +34,12 @@ density are the largest levers. No 60 fps claim is made from the headless run.
 
 The camera-distance stochastic grass thinning was removed after it produced
 visible bare holes in the lawn. Distance now uses only the smooth draw-distance
-fade and instance shrink, so every tuft contributes out to the configured draw
-distance. This increases far-grass vertex work relative to the old 82% removal;
-re-profile the default camera and quality before treating the old grass rows as
-a current budget, and use draw distance or coverage if a device needs relief.
+fade, so every tuft contributes out to the configured draw distance. Meadow
+coverage likewise shortens each tuft instead of rejecting instances; the old
+per-instance test punched random holes on Balanced and Performance. This raises
+far-grass vertex work relative to the old 82% removal; re-profile the default
+camera and quality before treating the old grass rows as a current budget, and
+use draw distance or the shorter-coverage setting if a device needs relief.
 
 The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
 and the original supplied 37.1 ms baseline are retained below as historical

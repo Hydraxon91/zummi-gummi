@@ -434,9 +434,10 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   object, and holds focus briefly through occlusion. The Bokeh depth prepass is
   double-sided so foliage cards contribute depth instead of being treated as
   sky. Near objects stay sharp while only the background softens; the pass turns
-  off when no target is found. The meadow camera now zooms from 3.2 m to 88 m.
-  Aperture/max-blur remain fixed look controls; revisit if a future shot system
-  needs authored focus.
+  off when no target is found or the target is farther than 34 m, so a fully
+  zoomed-out overview stays fully sharp. The meadow camera now zooms from 3.2 m
+  to 88 m. Aperture/max-blur remain fixed look controls; revisit if a future shot
+  system needs authored focus.
 - **Continuous grass removed the stochastic distance LOD.** The old 82% removal
   left visible holes; every tuft now survives to the smooth draw-distance fade.
   The grass rows in `PERFORMANCE.md` predate this change, so re-profile the
@@ -623,6 +624,8 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   flowers/fruit/honey hives, pebbles, bubbles and the Aero villa cluster.
   The grass carpet keeps every tuft out to the smooth draw-distance fade rather
   than stochastically deleting blades, so the lawn has no random bare holes.
+  Meadow coverage now shortens the tufts instead of switching instances off;
+  the old per-tuft coverage test was the source of the lower-profile gaps.
   Flower blooms and fallen jelly fruit are edible claims with respawn timers;
   the Studio stays sandbox-only. Foreground trees are merged/instanced; backdrop tree trunks/branches and
   canopy-centre gradient foliage stay in a handful of batches. Leaf cards are
@@ -651,8 +654,8 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   no per-firefly physics or raycasts.
 - **Pond:** organic **1.62 m** basin, planar reflection of sky/hills/trees at
   reduced resolution, fresnel and explicit sun/moon glints, plus an anime-lite
-  layer of wind-drifting Voronoi cells with derivative-aware anti-aliasing, a
-  thin broken shoreline crest, downwind edge wavelets and a procedural dark
+  layer of downwind-drifting Voronoi cells with derivative-aware anti-aliasing,
+  a thin broken shoreline crest, downwind edge wavelets and a procedural dark
   wet-sand band following the water outline. Splashes emit staggered,
   wind-stretched ripples, droplets and a light paddling wake; buoyancy and
   recovery handle flung bears. Sixteen validated shore approaches let thirsty

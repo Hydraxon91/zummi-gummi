@@ -2018,6 +2018,9 @@ const DOF_FOCUS_OFFSETS = [
   [0, 0], [0, -.16], [0, .16], [-.16, 0], [.16, 0],
   [-.12, -.12], [.12, -.12], [-.12, .12], [.12, .12],
 ];
+// Do not turn a fully zoomed-out overview into a blurry close-up. The effect
+// is for a nearby subject, not for a distant bear or tree at the centre.
+const DOF_MAX_FOCUS = 34;
 let dofFocusClock = 0;
 let dofFocusDistance = 8;
 let dofFocusTarget = 8;
@@ -2118,7 +2121,7 @@ function updateDofFocus(dt) {
       if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
     }
 
-    if (best) {
+    if (best && best.distance <= DOF_MAX_FOCUS) {
       // Put the focal plane at the back of the viewed object, not on its front
       // surface. The whole object stays sharp and the background starts to
       // soften immediately behind it.
