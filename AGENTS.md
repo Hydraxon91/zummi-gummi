@@ -356,6 +356,15 @@ approved work chunk.
   alone does not prove transparency works. Compare upper and lower silhouettes, openings
   and fixed structural landmarks, not only overall bounds or sampled top heights. Preserve
   reference calibration and restore temporary visibility settings.
+- **Fit mating parts without reshaping unrelated geometry.** When trim, flares or other
+  attachments must follow an existing surface, verify both gaps and excessive penetration
+  across the complete interface, including endpoints. Do not reshape an approved host
+  surface merely to accommodate a convenient primitive without explicit approval. Global
+  bounds and sparse samples do not establish a correct fit.
+- **Validate measurement coordinates before trusting results.** Verify image/UV axes and
+  local-to-world transforms against visually identifiable landmarks. Never substitute a
+  bounding range for the actual surface being tested. Missing samples are unverified
+  regions, not passes; exclude them only with a documented geometric reason.
 - **Reference fidelity before optimisation.** Establish the silhouette and proportions
   first. Reduce geometry only while preserving the approved appearance; do not equate
   low-poly with flat shading or choose an arbitrary minimum triangle count.

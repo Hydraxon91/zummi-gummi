@@ -112,6 +112,22 @@ rig/export notes are in "Deformation and export".
    dimensions/parameters and preserve unrelated regions. Applied unions make isolated
    edits harder: preserve the source operands before applying them.
 
+## Fitting attachments to host surfaces
+
+- Fit trim and flares to the approved host surface; do not reshape that surface merely to
+  accommodate a convenient primitive without explicit approval.
+- Measure the actual interface on evaluated geometry. A torus's full axial bounds do not
+  describe its cross-section everywhere. Compare attachment and host surfaces locally,
+  not just global X ranges or object bounds. Validate image/UV axes and local-to-world
+  transforms against visually identifiable landmarks before trusting measurements.
+- Test both floating gaps and host material breaking through the attachment. Include the
+  full visible arc, ends and transitions. Missing samples remain unverified; do not narrow
+  the sampling region merely to obtain a pass. Document any geometrically justified
+  exclusions and report sampling limits alongside visual close-ups.
+- Preserve symmetry: build mirrored fittings from one source unless reference evidence
+  requires asymmetry. Do not introduce different left/right radii through independent
+  fits without justification.
+
 ## Mesh health gate (after every step)
 
 - Report non-manifold edges, loose vertices and flipped faces on the evaluated target.
@@ -146,7 +162,9 @@ If a fix introduces a new defect class, or the same step fails twice, restore th
 checkpoint, report the evidence and propose an alternative (often a rebuild with the Build
 protocol). Preserve unrelated live changes during restoration; reopening a whole `.blend`
 requires approval if it would discard them. If safe restoration is blocked, stop and report
-instead of discarding work. Do not keep patching on top of a failing generator. Do not apply
+instead of discarding work. Clean topology metrics do not justify further attempts after
+the two-failure limit; a fit or visual verification failure counts even when mesh health
+is green. Do not keep patching on top of a failing generator. Do not apply
 a tool the agent itself has judged unsuitable (e.g. voxel remesh on a thin open panel) just to be able
 to report progress.
 
@@ -169,6 +187,10 @@ unrelated lighting or cameras to conceal shape defects.
   those preconditions explicitly; prefer direct data access when practical. Do not
   swallow context errors with empty exception handlers.
 - Do not parallelise dependent operations against the same live Blender scene.
+- Make temporary capture setup exception-safe: restore visibility, display modes, selection,
+  active object, overlays and shading in `finally`, even when capture fails. Use verified
+  orthographic views or a tested camera-framing helper rather than repeated guessed
+  perspective rotations. Inspect the capture before claiming the intended framing worked.
 - Keep MCP local-only. Do not enable paid generators/download integrations without
   approval or use Blender scripting to bypass repository file-edit requirements.
 
