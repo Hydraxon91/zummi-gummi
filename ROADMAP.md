@@ -960,11 +960,51 @@ movement is continuous with no jitter/NaN and cannot leave the arena; the camera
 never clips ground or field walls; grabbing other bears still works while one is
 possessed; needs, health and the no-death rule are unchanged in both modes.
 
+## Additional maps (future scope — design later)
+
+Add more playable maps beyond the Meadow and Studio. Themes, layouts, activities
+and travel/unlock rules will be designed later; no specific map designs or
+implementation order are committed yet. Reuse the existing map registry and
+per-map state architecture, with collision/nav validation, save/load and
+map-switch isolation checks for each eventual map.
+
+## Relationship and shared-activity expansion (planned proposal)
+
+Extend the existing pair bonds, social invitations and persistence rather than
+replacing them. This is future scope, not an implementation or a change to the
+current phase priorities. Recommended order:
+
+1. **Persistent relationships:** strangers, acquaintances, friends, close friends
+   and rivals/enemies, with remembered positive and negative encounters. A
+   spouse/partner status is separate from friendship, not another mutually
+   exclusive bond tier. Audit the existing bonds and save schema first; define
+   progression, reciprocity, partnership rules and any migration before coding.
+   A relationship panel should show who knows whom and why their bond changed.
+2. **Shared pair activities:** play, chat, cuddle, comfort and reconcile, with
+   voluntary invitations and readable acceptance/refusal. Exact activities and
+   their effects on needs and relationships remain design decisions.
+3. **Group interactions (3+ bears):** tag, dancing, group play and gatherings.
+   Define joining/leaving, participant limits, interruptions and cleanup; reserve
+   spaced activity positions so participants do not bunch into a stuck blob.
+
+**Acceptance:** relationship state round-trips through save/load and map changes;
+accepted and declined invitations behave correctly; a group of at least three
+bears can start, participate, leave and recover from a grab or despawn without
+stale partners, trapped bears or overlapping activity positions. Provide debug
+hooks and timed checks alongside the eventual implementation.
+
 ## Village & placement editor (Phase 9)
 
 The player shapes the meadow from the curated library — the authored villa
 shells, trees, food and decor — rather than authoring new geometry. Each
 sub-phase ships on its own:
+
+**Play-area editor — exploratory, needs design:** extend the Phase 9a prototype
+to place/move/rotate approved play equipment and decor, with collision-footprint
+previews, clear rejection reasons, undo, layout save/load and reset to the
+authored default. Decide the initial equipment library and its activity slots
+before implementation; connect equipment to shared activities only after those
+activities are verified. Terrain sculpting and custom asset imports are deferred.
 
 | Sub-phase | Work | Done when |
 |---|---|---|
