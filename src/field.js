@@ -680,8 +680,8 @@ export function buildField({ scene, camera, renderer, sky }) {
         // the remaining short blades from speckling the trail.
         vec2 pathBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
         float pathRaw = texture2D(uPathMask, (pathBase + uPathExtent * .5) / uPathExtent).r;
-        vPathDirt = smoothstep(.04, .50, pathRaw);
-        if (vPathDirt > .34) {
+        vPathDirt = smoothstep(.16, .55, pathRaw);
+        if (vPathDirt > .40) {
           transformed = vec3(0.0); // no blades on the dirt footprint
         } else {
           transformed.y *= 1.0 - vPathDirt * .98;
@@ -747,11 +747,12 @@ export function buildField({ scene, camera, renderer, sky }) {
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!outer && !fieldInside(x, z, 0.9)) return false;
       if (outer && r > R) return false;
-      // Keep the authored dirt clear: no tuft root on the trail, plus a short
-      // shoulder clearance so wide/leaning tufts cannot grow over the edge.
-      if (pathValueAt(x, z) > .04) return false;
+      // Keep only the visibly painted dirt clear. The old .04 cutoff removed
+      // the soft shoulder as well, leaving a broad grassless band where the
+      // lawn shader had not yet started painting soil.
+      if (pathValueAt(x, z) > .18) return false;
       for (const [ox, oz] of [[.24, 0], [-.24, 0], [0, .24], [0, -.24]]) {
-        if (pathValueAt(x + ox, z + oz) > .14) return false;
+        if (pathValueAt(x + ox, z + oz) > .30) return false;
       }
       const patch = 0.92 + 0.07 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 2.1)
                           + 0.04 * Math.cos(z * 0.23 - x * 0.07);
@@ -1313,13 +1314,14 @@ export function buildField({ scene, camera, renderer, sky }) {
     }
     padShape.closePath();
     const padGeo = new THREE.ShapeGeometry(padShape, 12);
+    padGeo.rotateX(-Math.PI / 2);
     const pads = [];
     const pr = rng(505);
     for (let i = 0; i < 10; i++) {
       const a = pr() * 6.283, rr = 0.25 + pr() * 0.65;
       const x = Math.cos(a) * POND.rx * rr, z = Math.sin(a) * POND.rz * rr;
       const s = 0.65 + pr() * 0.7;
-      pads.push({ m: localMatrix({ x, y: POND.waterY + 0.008, z, rx: -Math.PI/2, ry: pr()*6.283, sx: s, sy: s, sz: s }) });
+      pads.push({ m: localMatrix({ x, y: POND.waterY + 0.008, z, ry: pr()*6.283, sx: s, sy: s, sz: s }) });
     }
     instanced(padGeo, padMat, pads, false, pondGroup);
 

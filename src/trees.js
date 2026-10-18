@@ -516,8 +516,8 @@ export function createTreeCollection({ lots, wind }) {
     ]);
     const trunkRadius = (t) => {
       const flare = 1 + .38 * Math.exp(-t * 14);
-      const taper = 1 - .78 * Math.pow(t, 2.2);
-      return Math.max(.045 * s, s * (.20 + .14 * (1 - t)) * flare * taper);
+      const taper = 1 - .84 * Math.pow(t, 2.2);
+      return Math.max(.018 * s, s * (.20 + .14 * (1 - t)) * flare * taper);
     };
     const trunkFlex = (t) => .02 + .20 * smooth(clamp(t, 0, 1));
     const trunkCol = new THREE.Color().setHSL(.075, .38, .31 + rand() * .05);
@@ -587,7 +587,7 @@ export function createTreeCollection({ lots, wind }) {
       const p2 = limit(start.clone().addScaledVector(dir, length * .70).addScaledVector(up, length * .06).add(side));
       const curve = new THREE.CatmullRomCurve3([start, p1, p2, end]);
       const flexTip = Math.min(1, baseFlex + (isPrimary ? .32 : .22));
-      const radiusFn = t => radius * Math.max(.10, 1 - .84 * t)
+      const radiusFn = t => radius * Math.max(.06, 1 - .90 * t)
         * (1 + (isPrimary ? .55 : .24) * Math.max(0, 1 - t * 7));
       const flexFn = t => lerp(baseFlex, flexTip, smooth(t));
       const radial = level === 1 ? 8 : level === 2 ? 5 : level === 3 ? 4 : 3;
@@ -646,14 +646,20 @@ export function createTreeCollection({ lots, wind }) {
       const start = trunkCurve.getPointAt(attachT);
       const dir = new THREE.Vector3(Math.cos(a), .34 + rand() * .22, Math.sin(a)).normalize();
       const len = (1.02 + rand() * .28) * s;
-      grow(start, dir, len, 1, trunkFlex(attachT), (0.115 + rand() * .030) * s, treePhase, true);
+      // Keep the branch root inside the trunk silhouette; a branch wider than
+      // its host reads as a flat stump at the junction.
+      const branchBase = Math.max(.025 * s,
+        Math.min((.115 + rand() * .030) * s, trunkRadius(attachT) * .62));
+      grow(start, dir, len, 1, trunkFlex(attachT), branchBase, treePhase, true);
     }
     // one shorter upper leader
     {
       const start = trunkCurve.getPointAt(.9);
       const a = rand() * TWO_PI;
       const dir = new THREE.Vector3(Math.cos(a) * .45, .9, Math.sin(a) * .45).normalize();
-      grow(start, dir, (0.82 + rand() * .22) * s, 1, trunkFlex(.9), .105 * s, treePhase, true);
+      const leaderBase = Math.max(.022 * s,
+        Math.min(.105 * s, trunkRadius(.9) * .62));
+      grow(start, dir, (0.82 + rand() * .22) * s, 1, trunkFlex(.9), leaderBase, treePhase, true);
     }
 
     // A fill cluster is a real piece of branchwork: a connector twig from the
