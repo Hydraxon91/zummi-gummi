@@ -51,11 +51,17 @@ optional-effects checks, including the real-shadow/god-ray/DOF follow-up.
 | `40_godrays_canopy.webp` | depth-aware screen-space shafts through a tree canopy at 15:30 in Soft effects; branches occlude the light |
 | `41_depth_of_field.webp` | depth-of-field toggle on in Soft effects, focused at the orbit distance with the near/far meadow softly defocused |
 | `42_pond_shore.webp` | low-angle pond shore after aligning the water surface and bank heights, showing the continuous sand/water edge without a vertical gap |
+| `43_settings_desktop.webp` | 1440×900 Settings sheet with Auto active, adaptive quality, resolution, effects, DoF and meadow detail |
+| `44_settings_mobile.webp` | 390×844 Settings sheet with the presets wrapping to a compact two-column grid and Auto active |
+| `45_profile_performance.webp` | same meadow view under the Performance preset: 70% render scale, Off effects, blob shadows and lighter meadow detail |
+| `46_profile_ultra.webp` | same meadow view under Ultra: 100% render scale, Full effects, 2048 directional shadows and full meadow detail |
 
 The Phase 6 effects follow-up adds real sun/moon maps on the high tiers, a
 half-resolution depth prepass for canopy-occluded sun/moon shafts, and the
-optional depth-of-field toggle (`38`–`42`). The low tiers retain blob shadows
-and the direct renderer; Studio remains direct.
+optional depth-of-field toggle (`38`–`42`). The 6b settings slice adds the
+gear-accessed Settings sheet and the Auto/Performance/Balanced/Quality/Ultra
+presets (`43`–`46`). The low tiers retain blob shadows and the direct renderer;
+Studio remains direct.
 
 Profile (headless Chrome, DPR 2, 1440×900, six bears, forced GPU sync):
 the stable circular-pass reading was **32.1 ms / 565 calls / 3.67 M triangles**.

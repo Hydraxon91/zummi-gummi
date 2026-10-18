@@ -101,7 +101,7 @@ rig and soft-body solver stay.
 | **4 ✅** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection/bonds, **door-level home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit a villa doorway; MSN-style statuses update |
 | **5 ✅** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
 | **6a core ✅ / effects follow-up ✅** | **Effects pass:** gentle color grade, restrained thresholded bloom, SMAA, high-tier GTAO contact AO, cloud-masked sky-dome glow, **real sun/moon directional shadow maps**, **depth-aware screen-space god rays** and an optional **Depth of field** toggle; per-bear sleep schedules and the pond recovery path are also in | Effects stay optional/tiered, preserve readable UI/transmission, occlude light shafts against canopies/objects, and keep a blob-shadow fallback below the shadow tier |
-| **6b** | Aero/MSN polish, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
+| **6b** | Aero/MSN polish, **graphics profiles/settings sheet**, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; profiles/settings persist and stay in sync with Meadow detail; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
 | **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
 | **8b** (after 8a) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
@@ -198,8 +198,15 @@ rig and soft-body solver stay.
   lawn/basin at the rectangular pond cutout. The post stack tone-maps sky/cloud
   materials that bypass ACES in the direct path, so the optional tiers have a
   slightly softer sky.
-- **Next:** add voluntary pond play/swimming, then the Phase 6b effects/profile
-  pass.
+- **Graphics profiles/settings slice complete (Phase 6b):** the gear sheet adds
+  Auto, Performance, Balanced, Quality and Ultra presets over the existing
+  quality tiers, plus adaptive quality, render scale, effects/DoF and meadow
+  detail. Presets are live starting bundles; tweaking any control switches the
+  label to Custom. Individual settings persist, and the Meadow-detail quick
+  controls stay synchronized. Headless checks cover each preset, Custom,
+  reset, reload persistence and desktop/mobile layouts.
+- **Next:** add voluntary pond play/swimming, then the remaining Phase 6b
+  effects/profile pass.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
@@ -417,6 +424,9 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Effect timing is not a final frame-rate claim.** The headless effect probe is
   noisy and GPU-async; Phase 6b must profile Off/Soft/Full at 6/20/40 bears and
   record the method before committing to defaults.
+- **The graphics-profile spot check is only a six-bear, headless probe.** Preset
+  values are deliberately conservative starting points, not a 40-bear budget;
+  revisit the bundles after the Phase 6b full profile and on mobile hardware.
 
 ## Health, hives, mating
 
@@ -483,6 +493,11 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 
 ## Effects & post stack
 
+- **Graphics profiles:** the gear-accessed Settings sheet bundles Auto,
+  Performance, Balanced, Quality and Ultra presets across quality tier, render
+  scale, post effects, DoF, meadow density and the shadow tier. Auto preserves
+  the adaptive default; explicit presets lock their tier unless Adaptive is
+  re-enabled. Manual changes mark the sheet Custom. Individual values persist.
 - **Off / Soft / Full** is a local preference in Meadow detail. Soft is the
   desktop default; Off is the low-width/coarse-pointer default. Studio always
   uses the direct renderer so its editorial white-table look stays crisp.

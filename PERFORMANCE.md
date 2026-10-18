@@ -138,6 +138,26 @@ noisy, so this is not a frame-rate claim. The quality-3 tier intentionally
 falls back to no composer/no shadow maps. Phase 6b must profile Off/Soft/Full at
 6/20/40 bears before fixing defaults.
 
+### Graphics-profile spot check
+
+The settings sheet adds fixed presets over the same tiers. Method: headless
+Chrome, 1440×900, emulated DPR 1, six bears, same camera, preset selected and
+Adaptive disabled, eight forced `renderProbe` frames with `gl.finish()`. These
+are relative spot readings, not a final frame-rate claim.
+
+| preset | render scale | effects | shadows | DPR | calls | triangles | probe ms |
+|---|---:|---|---|---:|---:|---:|---:|
+| Performance | 70% | Off | blob | 0.70 | 243 | 1.25 M | 5.86 |
+| Balanced | 85% | Soft | blob | 0.85 | 243 | 1.25 M | 5.55 |
+| Quality | 95% | Full | 1024 directional | 0.95 | 454 | 3.57 M | 11.36 |
+| Ultra | 100% | Full | 2048 directional | 1.00 | 455 | 3.66 M | 14.76 |
+
+Auto is adaptive and intentionally excluded from a fixed comparison. The
+numbers show the intended gap: render scale and meadow density dominate the
+low end, while Full effects, GTAO, directional shadows and canopy density
+dominate Quality/Ultra. The presets remain starting points for the eventual
+6/20/40-bear matrix.
+
 ## Ground-detail / water spot check
 
 Two forced-sync runs after adding the close-up grass ground texture, its Aero
