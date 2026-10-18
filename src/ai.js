@@ -30,6 +30,13 @@ const THINK_MIN = 0.18;
 const THINK_MAX = 0.28;
 const STUCK_TIME = 1.9;
 
+// Player directives are proposals, not forced states: the AI can refuse, and
+// critical needs still pre-empt an accepted directive.
+const DIRECTIVE_TTL = 45;
+const DIRECTIVE_MAX = 3;
+const DIRECTIVE_KINDS = ['go', 'eat', 'drink', 'home', 'social'];
+const DIRECTIVE_LABELS = { go: 'Go here', eat: 'Eat', drink: 'Drink', home: 'Home', social: 'Socialize' };
+
 // Health, rest and night. Health is in points (0–100), never reaches zero.
 const HEALTH_REGEN = 0.6 / 60;      // awake, points per second
 const HEALTH_REST = 4.0 / 60;       // sleeping/resting
@@ -297,7 +304,23 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
       lastX: b.cx,
       lastZ: b.cz,
       stuckT: 0,
+      directives: [],
+      directive: null,
+      directiveStatus: null,
+      directiveHome: false,
     };
+    if (b._directiveSave) {
+      const saved = b._directiveSave;
+      const clean = (d) => (d && DIRECTIVE_KINDS.includes(d.kind))
+        ? { kind: d.kind, target: d.kind === 'go' && d.target &&
+            Number.isFinite(d.target.x) && Number.isFinite(d.target.z)
+            ? { x: d.target.x, z: d.target.z } : null,
+            ttl: Math.max(0, Math.min(DIRECTIVE_TTL, Number(d.ttl) || DIRECTIVE_TTL)) }
+        : null;
+      if (saved.active) b.ai.directive = clean(saved.active);
+      if (Array.isArray(saved.queue)) b.ai.directives = saved.queue.map(clean).filter(Boolean).slice(-DIRECTIVE_MAX);
+      delete b._directiveSave;
+    }
     if (!b.home) assignHome(b);
     return b.ai;
   }
@@ -1616,6 +1639,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
 
   function startSleep(b, home) {
     if (!b.ai || !home) return;
+    b.ai.directiveHome = false;
     b.ai.state = 'sleep';
     b.ai.sleepHome = home.name;
     b.ai.moving = false;
@@ -1644,7 +1668,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
       b.ai.idleT = 0.8;
       return;
     }
-    if (!needsHome(b)) {
+    if (!needsHome(b) && !b.ai.directiveHome) {
       b.ai.state = 'wander';
       b.ai.idleT = 0.5;
       return;
@@ -1663,6 +1687,183 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     b.ai.moving = true;
   }
 
+  function directiveSnapshot(d) {
+    if (!d) return null;
+    return {
+      kind: d.kind,
+      target: d.target ? { x: d.target.x, z: d.target.z } : null,
+      ttl: +d.ttl.toFixed(2),
+    };
+  }
+
+  function directiveStatus(b, text, kind) {
+    b.ai.directiveStatus = { text, kind: kind || null, t: 4.5 };
+  }
+
+  function issueDirective(b, kind, target) {
+    if (!b || !b.ai || !enabled) return null;
+    if (!DIRECTIVE_KINDS.includes(kind)) return null;
+    if (kind === 'go' && (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z))) return null;
+    if (b.ai.directives.length >= DIRECTIVE_MAX) b.ai.directives.shift();
+    const d = {
+      kind,
+      target: kind === 'go' ? { x: +target.x, z: +target.z } : null,
+      ttl: DIRECTIVE_TTL,
+    };
+    b.ai.directives.push(d);
+    b.ai.nextThink = 0;
+    directiveStatus(b, `${DIRECTIVE_LABELS[kind]} — asked`, kind);
+    return { ...d, queued: b.ai.directives.length };
+  }
+
+  function releaseToNormal(b) {
+    if (!b || !b.ai) return;
+    b.ai.directiveHome = false;
+    const ai = b.ai;
+    if (ai.state === 'seekHome' || ai.state === 'seekFood' || ai.state === 'seekWater') {
+      if (ai.state === 'seekFood') releaseFood(b);
+      ai.source = null;
+      ai.waterSpot = null;
+      ai.target = null;
+      ai.path = null;
+      ai.pathIndex = 0;
+      ai.moving = false;
+      ai.state = 'wander';
+      ai.idleT = 0.4;
+      ai.nextThink = 0;
+    } else if (ai.state === 'wander' && !ai.moving) {
+      ai.target = null;
+    }
+  }
+
+  function cancelDirectives(b) {
+    if (!b || !b.ai) return false;
+    const had = b.ai.directives.length + (b.ai.directive ? 1 : 0);
+    b.ai.directives.length = 0;
+    b.ai.directive = null;
+    releaseToNormal(b);
+    directiveStatus(b, had ? 'cleared' : 'no directives');
+    return true;
+  }
+
+  function nearestCompanyFor(b) {
+    let best = null, bestD = SOCIAL_RADIUS * SOCIAL_RADIUS;
+    for (const o of bears) {
+      if (o === b || !o.active || !o.ai || o.sleeping || o.inPond) continue;
+      const d = (o.cx - b.cx) ** 2 + (o.cz - b.cz) ** 2;
+      if (d < bestD) { bestD = d; best = o; }
+    }
+    return best;
+  }
+
+  function applyDirective(b, d) {
+    if (d.kind === 'go') {
+      const path = pathTo(b, d.target.x, d.target.z);
+      if (!path) return false;
+      clearPath(b);
+      setPath(b, path);
+      b.ai.target = { x: d.target.x, z: d.target.z };
+      b.ai.state = 'wander';
+      b.ai.idleT = 0;
+      b.ai.moving = true;
+      return true;
+    }
+    if (d.kind === 'eat') {
+      if (!acquireFood(b)) return false;
+      b.ai.state = 'seekFood';
+      b.ai.nextThink = 0;
+      return true;
+    }
+    if (d.kind === 'drink') {
+      if (!acquireWater(b)) return false;
+      b.ai.state = 'seekWater';
+      b.ai.nextThink = 0;
+      return true;
+    }
+    if (d.kind === 'home') {
+      if (!homeFor(b)) return false;
+      startSeekHome(b);
+      b.ai.directiveHome = true;
+      return true;
+    }
+    if (d.kind === 'social') {
+      const other = nearestCompanyFor(b);
+      if (!other || !startInvite(b, other)) return false;
+      return true;
+    }
+    return false;
+  }
+
+  function directiveRefusal(b, d) {
+    if (b.health < 28) return 'too hurt';
+    if (b.energy < 0.10) return 'too tired';
+    if (d.kind !== 'drink' && b.thirst >= 0.94) return 'too thirsty';
+    if (d.kind !== 'eat' && b.hunger >= 0.94) return 'too hungry';
+    if (d.kind === 'eat' && b.hunger < 0.28) return 'not hungry';
+    if (d.kind === 'drink' && b.thirst < 0.28) return 'not thirsty';
+    if (d.kind === 'home' && !homeFor(b)) return 'no home';
+    // Unmet needs make a bear less willing to take orders. These are soft
+    // penalties on top of the hard refusals above, so the same command can be
+    // accepted or refused depending on the bear's state.
+    const pressures = [];
+    if (d.kind !== 'eat' && b.hunger > 0.50) pressures.push('hungry');
+    if (d.kind !== 'drink' && b.thirst > 0.50) pressures.push('thirsty');
+    if (d.kind !== 'social' && b.stage === 'adult' && b.mateCooldown <= 0 &&
+        (b.social >= SEEK_SOCIAL || b.affection >= SEEK_AFFECTION || b.ai.state === 'seekMate')) {
+      pressures.push('looking for company');
+    }
+    if (b.ai.state === 'seekMate' && d.kind !== 'social') pressures.push('busy courting');
+    let willing = d.kind === 'social' ? 0.50 + b.bold * 0.35 : 0.84 + b.bold * 0.08;
+    if (d.kind !== 'eat') willing -= Math.max(0, b.hunger - 0.50) * 0.55;
+    if (d.kind !== 'drink') willing -= Math.max(0, b.thirst - 0.50) * 0.65;
+    if (pressures.length) willing -= 0.18;
+    willing = Math.max(0.08, Math.min(0.96, willing));
+    return rng() < willing ? null : (pressures[0] || 'not right now');
+  }
+
+  function finishDirective(b, text) {
+    if (!b || !b.ai) return;
+    if (b.ai.directive) directiveStatus(b, `${DIRECTIVE_LABELS[b.ai.directive.kind]} — ${text}`, b.ai.directive.kind);
+    b.ai.directive = null;
+    releaseToNormal(b);
+  }
+
+  function startNextDirective(b) {
+    if (!b.ai || !b.ai.directives.length) return false;
+    const d = b.ai.directives.shift();
+    const refusal = directiveRefusal(b, d);
+    if (refusal) {
+      directiveStatus(b, `${DIRECTIVE_LABELS[d.kind]} — ${refusal}`, d.kind);
+      if (field && field.emote) field.emote(b.cx, b.cy + 1.08, b.cz, 'no');
+      b.ai.nextThink = 0.5;
+      return false;
+    }
+    if (!applyDirective(b, d)) {
+      directiveStatus(b, `${DIRECTIVE_LABELS[d.kind]} — cannot do that here`, d.kind);
+      if (field && field.emote) field.emote(b.cx, b.cy + 1.08, b.cz, 'no');
+      b.ai.nextThink = 0.6;
+      return false;
+    }
+    b.ai.directive = d;
+    directiveStatus(b, `${DIRECTIVE_LABELS[d.kind]} — on it`, d.kind);
+    if (field && field.emote) field.emote(b.cx, b.cy + 1.08, b.cz, 'yes');
+    return true;
+  }
+
+  function checkDirective(b) {
+    const d = b.ai.directive;
+    if (!d) return;
+    if (d.kind === 'go' && d.target &&
+        Math.hypot(d.target.x - b.cx, d.target.z - b.cz) < 0.9) {
+      finishDirective(b, 'arrived');
+      return;
+    }
+    if (d.kind === 'eat' && b.hunger <= 0.36) { finishDirective(b, 'fed'); return; }
+    if (d.kind === 'drink' && b.thirst <= 0.36) { finishDirective(b, 'watered'); return; }
+    if (d.kind === 'home' && b.ai.state === 'sleep') { finishDirective(b, 'home'); return; }
+    if (d.kind === 'social' && b.ai.state === 'social') { finishDirective(b, 'nuzzling'); return; }
+  }
+
   function think(b) {
     if (!b.ai) return;
     if (['sleep', 'invite', 'social', 'decline', 'conflict', 'mate'].includes(b.ai.state)) return;
@@ -1670,6 +1871,8 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
       startSeekHome(b);
       return;
     }
+    if (b.ai.directive) checkDirective(b);
+    if (!b.ai.directive && b.ai.directives.length && startNextDirective(b)) return;
     if (b.ai.state === 'wander') thinkWander(b);
     else if (b.ai.state === 'seekFood') thinkSeekFood(b);
     else if (b.ai.state === 'seekWater') thinkSeekWater(b);
@@ -1996,6 +2199,13 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
         HUNGER_RATE * (b.pregnant ? PREGNANCY_HUNGER : 1) * dt);
       b.thirst = Math.min(1, finite(b.thirst, 0.3) + THIRST_RATE * dt);
       if (ai.taskCooldown > 0) ai.taskCooldown = Math.max(0, ai.taskCooldown - dt);
+      if (ai.directive) {
+        ai.directive.ttl = Math.max(0, ai.directive.ttl - dt);
+        if (ai.directive.ttl <= 0) finishDirective(b, 'expired');
+      }
+      if (ai.directiveStatus && ai.directiveStatus.t > 0) {
+        ai.directiveStatus.t = Math.max(0, ai.directiveStatus.t - dt);
+      }
       if (ai.idleT > 0) ai.idleT = Math.max(0, ai.idleT - dt);
       if (ai.stungT > 0) ai.stungT = Math.max(0, ai.stungT - dt);
       if (ai.socialCooldown > 0) ai.socialCooldown = Math.max(0, ai.socialCooldown - dt);
@@ -2189,10 +2399,28 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     return { enabled, ticks: stats.ticks, ms: +stats.ms.toFixed(3), bears: list };
   }
 
+  function directiveState(index) {
+    const b = bears[index];
+    if (!b || !b.active || !b.ai) return null;
+    return {
+      index,
+      name: b.name || '',
+      active: directiveSnapshot(b.ai.directive),
+      queue: b.ai.directives.map(directiveSnapshot),
+      status: b.ai.directiveStatus ? { ...b.ai.directiveStatus } : null,
+      state: b.ai.state,
+      hunger: +b.hunger.toFixed(2),
+      thirst: +b.thirst.toFixed(2),
+      energy: +b.energy.toFixed(2),
+      health: +b.health.toFixed(1),
+    };
+  }
+
   return {
     update, onGrab, onRelease, detach, setEnabled,
     setNeed, setBond, debugState, debugSocial, debugInvite, debugVisit, debugConflict, debugMate,
     plan, stats: statsNow,
+    issueDirective, cancelDirectives, directiveState,
     get enabled() { return enabled; },
   };
 }

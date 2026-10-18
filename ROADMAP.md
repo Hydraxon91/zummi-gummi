@@ -107,7 +107,7 @@ rig and soft-body solver stay.
 | **6b-4 ✅** | **Release checklist (shipped scope):** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync; names the deferred 6b-1 polish and Aero/MSN prop set explicitly | Every listed check passes on the shipped build; the checklist is complete and its evidence named, with deferred items recorded rather than silently missing |
 | **7 ⛔ dropped** (Oct 2026) | **WebGPU renderer path — dropped.** Investigated but not scheduled after benchmarks showed no path to the **60 fps** goal (≤16.7 ms at DPR 1.5 with 40 bears on Balanced): parity grass, +0.38 ms fixed overhead, ≈10% from GPU culling only | No work planned; WebGL2 remains the renderer. The 60 fps goal stays open on the WebGL path through grass-fill and per-bear work. Measured findings are retained in the dropped section below and in `PERFORMANCE.md` |
 | **8a ✅** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
-| **8b** (after 8a) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
+| **8b ✅** (after 8a; Follow deferred to 8c) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
 | **8c** (after 8b) | **Possession / third-person:** direct control of one bear with a follow camera and input-driven waddle; AI suspended for that bear only; grab/throw and a clean exit | Possessed movement is continuous (no jitter/NaN) and stays in the arena; exit returns the bear to AI in place with needs intact; the camera never clips ground or field walls; grabbing other bears still works |
 | **9** (after 8a) | **Village & placement editor:** player-authored meadow from the curated library on validated footprints — (9a) editor, (9b) village homes + naming + shared hub, (9c) light jobs and shops; every edit rebuilds nav and re-checks reachability | Zero overlaps and clear door approaches after any edit; no unreachable home or trapped bear in a placement stress test; a layout survives save/load; New Game returns the authored starter layout; a full village stays inside the 6b-3 frame budget |
 | **S — Studio modelling** (parallel, required; can run alongside 3–6) | Authored Studio interior/architecture: modular bar, lounge and giant Frutiger-Aero TV; Blender-to-glTF asset pipeline; evaluate Blender MCP as an authoring-time helper | Bar is interactable and navigable; TV lounge is visually complete; modular assets are exported to the repo with license/provenance, tested at bear scale, and integrated without a runtime MCP/Blender dependency |
@@ -281,16 +281,22 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   once; the socketserver default of 5 dropped bursts and produced
   `ERR_CONNECTION_RESET` in headless first-loads (and could affect real first
   visits). Verified by running the menu suite against a second `launch.py` instance.
-- **Next:** Phase 8b bear directives, then 8c possession. 6b-1 presentation
-  polish stays post-release; the Aero/MSN prop set and 60 fps target remain
-  deferred.
+- **8b bear directives shipped:** select a bear in the roster and choose Go
+  here / Eat / Drink / Home / Social. Directives enter the selector as
+  time-limited proposals, can be refused for legible need/health/courting
+  reasons, show accept/refuse emotes, queue up to three for 45 s, reset to
+  normal AI on completion/cancel, and round-trip through save/load. Follow is
+  deferred to 8c. Verified headless: panel/selection, hard and soft refusals,
+  acceptance and emotes, go/eat/home, queue cap, cancel-to-normal and save/load.
+- **Next:** Phase 8c possession, where Follow can retarget to the possessed bear.
+  6b-1 presentation polish stays post-release; the Aero/MSN prop set and 60 fps
+  target remain deferred.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
   assistant only; see the dedicated track below.
-- **Queued after the simulation (Phases 8–9):** 8a persistence is shipped (five
-  slots, autosave, JSON export/import, New Game); 8b bear directives and 8c
-  possession follow;
+- **Queued after the simulation (Phases 8–9):** 8a persistence and 8b directives
+  are shipped; 8c possession follows;
   then 9a placement, 9b village homes/hub/naming and 9c jobs and shops. The
   6b-4 release checklist therefore also covers save/load, directives, possession
   and placement/nav reachability.
@@ -316,6 +322,17 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   calls pay back.
 - **Draw calls rose ~59** (660 vs 601) from sector submissions; watch mobile
   submission cost before adding more sectors.
+
+**Known follow-ups after 8b** — recorded, not blockers:
+
+- **A grab/throw keeps a directive active**, but `resumeTask` can send the bear
+  wandering on release; decide whether a throw should cancel the request (likely
+  with 8c possession).
+- **Only the queue count is shown**, not the queued commands; add a list if the
+  three-slot queue becomes player-facing.
+- **Acceptance uses unseeded `rng()`**, so the same command can accept or refuse
+  across runs by design; verification should assert the reason/outcome pair, not
+  a fixed roll.
 
 Each phase ends playable, with screenshots and headless checks, so the direction
 can be adjusted without losing the working app.
@@ -999,7 +1016,8 @@ Saving captures the active map exactly and re-enters it on load, Studio included
 **Acceptance:**
 
 - A save reloads both maps exactly: bear count, flavors, sexes, ages/scales,
-  health, needs, homes, food ripeness, clock, cannon and camera.
+  health, needs, homes, food ripeness, clock, cannon, camera and the selected
+  bear's active directive/queue.
 - New Game restores the starter colony on both maps.
 - 5 slots + autosave coexist; rename/delete works; an export → import round trip
   behaves identically.
@@ -1015,14 +1033,15 @@ asynchronous, so load needs a loading state and must not race boot.
 
 Two stages, both reusing systems that already exist.
 
-**8b — directives.** Select a bear, then issue a command from a short panel:
-go to a point, eat that food, sleep at home, follow the player, socialize with
-another bear. A directive does not replace the AI — it enters the existing
-utility selector as a high-priority, time-limited proposal, and the bear may
-refuse. Refusal is decided by needs, personality (bold/shy), health, hysteresis
-and cooldowns, and it is visible: an accept nod or a "no" emote plus a status
+**8b — directives (shipped).** Select a bear, then issue a command from a short
+panel: go to a point, eat the nearest ripe food, go home to rest, socialize with
+another bear. **Follow is deferred to 8c**, where it can target the possessed
+bear. A directive does not replace the AI — it enters the existing utility
+selector as a high-priority, time-limited proposal, and the bear may refuse.
+Refusal is decided by needs, personality (bold/shy), health, hysteresis and
+cooldowns, and it is visible: an accept nod or a "no" emote plus a status
 line. The queue is at most 3 deep and expires; the selector keeps authority, so
-a starving bear still abandons "follow me" to eat.
+a starving bear still abandons a request to eat.
 
 **8c — possession.** Direct control of the selected bear: a third-person follow
 camera, WASD/arrow or on-screen stick locomotion feeding the existing waddle/lean

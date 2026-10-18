@@ -20,6 +20,8 @@ let field = null;
 let sky = null;
 let ai = null;
 let aiDebug = null;
+let selectedBear = null;
+let directivePick = false;
 let effects = null;
 let studioReturnPortal = null;
 const fieldColliderHandles = [];
@@ -2273,6 +2275,13 @@ function rayFromClient(cx, cy){
   _rayOrigin.copy(_rc.ray.origin);
   _rayDir.copy(_rc.ray.direction);
 }
+const _directivePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.02);
+const _directiveHit = new THREE.Vector3();
+function groundPointAt(cx, cy){
+  rayFromClient(cx, cy);
+  if (!_rc.ray.intersectPlane(_directivePlane, _directiveHit)) return null;
+  return { x: _directiveHit.x, z: _directiveHit.z };
+}
 function pickPortal(cx, cy){
   const target = isMeadow()
     ? (field && field.studioHouse ? field.studioHouse.portal : null)
@@ -2428,6 +2437,21 @@ addEventListener('pointerdown', (e)=>{
   const p = { id:e.pointerId, type:e.pointerType, button:e.button,
               mode:'none', lx:e.clientX, ly:e.clientY, sx:e.clientX, sy:e.clientY, grab:null };
   pointers.set(e.pointerId, p);
+  if (directivePick && (e.pointerType !== 'mouse' || e.button === 0)) {
+    const pt = groundPointAt(e.clientX, e.clientY);
+    directivePick = false;
+    p.mode = 'ignore';
+    if (pt && selectedBear && ai && isMeadow()) {
+      let target = pt;
+      if (field && field.nav && !field.nav.isWalkable(target.x, target.z)) {
+        const near = field.nav.nearestWalkable(target.x, target.z);
+        if (near) target = { x: near.x, z: near.z };
+      }
+      ai.issueDirective(selectedBear, 'go', target);
+    }
+    syncDirectivePanel();
+    return;
+  }
   if (launcher && launcher.pointerDown(e)){
     p.mode = 'launcher';
     return;
@@ -2686,6 +2710,7 @@ document.getElementById('settingsDone')?.addEventListener('click', ()=>setSettin
 settingsEl?.addEventListener('pointerdown', (e)=>{ if (e.target === settingsEl) setSettings(false); });
 addEventListener('keydown', (e)=>{
   if (e.key === 'Escape'){
+    if (directivePick){ directivePick = false; syncDirectivePanel(); return; }
     const slots = document.getElementById('menuSlots');
     if (slots && slots.classList.contains('open')) { openMenuSlots(false); return; }
     if (helpOpen || settingsOpen){ setHelp(false); setSettings(false); return; }
@@ -2751,6 +2776,14 @@ const skyPeriodEl = document.getElementById('skyPeriod');
 const skyIconEl = document.getElementById('skyIcon');
 const onlineCountEl = document.getElementById('onlineCount');
 const buddyListEl = document.getElementById('buddyList');
+const directivePanelEl = document.getElementById('directivePanel');
+const directiveNameEl = document.getElementById('directiveName');
+const directiveStatusEl = document.getElementById('directiveStatus');
+const directiveActionsEl = document.getElementById('directiveActions');
+const directiveCloseEl = document.getElementById('directiveClose');
+const directiveButtons = directiveActionsEl
+  ? Array.from(directiveActionsEl.querySelectorAll('[data-directive]'))
+  : [];
 const timeSliderEl = document.getElementById('timeSlider');
 const timeAutoEl = document.getElementById('timeAuto');
 const timeSpeedEl = document.getElementById('timeSpeed');
@@ -2954,6 +2987,8 @@ function refreshBuddyList(){
       name.appendChild(stage);
     }
     row.append(dot, mid, right);
+    row.dataset.uid = String(b.uid);
+    if (selectedBear === b) row.classList.add('selected');
     row.addEventListener('click', () => focusBuddy(b));
     buddyListEl.append(row);
     b._buddyStatusEl = status;
@@ -2976,9 +3011,68 @@ function updateBuddyStatuses(force = false){
     if (b._buddyStatusEl) b._buddyStatusEl.textContent = buddyStatus(b);
     syncBuddyHealth(b);
   }
+  if (selectedBear) syncDirectivePanel();
 }
+const DIRECTIVE_TEXT = { go: 'Go here', eat: 'Eat', drink: 'Drink', home: 'Home', social: 'Socialize' };
+function selectedBearIndex(){
+  return selectedBear ? bears.indexOf(selectedBear) : -1;
+}
+function syncDirectivePanel(){
+  if (!directivePanelEl) return;
+  const b = selectedBear;
+  const show = !!b && b.active && isMeadow() && !helpOpen;
+  directivePanelEl.hidden = !show;
+  if (!show) return;
+  if (directiveNameEl) directiveNameEl.textContent = b.name || 'Gummy';
+  let text = 'Pick a command.';
+  if (b.ai && b.ai.directiveStatus && b.ai.directiveStatus.t > 0) {
+    text = b.ai.directiveStatus.text;
+  } else if (b.ai && b.ai.directive) {
+    text = `${DIRECTIVE_TEXT[b.ai.directive.kind] || 'Directive'} — ${Math.ceil(b.ai.directive.ttl)}s`;
+  } else if (b.ai && b.ai.directives && b.ai.directives.length) {
+    text = `${b.ai.directives.length} queued`;
+  }
+  if (directiveStatusEl) directiveStatusEl.textContent = text;
+  for (const btn of directiveButtons) {
+    btn.classList.toggle('active', directivePick && btn.dataset.directive === 'go');
+  }
+}
+function selectBear(b){
+  selectedBear = b && b.active ? b : null;
+  directivePick = false;
+  if (buddyListEl) {
+    for (const row of buddyListEl.children) {
+      row.classList.toggle('selected', !!b && row.dataset.uid === String(b.uid));
+    }
+  }
+  syncDirectivePanel();
+}
+function issueSelectedDirective(kind){
+  if (!selectedBear || !selectedBear.active || !ai || !isMeadow()) return;
+  if (kind === 'go') {
+    directivePick = true;
+    if (directiveStatusEl) directiveStatusEl.textContent = 'Tap the meadow to send this bear there.';
+    for (const btn of directiveButtons) btn.classList.toggle('active', btn.dataset.directive === 'go');
+    return;
+  }
+  const d = ai.issueDirective(selectedBear, kind);
+  if (directiveStatusEl) {
+    directiveStatusEl.textContent = d
+      ? `${DIRECTIVE_TEXT[kind] || kind} — asked`
+      : 'That command is not available.';
+  }
+}
+for (const btn of directiveButtons) {
+  btn.addEventListener('click', () => issueSelectedDirective(btn.dataset.directive));
+}
+directiveCloseEl?.addEventListener('click', () => {
+  if (selectedBear && ai) ai.cancelDirectives(selectedBear);
+  directivePick = false;
+  syncDirectivePanel();
+});
 function focusBuddy(b){
   if (!b || !b.active) return;
+  selectBear(b);
   cam.goal.set(b.cx, Math.min(1.15, Math.max(0.45, b.cy + 0.2)), b.cz);
   cam.target.copy(cam.goal);
   const [zmin, zmax] = camZoomLimits();
@@ -4226,6 +4320,9 @@ function seedMeadowBears(){
 function yawOfQuat(q){
   return Math.atan2(2*(q.w*q.y + q.x*q.z), 1 - 2*(q.y*q.y + q.z*q.z));
 }
+function snapshotDirective(d){
+  return d ? { kind: d.kind, target: d.target ? { x: d.target.x, z: d.target.z } : null, ttl: d.ttl } : null;
+}
 function snapshotBear(b){
   return {
     flavor: b.flavor, sex: b.sex, stage: b.stage, scale: b.scale,
@@ -4237,6 +4334,10 @@ function snapshotBear(b){
     fatherUid: b.fatherUid || 0, bedtime: b.bedtime, wakeTime: b.wakeTime,
     hopSpeedMin: b.hopSpeedMin, hopSpeedMax: b.hopSpeedMax,
     name: b.name, home: b.home,
+    directives: b.ai ? {
+      active: snapshotDirective(b.ai.directive),
+      queue: (b.ai.directives || []).map(snapshotDirective),
+    } : null,
     x: b.cx, z: b.cz, yaw: yawOfQuat(b.q),
   };
 }
@@ -4274,6 +4375,7 @@ function spawnFromState(st){
   b.bonds = st.bonds && typeof st.bonds === 'object' ? { ...st.bonds } : {};
   b.hopSpeedMin = Number.isFinite(st.hopSpeedMin) ? st.hopSpeedMin : b.hopSpeedMin;
   b.hopSpeedMax = Number.isFinite(st.hopSpeedMax) ? st.hopSpeedMax : b.hopSpeedMax;
+  b._directiveSave = st.directives && typeof st.directives === 'object' ? st.directives : null;
   return b;
 }
 
@@ -4341,6 +4443,11 @@ function applyMapVisuals(id){
   updateAeroVisibility();
   if (effects) effects.setEnabled(!!meadow);
   if (aiDebug) aiDebug.onMapChanged();
+  if (!meadow) {
+    selectedBear = null;
+    directivePick = false;
+    syncDirectivePanel();
+  }
 }
 
 function syncCannonCollider(){
@@ -4394,6 +4501,9 @@ function activateMap(id, opts = {}){
     seedStudioBears();
   }
   w.initialized = true;
+  selectedBear = null;
+  directivePick = false;
+  syncDirectivePanel();
   updateMapButtons();
   updateAeroVisibility();
   syncAeroUI(true);
@@ -5177,6 +5287,10 @@ window.__gummy = {
   }) }; },
   launcher(){ return launcher ? launcher.state() : null; },
   foodRegistry(){ return field && field.food ? field.food : null; },
+  selectBear(i){ const b = bears[i]; if (b && b.active) focusBuddy(b); return selectedBear ? selectedBear.name : null; },
+  directive(i, kind, target){ return ai ? ai.issueDirective(bears[i], kind, target) : null; },
+  directives(i){ return ai ? ai.directiveState(i) : null; },
+  cancelDirectives(i){ return ai ? ai.cancelDirectives(bears[i]) : false; },
   fieldInfo(){
     if (!field) return null;
     return {

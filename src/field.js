@@ -206,6 +206,7 @@ const EMOTE_STYLES = {
   heart:    { glyph: '♥', color: '#ff6f9f' },
   question: { glyph: '?', color: '#79e9ff' },
   no:       { glyph: '×', color: '#ff7d88' },
+  yes:      { glyph: '✓', color: '#8ef0b6' },
   exclaim:  { glyph: '!', color: '#ffd86b' },
   sparkle:  { glyph: '✦', color: '#d9b6ff' },
 };
