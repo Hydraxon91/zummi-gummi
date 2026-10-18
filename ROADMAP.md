@@ -107,8 +107,8 @@ rig and soft-body solver stay.
 | **6b-4 ✅** | **Release checklist (shipped scope):** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync; names the deferred 6b-1 polish and Aero/MSN prop set explicitly | Every listed check passes on the shipped build; the checklist is complete and its evidence named, with deferred items recorded rather than silently missing |
 | **7 ⛔ dropped** (Oct 2026) | **WebGPU renderer path — dropped.** Investigated but not scheduled after benchmarks showed no path to the **60 fps** goal (≤16.7 ms at DPR 1.5 with 40 bears on Balanced): parity grass, +0.38 ms fixed overhead, ≈10% from GPU culling only | No work planned; WebGL2 remains the renderer. The 60 fps goal stays open on the WebGL path through grass-fill and per-bear work. Measured findings are retained in the dropped section below and in `PERFORMANCE.md` |
 | **8a ✅** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
-| **8b ✅** (after 8a; Follow deferred to 8c) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
-| **8c** (after 8b) | **Possession / third-person:** direct control of one bear with a follow camera and input-driven waddle; AI suspended for that bear only; grab/throw and a clean exit | Possessed movement is continuous (no jitter/NaN) and stays in the arena; exit returns the bear to AI in place with needs intact; the camera never clips ground or field walls; grabbing other bears still works |
+| **8b ✅** (after 8a; Follow deferred) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
+| **8c ✅** (after 8b) | **Possession / third-person:** direct control of one bear with a follow camera and input-driven waddle; AI suspended for that bear only; grab/throw and a clean exit | Possessed movement is continuous (no jitter/NaN) and stays in the arena; exit returns the bear to AI in place with needs intact; the camera never clips ground or field walls; grabbing other bears still works |
 | **9** (after 8a) | **Village & placement editor:** player-authored meadow from the curated library on validated footprints — (9a) editor, (9b) village homes + naming + shared hub, (9c) light jobs and shops; every edit rebuilds nav and re-checks reachability | Zero overlaps and clear door approaches after any edit; no unreachable home or trapped bear in a placement stress test; a layout survives save/load; New Game returns the authored starter layout; a full village stays inside the 6b-3 frame budget |
 | **S — Studio modelling** (parallel, required; can run alongside 3–6) | Authored Studio interior/architecture: modular bar, lounge and giant Frutiger-Aero TV; Blender-to-glTF asset pipeline; evaluate Blender MCP as an authoring-time helper | Bar is interactable and navigable; TV lounge is visually complete; modular assets are exported to the repo with license/provenance, tested at bear scale, and integrated without a runtime MCP/Blender dependency |
 
@@ -285,18 +285,28 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   here / Eat / Drink / Home / Social. Directives enter the selector as
   time-limited proposals, can be refused for legible need/health/courting
   reasons, show accept/refuse emotes, queue up to three for 45 s, reset to
-  normal AI on completion/cancel, and round-trip through save/load. Follow is
-  deferred to 8c. Verified headless: panel/selection, hard and soft refusals,
+  normal AI on completion/cancel, and round-trip through save/load. Follow
+  remains deferred. Verified headless: panel/selection, hard and soft refusals,
   acceptance and emotes, go/eat/home, queue cap, cancel-to-normal and save/load.
-- **Next:** Phase 8c possession, where Follow can retarget to the possessed bear.
-  6b-1 presentation polish stays post-release; the Aero/MSN prop set and 60 fps
+- **8c possession shipped:** V (or Control) takes the selected bear; WASD/arrows
+  or the on-screen stick drive the existing hop/waddle cycle, Space hops, and
+  V/Esc exits. AI is suspended for that bear only, needs keep ticking, and the
+  follow camera stays above ground and inside the arena. **C** switches left
+  click between Grab and Select: Select highlights the bear and opens its
+  command panel without grabbing, while drag still orbits. The command panel is
+  now a separate card below the roster, closes with ×, and the performance
+  overlay draws above the meadow panels. Verified headless: enter/exit,
+  suspended selector, needs tick, WASD and mobile-stick movement, jump, camera
+  follow, panel close, click-mode toggle, no page errors.
+- **Next:** Phase 9 (placement editor → village → jobs) or the deferred 6b-1
+  presentation polish. 6b-1 stays post-release; the Aero/MSN prop set and 60 fps
   target remain deferred.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
   assistant only; see the dedicated track below.
-- **Queued after the simulation (Phases 8–9):** 8a persistence and 8b directives
-  are shipped; 8c possession follows;
+- **Queued after the simulation (Phases 8–9):** 8a persistence, 8b directives and
+  8c possession are shipped;
   then 9a placement, 9b village homes/hub/naming and 9c jobs and shops. The
   6b-4 release checklist therefore also covers save/load, directives, possession
   and placement/nav reachability.
@@ -333,6 +343,20 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
 - **Acceptance uses unseeded `rng()`**, so the same command can accept or refuse
   across runs by design; verification should assert the reason/outcome pair, not
   a fixed roll.
+
+**Known follow-ups after 8c** — recorded, not blockers:
+
+- **Possession is session-only.** Reloading or changing maps returns the bear to
+  AI in place; decide whether a save should restore control.
+- **Follow still needs a target model.** Possession provides a natural target,
+  but the Follow command is not implemented yet.
+- **The follow camera keeps the player's manual orbit** and only follows
+  position; add auto-behind alignment if playtesting asks for it.
+- **Grabbing another bear while one is possessed** works through the existing
+  pointer path but is not in the headless suite; verify it with a real pointer
+  pass.
+- **Close (×) now deselects without cancelling**; queued commands keep running.
+  Add an explicit “clear commands” affordance only if that surprises players.
 
 Each phase ends playable, with screenshots and headless checks, so the direction
 can be adjusted without losing the working app.
@@ -1035,8 +1059,8 @@ Two stages, both reusing systems that already exist.
 
 **8b — directives (shipped).** Select a bear, then issue a command from a short
 panel: go to a point, eat the nearest ripe food, go home to rest, socialize with
-another bear. **Follow is deferred to 8c**, where it can target the possessed
-bear. A directive does not replace the AI — it enters the existing utility
+another bear. **Follow remains deferred** until a dedicated target model lands.
+A directive does not replace the AI — it enters the existing utility
 selector as a high-priority, time-limited proposal, and the bear may refuse.
 Refusal is decided by needs, personality (bold/shy), health, hysteresis and
 cooldowns, and it is visible: an accept nod or a "no" emote plus a status

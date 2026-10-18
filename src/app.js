@@ -22,6 +22,11 @@ let ai = null;
 let aiDebug = null;
 let selectedBear = null;
 let directivePick = false;
+let clickMode = 'grab';
+try { clickMode = localStorage.getItem('gummy.clickMode') === 'select' ? 'select' : 'grab'; } catch (err) {}
+let possessedBear = null;
+let possessHopCd = 0;
+const possessInput = { x: 0, y: 0 };
 let effects = null;
 let studioReturnPortal = null;
 const fieldColliderHandles = [];
@@ -2074,6 +2079,17 @@ function applyCamera(dt){
     cam.target.y + sp*cam.dist,
     cam.target.z + Math.cos(cam.yaw)*cp*cam.dist
   );
+  // Third-person possession keeps the camera above the ground and inside the
+  // arena, so orbiting cannot clip through the meadow floor or boundary.
+  if (possessedBear && isMeadow()){
+    camera.position.y = Math.max(camera.position.y, 0.55);
+    const maxR = (Number.isFinite(FIELD_RADIUS) ? FIELD_RADIUS : 60) - 1.2;
+    const r = Math.hypot(camera.position.x, camera.position.z);
+    if (r > maxR){
+      camera.position.x *= maxR / r;
+      camera.position.z *= maxR / r;
+    }
+  }
   if (dt > 0 && camShakeT > 0){
     camShakeT = Math.max(0, camShakeT - dt);
     const k = camShakeT / CAM_SHAKE_DUR;
@@ -2465,6 +2481,21 @@ addEventListener('pointerdown', (e)=>{
     hideCamHint();
     return;
   }
+  // Select-click mode: pick the bear under the pointer without grabbing it, so
+  // left-click can select while a drag still orbits. Grab mode is unchanged.
+  if ((e.pointerType !== 'mouse' || e.button === 0) && clickMode === 'select'){
+    rayFromClient(e.clientX, e.clientY);
+    const hit = pickBear();
+    if (hit){
+      selectBear(hit.bear);
+      p.mode = 'orbit';
+      if (hintEl){
+        hintEl.textContent = `${hit.bear.name || 'Bear'} selected — choose a command or Control`;
+        showCamHint();
+      }
+      return;
+    }
+  }
   // only the primary button pulls bears; right/middle always drive the camera
   if (e.pointerType !== 'mouse' || e.button === 0){
     const g = grabScreen(e.clientX, e.clientY, e.pointerId);
@@ -2560,6 +2591,9 @@ addEventListener('keydown', (e)=>{
   if (helpOpen) return;
   if (menuOpen || paused) return;
   const k = e.key.toLowerCase();
+  if (k === 'v'){ if (!e.repeat) togglePossession(); return; }
+  if (k === 'c'){ if (!e.repeat) toggleClickMode(); return; }
+  if (possessedBear && k === ' '){ if (!e.repeat) possessionJump(); e.preventDefault(); return; }
   if (k === 'u'){ if (!e.repeat) toggleUi(); return; }
   if (k === 'g'){ if (!e.repeat && aiDebug && isMeadow()) aiDebug.toggle(); return; }
   if (k === 'f'){
@@ -2710,6 +2744,7 @@ document.getElementById('settingsDone')?.addEventListener('click', ()=>setSettin
 settingsEl?.addEventListener('pointerdown', (e)=>{ if (e.target === settingsEl) setSettings(false); });
 addEventListener('keydown', (e)=>{
   if (e.key === 'Escape'){
+    if (possessedBear){ exitPossession(); return; }
     if (directivePick){ directivePick = false; syncDirectivePanel(); return; }
     const slots = document.getElementById('menuSlots');
     if (slots && slots.classList.contains('open')) { openMenuSlots(false); return; }
@@ -2781,6 +2816,13 @@ const directiveNameEl = document.getElementById('directiveName');
 const directiveStatusEl = document.getElementById('directiveStatus');
 const directiveActionsEl = document.getElementById('directiveActions');
 const directiveCloseEl = document.getElementById('directiveClose');
+const possessBtnEl = document.getElementById('possessBtn');
+const possessHudEl = document.getElementById('possessHud');
+const possessStickEl = document.getElementById('possessStick');
+const possessKnobEl = document.getElementById('possessKnob');
+const possessExitEl = document.getElementById('possessExit');
+const possessNameEl = document.getElementById('possessName');
+const clickModeEl = document.getElementById('clickMode');
 const directiveButtons = directiveActionsEl
   ? Array.from(directiveActionsEl.querySelectorAll('[data-directive]'))
   : [];
@@ -3024,8 +3066,16 @@ function syncDirectivePanel(){
   directivePanelEl.hidden = !show;
   if (!show) return;
   if (directiveNameEl) directiveNameEl.textContent = b.name || 'Gummy';
+  const controlling = possessedBear === b;
+  if (directiveActionsEl) directiveActionsEl.hidden = controlling;
+  if (possessBtnEl) {
+    possessBtnEl.textContent = controlling ? 'Exit control' : 'Control';
+    possessBtnEl.classList.toggle('on', controlling);
+  }
   let text = 'Pick a command.';
-  if (b.ai && b.ai.directiveStatus && b.ai.directiveStatus.t > 0) {
+  if (controlling) {
+    text = 'WASD / stick to move · Space hop · V exit';
+  } else if (b.ai && b.ai.directiveStatus && b.ai.directiveStatus.t > 0) {
     text = b.ai.directiveStatus.text;
   } else if (b.ai && b.ai.directive) {
     text = `${DIRECTIVE_TEXT[b.ai.directive.kind] || 'Directive'} — ${Math.ceil(b.ai.directive.ttl)}s`;
@@ -3047,6 +3097,28 @@ function selectBear(b){
   }
   syncDirectivePanel();
 }
+function syncClickMode(){
+  if (!clickModeEl) return;
+  const select = clickMode === 'select';
+  clickModeEl.textContent = select ? 'Select click' : 'Grab click';
+  clickModeEl.setAttribute('aria-pressed', String(select));
+  clickModeEl.title = select
+    ? 'Left click selects a bear; drag still orbits'
+    : 'Left click grabs and throws a bear';
+}
+function toggleClickMode(){
+  clickMode = clickMode === 'select' ? 'grab' : 'select';
+  try { localStorage.setItem('gummy.clickMode', clickMode); } catch (err) {}
+  syncClickMode();
+  if (hintEl){
+    hintEl.textContent = clickMode === 'select'
+      ? 'Select click — click a bear to command it, drag to orbit'
+      : 'Grab click — drag a bear to stretch and throw';
+    showCamHint();
+  }
+}
+clickModeEl?.addEventListener('click', toggleClickMode);
+syncClickMode();
 function issueSelectedDirective(kind){
   if (!selectedBear || !selectedBear.active || !ai || !isMeadow()) return;
   if (kind === 'go') {
@@ -3066,10 +3138,135 @@ for (const btn of directiveButtons) {
   btn.addEventListener('click', () => issueSelectedDirective(btn.dataset.directive));
 }
 directiveCloseEl?.addEventListener('click', () => {
-  if (selectedBear && ai) ai.cancelDirectives(selectedBear);
   directivePick = false;
-  syncDirectivePanel();
+  selectBear(null);
 });
+
+function syncPossessHud(){
+  if (!possessHudEl) return;
+  const on = !!possessedBear;
+  possessHudEl.hidden = !on;
+  document.body.classList.toggle('possessing', on);
+  if (possessNameEl) {
+    possessNameEl.textContent = on ? `Controlling ${possessedBear.name || 'Gummy'}` : 'In control';
+  }
+}
+function enterPossession(b){
+  if (!b || !b.active || !ai || !isMeadow()) return false;
+  if (possessedBear && possessedBear !== b) exitPossession();
+  if (!ai.setPossessed(b, true)) return false;
+  possessedBear = b;
+  selectedBear = b;
+  directivePick = false;
+  possessInput.x = 0; possessInput.y = 0; possessHopCd = 0;
+  cam.dist = clamp(Math.max(cam.dist, 5.5), 4.6, 9.5);
+  cam.goal.set(b.cx, clamp(b.cy + 0.55, 0.6, 1.4), b.cz);
+  syncDirectivePanel();
+  syncPossessHud();
+  return true;
+}
+function exitPossession(){
+  if (!possessedBear) return false;
+  if (ai) ai.setPossessed(possessedBear, false);
+  possessedBear = null;
+  possessInput.x = 0; possessInput.y = 0; possessHopCd = 0;
+  if (possessKnobEl) possessKnobEl.style.transform = '';
+  syncDirectivePanel();
+  syncPossessHud();
+  return true;
+}
+function togglePossession(){
+  if (possessedBear) return exitPossession();
+  return selectedBear ? enterPossession(selectedBear) : false;
+}
+function possessionJump(){
+  const b = possessedBear;
+  if (!b || b.airborne || b.contacts === 0 || possessHopCd > 0) return;
+  hopBear(b, 3.4, 0, 0, true);
+  b.ai.hopState = 'air';
+  b.ai.hopWait = 0;
+  b.airborne = true;
+  b.antic = 0;
+  possessHopCd = 0.55;
+}
+function updatePossessionLocomotion(dt){
+  if (!possessedBear) return;
+  if (!isMeadow() || !possessedBear.active) { exitPossession(); return; }
+  const b = possessedBear;
+  if (possessHopCd > 0) possessHopCd = Math.max(0, possessHopCd - dt);
+  if (b.grabs > 0 || b.inPond) return;
+  let fwd = 0, right = 0;
+  if (keys.has('w') || keys.has('arrowup')) fwd += 1;
+  if (keys.has('s') || keys.has('arrowdown')) fwd -= 1;
+  if (keys.has('d') || keys.has('arrowright')) right += 1;
+  if (keys.has('a') || keys.has('arrowleft')) right -= 1;
+  fwd -= possessInput.y;
+  right += possessInput.x;
+  const mag = Math.hypot(fwd, right);
+  if (mag < 0.08) return;
+  const nf = fwd / mag, nr = right / mag;
+  const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
+  const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
+  const dx = fx * nf + rx * nr, dz = fz * nf + rz * nr;
+  b.ai.faceYaw = Math.atan2(dx, dz);
+  // Reuse the AI hop pose/settle cycle so the waddle and lean stay identical.
+  if (b.ai.hopState === 'air' && !b.airborne && b.contacts > 0) {
+    b.ai.hopState = 'settle';
+    b.ai.hopWait = 0.10;
+  }
+  if (b.ai.hopState === 'settle') {
+    b.ai.hopWait -= dt;
+    if (b.ai.hopWait > 0) return;
+    b.ai.hopState = null;
+  }
+  if (b.airborne || b.contacts === 0 || possessHopCd > 0) return;
+  if ((b.rMat[4] || 0) < 0.5) return;
+  const speed = 2.15;
+  hopBear(b, 2.9, dx * speed, dz * speed, true);
+  b.ai.hopState = 'air';
+  b.ai.hopWait = 0;
+  b.airborne = true;
+  b.antic = 0;
+  possessHopCd = 0.48;
+}
+function updatePossessionCamera(){
+  if (!possessedBear) return;
+  cam.goal.set(possessedBear.cx, clamp(possessedBear.cy + 0.55, 0.6, 1.4), possessedBear.cz);
+}
+function stickVector(e){
+  const r = possessStickEl.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  let x = (e.clientX - cx) / (r.width * 0.42);
+  let y = (e.clientY - cy) / (r.height * 0.42);
+  const m = Math.hypot(x, y);
+  if (m > 1) { x /= m; y /= m; }
+  possessInput.x = x;
+  possessInput.y = y;
+  if (possessKnobEl) {
+    possessKnobEl.style.transform = `translate(${x * r.width * 0.30}px,${y * r.height * 0.30}px)`;
+  }
+}
+let stickPointer = null;
+possessStickEl?.addEventListener('pointerdown', (e) => {
+  stickPointer = e.pointerId;
+  try { possessStickEl.setPointerCapture(e.pointerId); } catch (err) {}
+  stickVector(e);
+  e.preventDefault();
+});
+possessStickEl?.addEventListener('pointermove', (e) => {
+  if (e.pointerId === stickPointer) stickVector(e);
+});
+const releaseStick = (e) => {
+  if (e.pointerId !== stickPointer) return;
+  stickPointer = null;
+  possessInput.x = 0;
+  possessInput.y = 0;
+  if (possessKnobEl) possessKnobEl.style.transform = '';
+};
+possessStickEl?.addEventListener('pointerup', releaseStick);
+possessStickEl?.addEventListener('pointercancel', releaseStick);
+possessBtnEl?.addEventListener('click', togglePossession);
+possessExitEl?.addEventListener('click', exitPossession);
 function focusBuddy(b){
   if (!b || !b.active) return;
   selectBear(b);
@@ -3553,6 +3750,12 @@ function updateAiLocomotion(dt) {
   for (const b of bears) {
     const a = b.ai;
     if (!b.active || !a) continue;
+    if (a.possessed) {
+      a.hopState = null;
+      a.hopWait = 0;
+      a.turnWait = 0;
+      continue;
+    }
     if (b.grabs > 0 || b.inPond || a.interrupted || a.state === 'eat' || a.state === 'drink') {
       if (a.hopState === 'crouch') a.hopState = null;
       a.turnWait = 0;
@@ -3645,6 +3848,7 @@ function stepMeadowAI(dt) {
 
 function frameTick(dt){
   stepMeadowAI(dt);
+  updatePossessionLocomotion(dt);
   // pointer velocity decays when the pointer stops, so a hold-then-release
   // doesn't fling the bear with stale momentum
   {
@@ -4137,7 +4341,8 @@ function animate(now){
   updateSurfaces();
   updateMeshTransforms();
   drawShadows();
-  updateCameraKeys(dt);
+  if (!possessedBear) updateCameraKeys(dt);
+  updatePossessionCamera();
   applyCamera(dt);
   if (hintTimer > 0){ hintTimer -= dt; if (hintTimer <= 0) hideCamHint(); }
   const tSurf1 = performance.now();
@@ -4466,6 +4671,7 @@ function syncCannonCollider(){
 }
 
 function activateMap(id, opts = {}){
+  if (!opts.initial && possessedBear) exitPossession();
   const target = MAPS[id] || getActiveMap();
   if (!opts.initial){
     releaseAllGrabs();
@@ -5291,6 +5497,15 @@ window.__gummy = {
   directive(i, kind, target){ return ai ? ai.issueDirective(bears[i], kind, target) : null; },
   directives(i){ return ai ? ai.directiveState(i) : null; },
   cancelDirectives(i){ return ai ? ai.cancelDirectives(bears[i]) : false; },
+  possess(i){ const b = bears[i]; return enterPossession(b) ? (possessedBear.name || '') : null; },
+  exitPossession(){ return exitPossession(); },
+  possessed(){ return possessedBear ? {
+    index: bears.indexOf(possessedBear), name: possessedBear.name || '',
+    x: +possessedBear.cx.toFixed(2), z: +possessedBear.cz.toFixed(2), y: +possessedBear.cy.toFixed(2),
+    airborne: !!possessedBear.airborne,
+    camera: { x: +camera.position.x.toFixed(2), y: +camera.position.y.toFixed(2), z: +camera.position.z.toFixed(2) },
+  } : null; },
+  possessInput(x, z){ possessInput.x = clamp(+x || 0, -1, 1); possessInput.y = clamp(+z || 0, -1, 1); return { ...possessInput }; },
   fieldInfo(){
     if (!field) return null;
     return {

@@ -308,6 +308,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
       directive: null,
       directiveStatus: null,
       directiveHome: false,
+      possessed: false,
     };
     if (b._directiveSave) {
       const saved = b._directiveSave;
@@ -1736,6 +1737,42 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     }
   }
 
+  function setPossessed(b, on) {
+    if (!b) return false;
+    if (!b.ai) attach(b);
+    if (!b.ai) return false;
+    b.ai.possessed = !!on;
+    if (on) {
+      breakPair(b);
+      releaseFood(b);
+      b.ai.source = null;
+      b.ai.waterSpot = null;
+      b.ai.partner = null;
+      b.ai.target = null;
+      b.ai.path = null;
+      b.ai.pathIndex = 0;
+      b.ai.moving = false;
+      b.ai.faceYaw = null;
+      b.ai.hopState = null;
+      b.ai.directives.length = 0;
+      b.ai.directive = null;
+      b.ai.directiveStatus = null;
+      if (b.sleeping) wake(b);
+      b.ai.state = 'wander';
+      b.ai.idleT = 0;
+      b.ai.nextThink = 0;
+    } else {
+      b.ai.state = 'wander';
+      b.ai.idleT = 0.3;
+      b.ai.nextThink = 0;
+      b.ai.faceYaw = null;
+      b.ai.hopState = null;
+      b.ai.moving = false;
+      b.ai.path = null;
+    }
+    return true;
+  }
+
   function cancelDirectives(b) {
     if (!b || !b.ai) return false;
     const had = b.ai.directives.length + (b.ai.directive ? 1 : 0);
@@ -2225,6 +2262,10 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
       b.affection = Math.min(1, finite(b.affection, 0.25) + AFFECTION_RATE * dt);
       if (b.hunger >= 0.95) b.health = Math.max(1, b.health - HEALTH_STARVE * dt);
 
+      // Possession keeps needs and vitals ticking but suspends decisions and
+      // hop locomotion for this bear; app.js drives movement instead.
+      if (ai.possessed) continue;
+
       const grounded = !b.airborne && b.contacts > 0 && (b.rMat[4] || 0) > 0.62;
       if (b.grabs > 0 || b.inPond) {
         if (!ai.interrupted) {
@@ -2420,7 +2461,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     update, onGrab, onRelease, detach, setEnabled,
     setNeed, setBond, debugState, debugSocial, debugInvite, debugVisit, debugConflict, debugMate,
     plan, stats: statsNow,
-    issueDirective, cancelDirectives, directiveState,
+    issueDirective, cancelDirectives, directiveState, setPossessed,
     get enabled() { return enabled; },
   };
 }

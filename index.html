@@ -181,7 +181,7 @@
     box-shadow:0 18px 44px -26px rgba(25,24,23,.5);
     font-family:var(--sans);font-variant-numeric:tabular-nums;color:var(--ink-2);
     -webkit-backdrop-filter:blur(10px) saturate(1.1);backdrop-filter:blur(10px) saturate(1.1);
-    opacity:0;visibility:hidden;transform:translateY(6px);pointer-events:none;z-index:6;
+    opacity:0;visibility:hidden;transform:translateY(6px);pointer-events:none;z-index:30;
     transition:opacity .25s ease,transform .25s ease,visibility .25s;
   }
   .perf.on{opacity:1;visibility:visible;transform:none}
@@ -554,11 +554,15 @@
   .buddyRow:hover{background:rgba(255,255,255,.58);border-color:rgba(255,255,255,.9);transform:translateX(2px)}
   .buddyRow.selected{background:rgba(255,255,255,.78);border-color:rgba(70,178,183,.55);box-shadow:0 8px 18px -14px rgba(13,91,104,.6),inset 0 1px rgba(255,255,255,.9)}
   .directivePanel{
-    position:relative;z-index:1;margin:6px -1px 4px;padding:9px 10px 8px;border-radius:13px;
-    background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.92);
-    box-shadow:inset 0 1px rgba(255,255,255,.9),0 10px 24px -22px rgba(10,67,76,.7);
+    position:relative;z-index:1;padding:10px 11px 9px;border-radius:17px;
   }
   .directivePanel[hidden]{display:none}
+  .clickMode{
+    appearance:none;border:1px solid rgba(53,145,161,.3);border-radius:999px;padding:3px 8px;
+    background:rgba(255,255,255,.55);color:#3a7d89;font:650 8.5px var(--sans);letter-spacing:.06em;
+    text-transform:uppercase;cursor:pointer;
+  }
+  .clickMode[aria-pressed="true"]{background:#0d5b68;border-color:#0d5b68;color:#fff}
   .directiveHead{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;color:#3f6f79}
   .directiveHead b{font-size:11px;color:#10414c}
   .directiveClose{appearance:none;border:0;background:transparent;color:#5d858d;font-size:14px;line-height:1;cursor:pointer;padding:0 2px}
@@ -571,6 +575,45 @@
   .directiveBtn:hover{background:#fff;border-color:rgba(13,123,118,.45)}
   .directiveBtn.active{background:#0d5b68;border-color:#0d5b68;color:#fff}
   .directiveStatus{margin:0;min-height:13px;font-size:10px;line-height:1.3;color:#527f88}
+  .directiveBtn.wide{width:100%;margin-top:7px;padding:8px 6px}
+  .directiveBtn.on{background:#0d5b68;border-color:#0d5b68;color:#fff}
+  .directiveActions[hidden]{display:none}
+  .possessHud{
+    position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:40;
+    display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:20px;
+    background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.95);
+    box-shadow:0 20px 50px -30px rgba(9,58,68,.7),inset 0 1px rgba(255,255,255,.9);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  }
+  .possessHud[hidden]{display:none}
+  .possessStick{
+    position:relative;width:84px;height:84px;border-radius:50%;touch-action:none;cursor:pointer;
+    background:radial-gradient(circle at 40% 34%,rgba(255,255,255,.95),rgba(190,230,235,.55));
+    border:1px solid rgba(13,123,118,.28);box-shadow:inset 0 3px 10px rgba(11,91,104,.12);
+  }
+  .possessKnob{
+    position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,#79c9cf 55%,#0d7b76);
+    box-shadow:0 5px 12px -6px rgba(9,58,68,.8),inset 0 1px rgba(255,255,255,.8);
+    pointer-events:none;
+  }
+  .possessCopy{display:flex;flex-direction:column;gap:2px;font-size:10px;line-height:1.35;color:#527f88;min-width:132px}
+  .possessCopy b{font-size:11.5px;color:#10414c}
+  .possessExit{
+    appearance:none;border:1px solid rgba(53,145,161,.3);border-radius:11px;padding:9px 12px;
+    background:rgba(255,255,255,.8);color:#0b4351;font:600 10px var(--sans);letter-spacing:.08em;
+    text-transform:uppercase;cursor:pointer;
+  }
+  .possessExit:hover{background:#fff;border-color:rgba(13,123,118,.5)}
+  @media (max-width:640px){
+    .possessHud{left:12px;right:auto;bottom:12px;transform:none;gap:8px;padding:8px;border-radius:16px}
+    .possessStick{width:72px;height:72px}
+    .possessCopy{display:none}
+    .possessExit{padding:8px 10px}
+  }
+  @media (max-width:900px){
+    body.possessing #aeroHud,body.possessing #card{opacity:0;visibility:hidden;pointer-events:none}
+  }
   .buddyDot{width:10px;height:10px;border-radius:50%;box-shadow:inset 0 1px rgba(255,255,255,.9),0 0 0 2px rgba(255,255,255,.35)}
   .buddyName{font-size:11px;font-weight:600;color:#10414c;display:flex;align-items:center;gap:5px;line-height:1.2}
   .buddySex{font-size:9.5px;font-weight:700;color:#397581;letter-spacing:.03em}
@@ -783,19 +826,20 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
       <button class="aeroMin" id="aeroMin" title="Collapse panel">–</button>
     </div>
     <div class="buddyList" id="buddyList"></div>
-    <div class="directivePanel" id="directivePanel" hidden>
-      <div class="directiveHead"><b id="directiveName">Bear</b><button class="directiveClose" id="directiveClose" type="button" aria-label="Clear directives">×</button></div>
-      <div class="directiveActions" id="directiveActions">
-        <button class="directiveBtn" type="button" data-directive="go">Go here</button>
-        <button class="directiveBtn" type="button" data-directive="eat">Eat</button>
-        <button class="directiveBtn" type="button" data-directive="drink">Drink</button>
-        <button class="directiveBtn" type="button" data-directive="home">Home</button>
-        <button class="directiveBtn" type="button" data-directive="social">Social</button>
-      </div>
-      <p class="directiveStatus" id="directiveStatus">Pick a command.</p>
-    </div>
-    <div class="aeroFoot"><span>Click a bear to find it</span><span id="meadowMood">dawn · 18°</span></div>
+    <div class="aeroFoot"><button class="clickMode" id="clickMode" type="button" aria-pressed="false">Grab click</button><span id="meadowMood">dawn · 18°</span></div>
     <div class="aeroHintBubble" id="aeroHint">msn messenger vibes</div>
+  </div>
+  <div class="aeroPanel directivePanel" id="directivePanel" hidden>
+    <div class="directiveHead"><b id="directiveName">Bear</b><button class="directiveClose" id="directiveClose" type="button" aria-label="Close bear panel">×</button></div>
+    <div class="directiveActions" id="directiveActions">
+      <button class="directiveBtn" type="button" data-directive="go">Go here</button>
+      <button class="directiveBtn" type="button" data-directive="eat">Eat</button>
+      <button class="directiveBtn" type="button" data-directive="drink">Drink</button>
+      <button class="directiveBtn" type="button" data-directive="home">Home</button>
+      <button class="directiveBtn" type="button" data-directive="social">Social</button>
+    </div>
+    <p class="directiveStatus" id="directiveStatus">Pick a command.</p>
+    <button class="directiveBtn wide" id="possessBtn" type="button">Control</button>
   </div>
   <div class="aeroPanel timePanel">
     <div class="timeTop">
@@ -830,6 +874,12 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
 <button class="uiToggle" id="uiToggle" type="button" aria-pressed="false" aria-label="Hide interface" title="Hide interface (U)">
   <span class="uiToggleMark" aria-hidden="true">◉</span><span class="uiToggleLabel">Hide UI</span>
 </button>
+
+<div class="possessHud" id="possessHud" hidden>
+  <div class="possessStick" id="possessStick" aria-label="Movement stick"><span class="possessKnob" id="possessKnob"></span></div>
+  <div class="possessCopy"><b id="possessName">In control</b><span>WASD / stick · Space hop · V exit</span></div>
+  <button class="possessExit" id="possessExit" type="button">Exit</button>
+</div>
 
 <div class="menu mainMenu open" id="mainMenu" aria-hidden="false">
   <div class="menuCard" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
@@ -947,10 +997,12 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>Middle-drag</dt><dd>Pan · two fingers on empty space pan too.</dd>
             <dt>Wheel / pinch</dt><dd>Zoom in and out.</dd>
             <dt>W A S D</dt><dd>Pan · Q / E zoom · R resets the view.</dd>
+            <dt>C</dt><dd>Switch left click between <b>Grab</b> and <b>Select</b>. Select highlights the bear under the pointer and opens its command panel; a drag still orbits. In Grab mode left-drag stretches and throws.</dd>
+            <dt>V / Space</dt><dd><b>V</b> takes control of the selected bear (or exits). While in control, WASD/arrows or the on-screen stick move, <b>Space</b> hops, and <b>V</b> or <b>Esc</b> exits. The camera follows and stays above the ground and inside the meadow.</dd>
             <dt>U</dt><dd>Hide or show the interface.</dd>
             <dt>P</dt><dd>Performance overlay; it stays visible when the rest of the UI is hidden.</dd>
             <dt>Settings</dt><dd>The gear opens graphics profiles, resolution, effects, depth of field, toon shading and meadow detail. Profiles are starting points; tweaking a control switches to Custom.</dd>
-            <dt>Directives</dt><dd>Click a bear in the roster and use <b>Go here</b> (then tap the meadow), <b>Eat</b>, <b>Drink</b>, <b>Home</b> or <b>Social</b>. A directive is a request, not a command: a hungry, thirsty, tired or courting bear may refuse, and a starving bear will abandon it to eat. The panel shows the reason. Up to three requests queue and expire after 45 seconds; <b>×</b> returns the bear to its normal routine.</dd>
+            <dt>Directives</dt><dd>Click a bear in the roster (or switch to <b>Select</b> click with <b>C</b> and click it in the meadow), then use <b>Go here</b> (then tap the meadow), <b>Eat</b>, <b>Drink</b>, <b>Home</b> or <b>Social</b>. A directive is a request, not a command: a hungry, thirsty, tired or courting bear may refuse, and a starving bear will abandon it to eat. The panel shows the reason. Up to three requests queue and expire after 45 seconds; <b>×</b> closes the panel and leaves the requests running.</dd>
             <dt>Saves</dt><dd>The Saves section in Settings holds five named slots plus an autosave (every two minutes). Save, Load, Delete and Rename work per slot; Export JSON downloads a file and Import JSON restores one. Saves live in this browser. New Game resets to the authored starter colony, 07:00 and a full meadow.</dd>
             <dt>Menu &amp; pause</dt><dd>The game opens on the main menu: Continue resumes the autosave, Load game picks a slot, New game starts fresh, How to play opens this guide. Escape pauses the meadow and offers Resume, Settings or Return to menu (which autosaves first).</dd>
             <dt>Time looks</dt><dd>Dawn / Day / Dusk / Night in the time panel apply a full look (hour, mist, cloud density and exposure) and turn Auto off. They persist across reloads; the slider or Auto returns to a custom clock.</dd>
