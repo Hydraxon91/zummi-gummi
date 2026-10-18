@@ -9,6 +9,7 @@ import { Reflector } from 'three/addons/objects/Reflector.js';
 import { createNavMesh } from './navmesh.js';
 import { REFLECT_LAYER } from './sky.js';
 import { createWind, WIND_GLSL } from './wind.js';
+import { createSunState, updateSunState } from './sunlight.js';
 import { createTreeCollection } from './trees.js';
 import { createHorizon } from './horizon.js';
 import { createAeroHomes } from './homes.js';
@@ -134,6 +135,38 @@ function grassTexture() {
   tex.anisotropy = 8;
   return tex;
 }
+function makeGrassCardGeo() {
+  const pos = [], uv = [], col = [], widthAxes = [], idx = [];
+  const H = 1.05, W = .82;
+  for (let k = 0; k < 3; k++) {
+    const yaw = k * Math.PI / 3;
+    const ca = Math.cos(yaw), sa = Math.sin(yaw);
+    const off = pos.length / 3;
+    for (const [y, half, u, v] of [
+      [0, .50, 0, 0], [0, .50, 1, 0],
+      [H * .52, .38, 0, .52], [H * .52, .38, 1, .52],
+      [H, .19, 0, 1], [H, .19, 1, 1],
+    ]) {
+      const x = (u ? half : -half) * W;
+      pos.push(x * ca, y, x * sa);
+      uv.push(u, v);
+      col.push(1, 1, 1);
+      widthAxes.push(ca, 0, sa);
+    }
+    idx.push(off, off + 2, off + 1, off + 1, off + 2, off + 3,
+             off + 2, off + 4, off + 3, off + 3, off + 4, off + 5);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('cardWidthAxis', new THREE.Float32BufferAttribute(widthAxes, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+
 function blobCanvas(size, inner = 'rgba(40,32,24,.40)', mid = 'rgba(40,32,24,.18)') {
   const c = document.createElement('canvas'); c.width = c.height = size;
   const ctx = c.getContext('2d');
@@ -257,6 +290,7 @@ export function buildField({ scene, camera, renderer, sky }) {
 
   const { hx, hz } = FIELD_BOUNDS;
   const wind = createWind();
+  const sun = createSunState();
   const nav = createNavMesh({
     minX: -hx, maxX: hx, minZ: -hz, maxZ: hz,
     cell: 0.8, agentRadius: 0.38, extraClearance: 0.10,
@@ -469,7 +503,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         // The meadow disc lightens into the hill palette before the terrain
         // begins, so the circumference has no hard green-colour step.
         float edgeT = smoothstep(52.0, 69.0, length(vPathWorld));
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.31,.49,.23), edgeT * .64);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.16,.34,.09), edgeT * .70);
         // A restrained Aero sheen: strongest at grazing angles and on the
         // darker grass detail, never glossy enough to read as glass.
         vec3 eyeV = normalize(cameraPosition - vec3(vPathWorld.x, 0.0, vPathWorld.y));
@@ -482,7 +516,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   group.add(lawn);
 
   // Detailed rolling backdrop + layered low-LOD tree belts.
-  const backdrop = createBackdrop();
+  const backdrop = createBackdrop({ sun });
   group.add(backdrop.group);
 
   // distant Frutiger-Aero skyline + windmills, safely outside the playable field
@@ -529,22 +563,44 @@ export function buildField({ scene, camera, renderer, sky }) {
   mistMesh.visible = false;
   group.add(mistMesh);
 
+  // The same polygon drives visible sand and grass-footprint exclusion.
+  const pondBankOutline = outlineShape(POND.rx * 1.15, POND.rz * 1.15, 33, .06);
+  // Midway through the translucent outer shoulder, outside the solid bank.
+  const pondGrassBoundary = outlineShape(POND.rx * .98 * 1.25, POND.rz * .98 * 1.25, 33, .06);
+  function grassOnBank(x, z, clearance = .03) {
+    const px = x - POND.x, pz = z - POND.z;
+    if (Math.hypot(px, pz) > POND.rx * 1.5 + clearance) return false;
+    let inside = false;
+    const pts = pondGrassBoundary.pts;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const a = pts[j], b = pts[i];
+      // Shape XY maps to world X,-Z under the bank's -PI/2 rotation.
+      const az = -a.y, bz = -b.y;
+      if ((az > pz) !== (bz > pz) && px < (b.x - a.x) * (pz - az) / (bz - az) + a.x) inside = !inside;
+      const dx = b.x - a.x, dz = bz - az;
+      const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - az) * dz) / (dx * dx + dz * dz)));
+      if (Math.hypot(px - a.x - t * dx, pz - az - t * dz) < clearance) return true;
+    }
+    return inside;
+  }
+
   // ---------------------------------------------------------------- grass
-  const grassGeo = (() => {
+  const grassCards = new URLSearchParams(location.search).get('grass') !== 'blades';
+  const bladeGrassGeo = (() => {
     const h = 0.62;
-    // Five overlapping, tapered blades per tuft. Each blade is a five-vertex
-    // three-triangle strip, so a full tuft is 15 triangles: the same triangle
-    // budget as the old three-blade version, but with substantially more coverage.
+    // Nine overlapping, tapered blades per tuft. Each blade is a five-vertex
+    // three-triangle strip. More, smaller tufts read as a continuous carpet
+    // instead of isolated shaggy clumps; the old broad cover fans are gone.
     const pos = [], col = [], idx = [];
     const addBlade = (yaw, ox, oz, hs, width, lean) => {
       const ca = Math.cos(yaw), sa = Math.sin(yaw);
       const off = pos.length / 3;
       const hw = .074 * width;
       const verts = [
-        [-hw, 0, 0, .18],
-        [ hw, 0, 0, .18],
-        [-hw * .58, h * .54 * hs, lean * .45, .40],
-        [ hw * .58, h * .54 * hs, lean * .45, .40],
+        [-hw, 0, 0, .16],
+        [ hw, 0, 0, .16],
+        [-hw * .56, h * .54 * hs, lean * .45, .36],
+        [ hw * .56, h * .54 * hs, lean * .45, .36],
         [0, h * hs, lean, .62],
       ];
       for (const [x, y, z, shade] of verts) {
@@ -554,40 +610,16 @@ export function buildField({ scene, camera, renderer, sky }) {
       idx.push(off, off + 2, off + 1, off + 1, off + 2, off + 3, off + 2, off + 4, off + 3);
     };
     addBlade(0.00,  0.000,  0.000, 1.00, 1.00, 0.060);
-    addBlade(1.02,  0.074,  0.022, 0.93, 0.88, -0.050);
-    addBlade(2.12, -0.062,  0.048, 0.84, 0.96, 0.090);
-    addBlade(3.08,  0.018, -0.076, 0.72, 0.78, -0.075);
-    addBlade(4.04, -0.052, -0.034, 0.63, 0.70, 0.045);
-    addBlade(5.10,  0.048, -0.014, 0.43, 1.22, -0.035);
-    addBlade(5.85, -0.018,  0.066, 0.35, 1.08, 0.060);
-    // two low, wide skirt blades close the ground gaps between neighbouring tufts
-    addBlade(0.72,  0.108, -0.045, 0.29, 2.15, -0.060);
-    addBlade(3.56, -0.112,  0.052, 0.25, 1.95, 0.075);
-
-    // Very low, broad cover fans close the remaining lawn gaps. These are only
-    // two triangles each, and they never read as tall spikes.
-    const addCover = (yaw, ox, oz, height, width, lean) => {
-      const ca = Math.cos(yaw), sa = Math.sin(yaw);
-      const off = pos.length / 3;
-      const hw = .105 * width;
-      const verts = [
-        [-hw, 0, 0, .20],
-        [ hw, 0, 0, .20],
-        [-hw * .60, height, lean, .38],
-        [ hw * .60, height, lean, .38],
-      ];
-      for (const [x, y, z, shade] of verts) {
-        pos.push(x * ca - z * sa + ox, y, x * sa + z * ca + oz);
-        col.push(shade, shade, shade);
-      }
-      idx.push(off, off + 2, off + 1, off + 1, off + 2, off + 3);
-    };
-    addCover(0.52,  0.112, -0.028, 0.19, 1.85, -0.045);
-    addCover(2.18, -0.096,  0.078, 0.16, 1.70, 0.070);
-    addCover(4.06,  0.040, -0.112, 0.21, 1.95, -0.060);
-    addCover(5.48, -0.084, -0.072, 0.14, 1.60, 0.050);
-    addCover(1.34,  0.126, -0.022, 0.13, 2.25, -0.035);
-    addCover(4.92, -0.128,  0.030, 0.11, 2.10, 0.055);
+    addBlade(0.92,  0.087,  0.022, 0.94, 0.90, -0.050);
+    addBlade(1.84, -0.072,  0.054, 0.84, 0.96, 0.080);
+    addBlade(2.76,  0.024, -0.086, 0.76, 0.78, -0.070);
+    addBlade(3.68, -0.066, -0.042, 0.68, 0.84, 0.045);
+    addBlade(4.60,  0.068, -0.018, 0.60, 1.02, -0.055);
+    addBlade(5.52, -0.026,  0.078, 0.52, 0.88, 0.065);
+    // Two low, narrow skirt blades close the ground gaps without the flat
+    // overlapping fans that made the old tuft read as a fern.
+    addBlade(0.72,  0.118, -0.046, 0.28, 1.85, -0.055);
+    addBlade(3.56, -0.120,  0.052, 0.24, 1.70, 0.060);
 
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -596,13 +628,19 @@ export function buildField({ scene, camera, renderer, sky }) {
     g.computeVertexNormals();
     return g;
   })();
+  const grassGeo = grassCards ? makeGrassCardGeo() : bladeGrassGeo;
 
   const grassBears = new Float32Array(48 * 4);
   const grassBearCount = { value: 0 };
   const grassCoverage = { value: 1 };
   const grassDrawDistance = { value: 56 };
+  const grassHeight = { value: grassCards ? 1.05 : .62 };
   const grassMat = new THREE.MeshLambertMaterial({
     color: 0xffffff, side: THREE.DoubleSide, vertexColors: true,
+    alphaTest: grassCards ? .5 : 0,
+    transparent: false,
+    depthWrite: true,
+    alphaToCoverage: false, // composer target is single-sample; MSAA path needs verification
   });
   grassMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, wind.uniforms);
@@ -610,22 +648,36 @@ export function buildField({ scene, camera, renderer, sky }) {
     shader.uniforms.uBearCount = grassBearCount;
     shader.uniforms.uGrassCoverage = grassCoverage;
     shader.uniforms.uGrassDrawDistance = grassDrawDistance;
+    shader.uniforms.uGrassHeight = grassHeight;
+    shader.uniforms.uSunDir = sun.uniforms.uSunDir;
+    shader.uniforms.uSunColor = sun.uniforms.uSunColor;
+    shader.uniforms.uSunIntensity = sun.uniforms.uSunIntensity;
     shader.uniforms.uPathMask = pathMaskUniform;
     shader.uniforms.uPathExtent = pathExtentUniform;
+    shader.uniforms.uGrassBank = { value: pondGrassBoundary.pts };
+    shader.uniforms.uGrassPondCenter = { value: new THREE.Vector2(POND.x, POND.z) };
+    const cardVertexDecls = grassCards
+      ? '\nattribute vec3 cardWidthAxis;\nvarying vec3 vGrassWidthAxis;\nvarying vec2 vGrassUv;\nvarying float vGrassSeed;\n'
+      : '';
     shader.vertexShader = WIND_GLSL
       + '\nuniform vec4 uBears[48];\nuniform int uBearCount;'
-      + '\nuniform float uGrassCoverage;\nuniform float uGrassDrawDistance;'
+      + '\nuniform float uGrassCoverage;\nuniform float uGrassDrawDistance;\nuniform float uGrassHeight;'
+      + '\nuniform vec3 uSunDir;\nuniform vec3 uSunColor;\nuniform float uSunIntensity;'
       + '\nuniform sampler2D uPathMask;\nuniform float uPathExtent;'
-      + '\nvarying float vPathDirt;\n'
+      + '\nvarying float vPathDirt;\nvarying vec2 vGrassWorld;\nvarying vec2 vGrassSurface;\nvarying vec3 vGrassView;\nvarying float vGrassHeight;\n'
+      + cardVertexDecls
       + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
       #include <begin_vertex>
       #ifdef USE_INSTANCING
         float wx = instanceMatrix[3].x;
         float wz = instanceMatrix[3].z;
-        float hh = clamp(position.y / 0.62, 0.0, 1.0);
+        float hh = clamp(position.y / uGrassHeight, 0.0, 1.0);
+        vGrassHeight = hh;
         vec2 wp = vec2(wx, wz);
+        vGrassWorld = wp;
         float phase = fract(sin(dot(wp, vec2(12.9898, 78.233))) * 43758.5453) * 6.283;
+        ${grassCards ? 'vGrassUv = uv; vGrassSeed = fract(phase / 6.283); vGrassWidthAxis = normalize(normalMatrix * mat3(instanceMatrix) * cardWidthAxis);' : ''}
 
         // Keep the carpet continuous at every distance. Stochastic blade
         // removal leaves visible holes in the lawn, so distance is handled by
@@ -651,6 +703,8 @@ export function buildField({ scene, camera, renderer, sky }) {
             sin(uWindTime * 2.7 + phase * 3.7 + wp.x * 0.9) * 0.018,
             cos(uWindTime * 2.3 + phase * 4.1 - wp.y * 0.8) * 0.018
           ) * hh;
+          // A little per-instance lean keeps clumps from sharing one silhouette.
+          windW += vec2(cos(phase * 1.31), sin(phase * 1.73)) * 0.045 * hh * hh;
 
           vec2 bendW = windW;
           for (int bi = 0; bi < 48; bi++) {
@@ -677,26 +731,115 @@ export function buildField({ scene, camera, renderer, sky }) {
         // the remaining short blades from speckling the trail.
         vec2 pathBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
         float pathRaw = texture2D(uPathMask, (pathBase + uPathExtent * .5) / uPathExtent).r;
-        vPathDirt = smoothstep(.16, .55, pathRaw);
+        vPathDirt = smoothstep(.24, .62, pathRaw);
         if (vPathDirt > .72) {
           transformed = vec3(0.0); // no blades on the painted dirt footprint
         } else {
           transformed.y *= 1.0 - vPathDirt * .98;
         }
+        vec4 grassWP = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+        vGrassSurface = grassWP.xz;
+        vGrassView = normalize(cameraPosition - grassWP.xyz + vec3(1e-4));
       #endif
     `);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vPathDirt;')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uPathMask;\nuniform float uPathExtent;\nvarying float vPathDirt;\nvarying vec2 vGrassWorld;\nvarying vec2 vGrassSurface;\nuniform vec2 uGrassBank[72];\nuniform vec2 uGrassPondCenter;\nvarying vec3 vGrassView;\nvarying float vGrassHeight;\nuniform vec3 uSunDir;\nuniform vec3 uSunColor;\nuniform float uSunIntensity;'
+        + (grassCards ? '\nvarying vec3 vGrassWidthAxis;\nvarying vec2 vGrassUv;\nvarying float vGrassSeed;' : ''))
       .replace('#include <color_fragment>', `#include <color_fragment>
+        // Root-only rejection cannot stop wide/wind-bent cards overhanging a
+        // road. Sample at the actual fragment using the lawn's exact UV/noise.
+        vec2 grassPathUv = (vGrassSurface + uPathExtent * .5) / uPathExtent;
+        float grassPathRaw = texture2D(uPathMask, grassPathUv).r;
+        float grassPathNoise = sin(vGrassSurface.x * 4.7 + vGrassSurface.y * 3.1) * .035
+                            + sin(vGrassSurface.x * 1.7 - vGrassSurface.y * 5.3) * .025;
+        if (grassPathRaw + grassPathNoise > .40) discard;
+        // The bank polygon is star-shaped about the pond centre. Locate its
+        // radial segment in O(1), preserving the exact mesh outline/axis signs.
+        vec2 bankRel = (vGrassSurface - uGrassPondCenter) * vec2(1.0, -1.0);
+        float bankDist = length(bankRel);
+        if (bankDist < 10.0) {
+          float bankAngle = mod(atan(bankRel.y, bankRel.x) + 6.283185307, 6.283185307);
+          int bankIndex = int(floor(bankAngle * (72.0 / 6.283185307)));
+          vec2 bankA = uGrassBank[bankIndex];
+          vec2 bankE = uGrassBank[(bankIndex + 1) % 72] - bankA;
+          vec2 bankRay = bankRel / max(bankDist, 1e-4);
+          float bankCross = bankRay.x * bankE.y - bankRay.y * bankE.x;
+          float bankRadius = (bankA.x * bankE.y - bankA.y * bankE.x) / max(bankCross, 1e-4);
+          if (bankDist <= bankRadius) discard;
+        }
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.48,.35,.22), vPathDirt * .62);
+        // Broad world-space patches read as meadow-scale colour variation; the
+        // finer term keeps individual tufts from looking uniformly stamped.
+        float broad = sin(vGrassWorld.x * .105 + sin(vGrassWorld.y * .071) * 2.3);
+        float detail = sin(vGrassWorld.x * .29 - vGrassWorld.y * .23 + 1.7);
+        float patchAmt = clamp(.5 + broad * .26 + detail * .16, 0.0, 1.0);
+        diffuseColor.rgb *= mix(.86, 1.14, patchAmt);
+        diffuseColor.g *= .985 + detail * .025;
+        ${grassCards ? `
+        float slot = floor(vGrassUv.x * 3.0);
+        float slotU = fract(vGrassUv.x * 3.0);
+        float bladeSeed = fract(sin((slot + vGrassSeed * 31.7) * 12.9898) * 43758.5453);
+        float bladeH = mix(.70, 1.02, bladeSeed);
+        float bladeT = clamp(vGrassUv.y / max(bladeH, 1e-4), 0.0, 1.0);
+        float lean = (fract(sin((slot + vGrassSeed * 57.1) * 12.9898) * 43758.5453) - .5) * .28;
+        float center = .5 + lean * bladeT;
+        float halfW = .10 * (1.0 - bladeT * bladeT);
+        // Differentiate the continuous UVs, never fract(slotU): slot seams
+        // otherwise create artificially wide blades and unstable edge coverage.
+        float pixelU = max(fwidth(vGrassUv.x) * 3.0, 1e-4);
+        halfW = max(halfW, pixelU * .5 * (1.0 - bladeT));
+        float edgeAA = pixelU * .5;
+        float edgeMask = 1.0 - smoothstep(halfW - edgeAA, halfW + edgeAA, abs(slotU - center));
+        float tipAA = max(fwidth(vGrassUv.y), 1e-4) * .5;
+        float tipMask = 1.0 - smoothstep(bladeH - tipAA, bladeH + tipAA, vGrassUv.y);
+        float bladeMask = edgeMask * tipMask;
+        diffuseColor.a *= bladeMask;
+
+        // Match the opaque blades' rooted colour and per-blade variance.
+        diffuseColor.rgb *= mix(.60, 1.0, smoothstep(0.0, .34, vGrassUv.y));
+        diffuseColor.g *= mix(.92, 1.10, vGrassUv.y);
+        float bladeShade = .55 + .55 * sin(3.14159 * slotU);
+        diffuseColor.rgb *= bladeShade;
+        float tint = fract(sin((slot + vGrassSeed * 91.3) * 12.9898) * 43758.5453);
+        diffuseColor.rgb *= mix(.88, 1.10, tint);
+        ` : ''}
       `)
       .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
-        // Blade normals are flattened to up so the field does not shimmer or
-        // turn black when a double-sided card is viewed from behind.
-        normal = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));
+        vec3 upView = mat3(viewMatrix) * vec3(0.0, 1.0, 0.0);
+        ${grassCards ? `
+        float cardSide = clamp((slotU - center) / max(halfW, 1e-4), -1.0, 1.0);
+        // Three already flips the face normal. Curve along the actual card
+        // width (rather than scaling the normal), with matching back-face axis.
+        vec3 widthAxis = normalize(vGrassWidthAxis) * (gl_FrontFacing ? 1.0 : -1.0);
+        normal = normalize(mix(normal, upView, .65) + widthAxis * cardSide * .30);
+        ` : `
+        // Blend blade normals toward up instead of replacing them.
+        normal = normalize(mix(normal, upView, .72) + vec3(1e-4));
+        `}
+      `)
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+        // Cheap grass translucency: backlit blades glow mostly at their tips
+        // and silhouette edges, not across the whole field.
+        vec3 grassV = normalize(vGrassView + vec3(1e-4));
+        float sssBack = pow(max(0.0, -dot(grassV, uSunDir)), 1.5);
+        float sssEdge = pow(clamp(1.0 - abs(grassV.y), 0.0, 1.0), 1.8);
+        float sssTip = smoothstep(.45, 1.0, vGrassHeight);
+        float sss = (.35 + .65 * sssBack) * (.20 + .80 * sssEdge) * (.30 + .70 * sssTip);
+        reflectedLight.directDiffuse += uSunColor * sss * uSunIntensity * .04;
+
+        // Wrap lighting fills the shadowed side of thin cards instead of
+        // terminating in a black edge.
+        vec3 sunView = normalize((viewMatrix * vec4(uSunDir, 0.0)).xyz + vec3(1e-4));
+        float ndl = dot(normal, sunView);
+        float wrapNdl = clamp((ndl + .35) / 1.35, 0.0, 1.0);
+        reflectedLight.directDiffuse += diffuseColor.rgb * uSunColor * uSunIntensity
+          * max(0.0, wrapNdl - max(ndl, 0.0)) * .18;
+
+        reflectedLight.directDiffuse = clamp(reflectedLight.directDiffuse, 0.0, 4.0);
+        reflectedLight.indirectDiffuse = clamp(reflectedLight.indirectDiffuse, 0.0, 4.0);
       `);
   };
-  grassMat.customProgramCacheKey = () => 'meadowGrassV12';
+  grassMat.customProgramCacheKey = () => grassCards ? 'meadowGrassCardsV15' : 'meadowGrassV15';
 
   const grassChunks = [];
   let grassEnabled = true;
@@ -709,13 +852,15 @@ export function buildField({ scene, camera, renderer, sky }) {
       return n - Math.floor(n);
     };
     const add = (x, z, scale, hueT, lightT) => {
-      if (solidAt(x, z, 0.055)) return;
+      if (solidAt(x, z, 0.055, true)) return;
       const cx = Math.floor((x + hx) / chunkW);
       const cz = Math.floor((z + hz) / chunkH);
       const key = cx + ':' + cz;
       let parts = buckets.get(key);
       if (!parts) { parts = []; buckets.set(key, parts); }
-      const col = new THREE.Color().setHSL(0.232 + hueT * 0.055, 0.62 + hueT * 0.16, 0.25 + lightT * 0.14);
+      const light = grassCards ? .16 + (lightT - .5) * 0.026 : .29 + lightT * 0.17;
+      const col = new THREE.Color().setHSL(grassCards ? 0.220 + hueT * 0.075 : 0.230 + hueT * 0.055,
+        grassCards ? 0.58 + hueT * 0.16 : 0.64 + hueT * 0.16, light);
       parts.push({
         m: localMatrix({
           x, y: 0, z,
@@ -728,13 +873,13 @@ export function buildField({ scene, camera, renderer, sky }) {
       });
     };
 
-    // Area-weighted circular scatter. Keep the old village-core density and
-    // carry a lighter but continuous carpet through the new outer ring.
+    // Area-weighted circular scatter. Smaller tufts need a tighter core spacing
+    // to read as a continuous carpet; the outer ring stays lighter but unbroken.
     const CORE_R = 43;
-    const TARGET_CORE = 50000;
-    const TARGET_OUTER = 38000;
+    const TARGET_CORE = grassCards ? 130000 : 85000;
+    const TARGET_OUTER = grassCards ? 90000 : 100000;
     let total = 0, tries = 0;
-    const R = FIELD_RADIUS + 3.2; // visual apron continues into the hill toe
+    const R = FIELD_RADIUS + 8.2; // cover the full visual lawn disc, not just its inner rim
     const R2 = R * R, CORE_R2 = CORE_R * CORE_R;
     const place = (outer) => {
       const a = gr() * Math.PI * 2;
@@ -747,15 +892,25 @@ export function buildField({ scene, camera, renderer, sky }) {
       // Clear grass only where the lawn has clearly painted soil. Earlier
       // shoulder cutoffs removed blades while the ground was still green,
       // leaving narrow bare-green lines beside the trails.
-      if (pathValueAt(x, z) > .40) return false;
-      for (const [ox, oz] of [[.24, 0], [-.24, 0], [0, .24], [0, -.24]]) {
+      if (pathValueAt(x, z) > .46) return false;
+      // A small shoulder clearance, not the old quarter-metre bare strip.
+      // The vertex mask still suppresses blades rooted on painted dirt.
+      for (const [ox, oz] of [[.03, 0], [-.03, 0], [0, .03], [0, -.03]]) {
         if (pathValueAt(x + ox, z + oz) > .55) return false;
       }
+      // Keep the new denser tufts off the wet bank as well as the water itself:
+      // roots sit outside the 1.17x bank, with a little clearance for leaning
+      // blades.
+      if (grassOnBank(x, z)) return false;
       const patch = 0.985 + 0.010 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 2.1)
                           + 0.005 * Math.cos(z * 0.23 - x * 0.07);
       if (gr() > patch) return false;
-      if (solidAt(x, z, 0.055)) return false;
-      const scale = (0.52 + gr() * 0.34) * (0.84 + gr() * 0.34);
+      if (solidAt(x, z, 0.055, true)) return false;
+      // The visual apron is deliberately lighter than the core, but a sudden
+      // density drop at the lawn rim reads as a bare ring. Slightly larger
+      // tufts carry the carpet across the last few metres.
+      const edgeBoost = r > 64.5 ? 1.30 : 1.0;
+      const scale = (0.52 + gr() * 0.34) * (0.84 + gr() * 0.34) * edgeBoost * (grassCards ? 1.20 : 1.0);
       add(x, z, scale, gr(), gr());
       return true;
     };
@@ -772,6 +927,8 @@ export function buildField({ scene, camera, renderer, sky }) {
       const mesh = instanced(grassGeo, grassMat, parts, false, group);
       mesh.name = 'meadowGrassChunk';
       mesh.frustumCulled = true;
+      mesh.receiveShadow = false;
+      mesh.castShadow = false;
       mesh.computeBoundingSphere();
       grassChunks.push({
         mesh,
@@ -784,8 +941,8 @@ export function buildField({ scene, camera, renderer, sky }) {
 
   // ---------------------------------------------------------------- placement helpers
   // make sure props do not register on top of each other
-  function solidAt(x, z, pad = 0) {
-    if (!fieldInside(x, z, 0.6)) return true;
+  function solidAt(x, z, pad = 0, allowOutside = false) {
+    if (!allowOutside && !fieldInside(x, z, 0.6)) return true;
     for (const c of colliders) {
       const rr = (c.r || 0.35) + pad;
       if ((x - c.x) ** 2 + (z - c.z) ** 2 < rr * rr) return true;
@@ -872,6 +1029,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   const trees = createTreeCollection({
     lots: TREE_LOTS.map(lot => ({ ...lot, s: lot.s * WORLD_SCALE.tree })),
     wind,
+    sun,
   });
   treeGroup.add(trees.group);
   group.userData.treeStats = trees.stats;
@@ -1003,7 +1161,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     outlineShape(POND.rx * 0.98, POND.rz * 0.98, 33, 0.06);
   // bank ring: outer outline with the water outline as a hole
   {
-    const outer = outlineShape(POND.rx * 1.15, POND.rz * 1.15, 33, 0.06);
+    const outer = pondBankOutline;
     const bankShape = new THREE.Shape();
     handShapeFromPoints(bankShape, outer.pts);
     const hole = new THREE.Path();
@@ -1035,8 +1193,10 @@ export function buildField({ scene, camera, renderer, sky }) {
       for (const ring of rings) {
         for (let i = 0; i < n; i++) {
           const p = outlinePts[i];
+          // Keep radial rings ordered: the old 1.9% wobble exceeded the
+          // first 1.5% gap and folded triangles across the inner shoreline.
           const wobble = ring.scale === 1 ? 1
-            : 1 + Math.sin(i * 2.3 + .7) * .012 + Math.sin(i * 5.1 - 1.1) * .007;
+            : 1 + Math.sin(i * 2.3 + .7) * .003 + Math.sin(i * 5.1 - 1.1) * .00175;
           positions.push(p.x * ring.scale * wobble, p.y * ring.scale * wobble, 0);
           colors.push(ring.color.r, ring.color.g, ring.color.b);
         }
@@ -1134,16 +1294,17 @@ export function buildField({ scene, camera, renderer, sky }) {
   }
 
   // A loose fringe just outside the sand hides the hard bank/lawn cut and
-  // blends the shore into the meadow. Roots stay beyond the 1.17x exclusion.
+  // blends the shore into the meadow. Roots stay outside the grass boundary.
   {
     const fringe = [];
     const fr = rng(771);
     for (let i = 0; i < 220; i++) {
       const a = fr() * Math.PI * 2;
       const rr = 1.18 + fr() * .23;
-      const x = Math.cos(a) * POND.rx * rr;
-      const z = Math.sin(a) * POND.rz * rr;
+      const x = POND.x + Math.cos(a) * POND.rx * rr;
+      const z = POND.z + Math.sin(a) * POND.rz * rr;
       if (pathValueAt(x, z) > .35) continue;
+      if (grassOnBank(x, z)) continue;
       const s = .30 + fr() * .38;
       fringe.push({
         m: localMatrix({
@@ -1153,6 +1314,7 @@ export function buildField({ scene, camera, renderer, sky }) {
           rz: (fr() - .5) * .12,
           sx: s, sy: s * (0.72 + fr() * .28), sz: s,
         }),
+        c: new THREE.Color().setHSL(.25, .66, .16),
       });
     }
     if (fringe.length) {
@@ -1432,6 +1594,9 @@ export function buildField({ scene, camera, renderer, sky }) {
   const reflectEvery = 2;
   const originalOnBefore = reflector.onBeforeRender;
   reflector.onBeforeRender = function (...args) {
+    // AO/depth prepasses must not replace the colour reflection with normals
+    // or packed depth, nor advance its colour-pass update cadence.
+    if (scene.overrideMaterial) return;
     if (++reflectTick % reflectEvery !== 0) return;
     originalOnBefore.apply(this, args);
   };
@@ -1463,6 +1628,34 @@ export function buildField({ scene, camera, renderer, sky }) {
       geo.setIndex(indices);
       return geo;
     };
+
+    // Meet the lit wet-bank colour exactly at the shoreline, fading only
+    // inward over water. The water remains opaque; foam/wetness draw above it.
+    const shallowsMat = sandMat.clone();
+    shallowsMat.color.set(0x7f6047);
+    shallowsMat.transparent = true;
+    shallowsMat.depthWrite = false;
+    shallowsMat.onBeforeCompile = shader => {
+      shader.vertexShader = 'varying float vShallowEdge;\n' + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\nvShallowEdge = uv.y;');
+      shader.fragmentShader = 'varying float vShallowEdge;\n' + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>',
+        '#include <color_fragment>\ndiffuseColor.a *= smoothstep(0.0, .96, vShallowEdge);');
+    };
+    shallowsMat.customProgramCacheKey = () => 'meadowLitShallowsV1';
+    const shallowsGeo = makeRibbon(.95, 1.002, .023);
+    for (let i = 0; i < shallowsGeo.index.count; i += 3) {
+      const a = shallowsGeo.index.array[i];
+      shallowsGeo.index.array[i] = shallowsGeo.index.array[i + 2];
+      shallowsGeo.index.array[i + 2] = a;
+    }
+    shallowsGeo.computeVertexNormals();
+    const shallows = new THREE.Mesh(shallowsGeo, shallowsMat);
+    shallows.name = 'meadowLitShallows';
+    shallows.receiveShadow = true;
+    shallows.renderOrder = 2;
+    pondGroup.add(shallows);
 
     const wetRes = 256;
     shoreWetness = new Float32Array(wetRes);
@@ -2460,6 +2653,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       bushes.setSun(sky.sunDir);
       waterUniforms.uSunDir.value.copy(sky.sunDir);
       waterUniforms.uMoonDir.value.copy(sky.moonDir);
+      updateSunState(sun, sky);
       waterUniforms.uTime.value += dt;
       const wd = wind.direction;
       const waveSpeed = .25 + wind.strength * 1.05 + wind.gust * .28;
@@ -2535,6 +2729,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     fireflies: fireflyPoints, fireflyLights,
     valid: layoutErrors.length === 0,
     layoutErrors,
+    sun,
     update,
     drawShadows,
     splash,

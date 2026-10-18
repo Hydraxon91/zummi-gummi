@@ -459,7 +459,7 @@ function hiveGeometryAt(center, anchor, flex, treePhase, branchPhase) {
  * Build the complete visual tree collection.
  * @param {{lots: Array<{x:number,z:number,s:number}>, wind: any}} opts
  */
-export function createTreeCollection({ lots, wind }) {
+export function createTreeCollection({ lots, wind, sun = null }) {
   const group = new THREE.Group();
   group.name = 'meadowTreeVisuals';
   const barkGeoms = [];
@@ -913,6 +913,7 @@ export function createTreeCollection({ lots, wind }) {
     fruitMesh,
     hives,
     controls: leafControls,
+    sun,
     setControls(v = {}) {
       if (!v) return;
       if (v.fullness !== undefined) leafControls.fullness.value = clamp(Number(v.fullness) || 0, .25, 1);

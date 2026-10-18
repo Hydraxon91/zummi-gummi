@@ -21,26 +21,87 @@ function hillTexture() {
   c.width = c.height = S;
   const ctx = c.getContext('2d');
   const r = makeRand(6143);
-  ctx.fillStyle = '#d7e5c2';
+  ctx.fillStyle = '#78a958';
   ctx.fillRect(0, 0, S, S);
-  for (let i = 0; i < 190; i++) {
-    const x = r() * S, y = r() * S, rad = 14 + r() * 80;
-    const g = ctx.createRadialGradient(x, y, 1, x, y, rad);
-    g.addColorStop(0, r() < .5 ? 'rgba(110,166,86,.17)' : 'rgba(238,250,214,.16)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+  // Fine blade strokes keep the distant hills from reading as painted green
+  // sheets. The texture is shared and cheap; no extra geometry or CPU work.
+  for (let i = 0; i < 11000; i++) {
+    const x = r() * S, y = r() * S;
+    const h = 2 + r() * 9;
+    const lean = (r() - .5) * 5;
+    ctx.strokeStyle = r() < .55 ? `rgba(62,118,48,${.12 + r() * .18})`
+                                : `rgba(190,226,146,${.10 + r() * .16})`;
+    ctx.lineWidth = .6 + r() * 1.3;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + lean, y - h);
+    ctx.stroke();
   }
   for (let i = 0; i < 3600; i++) {
     const x = r() * S, y = r() * S;
-    ctx.fillStyle = r() < .55 ? 'rgba(86,137,64,.20)' : 'rgba(238,249,210,.20)';
+    ctx.fillStyle = r() < .55 ? 'rgba(76,132,56,.22)' : 'rgba(210,238,174,.18)';
     ctx.fillRect(x, y, 1.2 + r() * 2.4, 1 + r() * 2.2);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function hillGrassCardTexture() {
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  const r = makeRand(7717);
+  ctx.clearRect(0, 0, S, S);
+  for (let i = 0; i < 9; i++) {
+    const x = 18 + r() * 92;
+    const h = 58 + r() * 62;
+    const w = 3 + r() * 5;
+    const lean = (r() - .5) * 20;
+    const g = ctx.createLinearGradient(0, S, 0, S - h);
+    g.addColorStop(0, 'rgba(238,255,230,1)');
+    g.addColorStop(.55, 'rgba(250,255,245,.96)');
+    g.addColorStop(1, 'rgba(214,242,198,.9)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - w, S);
+    ctx.quadraticCurveTo(x - w * .3, S - h * .55, x + lean, S - h);
+    ctx.quadraticCurveTo(x + w * .3, S - h * .55, x + w, S);
+    ctx.closePath();
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.anisotropy = 4;
   return tex;
+}
+
+function hillGrassCardGeo() {
+  const pos = [], uv = [], idx = [];
+  const quad = (rot) => {
+    const ca = Math.cos(rot), sa = Math.sin(rot);
+    const off = pos.length / 3;
+    for (const [x, y, z, u, v] of [
+      [-.5, 0, 0, 0, 0], [.5, 0, 0, 1, 0],
+      [-.5, 1, 0, 0, 1], [.5, 1, 0, 1, 1],
+    ]) {
+      pos.push(x * ca - z * sa, y, x * sa + z * ca);
+      uv.push(u, v);
+    }
+    idx.push(off, off + 2, off + 1, off + 1, off + 2, off + 3);
+  };
+  quad(0);
+  quad(Math.PI * .5);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
 }
 
 function hash2(x, z) {
@@ -94,7 +155,7 @@ function buildTerrain() {
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       const y = heightAt(x, z);
       pos.push(x, y - .04, z);
-      uv.push(x * .012, z * .012);
+      uv.push(x * .018, z * .018);
       const n = fbm(x * .035 + 11.2, z * .035 - 4.1);
       const broad = fbm(x * .009 - 3.4, z * .009 + 8.6);
       const crest = clamp(y / 18, 0, 1);
@@ -107,7 +168,7 @@ function buildTerrain() {
       c.offsetHSL(0, 0, (broad - .5) * .035);
       // Match the meadow green at the flat overlap, then ease into the hill
       // palette so the circumference cannot read as a painted circle.
-      const lawnBlend = smooth(clamp((r - 64) / 28, 0, 1));
+      const lawnBlend = smooth(clamp((r - 60) / 30, 0, 1));
       c.lerp(new THREE.Color(0x6f9d50), 1 - lawnBlend);
       col.push(c.r, c.g, c.b);
     }
@@ -140,13 +201,13 @@ function buildTerrain() {
   return mesh;
 }
 
-export function createBackdrop() {
+export function createBackdrop({ sun = null } = {}) {
   const group = new THREE.Group();
   group.name = 'meadowBackdrop';
   group.add(buildTerrain());
 
   const rnd = makeRand(9217);
-  const trunks = [], canopyParts = [], leafParts = [], hedgeParts = [], hillGrassParts = [], flowerParts = [], rockParts = [];
+  const trunks = [], canopyParts = [], leafParts = [], hedgeParts = [], hillGrassParts = [], grassCardParts = [], flowerParts = [], rockParts = [];
   const canopyColors = [0x5eaf47, 0x72bf55, 0x4f9e3e, 0x83c966, 0x68b34e, 0x93cf74];
   const trunkColors = [0x63432d, 0x765039, 0x533927];
 
@@ -270,13 +331,13 @@ export function createBackdrop() {
 
   // A sparse low-LOD grass carpet on the hills breaks up the large green slopes
   // at the distances where the playable blade carpet fades out.
-  for (let i = 0; i < 7000; i++) {
+  for (let i = 0; i < 30000; i++) {
     const a = rnd() * Math.PI * 2;
     const r = 65.5 + Math.pow(rnd(), 1.3) * 53;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     const y = heightAt(x, z);
     if (y < .2) continue;
-    const s = .26 + rnd() * .40;
+    const s = .30 + rnd() * .50;
     hillGrassParts.push({
       m: new THREE.Matrix4().compose(
         new THREE.Vector3(x, y + .01, z),
@@ -285,7 +346,28 @@ export function createBackdrop() {
       ),
       // Keep hill blades in the hill's own green range. Pale blades at this
       // distance read as white rain streaks against the darker terrain.
-      c: new THREE.Color().setHSL(.24 + rnd() * .045, .46 + rnd() * .14, .19 + rnd() * .07),
+      c: new THREE.Color().setHSL(.24 + rnd() * .045, .46 + rnd() * .14, .22 + rnd() * .09),
+    });
+  }
+
+  // The low blade geometry above is cheap, but from the meadow it still leaves
+  // the hill palette reading as a flat green sheet. These crossed alpha-tested
+  // cards add readable blade silhouettes at the same distance for four
+  // triangles each; alpha testing keeps them out of the transparent queue.
+  for (let i = 0; i < 15000; i++) {
+    const a = rnd() * Math.PI * 2;
+    const r = 78 + Math.pow(rnd(), 1.15) * 41;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    const y = heightAt(x, z);
+    if (y < .2) continue;
+    const s = .78 + rnd() * .72;
+    grassCardParts.push({
+      m: new THREE.Matrix4().compose(
+        new THREE.Vector3(x, y + .01, z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd() * 6.283),
+        new THREE.Vector3(s, s * (.65 + rnd() * .65), s)
+      ),
+      c: new THREE.Color().setHSL(.245 + rnd() * .035, .60 + rnd() * .12, .11 + rnd() * .05),
     });
   }
 
@@ -476,6 +558,21 @@ export function createBackdrop() {
   hillGrassMesh.name = 'backdropGrass'; hillGrassMesh.frustumCulled = false; hillGrassMesh.layers.enable(REFLECT_LAYER);
   group.add(hillGrassMesh);
 
+  const grassCardMat = new THREE.MeshBasicMaterial({
+    map: hillGrassCardTexture(),
+    alphaTest: .38,
+    side: THREE.DoubleSide,
+  });
+  const grassCardMesh = new THREE.InstancedMesh(hillGrassCardGeo(), grassCardMat, grassCardParts.length);
+  for (let i = 0; i < grassCardParts.length; i++) {
+    grassCardMesh.setMatrixAt(i, grassCardParts[i].m);
+    grassCardMesh.setColorAt(i, grassCardParts[i].c);
+  }
+  grassCardMesh.instanceMatrix.needsUpdate = true;
+  if (grassCardMesh.instanceColor) grassCardMesh.instanceColor.needsUpdate = true;
+  grassCardMesh.name = 'backdropGrassCards'; grassCardMesh.frustumCulled = false; grassCardMesh.layers.enable(REFLECT_LAYER);
+  group.add(grassCardMesh);
+
   const flowerGeo = new THREE.OctahedronGeometry(1, 0);
   const flowerMesh = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ vertexColors: false }), flowerParts.length);
   for (let i = 0; i < flowerParts.length; i++) {
@@ -506,6 +603,7 @@ export function createBackdrop() {
     leaves: leafParts.length,
     hedges: hedgeParts.length,
     heightAt,
+    sun,
     setSun(v) {
       if (v) foliageUniforms.uSunDir.value.copy(v).normalize();
     },

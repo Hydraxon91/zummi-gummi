@@ -49,6 +49,7 @@ src/launcher.js         movable cannon: build, aim, fire, move
 src/box3d.js            WASM bridge
 src/field.js            meadow, pond, grass chunks, props, nav/shadows
 src/wind.js             shared world-space wind uniforms + GLSL
+src/sunlight.js         shared sun direction/colour/intensity for vegetation translucency
 src/trees.js            procedural merged trees, leaf/fruit/hive batches
 src/homes.js            Aero villa visual builder (fixed home lots)
 src/studiohouse.js      field-side Studio portal house + Studio return door
@@ -120,7 +121,7 @@ rig and soft-body solver stay.
 - **Phase 2 complete (current scope):** the Grass Field is the default map with
   the Studio switch, independent map state, reflective pond and splash/buoyancy.
   The field has a wobbled 65 m playable disc, 8 detailed Aero villas, a large
-  Studio portal house, 10 merged hero trees, 88k chunked continuous-carpet grass
+  Studio portal house, 10 merged hero trees, 220k procedural grass-card clumps
   tufts, dirt trails, a detailed rolling backdrop with branched trees and 120+ bushes,
   anime-lite water, shared tree/grass wind, procedural clouds, aurora,
   fireflies, a distant Aero skyline and wind turbines. Villa doors are validated
@@ -394,6 +395,47 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 
 **Known follow-ups after the effects pass** — recorded for later:
 
+- **White pond-adjacent grass clumps — fixed:** `meadowBankFringe` used the
+  grass material without instance colours and placed pond-local coordinates in
+  the world group. The main-grass-only audit missed this separate batch. It now
+  has explicit green instance colours and the pond centre offset.
+- **Grass crossing the irregular sand bank — fixed for inspected views:** root-only
+  ellipse rejection did not account for the bank wobble or enlarged cards. Main
+  grass and shore fringe now share an irregular exclusion polygon, with
+  per-fragment clipping so leaning cards cannot cross it. The approved midpoint
+  is 1.25x the water outline, inside the translucent outer sand fade but outside
+  the solid bank. Root clearance is 3 cm. The full 1.30x outer fade exclusion
+  was too abrupt; clipping only the solid bank allowed too much overlap.
+- **Water/shore colour discontinuity — softened:** a lit wet-sand ribbon fades
+  inward over the outer 5% of the water outline, matching the bank's material
+  lighting instead of relying only on the unlit water-shader colour blend.
+  Opaque water, foam and wetness timing are unchanged. Daylight inspected;
+  dusk/night and moving-bear interaction still need verification.
+- **Wet-bank triangle folding — corrected:** the first radial gap was 1.5%,
+  smaller than its possible 1.9% wobble. Reduced the wobble bound to 0.475%
+  to keep rings ordered. The lit shallows ribbon remains enabled; inspected
+  `x23_shore_ordered.png`, but the user's exact close-up angle needs rechecking.
+- **Grass overhanging roads — corrected at fragment level:** root rejection
+  cannot exclude wind-bent card tips. Grass now samples the lawn's world-space
+  path mask and identical edge noise at the actual fragment position; dirt
+  coverage above the midpoint is discarded rather than widening the shoulder.
+- **Grass edge aliasing — improved, not signed off:** derivatives now use continuous
+  UVs instead of `fract` at blade-slot seams, and tip coverage goes to zero without
+  a minimum-width flat cap. Curved normals use the card's width axis rather than
+  multiplying the face normal. Path shoulder sampling was tightened from 24 cm
+  to 3 cm, and shader shortening starts later at the dirt edge.
+  Composer MSAA/alpha-to-coverage needs a separate
+  controlled check; the earlier claim that alpha-to-coverage hid cards was not
+  isolated from shader/visibility failures.
+- **Quality/Ultra bear-water shimmer — unresolved:** an Ultra render trace confirmed
+  that the reflector callback also runs under GTAO's normal override. It now
+  skips override passes before advancing its colour-update throttle. Frozen-pose
+  Full/Soft sequences did not reproduce the reported strong shimmer or show a
+  material improvement from this guard. Do not claim the shimmer fixed; moving
+  bear geometry, dispersion, transmission and temporal silhouette aliasing still
+  need controlled isolation. `freeze(true)` pauses AI, not physics, so it alone
+  is not a frozen-pose test.
+
 - **The composed frame tone-maps sky/clouds that bypass ACES in the direct path.**
   Soft/Full therefore have a slightly softer, brighter sky; mood exposure and
   the display-space grade keep it within the Aero palette. A depth/mask output
@@ -618,11 +660,12 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 ## World, sky, pond, presentation
 
 - **Field:** an organic wobbled 65 m playable disc blending into a Bliss-style
-  rolling hill backdrop, 88k chunked grass tufts (7 tall/overlap blades + 6 low
-  cover fans per tuft), a close-up tiled grass-ground texture with a restrained
-  Aero sheen, wandering dirt trails and a dirt hub, procedural hero trees with
-  rounded leaf puffs, branched background trees, 120+ branched bushes, jelly
-  flowers/fruit/honey hives, pebbles, bubbles and the Aero villa cluster.
+  rolling hill backdrop, 220k procedural grass-card clumps (three crossed cards,
+  three tapered blades per card; `?grass=blades` keeps the 185k opaque
+  comparison), a close-up tiled grass-ground texture with a restrained Aero
+  sheen, wandering dirt trails and a dirt hub, procedural hero
+  trees with rounded leaf puffs, branched background trees, 120+ branched bushes,
+  jelly flowers/fruit/honey hives, pebbles, bubbles and the Aero villa cluster.
   The grass carpet keeps every tuft out to the smooth draw-distance fade rather
   than stochastically deleting blades, so the lawn has no random bare holes.
   Meadow coverage now shortens the tufts instead of switching instances off;

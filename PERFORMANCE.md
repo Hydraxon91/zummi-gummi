@@ -26,7 +26,7 @@ caps rAF around 20–30 Hz).
 non-monotonic; the frame-time result is the useful one.
 
 The circular-meadow pass now carries the rescaled world, detailed villas, Studio
-portal house, 88k grass tufts, dirt trails, branched backdrop trees and bushes,
+portal house, 185k grass tufts, dirt trails, branched backdrop trees and bushes,
 anime-lite water and fireflies. The **grass fill/geometry cost is still the
 largest single GPU item**. Hiding the villas removes ~447 draw calls and saves
 ~2 ms; draw-call submission is not the primary limiting factor. DPR and grass
@@ -40,6 +40,20 @@ per-instance test punched random holes on Balanced and Performance. This raises
 far-grass vertex work relative to the old 82% removal; re-profile the default
 camera and quality before treating the old grass rows as a current budget, and
 use draw distance or the shorter-coverage setting if a device needs relief.
+
+The current grass prototype uses 220k procedural card clumps (three crossed
+cards, three tapered blades per card, 12 triangles per clump) by default;
+`?grass=blades` keeps the 185k-tuft, 27-triangle opaque comparison. A controlled
+test at 1440×900, DPR 1, quality 2, effects off and the same camera/frustum state
+measured **20.6 ms** for cards and **26.5 ms** for opaque blades from six
+60-frame `renderProbe` samples after discarding the first warm-up sample. These
+are forced-sync headless numbers, not a refresh-rate claim, and the
+default-camera/DPR-2 table above predates this prototype.
+
+`alphaToCoverage` remains disabled pending an isolated render-target/MSAA test.
+The earlier disappearing-card result did not establish causation; shader and
+visibility failures also affected those runs. `renderer.antialias` and the
+`Math.min(devicePixelRatio, 2)` cap are confirmed in `src/app.js`.
 
 The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
 and the original supplied 37.1 ms baseline are retained below as historical
