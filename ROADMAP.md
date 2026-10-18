@@ -1100,8 +1100,9 @@ a runtime dependency of the browser game.
   not the chat transcript.
 - **Authoring skill tools (2026-10-18):** `gummy-3d-authoring` now includes
   project-local, read-only evaluated mesh QA, world-space UV-density reporting
-  and a standard-library GLB inventory, plus adapted hard-surface/UV/export
-  guidance. Selective source: MIT-licensed `EL4CTEO/blender-skills`, commit
+  and a standard-library GLB inventory, plus adapted hard-surface, UV, PBR
+  material, texture-baking and Geometry Nodes guidance. Selective source:
+  MIT-licensed `EL4CTEO/blender-skills`, commit
   `71d031dab8bc6729504d11a78cbe91945401045f`; attribution and isolated Blender
   5.2.2 LTS fixture commands live alongside the skill. No global installation,
   compressed-export defaults, runtime dependencies or game integration.
@@ -1111,8 +1112,17 @@ a runtime dependency of the browser game.
   Upstream `review_shots.py` uses tilted perspective front/side cameras and
   does not restore all changed state (including object colors and output image
   settings), so it is not suitable unchanged for live-scene orthographic audits.
-  Local helpers do not certify attachment fit, Face Orientation, UV overlap or
-  full glTF validity; those still require the parent skill's explicit checks.
+  In 5.2.2, `scene.render.bake.type` exposes only normal/displacement, while
+  `bpy.ops.object.bake(type=...)` carries the wider AO/combined/pass enum; the
+  audited upstream `bake_maps.py` already uses the operator form. Curvature is
+  not a built-in pass and can be derived from the baked normal; ID needs a
+  material/emission override. No upstream material, bake or Geometry Nodes
+  scripts were imported; these references are guidance only and still need a
+  project-local helper before an agent can produce assets unattended. Local
+  helpers do not certify attachment fit, Face Orientation, UV overlap, bake
+  quality or full glTF validity; those still require the parent skill's explicit
+  checks. The upstream lighting/look-dev skill remains deferred; calibrated
+  reference captures still govern geometry review.
 
 ### Acceptance
 

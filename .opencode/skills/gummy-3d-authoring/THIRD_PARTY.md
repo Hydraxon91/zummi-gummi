@@ -9,6 +9,9 @@ https://github.com/EL4CTEO/blender-skills at commit
 - blender-retopology-uv
 - blender-export-pipelines (including references/godot-web.md)
 - blender-game-optimization
+- blender-pbr-materials
+- blender-texture-baking
+- blender-geometry-nodes
 
 Local reporting scripts are project-specific implementations of selected checks, not
 copies of the upstream scripts. No upstream installer, dependencies, repair scripts,

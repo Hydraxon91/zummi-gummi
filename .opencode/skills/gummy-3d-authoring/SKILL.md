@@ -1,6 +1,6 @@
 ---
 name: gummy-3d-authoring
-description: Create, edit, calibrate, inspect and export Blender assets (3D models, meshes, props, vehicles, characters, GLB files) for Gummy Bears using Blender MCP, with reference-image matching, editable source preservation and multi-angle verification. Use whenever the task involves Blender, MCP for Blender, a 3D model or mesh, blueprint/reference images, mesh cleanup, or GLB export, even if the user does not name this skill. Asset work does not authorize game integration.
+description: Create, edit, calibrate, inspect and export Blender assets (3D models, meshes, props, vehicles, characters, GLB files) for Gummy Bears using Blender MCP, with reference-image matching, PBR materials, UVs, texture baking, Geometry Nodes, editable source preservation and multi-angle verification. Use whenever the task involves Blender, MCP for Blender, a 3D model or mesh, materials, textures, baking, geometry nodes, blueprint/reference images, mesh cleanup, or GLB export, even if the user does not name this skill. Asset work does not authorize game integration.
 ---
 
 # Gummy 3D Authoring
@@ -17,6 +17,15 @@ rig/export notes are in "Deformation and export".
 
 Read [references/asset-workflows.md](references/asset-workflows.md) for hard-surface
 modifier/shading choices, UV preparation, asset budgets and the local reporting tools.
+Load the focused references when the task needs them:
+
+- [references/pbr-materials.md](references/pbr-materials.md): Principled values, color
+  spaces, ORM, normals, alpha, view transforms and glTF material export.
+- [references/texture-baking.md](references/texture-baking.md): high-to-low and
+  procedural-to-texture baking, cages, map setup and the 5.2.2 bake API split.
+- [references/geometry-nodes.md](references/geometry-nodes.md): editable parametric
+  sources, fields/domains, modifier inputs, instancing and evaluated export.
+
 These are selectively adapted from EL4CTEO/blender-skills for Blender **5.2.2 LTS**;
 see [THIRD_PARTY.md](THIRD_PARTY.md) for the pinned source and MIT notice.
 This skill and `AGENTS.md` remain authoritative. Helpers never authorize repairs,

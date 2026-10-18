@@ -66,6 +66,25 @@ Face Orientation remain separate inspections; the helper does not certify them.
    Keep source modifiers unapplied unless explicitly approved. Re-run health checks and
    inspect all required views after each meaningful change.
 
+## Materials, baking and procedural sources
+
+- **PBR materials:** read [pbr-materials.md](pbr-materials.md). Use image-texture →
+  Principled chains for glTF; bake procedural shading first. Set `sRGB` on color/emission and
+  `Non-Color` on data maps. Verify alpha mode, ORM channels and normal orientation in the
+  exported GLB rather than inferring them from the Blender viewport.
+- **Baking:** read [texture-baking.md](texture-baking.md). Prepare UVs, scale, cage/extrusion
+  and triangulation before baking. In 5.2.2, use `bpy.ops.object.bake(type=...)` for AO,
+  combined and other passes; `scene.render.bake.type` exposes only normal/displacement.
+  Curvature is not a built-in pass and can be derived from the baked normal; ID needs a
+  material/emission override. Save target images explicitly and restore all temporary bake
+  state.
+- **Geometry Nodes:** read [geometry-nodes.md](geometry-nodes.md). Keep the graph editable,
+  expose only meaningful inputs, use stable seeds and realize instances late. Export the
+  evaluated result or supported instances; measure the evaluated counts. Geometry Nodes is
+  not a runtime dependency of the browser game.
+- Do not install the upstream script suite or its dependencies. Any helper added here must be
+  project-local, audited on the pinned Blender build and exercised on synthetic fixtures.
+
 ## UV and baking preparation
 
 - Prefer deliberate seams hidden from the main view; for tangent-space normal bakes,
