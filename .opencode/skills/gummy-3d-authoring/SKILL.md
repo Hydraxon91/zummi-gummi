@@ -13,6 +13,31 @@ the project root, not this skill directory.
 This procedure applies to any Blender asset in the project, not only bears. Bear-specific
 rig/export notes are in "Deformation and export".
 
+## Supporting workflows and tools
+
+Read [references/asset-workflows.md](references/asset-workflows.md) for hard-surface
+modifier/shading choices, UV preparation, asset budgets and the local reporting tools.
+These are selectively adapted from EL4CTEO/blender-skills for Blender **5.2.2 LTS**;
+see [THIRD_PARTY.md](THIRD_PARTY.md) for the pinned source and MIT notice.
+This skill and `AGENTS.md` remain authoritative. Helpers never authorize repairs,
+applying modifiers, exports or game integration. Do not install the upstream suite,
+run its installer, or import its web compression defaults automatically.
+
+- `scripts/asset_qa.py`: read-only evaluated topology and winding diagnostics; strict
+  closed-solid default, explicit open-panel mode. No automated report proves correct
+  outward/cavity orientation, attachment fit or reference fidelity.
+- `scripts/uv_report.py`: read-only world-space texel-density/UV-area report. Does not
+  unwrap, pack, modify UVs or certify overlap/padding.
+- `scripts/glb_report.py`: standalone standard-library GLB inventory, exported vertex
+  and triangle counts, materials and extension requirements. Not a glTF validator.
+- `scripts/test_helpers.py`: isolated synthetic regression checks; run only in a
+  disposable background Blender, never the user's live scene.
+
+Paths in this section and the supporting workflow are relative to this skill directory,
+unlike project paths elsewhere in this skill. Load modules by absolute script path via
+`importlib.util.spec_from_file_location` to avoid name collisions; do not execute fetched
+remote code in Blender. Report limitations alongside results, not just a pass flag.
+
 ## Inspect before editing
 
 1. Call `get_addon_status` and `get_scene_info`. Inspect Blender's current filepath,

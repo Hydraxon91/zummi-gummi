@@ -1006,6 +1006,21 @@ a runtime dependency of the browser game.
 - Use MCP to accelerate geometry/material iteration, then perform the final
   export and performance check manually. The deterministic output is the GLB,
   not the chat transcript.
+- **Authoring skill tools (2026-10-18):** `gummy-3d-authoring` now includes
+  project-local, read-only evaluated mesh QA, world-space UV-density reporting
+  and a standard-library GLB inventory, plus adapted hard-surface/UV/export
+  guidance. Selective source: MIT-licensed `EL4CTEO/blender-skills`, commit
+  `71d031dab8bc6729504d11a78cbe91945401045f`; attribution and isolated Blender
+  5.2.2 LTS fixture commands live alongside the skill. No global installation,
+  compressed-export defaults, runtime dependencies or game integration.
+- **Known follow-ups — upstream skill adaptation:** deferred/not imported:
+  upstream `blender-asset-qa`'s `game` profile can pass open boundaries and only
+  warn on non-manifold edges; it must not replace our closed-solid health gate.
+  Upstream `review_shots.py` uses tilted perspective front/side cameras and
+  does not restore all changed state (including object colors and output image
+  settings), so it is not suitable unchanged for live-scene orthographic audits.
+  Local helpers do not certify attachment fit, Face Orientation, UV overlap or
+  full glTF validity; those still require the parent skill's explicit checks.
 
 ### Acceptance
 
