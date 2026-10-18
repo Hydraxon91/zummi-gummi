@@ -325,7 +325,7 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     activeMode = mapEnabled ? mode : 'off';
     aoPass.enabled = activeMode === 'full';
     bokehPass.enabled = dofEnabled && focusActive && activeMode !== 'off';
-    godRaysPass.enabled = activeMode !== 'off';
+    godRaysPass.enabled = false;
     bloomPass.enabled = activeMode !== 'off';
     gradePass.enabled = activeMode !== 'off';
     smaaPass.enabled = activeMode !== 'off';
@@ -372,16 +372,11 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
 
   function render(dt) {
     if (activeMode === 'off' || !mapEnabled) return false;
-    const ray = computeRay();
-    raysActive = !!ray;
-    godRaysPass.enabled = raysActive;
-    if (ray) {
-      godRaysPass.uniforms.uSun.value.copy(ray.uv);
-      godRaysPass.uniforms.uColor.value.setHex(ray.color);
-      godRaysPass.uniforms.uThreshold.value = ray.moon ? .52 : .72;
-      godRaysPass.uniforms.uStrength.value = ray.strength * .72;
-      renderDepth();
-    }
+    // God rays are disabled: the current half-res depth prepass plus radial
+    // blur reads poorly and costs a full extra scene depth pass. A better
+    // implementation is a recorded roadmap follow-up; do not re-enable this one.
+    godRaysPass.enabled = false;
+    raysActive = false;
     if (bokehPass.enabled) {
       bokehPass.uniforms.focus.value = focusDistance;
       bokehPass.uniforms.aperture.value = BOKEH_APERTURE * focusStrength;

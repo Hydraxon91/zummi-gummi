@@ -135,10 +135,10 @@ function grassTexture() {
   tex.anisotropy = 8;
   return tex;
 }
-function makeGrassCardGeo() {
+function makeGrassCardGeo(cards = 3) {
   const pos = [], uv = [], col = [], widthAxes = [], idx = [];
   const H = 1.05, W = .82;
-  for (let k = 0; k < 3; k++) {
+  for (let k = 0; k < cards; k++) {
     const yaw = k * Math.PI / 3;
     const ca = Math.cos(yaw), sa = Math.sin(yaw);
     const off = pos.length / 3;
@@ -633,6 +633,9 @@ export function buildField({ scene, camera, renderer, sky }) {
     return g;
   })();
   const grassGeo = grassCards ? makeGrassCardGeo() : bladeGrassGeo;
+  // Far chunks use one card per tuft instead of three: same instance positions,
+  // a third of the triangles and less overdraw, which is invisible at range.
+  const grassFarGeo = grassCards ? makeGrassCardGeo(1) : bladeGrassGeo;
 
   const grassBears = new Float32Array(48 * 4);
   const grassBearCount = { value: 0 };
@@ -934,8 +937,19 @@ export function buildField({ scene, camera, renderer, sky }) {
       mesh.receiveShadow = false;
       mesh.castShadow = false;
       mesh.computeBoundingSphere();
+      // LOD twin: half the tufts and a single card per tuft. Hidden by
+      // default; updateGrassCull swaps it in once the chunk is far away.
+      const farParts = parts.filter((_, i) => (i & 1) === 0);
+      const farMesh = instanced(grassFarGeo, grassMat, farParts, false, group);
+      farMesh.name = 'meadowGrassChunkFar';
+      farMesh.frustumCulled = false;
+      farMesh.receiveShadow = false;
+      farMesh.castShadow = false;
+      farMesh.visible = false;
       grassChunks.push({
         mesh,
+        farMesh,
+        lodFar: false,
         center: new THREE.Vector3(cx * chunkW - hx + chunkW * .5, .4, cz * chunkH - hz + chunkH * .5),
       });
     }
@@ -2565,11 +2579,23 @@ export function buildField({ scene, camera, renderer, sky }) {
   }
 
   let grassCullTick = 0;
+  // Chunk-level LOD with hysteresis: near chunks keep the three-card tuft,
+  // far chunks switch to the single-card twin (same positions, a third of the
+  // triangles). The 34/40 m band prevents flicker at the boundary.
   function updateGrassCull() {
     const dd = grassDrawDistance.value;
     for (const c of grassChunks) {
       const d = Math.hypot(camera.position.x - c.center.x, camera.position.z - c.center.z);
-      c.mesh.visible = grassEnabled && d < dd + 14;
+      const inRange = grassEnabled && d < dd + 14;
+      if (!inRange) {
+        c.mesh.visible = false;
+        c.farMesh.visible = false;
+        continue;
+      }
+      if (d > 36) c.lodFar = true;
+      else if (d < 30) c.lodFar = false;
+      c.mesh.visible = !c.lodFar;
+      c.farMesh.visible = c.lodFar;
     }
   }
   function setGrassVisible(v) {

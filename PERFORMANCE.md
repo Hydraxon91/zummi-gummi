@@ -72,6 +72,46 @@ first sample discarded): **17.4–18.5 ms** before the 6b-2 water tuning and
 **17.9–18.1 ms** after, so the night tint, softer foam and matte lily pads cost
 nothing measurable. The probe looks across the pond from the east bank.
 
+### 6b-3 performance pass
+
+Method: headless Brave, 1440×900, default gameplay camera, quality 2 unless
+stated, `renderProbe` (forced-sync `gl.finish`), 30-frame warm-up then five
+60-frame samples with the first discarded. Two populations: a 7×6 grid of 40
+bears at the centre (stress) and 40 bears spread on a spiral at 9–37 m
+(gameplay-like). All values are frame times, not a refresh-rate claim.
+
+Baseline (grid, before the grass LOD), quality 2 / Balanced effects:
+
+| Effects | DPR 1 | DPR 1.5 |
+|---|---:|---:|
+| Off | 35.95 ms | 34.68 ms |
+| Soft | 38.77 ms | 44.85 ms |
+| Full | 38.92 ms | 44.78 ms |
+
+Population scaling (Soft, DPR 1): 6 bears 23.18 → 20 bears 30.32 → 40 bears
+38.77 ms. Cost attribution at 40 bears / Soft / DPR 1: hiding grass saved
+**23.0 ms** (16.04 ms left), trees 2.6, villas 0.9, pond 2.3. CPU at 40 bears:
+physics 1.25 ms + surface rebuild 5.73 ms (9.1 rebuilds/frame).
+
+Changes:
+- **Far-grass LOD:** grass chunks beyond 36 m swap to a single-card tuft with
+  half the instances (hysteresis 30/36 m). Grid DPR 1 Soft fell from 38.77 to
+  **34.82 ms**; DPR 1.5 from 44.85 to **42.17 ms**. The gain is smaller than
+  hoped because near-field overdraw dominates the grass cost.
+- **God rays disabled:** they cost ~1.9 ms and read poorly. The pass, its depth
+  prepass and shader are retained unused for a future implementation.
+- **Balanced profile** already draws at coverage 0.70, draw distance 40 and
+  render scale 0.85.
+
+Result at the target profile (40 spread bears, default camera, device DPR 1.5):
+**30.2 ms as shipped** (render scale 0.85) and **32.3 ms with render scale
+forced to 1** (31.6–32.4 typical, one 22 ms outlier) — inside the **≤33 ms**
+target. Repeated DPR 1.5 spread runs at draw distance 56 varied by ~2.8 ms
+(36.4 vs 39.2), so treat single readings as ±1–2 ms.
+
+Mobile layout and touch checks are still open. The 16.7 ms / 60 fps goal is
+deferred to Phase 7 (WebGPU).
+
 The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
 and the original supplied 37.1 ms baseline are retained below as historical
 comparisons; they describe earlier scene states, not the current disc.
