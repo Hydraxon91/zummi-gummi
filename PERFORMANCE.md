@@ -67,6 +67,36 @@ added cost; the later trunk-collider and bush-colour fixes left it unchanged.
 A mid-pass reading of 62–75 ms was discarded: the unmodified live build read the
 same on a throttled machine, so only same-session comparisons are meaningful.
 
+### Tree, bush and backdrop culling + far-leaf LOD (Oct 2026)
+
+Method: headless Brave, 1440×900 at DPR 1.5, Balanced profile, effects Soft,
+render scale .85, 40 spread bears, camera frozen, five 60-frame `renderProbe`
+samples after a discarded warm-up. Single readings on this machine varied by
+±2–3 ms (one run produced impossible per-toggle values), so the same-run
+cull-on/cull-off pair is the evidence; the table is not a refresh-rate claim.
+
+| state | draw calls | triangles | median |
+|---|---:|---:|---:|
+| before (whole-ring batches) | 601 | 3.51 M | ~31.7 ms |
+| sector split, culling off | 753–809 | 3.51 M | 32.4–36.1 ms |
+| sector split, culling on | 660–677 | 2.39–2.45 M | 28.0–29.4 ms |
+| mobile 390×844, culling on | 397 | — | — |
+
+- Hero trees are now one bark mesh, one leaf batch and one fruit batch per tree,
+  each with a padded bounding sphere and `frustumCulled`. Bushes use eight
+  angular sectors; backdrop canopy, hedges, hill grass and grass cards use eight.
+  Backdrop trunks, leaves, flowers and rocks stay whole-ring because sectoring
+  them cost more submissions than it saved.
+- The leaf shader thins cards to 60% beyond 42–68 m on top of the Canopy hash,
+  so far crowns keep their silhouette with fewer alpha-tested fragments.
+- Culling removes ~1.05–1.12 M triangles (~30%) and ~90–130 draw calls at the
+  default camera. Net of the extra sector submissions the same-run pair is
+  ~3–8 ms; against the pre-change row the default camera is ~2–3 ms (~7–10%)
+  faster. Sectoring **without** culling is slower than the original whole-ring
+  batches, so the split is only justified together with per-pass frustum culling.
+- Hero leaves still cost ~2.3 ms at this camera: the LOD reduces far-field fill,
+  not the near canopy.
+
 Pond camera probe (1440×900, DPR 1, quality 2, effects off, five 60-frame runs,
 first sample discarded): **17.4–18.5 ms** before the 6b-2 water tuning and
 **17.9–18.1 ms** after, so the night tint, softer foam and matte lily pads cost

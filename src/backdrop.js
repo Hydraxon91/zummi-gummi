@@ -201,6 +201,36 @@ function buildTerrain() {
   return mesh;
 }
 
+const SECTORS = 8;
+
+// A whole-ring batch can never leave the frustum. Split it into angular
+// buckets with local bounding spheres so the half behind the camera is skipped.
+function addSectoredInstanced(group, { name, geo, mat, parts, colors = false, attrs = null }) {
+  const buckets = Array.from({ length: SECTORS }, () => []);
+  for (const p of parts) {
+    const a = Math.atan2(p.m.elements[14], p.m.elements[12]);
+    const s = Math.min(SECTORS - 1, Math.max(0, Math.floor((a + Math.PI) / (Math.PI * 2) * SECTORS)));
+    buckets[s].push(p);
+  }
+  buckets.forEach((bucket, s) => {
+    if (!bucket.length) return;
+    const mesh = new THREE.InstancedMesh(geo, mat, bucket.length);
+    for (let i = 0; i < bucket.length; i++) {
+      mesh.setMatrixAt(i, bucket[i].m);
+      if (colors && bucket[i].c) mesh.setColorAt(i, bucket[i].c);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (attrs) attrs(mesh, bucket);
+    mesh.name = `${name}${s}`;
+    mesh.frustumCulled = true;
+    mesh.layers.enable(REFLECT_LAYER);
+    mesh.computeBoundingSphere();
+    mesh.boundingSphere.radius += .6;
+    group.add(mesh);
+  });
+}
+
 export function createBackdrop({ sun = null } = {}) {
   const group = new THREE.Group();
   group.name = 'meadowBackdrop';
@@ -517,12 +547,11 @@ export function createBackdrop({ sun = null } = {}) {
     mesh.geometry.setAttribute('aCanopyTint', new THREE.InstancedBufferAttribute(tints, 3));
   }
   const canopyGeo = lobeGeo.clone();
-  const canopyMesh = new THREE.InstancedMesh(canopyGeo, makeFoliageMaterial(THREE.FrontSide, false), canopyParts.length);
-  for (let i = 0; i < canopyParts.length; i++) canopyMesh.setMatrixAt(i, canopyParts[i].m);
-  canopyMesh.instanceMatrix.needsUpdate = true;
-  addFoliageAttributes(canopyMesh, canopyParts);
-  canopyMesh.name = 'backdropCanopy'; canopyMesh.frustumCulled = false; canopyMesh.layers.enable(REFLECT_LAYER);
-  group.add(canopyMesh);
+  addSectoredInstanced(group, {
+    name: 'backdropCanopy', geo: canopyGeo, parts: canopyParts,
+    mat: makeFoliageMaterial(THREE.FrontSide, false),
+    attrs: (mesh, bucket) => addFoliageAttributes(mesh, bucket),
+  });
 
   const leafGeo = new THREE.BufferGeometry();
   leafGeo.setAttribute('position', new THREE.Float32BufferAttribute([
@@ -538,40 +567,25 @@ export function createBackdrop({ sun = null } = {}) {
   leafMesh.name = 'backdropLeaves'; leafMesh.frustumCulled = false; leafMesh.layers.enable(REFLECT_LAYER);
   group.add(leafMesh);
 
-  const hedgeMesh = new THREE.InstancedMesh(lobeGeo, new THREE.MeshLambertMaterial({ vertexColors: false }), hedgeParts.length);
-  for (let i = 0; i < hedgeParts.length; i++) {
-    hedgeMesh.setMatrixAt(i, hedgeParts[i].m);
-    hedgeMesh.setColorAt(i, hedgeParts[i].c);
-  }
-  hedgeMesh.instanceMatrix.needsUpdate = true;
-  if (hedgeMesh.instanceColor) hedgeMesh.instanceColor.needsUpdate = true;
-  hedgeMesh.name = 'backdropHedges'; hedgeMesh.frustumCulled = false; hedgeMesh.layers.enable(REFLECT_LAYER);
-  group.add(hedgeMesh);
+  addSectoredInstanced(group, {
+    name: 'backdropHedges', geo: lobeGeo, parts: hedgeParts, colors: true,
+    mat: new THREE.MeshLambertMaterial({ vertexColors: false }),
+  });
 
-  const hillGrassMesh = new THREE.InstancedMesh(grassGeo, new THREE.MeshLambertMaterial({ color: 0x486f38, vertexColors: false, side: THREE.DoubleSide }), hillGrassParts.length);
-  for (let i = 0; i < hillGrassParts.length; i++) {
-    hillGrassMesh.setMatrixAt(i, hillGrassParts[i].m);
-    hillGrassMesh.setColorAt(i, hillGrassParts[i].c);
-  }
-  hillGrassMesh.instanceMatrix.needsUpdate = true;
-  if (hillGrassMesh.instanceColor) hillGrassMesh.instanceColor.needsUpdate = true;
-  hillGrassMesh.name = 'backdropGrass'; hillGrassMesh.frustumCulled = false; hillGrassMesh.layers.enable(REFLECT_LAYER);
-  group.add(hillGrassMesh);
+  addSectoredInstanced(group, {
+    name: 'backdropGrass', geo: grassGeo, parts: hillGrassParts, colors: true,
+    mat: new THREE.MeshLambertMaterial({ color: 0x486f38, vertexColors: false, side: THREE.DoubleSide }),
+  });
 
   const grassCardMat = new THREE.MeshBasicMaterial({
     map: hillGrassCardTexture(),
     alphaTest: .38,
     side: THREE.DoubleSide,
   });
-  const grassCardMesh = new THREE.InstancedMesh(hillGrassCardGeo(), grassCardMat, grassCardParts.length);
-  for (let i = 0; i < grassCardParts.length; i++) {
-    grassCardMesh.setMatrixAt(i, grassCardParts[i].m);
-    grassCardMesh.setColorAt(i, grassCardParts[i].c);
-  }
-  grassCardMesh.instanceMatrix.needsUpdate = true;
-  if (grassCardMesh.instanceColor) grassCardMesh.instanceColor.needsUpdate = true;
-  grassCardMesh.name = 'backdropGrassCards'; grassCardMesh.frustumCulled = false; grassCardMesh.layers.enable(REFLECT_LAYER);
-  group.add(grassCardMesh);
+  addSectoredInstanced(group, {
+    name: 'backdropGrassCards', geo: hillGrassCardGeo(), parts: grassCardParts, colors: true,
+    mat: grassCardMat,
+  });
 
   const flowerGeo = new THREE.OctahedronGeometry(1, 0);
   const flowerMesh = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ vertexColors: false }), flowerParts.length);

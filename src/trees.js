@@ -368,7 +368,12 @@ function makeWindMaterial(material, wind, mode, controls, sun = null) {
         #ifdef USE_INSTANCING
           float keep = 1.0;
           ${mode === 'leaf' ? `
-          keep = step(fract(sin(dot(aAnchor.xz + aFlutterPhase, vec2(12.9898, 78.233))) * 43758.5453), uLeafFullness);
+          // Distance LOD: thin the card budget beyond the near meadow instead
+          // of drawing every leaf into a few far-field pixels. The hash is the
+          // same one the Canopy control uses, so the two cuts compose.
+          float leafFar = smoothstep(42.0, 68.0, distance(cameraPosition, aAnchor));
+          float leafKeep = uLeafFullness * mix(1.0, 0.60, leafFar);
+          keep = step(fract(sin(dot(aAnchor.xz + aFlutterPhase, vec2(12.9898, 78.233))) * 43758.5453), leafKeep);
           transformed *= uLeafScale;
           ` : ''}
           if (keep < 0.5) {
@@ -557,6 +562,9 @@ export function createTreeCollection({ lots, wind, sun = null }) {
   const group = new THREE.Group();
   group.name = 'meadowTreeVisuals';
   const barkGeoms = [];
+  const barkMeshes = [];
+  const leafMeshes = [];
+  const fruitMeshes = [];
   const leafRows = [];
   const fruitRows = [];
   const hiveRecords = [];
@@ -592,6 +600,8 @@ export function createTreeCollection({ lots, wind, sun = null }) {
   const fruitCols = [0xff7e9c, 0xffc94f, 0xff9b58, 0xd995ff, 0xfff0a8];
 
   lots.forEach((lot, index) => {
+    const leafStart = leafRows.length;
+    const fruitStart = fruitRows.length;
     const s = lot.s;
     const kind = TREE_KINDS[TREE_KIND_ORDER[index % TREE_KIND_ORDER.length]];
     kindCounts[kind.name] = (kindCounts[kind.name] || 0) + 1;
@@ -1005,30 +1015,51 @@ export function createTreeCollection({ lots, wind, sun = null }) {
         center, treeX: lot.x, treeZ: lot.z, treeScale: s,
       });
     }
+
+    // Bark stays a per-tree merged mesh so each trunk can be frustum-culled
+    // independently; a single all-tree merge spans the whole meadow and can
+    // never leave the frustum.
+    const treeBarkGeo = mergeBarkGeometries(barkGeoms);
+    barkGeoms.length = 0;
+    const treeBark = new THREE.Mesh(treeBarkGeo, barkMat);
+    treeBark.name = `treeBark${index}`;
+    treeBark.frustumCulled = true;
+    treeBark.layers.enable(REFLECT_LAYER);
+    treeBark.geometry.computeBoundingSphere();
+    treeBark.geometry.boundingSphere.radius += .6; // wind displacement + card size
+    barkMeshes.push(treeBark);
+    group.add(treeBark);
+
+    const treeLeaves = instanceMesh(
+      leafGeo.clone(), leafMat, leafRows.slice(leafStart), `treeLeaves${index}`
+    );
+    treeLeaves.frustumCulled = true;
+    treeLeaves.computeBoundingSphere();
+    treeLeaves.boundingSphere.radius += .6;
+    leafMeshes.push(treeLeaves);
+    group.add(treeLeaves);
+
+    if (fruitRows.length > fruitStart) {
+      const treeFruit = instanceMesh(
+        fruitGeo.clone(), fruitMat, fruitRows.slice(fruitStart), `treeFruit${index}`
+      );
+      treeFruit.frustumCulled = true;
+      treeFruit.computeBoundingSphere();
+      treeFruit.boundingSphere.radius += .35;
+      fruitMeshes.push(treeFruit);
+      group.add(treeFruit);
+    }
   });
-
-  const barkGeo = mergeBarkGeometries(barkGeoms);
-  const barkMesh = new THREE.Mesh(barkGeo, barkMat);
-  barkMesh.name = 'treeBark';
-  barkMesh.frustumCulled = false;
-  barkMesh.layers.enable(REFLECT_LAYER);
-  group.add(barkMesh);
-
-  const leafMesh = instanceMesh(leafGeo, leafMat, leafRows, 'treeLeaves');
-  leafMesh.frustumCulled = false;
-  group.add(leafMesh);
-
-  const fruitMesh = instanceMesh(fruitGeo, fruitMat, fruitRows, 'treeFruit');
-  fruitMesh.frustumCulled = false;
-  group.add(fruitMesh);
 
   // Keep each hive separate so a depleted one can disappear without hiding the
   // other tree's hive. There are only two, so the extra draw call is cheap.
   const hives = hiveRecords.map((record, i) => {
     const mesh = new THREE.Mesh(record.geometry, hiveMat);
     mesh.name = `treeHive${i}`;
-    mesh.frustumCulled = false;
+    mesh.frustumCulled = true;
     mesh.layers.enable(REFLECT_LAYER);
+    mesh.geometry.computeBoundingSphere();
+    mesh.geometry.boundingSphere.radius += .4;
     group.add(mesh);
     return {
       mesh,
@@ -1039,7 +1070,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
     };
   });
 
-  const barkTris = barkGeo.index ? barkGeo.index.count / 3 : 0;
+  const barkTris = barkMeshes.reduce((n, m) => n + (m.geometry.index ? m.geometry.index.count / 3 : 0), 0);
   const leafTris = (leafGeo.index ? leafGeo.index.count / 3 : 0) * leafRows.length;
   const fruitTris = (fruitGeo.index ? fruitGeo.index.count / 3 : 0) * fruitRows.length;
   const stats = {
@@ -1054,15 +1085,16 @@ export function createTreeCollection({ lots, wind, sun = null }) {
     leafTris: Math.round(leafTris),
     fruitTris: Math.round(fruitTris),
     totalTris: Math.round(barkTris + leafTris + fruitTris),
-    batches: 3 + hives.length,
+    batches: barkMeshes.length + leafMeshes.length + fruitMeshes.length + hives.length,
+    lod: { start: 42, end: 68, farKeep: 0.6 },
   };
 
   return {
     group,
     stats,
-    barkMesh,
-    leafMesh,
-    fruitMesh,
+    barkMeshes,
+    leafMeshes,
+    fruitMeshes,
     hives,
     controls: leafControls,
     sun,

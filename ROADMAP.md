@@ -296,6 +296,26 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   and placement/nav reachability.
 - **Later, opt-in:** Phase 6a is the effects pass (before the 6b-3 optimization);
   Phase 7 (WebGPU) is dropped, so WebGL2 remains the renderer.
+- **Tree/bush/backdrop culling + far-leaf LOD shipped (Oct 2026):** per-tree hero
+  batches and eight angular sectors with padded bounds cut ~30% of rendered
+  triangles and ~2 ms at the default Balanced camera; leaves thin to 60% beyond
+  42–68 m. Sectoring without culling is slower, so the split ships with per-pass
+  frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
+
+**Known follow-ups after the culling/LOD pass** — recorded, not blockers:
+
+- **Leaf LOD is a fixed distance band.** 42–68 m and the 60% floor are not tied
+  to quality tiers or draw distance, so Performance pays full near-leaf fill
+  and Ultra gets the same far thinning.
+- **Never replace per-pass culling with main-camera visibility on reflected
+  objects.** Bark, hives and bushes are on `REFLECT_LAYER`, so the pond can show
+  them behind the main camera; `mesh.visible` distance culling would remove
+  them from the reflection. Leaf density follows the reflected camera there.
+- **Light backdrop batches stay whole-ring.** Trunks, backdrop leaves, flowers
+  and rocks skip culling; sector them only if a future profile shows the draw
+  calls pay back.
+- **Draw calls rose ~59** (660 vs 601) from sector submissions; watch mobile
+  submission cost before adding more sectors.
 
 Each phase ends playable, with screenshots and headless checks, so the direction
 can be adjusted without losing the working app.

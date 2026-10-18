@@ -280,35 +280,43 @@ export function createBushCollection({ lots }) {
     });
   }
 
-  const branchMesh = new THREE.InstancedMesh(branchGeo, new THREE.MeshLambertMaterial({ vertexColors: false }), segments.length);
-  for (let i = 0; i < segments.length; i++) {
-    branchMesh.setMatrixAt(i, segments[i].m);
-    branchMesh.setColorAt(i, segments[i].c);
+  // Eight angular buckets keep each batch's bounding sphere local enough to
+  // leave the frustum. Three whole-meadow batches could never be culled.
+  const SECTORS = 8;
+  const lobeMat = foliageMaterial(THREE.FrontSide);
+  const bushLeafMat = foliageMaterial(THREE.DoubleSide, true, bushLeafTexture());
+  function addSectored({ name, geo, mat, rows, attrs }) {
+    const buckets = Array.from({ length: SECTORS }, () => []);
+    for (const row of rows) {
+      const a = Math.atan2(row.m.elements[14], row.m.elements[12]);
+      const s = Math.min(SECTORS - 1, Math.max(0, Math.floor((a + Math.PI) / TAU * SECTORS)));
+      buckets[s].push(row);
+    }
+    buckets.forEach((bucket, s) => {
+      if (!bucket.length) return;
+      const mesh = new THREE.InstancedMesh(geo, mat, bucket.length);
+      for (let i = 0; i < bucket.length; i++) {
+        mesh.setMatrixAt(i, bucket[i].m);
+        if (bucket[i].c) mesh.setColorAt(i, bucket[i].c);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      if (attrs) addInstanceAttributes(mesh, bucket);
+      mesh.name = `${name}${s}`;
+      mesh.frustumCulled = true;
+      mesh.layers.enable(REFLECT_LAYER);
+      mesh.computeBoundingSphere();
+      mesh.boundingSphere.radius += .5;
+      group.add(mesh);
+    });
   }
-  branchMesh.instanceMatrix.needsUpdate = true;
-  if (branchMesh.instanceColor) branchMesh.instanceColor.needsUpdate = true;
-  branchMesh.name = 'bushBranches';
-  branchMesh.frustumCulled = false;
-  branchMesh.layers.enable(REFLECT_LAYER);
-  group.add(branchMesh);
 
-  const lobeMesh = new THREE.InstancedMesh(lobeGeo, foliageMaterial(THREE.FrontSide), lobes.length);
-  for (let i = 0; i < lobes.length; i++) lobeMesh.setMatrixAt(i, lobes[i].m);
-  lobeMesh.instanceMatrix.needsUpdate = true;
-  addInstanceAttributes(lobeMesh, lobes);
-  lobeMesh.name = 'bushFoliage';
-  lobeMesh.frustumCulled = false;
-  lobeMesh.layers.enable(REFLECT_LAYER);
-  group.add(lobeMesh);
-
-  const leafMesh = new THREE.InstancedMesh(leafGeo, foliageMaterial(THREE.DoubleSide, true, bushLeafTexture()), leaves.length);
-  for (let i = 0; i < leaves.length; i++) leafMesh.setMatrixAt(i, leaves[i].m);
-  leafMesh.instanceMatrix.needsUpdate = true;
-  addInstanceAttributes(leafMesh, leaves);
-  leafMesh.name = 'bushLeaves';
-  leafMesh.frustumCulled = false;
-  leafMesh.layers.enable(REFLECT_LAYER);
-  group.add(leafMesh);
+  addSectored({
+    name: 'bushBranches', geo: branchGeo, rows: segments,
+    mat: new THREE.MeshLambertMaterial({ vertexColors: false }),
+  });
+  addSectored({ name: 'bushFoliage', geo: lobeGeo, mat: lobeMat, rows: lobes, attrs: true });
+  addSectored({ name: 'bushLeaves', geo: leafGeo, mat: bushLeafMat, rows: leaves, attrs: true });
 
   return {
     group,
