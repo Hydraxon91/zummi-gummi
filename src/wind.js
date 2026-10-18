@@ -38,21 +38,34 @@ export const WIND_GLSL = /* glsl */`
 `;
 
 export function createWind(opts = {}) {
-  const dir = new THREE.Vector2(
-    Number.isFinite(opts.dirX) ? opts.dirX : 0.82,
-    Number.isFinite(opts.dirZ) ? opts.dirZ : 0.38
-  );
+  const hasDir = Number.isFinite(opts.dirX) || Number.isFinite(opts.dirZ);
+  const startAngle = hasDir
+    ? Math.atan2(Number.isFinite(opts.dirZ) ? opts.dirZ : 0.38,
+                 Number.isFinite(opts.dirX) ? opts.dirX : 0.82)
+    : Math.random() * Math.PI * 2;
+  const dir = new THREE.Vector2(Math.cos(startAngle), Math.sin(startAngle));
   if (dir.lengthSq() < 1e-6) dir.set(0.82, 0.38);
   dir.normalize();
 
   const uniforms = {
     uWindTime: { value: Number.isFinite(opts.time) ? opts.time : 0 },
     uWindDir: { value: dir },
-    uWindStrength: { value: Number.isFinite(opts.strength) ? opts.strength : 1 },
-    uWindGust: { value: Number.isFinite(opts.gust) ? opts.gust : 0.55 },
+    uWindStrength: { value: Number.isFinite(opts.strength) ? opts.strength : 0.65 + Math.random() * 0.65 },
+    uWindGust: { value: Number.isFinite(opts.gust) ? opts.gust : 0.35 + Math.random() * 0.35 },
   };
   let strength = uniforms.uWindStrength.value;
   let gustBase = uniforms.uWindGust.value;
+
+  // The direction drifts toward a new random bearing every so often instead of
+  // snapping. That keeps grass, trees, water and turbines moving together.
+  let veerAngle = startAngle;
+  let targetAngle = startAngle;
+  let veerTimer = 8 + Math.random() * 18;
+  const angleDelta = (a, b) => {
+    let d = (b - a + Math.PI * 2) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    return d;
+  };
 
   return {
     uniforms,
@@ -65,6 +78,14 @@ export function createWind(opts = {}) {
       uniforms.uWindTime.value += dt;
       // Slow gust breathing, on top of the immediate shader-level gust fronts.
       uniforms.uWindGust.value = gustBase + 0.12 * Math.sin(uniforms.uWindTime.value * 0.11);
+
+      veerTimer -= dt;
+      if (veerTimer <= 0) {
+        veerTimer = 16 + Math.random() * 24;
+        targetAngle = veerAngle + (Math.random() * 2 - 1) * (0.45 + Math.random() * 0.55);
+      }
+      veerAngle += angleDelta(veerAngle, targetAngle) * (1 - Math.exp(-dt * 0.22));
+      uniforms.uWindDir.value.set(Math.cos(veerAngle), Math.sin(veerAngle));
     },
     setStrength(v) {
       strength = THREE.MathUtils.clamp(Number(v) || 0, 0, 1.8);
@@ -75,6 +96,9 @@ export function createWind(opts = {}) {
       if (v.lengthSq() < 1e-6) v.set(0.82, 0.38);
       v.normalize();
       uniforms.uWindDir.value.copy(v);
+      veerAngle = Math.atan2(v.y, v.x);
+      targetAngle = veerAngle;
+      veerTimer = 16 + Math.random() * 24;
     },
     setGust(v) {
       gustBase = THREE.MathUtils.clamp(Number(v) || 0, 0, 1);

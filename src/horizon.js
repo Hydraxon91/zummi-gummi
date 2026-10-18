@@ -223,7 +223,8 @@ export function createHorizon() {
     const hub = new THREE.Mesh(new THREE.SphereGeometry(.25, 10, 8), windTrimMat);
     rotor.add(hub);
     mill.add(rotor);
-    rotors.push({ rotor, speed: .23 + .07 * rotors.length });
+    const speed = .23 + .07 * rotors.length;
+    rotors.push({ rotor, mill, speed, current: speed, yaw: spot.yaw });
     group.add(mill);
   }
 
@@ -239,8 +240,33 @@ export function createHorizon() {
       bandMat.emissiveIntensity = .45 + n * 1.25;
       windMat.emissiveIntensity = n * .16;
     },
-    update(dt) {
-      for (const r of rotors) r.rotor.rotation.z += dt * r.speed;
+    update(dt, wind) {
+      const strength = wind ? wind.strength : 1;
+      const gust = wind ? wind.gust : .55;
+      const dir = wind ? wind.direction : null;
+      const speedScale = THREE.MathUtils.clamp(
+        .30 + strength * 1.25 * (.75 + gust * .35),
+        .25, 2.2
+      );
+      let yawTarget = null;
+      if (dir) yawTarget = Math.atan2(-dir.x, -dir.z);
+      for (const r of rotors) {
+        const target = r.speed * speedScale;
+        r.current += (target - r.current) * Math.min(1, dt * 1.8);
+        r.rotor.rotation.z += dt * r.current;
+        if (yawTarget !== null) {
+          let d = (yawTarget - r.yaw + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+          r.yaw += d * Math.min(1, dt * .65);
+          r.mill.rotation.y = r.yaw;
+        }
+      }
+    },
+    windmillSpeed() {
+      if (!rotors.length) return 0;
+      return rotors.reduce((sum, r) => sum + r.current, 0) / rotors.length;
+    },
+    windmillYaw() {
+      return rotors.length ? rotors[0].yaw : 0;
     },
     dispose() {
       group.traverse(o => {

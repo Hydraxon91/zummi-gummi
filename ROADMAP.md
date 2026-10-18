@@ -414,6 +414,10 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Sun/moon shadow cameras are fixed at ±55 world units.** Far-rim props can
   fall outside the shadow frustum; recenter or fit the light target if visible
   in a wider overview.
+- **The pond basin is now 1.62 m deep, but there is no swim state yet.** Buoyancy,
+  paddling force and the existing recovery path keep bears on the surface. The
+  deeper floor is headroom for voluntary pond play; add a proper swim/exit state
+  before relying on underwater depth or expressive wakes.
 - **The pond ground cutout is rectangular while the water is elliptical.** The
   recovery path lifts a bear that falls below the lawn/basin, but replacing the
   four-slab cutout with an ellipse-approximating collider set would remove the
@@ -600,11 +604,14 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Distant horizon:** a clustered Frutiger-Aero skyline of rounded glass towers
   and flat-topped blocks plus three three-blade wind turbines. These are outside
   the playable bounds and never enter Box3D or nav.
-- **Shared wind:** one world-space wind state drives grass and trees, with
-  travelling gust fronts, stable spatial phases and separate stiffness/flutter.
-  Bear-driven grass parting remains. Compact Wind and Meadow-detail controls
-  (canopy fullness, leaf size, grass coverage, draw distance) join the Aero
-  panel; direction/gust can be debugged without a tree settings panel.
+- **Shared wind:** one world-space wind state drives grass, trees, water and the
+  distant turbines, with travelling gust fronts, stable spatial phases and
+  separate stiffness/flutter. Direction, strength and gust randomize per
+  session, the direction slowly veers, and the Wind slider is the strength
+  override. Rotor speed and yaw follow the live wind. Bear-driven grass parting
+  remains. Compact Wind and Meadow-detail controls (canopy fullness, leaf size,
+  grass coverage, draw distance) join the Aero panel; direction/gust can still
+  be debugged without a tree settings panel.
 - **Sky:** procedural gradient dome with a lightweight cartoon sky-cloud shader,
   sun/moon discs with halos, stars and a broad green/violet aurora curtain after
   dark; occasional low morning mist on some in-game days. A blue city-glow band
@@ -615,13 +622,14 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   bob and cross-path wobble, plus four short-range warm point lights that switch
   on only at night. Predetermined paths avoid clumping and keep the update cheap;
   no per-firefly physics or raycasts.
-- **Pond:** organic basin, planar reflection of sky/hills/trees at reduced
-  resolution, fresnel and explicit sun/moon glints, plus an anime-lite layer of
-  world-locked Voronoi cells with derivative-aware anti-aliasing, a thin broken
-  shoreline crest, splash-driven ripple rings and a procedural dark wet-sand
-  band following the water outline. Sixteen validated shore approaches let
-  thirsty bears drink, with a snout dip and ripple; splash/buoyancy still handles
-  flung bears.
+- **Pond:** organic **1.62 m** basin, planar reflection of sky/hills/trees at
+  reduced resolution, fresnel and explicit sun/moon glints, plus an anime-lite
+  layer of wind-drifting Voronoi cells with derivative-aware anti-aliasing, a
+  thin broken shoreline crest, downwind edge wavelets and a procedural dark
+  wet-sand band following the water outline. Splashes emit staggered,
+  wind-stretched ripples, droplets and a light paddling wake; buoyancy and
+  recovery handle flung bears. Sixteen validated shore approaches let thirsty
+  bears drink, with a snout dip and ripple.
 - **Arena:** a segmented oriented Box3D ring follows the wobbled field disc;
   the Studio keeps its rectangular table walls. Ground underneath and the
   launch-speed cap keep shots contained.

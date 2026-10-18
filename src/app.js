@@ -445,7 +445,7 @@ function spawn(x, z, y, flavor, opts={}){
   }
   b.vol=1; b.volSlow=1; b.sy=1; b.sx=1; b.contacts=0; b.airborne=false; b.upTilt=0; b.press=0;
   b.antic=0; b.hopT=HOP_MIN+Math.random()*(HOP_MAX-HOP_MIN);
-  b.grabs=0; b.stretch=1; b.stretchPt=P_HEAD; b.devSlow=0.05;
+  b.grabs=0; b.stretch=1; b.stretchPt=P_HEAD; b.devSlow=0.05; b.wakeCd=0;
   b.age = Number.isFinite(opts.age) ? Math.max(0, opts.age) : ageForStage(stage);
   b.sex=(Math.random()<0.5?'F':'M');
   b.health=100; b.hunger=0.3; b.thirst=0.3; b.energy=1;
@@ -1056,8 +1056,18 @@ function physicsStep(dt){
     if (isMeadow() && field){
       const inside = field.pond.contains(b.cx, b.cz);
       if (!inside) b.inPond = false;
-      else if (!b.inPond && b.cy < 0.50){ b.inPond = true; field.splash(b.cx, b.cz, 1.0); }
+      else if (!b.inPond && b.cy < 0.50){ b.inPond = true; b.wakeCd = .28; field.splash(b.cx, b.cz, 1.0); }
       else if (b.inPond && b.cy > 1.05) b.inPond = false;
+      if (b.inPond && b.grabs === 0){
+        b.wakeCd = Math.max(0, (b.wakeCd || 0) - dt);
+        const swimSpeed = Math.hypot(b.vcx, b.vcz);
+        if (swimSpeed > .16 && b.wakeCd <= 0){
+          field.splash(b.cx, b.cz, Math.min(.60, .12 + swimSpeed * .20));
+          b.wakeCd = .26;
+        }
+      } else {
+        b.wakeCd = 0;
+      }
       // The rectangular physics cutout is deliberately larger than the water
       // mesh at its corners. If a bear ends up below the lawn or basin, recover
       // it instead of leaving it wedged under the ground after a swim.
@@ -4355,9 +4365,9 @@ window.__gummy = {
         hedges: field.backdrop.hedges,
       } : null,
       colliders: field.colliders.length,
-      pond: { x:field.pond.x, z:field.pond.z, rx:field.pond.rx, rz:field.pond.rz, waterY:field.pond.waterY, hole:field.pond.hole },
+      pond: { x:field.pond.x, z:field.pond.z, rx:field.pond.rx, rz:field.pond.rz, waterY:field.pond.waterY, depth:+(POND.waterY - POND_HOLE.floorY).toFixed(2), hole:field.pond.hole },
       trees: field.trees ? field.trees.stats : null,
-      horizon: field.horizon ? { towers:field.horizon.towers, windmills:field.horizon.windmills } : null,
+      horizon: field.horizon ? { towers:field.horizon.towers, windmills:field.horizon.windmills, windmillSpeed:+field.horizon.windmillSpeed().toFixed(3), windmillYaw:+field.horizon.windmillYaw().toFixed(3) } : null,
       wind: field.wind ? { strength:field.wind.strength, dir:field.wind.direction, gust:field.wind.gust } : null,
       food: field.food ? field.food.stats() : null,
       hives: field.hives ? field.hives.length : 0,
@@ -4379,6 +4389,11 @@ window.__gummy = {
     return { strength:field.wind.strength, dir:field.wind.direction, gust:field.wind.gust };
   },
   setNature(v){ if (!field) return null; field.setNature(v); syncAeroUI(true); return field.natureControls; },
+  splash(x, z, strength){
+    if (!field) return null;
+    field.splash(Number(x) || 0, Number(z) || 0, Number.isFinite(strength) ? strength : 1);
+    return { x:field.pond.x, z:field.pond.z, waterY:field.pond.waterY };
+  },
   setMist(v){ if (!sky) return null; sky.setMistOverride(v); return sky.mist; },
   setGrassVisible(v){ if (!field) return null; field.setGrassVisible(v); return v; },
   setWaterCellScale(v){ return field ? field.setWaterCellScale(v) : null; },

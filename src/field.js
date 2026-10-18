@@ -20,7 +20,7 @@ import { FIELD_BOUNDS, FIELD_RADIUS, fieldInside, fieldRadiusAt } from './fields
 
 export { FIELD_BOUNDS };
 export const POND = { x: -17, z: 2, rx: 6.6, rz: 4.3, waterY: 0.022 };
-export const POND_HOLE = { hx: POND.rx * 0.78, hz: POND.rz * 0.78, floorY: -0.8 };
+export const POND_HOLE = { hx: POND.rx * 0.78, hz: POND.rz * 0.78, floorY: -1.6 };
 
 const HOUSE_LOTS = [
   { x: -7, z: -7,  name: 'Thimble Cottage',  wall: 0xf6ead0, roof: 0xd04a61, door: 0x6b3d2c },
@@ -1098,8 +1098,11 @@ export function buildField({ scene, camera, renderer, sky }) {
     uCellScale: { value: 1.2 },
     uPondCenter: { value: new THREE.Vector2(POND.x, POND.z) },
     uPondRadii: { value: new THREE.Vector2(POND.rx * .98, POND.rz * .98) },
-    uRippleCenters: { value: Array.from({ length: 4 }, () => new THREE.Vector2(POND.x, POND.z)) },
-    uRippleT: { value: [0, 0, 0, 0] },
+    uWindDir: wind.uniforms.uWindDir,
+    uWindStrength: wind.uniforms.uWindStrength,
+    uWindGust: wind.uniforms.uWindGust,
+    uRippleCenters: { value: Array.from({ length: 8 }, () => new THREE.Vector2(POND.x, POND.z)) },
+    uRippleT: { value: [0, 0, 0, 0, 0, 0, 0, 0] },
     uRippleCount: { value: 0 },
   };
   const waterMat = new THREE.ShaderMaterial({
@@ -1125,8 +1128,11 @@ export function buildField({ scene, camera, renderer, sky }) {
       uniform float uCellScale;
       uniform vec3 uSunDir, uMoonDir, uSunColor, uMoonColor, uDeep, uShallow, color;
       uniform vec2 uPondCenter, uPondRadii;
-      uniform vec2 uRippleCenters[4];
-      uniform float uRippleT[4];
+      uniform vec2 uWindDir;
+      uniform float uWindStrength;
+      uniform float uWindGust;
+      uniform vec2 uRippleCenters[8];
+      uniform float uRippleT[8];
       uniform int uRippleCount;
       varying vec4 vUv;
       varying vec3 vWorld;
@@ -1161,9 +1167,34 @@ export function buildField({ scene, camera, renderer, sky }) {
 
       void main(){
         vec2 p = vWorld.xz;
-        float r1 = sin(p.x * 0.72 + uTime * 0.75) * cos(p.y * 0.91 - uTime * 0.57);
-        float r2 = sin((p.x + p.y) * 0.47 - uTime * 0.44) * 0.7 + sin((p.x - p.y) * 0.83 + uTime * 0.31) * 0.3;
-        vec3 N = normalize(vec3(r1 * 0.07, 1.0, r2 * 0.07));
+        vec2 ep = (p - uPondCenter) / uPondRadii;
+        float er = length(ep);
+        float ang = atan(ep.y, ep.x);
+        vec2 wd = normalize(uWindDir + vec2(0.00001));
+        vec2 side = vec2(-wd.y, wd.x);
+        vec2 rel = p - uPondCenter;
+        float along = dot(rel, wd);
+        float across = dot(rel, side);
+        float windSpeed = .45 + uWindStrength * .95 + uWindGust * .25;
+        float phase = along * 1.15 - uTime * windSpeed;
+        float crossPhase = across * 1.9 + sin(along * .6 + uTime * .17) * .55;
+        float r1 = sin(phase) * cos(crossPhase) * .80
+                 + sin(phase * .53 + crossPhase * .7 + uTime * .13) * .20;
+        float r2 = sin(phase * .82 + crossPhase * .55 - uTime * .11) * .65
+                 + sin(crossPhase * 1.4 - uTime * (windSpeed * .7)) * .35;
+        float waveAmp = .055 + uWindStrength * .035;
+        vec3 N = normalize(vec3(
+          (wd.x * r1 + side.x * r2 * .5) * waveAmp,
+          1.0,
+          (wd.y * r1 + side.y * r2 * .5) * waveAmp
+        ));
+        float edgeMask = smoothstep(.80, .985, er) * (1.0 - smoothstep(1.0, 1.045, er));
+        float edgeWave = sin(along * 4.4 - uTime * (1.1 + uWindStrength * 1.7)
+                             + sin(ang * 4.3 + uTime * .12) * .7);
+        float edgeAmp = edgeMask * (.035 + uWindStrength * .045);
+        N.x += wd.x * edgeWave * edgeAmp;
+        N.z += wd.y * edgeWave * edgeAmp;
+        N = normalize(N);
         vec3 V = normalize(cameraPosition - vWorld);
         float fres = pow(1.0 - max(dot(N, V), 0.0), 2.4);
         vec4 uv = vUv;
@@ -1177,11 +1208,10 @@ export function buildField({ scene, camera, renderer, sky }) {
         vec3 col = mix(base, refl, clamp(0.28 + fres * 0.42, 0.0, 0.72));
         col = mix(col, mix(uDeep, uShallow, .70), .26);
 
-        // Anime/Aero cell lines. The cells are world-locked and intentionally
-        // static; the water still moves through reflection, foam and glints.
-        // Keeping the high-frequency pattern still avoids shimmer behind
-        // foreground silhouettes. Fade cells as their screen footprint grows.
-        vec2 cellUv = p * uCellScale;
+        // Anime/Aero cell lines. They drift slowly downwind, but stay
+        // low-contrast and anti-aliased so they do not shimmer behind
+        // foreground silhouettes.
+        vec2 cellUv = p * uCellScale + wd * (uTime * (.010 + uWindStrength * .008));
         float f1 = wf1(cellUv);
         float sf1 = wsf1(cellUv);
         float cellEdge = f1 - sf1;
@@ -1191,32 +1221,37 @@ export function buildField({ scene, camera, renderer, sky }) {
         col = mix(col, vec3(.54,.94,.94), cell * uAnime * .27);
 
         // Shore foam: a thin, broken crest rather than a continuous halo.
-        // The angular breaks and small time wobble keep it from reading as a
-        // vector outline around the whole pond.
-        vec2 ep = (p - uPondCenter) / uPondRadii;
-        float er = length(ep);
-        float ang = atan(ep.y, ep.x);
-        float breakA = .5 + .5 * sin(ang * 7.0 + sin(ang * 3.0 - uTime * .23) + .7);
-        float breakB = .5 + .5 * sin(ang * 13.0 - uTime * .17 + 2.4);
+        // The angular breaks and small downwind ripples keep it from reading
+        // as a vector outline around the whole pond.
+        float breakA = .5 + .5 * sin(ang * 7.0 + along * .22 + sin(ang * 3.0 - uTime * .23) + .7);
+        float breakB = .5 + .5 * sin(ang * 13.0 - along * .12 - uTime * .17 + 2.4);
         float shorePatch = smoothstep(.35, .80, breakA * .65 + breakB * .35);
-        float edgeN = sin(ang * 11.0 + uTime * .22) * .003
-                    + sin(ang * 23.0 - uTime * .13) * .0015;
+        float edgeN = sin(ang * 11.0 + along * .25 + uTime * .22) * .003
+                    + sin(ang * 23.0 - along * .18 - uTime * .13) * .0015
+                    + edgeWave * .0022 * (.4 + uWindStrength * .6);
         float edge = er + edgeN;
         float foam = smoothstep(.968, .986, edge) * (1.0 - smoothstep(.996, 1.004, edge));
         col = mix(col, vec3(.84,.99,.96), foam * shorePatch * uAnime * .38);
+        float shoreCrest = pow(max(0.0, sin(along * 5.4
+          - uTime * (1.3 + uWindStrength * 2.0) + sin(ang * 3.5) * .9)), 3.0);
+        col += vec3(.045,.105,.095) * max(0.0, edgeWave) * edgeMask
+             * (.35 + uWindStrength * .65) * uAnime;
+        col += vec3(.055,.125,.110) * shoreCrest * edgeMask
+             * (.30 + uWindStrength * .70) * uAnime;
 
-        // Splash rings: four active impact events are fed from the existing
-        // splash-ring state. Rings are intentionally sharp and cyan on the crest.
+        // Splash rings: impact events are wind-stretched and drift downwind.
         float rip = 0.0;
-        for (int i = 0; i < 4; i++){
+        for (int i = 0; i < 8; i++){
           if (i >= uRippleCount) break;
           float age = uRippleT[i];
-          float d = length(p - uRippleCenters[i]);
+          vec2 rr = p - uRippleCenters[i] - wd * (age * .10);
+          float d = length(vec2(dot(rr, wd), dot(rr, side) * .72));
           float rad = age * 1.55;
           float ring = 1.0 - smoothstep(.018, .095, abs(d - rad));
-          rip += ring * exp(-age * 1.25);
+          float inner = 1.0 - smoothstep(.012, .060, abs(d - rad * .62));
+          rip += (ring + inner * .30) * exp(-age * 1.25);
         }
-        col = mix(col, vec3(.80,1.0,.98), clamp(rip, 0.0, 1.0) * .62);
+        col = mix(col, vec3(.80,1.0,.98), clamp(rip, 0.0, 1.0) * .68);
 
         // sun and moon glints on the ripples
         vec3 R = reflect(-uSunDir, N);
@@ -1255,7 +1290,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   // The Reflector clones uniforms. Point all *custom* uniforms at the live
   // objects so the sky/water animation updates the material that actually renders.
   const ru = reflector.material.uniforms;
-  for (const k of ['uTime','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uAnime','uCellScale','uPondCenter','uPondRadii','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
+  for (const k of ['uTime','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uAnime','uCellScale','uPondCenter','uPondRadii','uWindDir','uWindStrength','uWindGust','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
   const reflectionCam = reflector.getReflectionCamera(camera);
   reflectionCam.layers.set(REFLECT_LAYER);
   reflectionCam.far = 400;
@@ -1312,7 +1347,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   }
 
   // splash rings
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 10; i++) {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.18, 0.26, 36),
       new THREE.MeshBasicMaterial({ color: 0xdff7ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false })
@@ -1321,8 +1356,32 @@ export function buildField({ scene, camera, renderer, sky }) {
     ring.position.y = POND.waterY + 0.012;
     ring.visible = false;
     group.add(ring);
-    splashRings.push({ mesh: ring, t: 1, dur: 1.1 });
+    splashRings.push({ mesh: ring, t: 1, dur: 1.1, delay: 0, strength: 1 });
   }
+
+  // Small pooled droplets keep impacts from reading as a flat decal.
+  const DROP_MAX = 64;
+  const dropGeo = new THREE.SphereGeometry(.036, 6, 4);
+  const dropMat = new THREE.MeshBasicMaterial({
+    color: 0xe8ffff, transparent: true, opacity: .82, depthWrite: false, toneMapped: false,
+  });
+  const dropMesh = new THREE.InstancedMesh(dropGeo, dropMat, DROP_MAX);
+  dropMesh.name = 'meadowSplashDrops';
+  dropMesh.frustumCulled = false;
+  dropMesh.visible = false;
+  dropMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  group.add(dropMesh);
+  const dropDummy = new THREE.Object3D();
+  const drops = Array.from({ length: DROP_MAX }, () => ({
+    life: 0, max: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, size: .02,
+  }));
+  for (let i = 0; i < DROP_MAX; i++) {
+    dropDummy.position.set(0, -100, 0);
+    dropDummy.scale.setScalar(0);
+    dropDummy.updateMatrix();
+    dropMesh.setMatrixAt(i, dropDummy.matrix);
+  }
+  dropMesh.instanceMatrix.needsUpdate = true;
 
   // ---------------------------------------------------------------- bubbles
   {
@@ -1845,13 +1904,71 @@ export function buildField({ scene, camera, renderer, sky }) {
   }
 
   // ---------------------------------------------------------------- splash / update
+  function emitDroplets(x, z, strength) {
+    const wd = wind ? wind.direction : { x: 0, z: 0 };
+    const count = Math.min(18, Math.max(4, Math.round(4 + strength * 10)));
+    for (let k = 0; k < count; k++) {
+      let d = drops.find(q => q.life <= 0);
+      if (!d) d = drops[k % drops.length];
+      const a = Math.random() * Math.PI * 2;
+      const speed = .28 + Math.random() * .62 * strength;
+      d.life = .0001;
+      d.max = .42 + Math.random() * .55;
+      d.x = x + Math.cos(a) * .12 * Math.random();
+      d.z = z + Math.sin(a) * .12 * Math.random();
+      d.y = POND.waterY + .035;
+      d.vx = Math.cos(a) * speed + wd.x * (.35 + strength * .55);
+      d.vz = Math.sin(a) * speed + wd.z * (.35 + strength * .55);
+      d.vy = 1.0 + Math.random() * 1.9 * strength;
+      d.size = .55 + Math.random() * .85;
+    }
+  }
+
+  function updateDroplets(dt) {
+    let active = 0;
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      if (d.life > 0) {
+        d.life += dt;
+        if (d.life < d.max && d.y >= POND.waterY - .05) {
+          d.x += d.vx * dt;
+          d.z += d.vz * dt;
+          d.y += d.vy * dt;
+          d.vy -= 5.2 * dt;
+          const k = 1 - d.life / d.max;
+          dropDummy.position.set(d.x, d.y, d.z);
+          dropDummy.scale.setScalar(d.size * (.55 + k * .45));
+          active++;
+        } else {
+          d.life = 0;
+        }
+      }
+      if (d.life <= 0) {
+        dropDummy.position.set(0, -100, 0);
+        dropDummy.scale.setScalar(0);
+      }
+      dropDummy.updateMatrix();
+      dropMesh.setMatrixAt(i, dropDummy.matrix);
+    }
+    dropMesh.visible = active > 0;
+    dropMesh.instanceMatrix.needsUpdate = true;
+  }
+
   function splash(x, z, strength = 1) {
-    const ring = splashRings.find(r => r.t >= r.dur) || splashRings[0];
-    ring.t = 0; ring.dur = 0.9 + strength*0.2;
-    ring.mesh.position.set(x, POND.waterY + 0.012, z);
-    ring.mesh.scale.setScalar(0.4 + strength*0.2);
-    ring.mesh.material.opacity = 0.7 * strength;
-    ring.mesh.visible = true;
+    const s = THREE.MathUtils.clamp(Number(strength) || 0, .08, 1.5);
+    const pulses = s > .72 ? 3 : s > .28 ? 2 : 1;
+    for (let k = 0; k < pulses; k++) {
+      const ring = splashRings.find(r => r.t >= r.dur) || splashRings[k % splashRings.length];
+      ring.t = 0;
+      ring.delay = k * .10;
+      ring.dur = .84 + s * .24;
+      ring.strength = s * (1 - k * .16);
+      ring.mesh.position.set(x, POND.waterY + .012, z);
+      ring.mesh.scale.setScalar(.4 + ring.strength * .2);
+      ring.mesh.material.opacity = .62 * ring.strength;
+      ring.mesh.visible = false;
+    }
+    emitDroplets(x, z, s);
   }
 
   function sting(x, z, y = 1.5) {
@@ -1886,7 +2003,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   function update(dt, activeBears) {
     if (sky) sky.update(dt);
     wind.update(dt);
-    horizon.update(dt);
+    horizon.update(dt, wind);
     horizon.setNight(sky ? sky.night : 0);
     aeroHomes.setNight(sky ? sky.night : 0);
     studioHouse.setNight(sky ? sky.night : 0);
@@ -1973,16 +2090,21 @@ export function buildField({ scene, camera, renderer, sky }) {
     for (const r of splashRings) {
       if (r.t >= r.dur) { r.mesh.visible = false; continue; }
       r.t += dt;
-      const p = Math.min(1, r.t / r.dur);
-      r.mesh.scale.setScalar(0.4 + p*3.6);
-      r.mesh.material.opacity = (1-p)*0.65;
-      if (ripCount < 4) {
+      if (r.t < r.delay) { r.mesh.visible = false; continue; }
+      const age = r.t - r.delay;
+      const p = Math.min(1, age / Math.max(.01, r.dur - r.delay));
+      const grow = .4 + p * 3.8;
+      r.mesh.visible = true;
+      r.mesh.scale.set(grow, grow * .88, 1);
+      r.mesh.material.opacity = (1 - p) * .68 * (r.strength || 1);
+      if (ripCount < 8) {
         ripCenters[ripCount].set(r.mesh.position.x, r.mesh.position.z);
-        ripT[ripCount] = r.t;
+        ripT[ripCount] = age;
         ripCount++;
       }
     }
     waterUniforms.uRippleCount.value = ripCount;
+    updateDroplets(dt);
     // short hive-sting bee clouds
     let beeCount = 0, beeOpacity = 0;
     for (let i = stingBursts.length - 1; i >= 0; i--) {
