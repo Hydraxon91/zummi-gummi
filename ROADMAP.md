@@ -435,12 +435,17 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Rapid bear spawning can merge bears into one stuck blob — fixed:** the drop
   buttons and pour now pick the emptiest of 14 candidates inside a capped central
   patch (about 2.0 x 1.6 m; the meadow's table is the whole field, so the spread
-  is clamped) instead of a fixed small box. The cannon gained a 260 ms cooldown
-  and a `canSpawnAt` clearance check against houses, trees, bushes, rocks and
-  other bears, with a single forward nudge before a shot is refused. Measured:
-  12 rapid drops settle with a 0.62 m closest pair, six cannon shots 0.53 m,
-  eight same-tick `fire()` calls spawn one bear, and a shot aimed at a tree from
-  1 m away returns false.
+  is clamped) and refuse the drop when even the best candidate is closer than
+  0.55 m to a bear. `spawn()` now refreshes the centre of mass immediately, so
+  same-tick spawns no longer read a recycled bear's previous position. The cannon
+  gained a 260 ms cooldown plus spawn clearance at both the muzzle (with one
+  forward nudge) and the landing point; a shot that cannot be placed is refused
+  and reported as `blocked: 'muzzle' | 'landing'`. Measured: 14 drops in one tick
+  settle with a 0.598 m closest pair; 40 rapid clicks accept 23 and settle at
+  0.504 m; aiming at the old tree returns false with `blocked: 'landing'` while
+  open ground fires; a cannon placed 1 m from that tree also refuses. Deferred
+  follow-ups (not blockers): the aim ring does not show why a shot was refused,
+  and fired bears are not checked against obstacles along the flight path.
 - **Emote sprites — fixed:** the 5 px white stroke at .92 alpha read as a
   see-through border around the heart. The stroke is gone; the glyph is a solid
   colour.

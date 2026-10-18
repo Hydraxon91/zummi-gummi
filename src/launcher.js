@@ -34,11 +34,13 @@ export function createLauncher(ctx) {
   let speed = 6, recoil = 0, flash = 0, lastShot = null;
   const FIRE_COOLDOWN_MS = 260;
   let lastFireAt = -Infinity;
+  let lastBlock = null;
   let aimPointer = null, dragPointer = null;
   let moveMode = false, dragging = false, savedPos = null, previewValid = true;
   let current = null;
 
   const target = new THREE.Vector3();
+  const landPoint = new THREE.Vector3();
   const muzzle = new THREE.Vector3();
   const dir = new THREE.Vector3(0, 0, 1);
   const vel = new THREE.Vector3();
@@ -408,6 +410,7 @@ export function createLauncher(ctx) {
     for (let i = used; i < n; i++) aimDots.setMatrixAt(i, _m);
     aimDots.instanceMatrix.needsUpdate = true;
     aimRing.position.set(landX, 0.018, landZ);
+    landPoint.set(landX, LAND_Y, landZ);
   }
 
   function updateAimFromScreen(clientX, clientY) {
@@ -427,14 +430,22 @@ export function createLauncher(ctx) {
     let ox = muzzle.x + dir.x * 0.36;
     let oy = muzzle.y + dir.y * 0.36;
     let oz = muzzle.z + dir.z * 0.36;
-    if (canSpawnAt && !canSpawnAt(ox, oz, 0.40)) {
+    if (canSpawnAt && !canSpawnAt(ox, oz, 0.40, true)) {
       // Try one short step along the shot line before refusing the shot.
       const nx = ox + dir.x * 0.60;
       const ny = oy + dir.y * 0.60;
       const nz = oz + dir.z * 0.60;
-      if (!canSpawnAt(nx, nz, 0.40)) return false;
+      if (!canSpawnAt(nx, nz, 0.40, true)) { lastBlock = 'muzzle'; return false; }
       ox = nx; oy = ny; oz = nz;
     }
+    // Refuse a shot whose landing point is inside a house, tree, bush or rock:
+    // landing there left the bear embedded in the obstacle. Other bears are
+    // allowed, so firing into a group still works.
+    if (canSpawnAt && !canSpawnAt(landPoint.x, landPoint.z, 0.45, false)) {
+      lastBlock = 'landing';
+      return false;
+    }
+    lastBlock = null;
 
     _y.copy(dir).normalize();
     _z.set(0, 1, 0).addScaledVector(_y, -_y.y);
@@ -660,6 +671,7 @@ export function createLauncher(ctx) {
       valid: previewValid,
       recoil: +recoil.toFixed(2),
       last: lastShot,
+      blocked: lastBlock,
     };
   }
 

@@ -444,6 +444,9 @@ function spawn(x, z, y, flavor, opts={}){
     b.snap[i*3]=b.px[i]; b.snap[i*3+1]=b.py[i]; b.snap[i*3+2]=b.pz[i];
   }
   b.vol=1; b.volSlow=1; b.sy=1; b.sx=1; b.contacts=0; b.airborne=false; b.upTilt=0; b.press=0;
+  // Refresh the centre of mass immediately: clearance checks and the AI read
+  // b.cx/cz, and a recycled bear still carried its previous life's COM.
+  bearCOM(b);
   b.antic=0; b.hopT=HOP_MIN+Math.random()*(HOP_MAX-HOP_MIN);
   b.grabs=0; b.stretch=1; b.stretchPt=P_HEAD; b.devSlow=0.05; b.wakeCd=0;
   b.age = Number.isFinite(opts.age) ? Math.max(0, opts.age) : ageForStage(stage);
@@ -3267,12 +3270,13 @@ function pulseBounce(){ bouncePulse = 1; }
 
 // The cannon must not spawn a bear inside a house, tree, bush, rock or another
 // bear; blocked shots are skipped rather than left stuck in the obstacle.
-function launcherSpotClear(x, z, r){
+function launcherSpotClear(x, z, r, includeBears = true){
   if (isMeadow() && field && field.colliders){
     for (const c of field.colliders){
       if (Math.hypot(x - c.x, z - c.z) < c.r + r) return false;
     }
   }
+  if (!includeBears) return true;
   for (const b of bears){
     if (!b.active) continue;
     if (Math.hypot(x - b.cx, z - b.cz) < 0.62 + r * .5) return false;
@@ -3293,7 +3297,9 @@ function bearClearanceAt(x, z) {
 }
 // Pick a random spot in the central table area, preferring the emptiest of a
 // handful of candidates. Rapid drops then spread out instead of stacking into
-// one blob at the same coordinates.
+// one blob; if even the best candidate is too close to a bear the drop is
+// refused rather than piled on top.
+const MIN_DROP_GAP = 0.55;
 function freeDropSpot(){
   // The meadow's TABLE is the whole field, so cap the spread: drops stay in a
   // readable central patch instead of scattering across the map.
@@ -3310,16 +3316,19 @@ function freeDropSpot(){
     if (d > bestD){ bestD = d; best = { x, z }; }
     if (bestD > .95) break;
   }
-  return best;
+  return bestD >= MIN_DROP_GAP ? best : null;
 }
 function dropFromAbove(flavor){
   const spot = freeDropSpot();
+  if (!spot) return false;
   spawn(spot.x, spot.z, 2.6, flavor, {tilt:0.22});
+  return true;
 }
 function dropCustom(){
   const key = customKey();
   const f = customFlavor();
   const spot = freeDropSpot();
+  if (!spot) return false;
   const b = spawn(spot.x, spot.z, 2.6, DEFAULT_FLAVOR, {tilt:0.22});
   if (b){
     b.flavor = -1;
@@ -3476,7 +3485,7 @@ function frameTick(dt){
     d.t -= dt;
     if (d.t <= 0){
       const spot = freeDropSpot();
-      spawn(spot.x, spot.z, d.y, d.f, {tilt:0.3});
+      if (spot) spawn(spot.x, spot.z, d.y, d.f, {tilt:0.3});
       dropQueue.splice(i,1);
     }
   }
@@ -4455,7 +4464,7 @@ function fitWallsToTable(){
     getTable: () => TABLE,
     getBears: () => bears,
     spawnBear: (x, z, y, f, opts) => spawn(x, z, y, f, opts),
-    canSpawnAt: (x, z, r) => launcherSpotClear(x, z, r),
+    canSpawnAt: (x, z, r, includeBears) => launcherSpotClear(x, z, r, includeBears),
     uploadVelocities: uploadBearVelocities,
     restDY: REST_DY, np: NP, flavors: FLAVORS,
     isPhysicsReady: () => !!PHYS,
@@ -4545,7 +4554,7 @@ window.__gummy = {
              tris:fx ? fx.tris : renderer.info.render.triangles };
   },
   pour: pourBears,
-  drop(f){ dropFromAbove(f===undefined?0:f); },
+  drop(f){ return dropFromAbove(f===undefined?0:f); },
   dropCustom,
   spawnAt(x,z,y,f){ return spawn(x,z,y,f===undefined?0:f,{tilt:0.04}); },
   setWobble(v){ wobble = v; wobbleEl.value = String(Math.round(v*100)); },
