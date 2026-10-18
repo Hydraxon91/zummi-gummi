@@ -389,6 +389,8 @@
   .card.fade{opacity:0;transform:translateY(calc(-50% + 8px))}
   body.ready .card.fade{opacity:1;transform:translateY(-50%)}
 
+  .mobileSheetToggle{display:none}
+
   @media (max-width:900px){
     header{max-width:min(70vw,520px)}
     h1{font-size:clamp(2.6rem,11vw,4rem)}
@@ -396,7 +398,22 @@
     .card{
       right:10px;left:10px;bottom:10px;top:auto;width:auto;transform:none;
       padding:12px 13px 11px;border-radius:18px;
+      max-height:64vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
     }
+    .mobileSheetToggle{
+      display:flex;align-items:center;justify-content:space-between;width:100%;
+      border:0;background:none;color:#0b4351;font-family:var(--sans);font-size:11px;
+      letter-spacing:.14em;text-transform:uppercase;font-weight:700;padding:2px 0 8px;cursor:pointer;
+    }
+    .mobileSheetToggle .chev{font-size:14px;transition:transform .18s ease}
+    #card.mobileCollapsed .chev{transform:rotate(-90deg)}
+    #card.mobileCollapsed .lbl,
+    #card.mobileCollapsed .hr,
+    #card.mobileCollapsed .swatches,
+    #card.mobileCollapsed .custom,
+    #card.mobileCollapsed .row,
+    #card.mobileCollapsed .stats{display:none}
+    .cardfoot{flex-wrap:wrap;justify-content:center}
     body.ready .card{transform:none}
     .card.fade{transform:translateY(10px)}
     body.ready .card.fade{transform:none}
@@ -710,6 +727,9 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
   </header>
 
   <aside class="card fade" id="card">
+    <button class="mobileSheetToggle" id="cardToggle" type="button" aria-expanded="true">
+      <span>Bears &amp; toys</span><span class="chev" aria-hidden="true">▾</span>
+    </button>
     <div class="lbl"><span>Flavors</span><span>click to drop</span></div>
     <div class="swatches" id="swatches"></div>
 

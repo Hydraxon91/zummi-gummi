@@ -2196,7 +2196,7 @@ function showCamHint(){
     hintEl.style.bottom = Math.round(card.getBoundingClientRect().height + 18) + 'px';
   } else if (innerHeight <= 560){
     hintEl.style.bottom = 'auto';
-    hintEl.style.top = '12px';
+    hintEl.style.top = '62px';
   } else {
     hintEl.style.top = 'auto';
     hintEl.style.bottom = '22px';
@@ -3024,8 +3024,56 @@ function syncAeroUI(force){
   if (!btn || !hud) return;
   btn.addEventListener('click', ()=>{
     hud.classList.toggle('min');
-    btn.textContent = hud.classList.contains('min') ? '+' : '–';
-    btn.title = hud.classList.contains('min') ? 'Expand panel' : 'Collapse panel';
+    const collapsed = hud.classList.contains('min');
+    btn.textContent = collapsed ? '+' : '–';
+    btn.title = collapsed ? 'Expand panel' : 'Collapse panel';
+    // Phones show one sheet at a time: expanding the meadow stack closes the
+    // bear controls so the two do not cover the whole viewport.
+    if (!collapsed && innerWidth <= 900){
+      const card = document.getElementById('card');
+      const cardToggle = document.getElementById('cardToggle');
+      if (card){
+        card.classList.add('mobileCollapsed');
+        cardToggle?.setAttribute('aria-expanded', 'false');
+      }
+    }
+  });
+  // Phones start with the meadow stack collapsed so the game view is visible;
+  // the same + button expands it.
+  if (innerWidth <= 900 && !hud.classList.contains('min')){
+    hud.classList.add('min');
+    btn.textContent = '+';
+    btn.title = 'Expand panel';
+  }
+})();
+(function initMobileCard(){
+  const card = document.getElementById('card');
+  const toggle = document.getElementById('cardToggle');
+  if (!card || !toggle) return;
+  const setCollapsed = (collapsed) => {
+    card.classList.toggle('mobileCollapsed', collapsed);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    // The transient camera hint is anchored above the collapsed sheet; dismiss
+    // it rather than let it land on the expanded controls.
+    const hint = document.getElementById('camHint');
+    if (hint) hint.classList.remove('show');
+  };
+  toggle.addEventListener('click', ()=>{
+    const collapsed = !card.classList.contains('mobileCollapsed');
+    setCollapsed(collapsed);
+    // One sheet at a time on phones.
+    if (!collapsed && innerWidth <= 900){
+      const aero = document.getElementById('aeroHud');
+      const aeroMin = document.getElementById('aeroMin');
+      if (aero && !aero.classList.contains('min')){
+        aero.classList.add('min');
+        if (aeroMin){ aeroMin.textContent = '+'; aeroMin.title = 'Expand panel'; }
+      }
+    }
+  });
+  if (innerWidth <= 900) setCollapsed(true);
+  addEventListener('resize', ()=>{
+    if (innerWidth > 900) setCollapsed(false);
   });
 })();
 function refreshAeroSoon(){ setTimeout(()=>{ if (isMeadow()) syncAeroUI(true); }, 0); }
