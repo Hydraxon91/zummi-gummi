@@ -360,6 +360,17 @@
   }
   .settingsRow select:disabled,.natureRow select:disabled{opacity:.48;cursor:default}
   .settingsRow b{width:44px;text-align:right;font-size:10px;font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .savesSection{grid-column:1 / -1}
+  .savesList{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .saveRow{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:12px;padding:7px 8px;background:rgba(255,255,255,.5)}
+  .saveRow .saveMeta{flex:1;min-width:0}
+  .saveRow .saveMeta b{display:block;font-size:10.5px;color:var(--ink-1);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .saveRow .saveMeta small{display:block;font-size:9px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .saveBtn{border:1px solid var(--line);background:rgba(255,255,255,.75);border-radius:8px;padding:4px 7px;font-size:9px;letter-spacing:.04em;color:var(--ink-2);cursor:pointer}
+  .saveBtn.primary{background:#0d7b76;border-color:#0d7b76;color:#fff}
+  .saveBtn:disabled{opacity:.4;cursor:default}
+  .savesActions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  @media (max-width:640px){ .savesList{grid-template-columns:1fr} }
   .settingsReadout{display:grid;gap:4px;margin-top:12px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:rgba(250,249,247,.6)}
   .settingsReadout div{display:flex;align-items:baseline;gap:8px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
   .settingsReadout b{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:none;color:var(--ink-2)}
@@ -806,6 +817,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>U</dt><dd>Hide or show the interface.</dd>
             <dt>P</dt><dd>Performance overlay; it stays visible when the rest of the UI is hidden.</dd>
             <dt>Settings</dt><dd>The gear opens graphics profiles, resolution, effects, depth of field, toon shading and meadow detail. Profiles are starting points; tweaking a control switches to Custom.</dd>
+            <dt>Saves</dt><dd>The Saves section in Settings holds five named slots plus an autosave (every two minutes). Save, Load, Delete and Rename work per slot; Export JSON downloads a file and Import JSON restores one. Saves live in this browser. New Game resets to the authored starter colony, 07:00 and a full meadow.</dd>
             <dt>Time looks</dt><dd>Dawn / Day / Dusk / Night in the time panel apply a full look (hour, mist, cloud density and exposure) and turn Auto off. They persist across reloads; the slider or Auto returns to a custom clock.</dd>
             <dt>Toon shading</dt><dd>Swaps compatible ordinary materials to <b>MeshToonMaterial</b> for a banded cel look. Custom water, sky and particle shaders keep their own programs.</dd>
             <dt>Effects</dt><dd>Off, Soft or Full meadow post-processing. Soft adds bloom and a gentle grade; Full also adds ambient occlusion, depth-aware god rays and, on high tiers, directional sun/moon shadows. Depth of field focuses on the object under the view centre and softens only the background. Studio stays crisp.</dd>
@@ -851,6 +863,17 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
           <label class="settingsRow"><span>Leaf size</span><input id="settingsLeafSize" type="range" min="0.65" max="1.4" step="0.01" value="1" aria-label="Leaf size"><b id="settingsLeafSizeVal">1.00</b></label>
           <label class="settingsRow"><span>Grass</span><input id="settingsGrassCoverage" type="range" min="0.35" max="1" step="0.01" value="1" aria-label="Grass coverage"><b id="settingsGrassCoverageVal">1.00</b></label>
           <label class="settingsRow"><span>Distance</span><input id="settingsGrassDistance" type="range" min="28" max="76" step="1" value="56" aria-label="Grass draw distance"><b id="settingsGrassDistanceVal">56</b></label>
+        </section>
+        <section class="settingsSection savesSection">
+          <h3>Saves</h3>
+          <div class="savesList" id="savesList" aria-live="polite"></div>
+          <div class="savesActions">
+            <button class="settingsAction" id="saveExport" type="button">Export JSON</button>
+            <label class="settingsAction" for="saveImportFile">Import JSON</label>
+            <input id="saveImportFile" type="file" accept="application/json,.json" hidden>
+            <button class="settingsAction" id="newGame" type="button">New Game</button>
+          </div>
+          <p class="settingsNote" id="saveNote">Autosaves every two minutes while playing. Saves stay in this browser.</p>
         </section>
       </div>
       <div class="settingsFoot">

@@ -126,6 +126,31 @@ export function createFoodRegistry({ sources = [], rng = Math.random, onVisibili
     }
   }
 
+  // Save/restore only the mutable state; positions and item metadata stay
+  // authored. Unknown ids are ignored so an older save still loads.
+  function snapshot() {
+    return list.map(s => ({ id: s.id, ripe: s.ripe, timer: s.ripe ? 0 : +s.timer.toFixed(2) }));
+  }
+
+  function restore(entries) {
+    if (!Array.isArray(entries)) return 0;
+    const byId = new Map(list.map(s => [s.id, s]));
+    let restored = 0;
+    for (const e of entries) {
+      const s = byId.get(e && e.id);
+      if (!s) continue;
+      const ripe = e.ripe !== false;
+      const timer = Number.isFinite(e.timer) ? Math.max(0, e.timer) : 0;
+      if (s.ripe !== ripe) notify(s, ripe);
+      s.ripe = ripe;
+      s.visible = ripe;
+      s.timer = ripe ? 0 : timer;
+      s.claim = null;
+      restored++;
+    }
+    return restored;
+  }
+
   function get(id) {
     return list.find(s => s.id === id) || null;
   }
@@ -157,7 +182,7 @@ export function createFoodRegistry({ sources = [], rng = Math.random, onVisibili
 
   return {
     update, claim, release, releaseBear, consume, nearestRipe, allRipe,
-    validate, reset, get,
+    validate, reset, get, snapshot, restore,
     get sources() { return list; },
     stats() { return statsNow(); },
   };

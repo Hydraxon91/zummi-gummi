@@ -13,6 +13,7 @@ import {
 import { createStudioReturnPortal } from './studiohouse.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
+import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
 
 let launcher = null;
 let field = null;
@@ -2673,7 +2674,7 @@ function setSettings(open){
   settingsEl.classList.toggle('open', settingsOpen);
   settingsEl.setAttribute('aria-hidden', String(!settingsOpen));
   document.body.classList.toggle('modal-open', helpOpen || settingsOpen);
-  if (settingsOpen) syncSettingsUI();
+  if (settingsOpen) { syncSettingsUI(); refreshSavesUI(); }
 }
 document.getElementById('helpBtn').addEventListener('click', ()=>setHelp(true));
 document.getElementById('helpClose').addEventListener('click', ()=>setHelp(false));
@@ -4014,6 +4015,7 @@ function animate(now){
   fpsEma += (1000/Math.max(dtMs,0.1) - fpsEma)*0.08;
 
   frameTick(dt);
+  maybeAutosave(dt);
   updateFirework(dt);
   if (launcher) launcher.update(dt);
   if (isMeadow() && field){
@@ -4392,6 +4394,295 @@ function activateMap(id, opts = {}){
   }
 }
 
+/* --------------------------------------------------------------- save/load */
+
+let loadingSave = false;
+
+function savedSkyState() {
+  let look = null;
+  try { look = localStorage.getItem(SKY_LOOK_KEY); } catch (err) {}
+  return sky ? { hours: sky.hours, auto: sky.auto, speed: sky.speed, look } : null;
+}
+
+function worldSaveState(id) {
+  const w = worlds[id];
+  const l = w.launcher;
+  const out = {
+    bears: Array.isArray(w.bears) ? w.bears : [],
+    camera: w.camera || null,
+    launcher: l && Number.isFinite(l.x) && Number.isFinite(l.z) ? { x: l.x, z: l.z } : null,
+    time: Number.isFinite(w.time) ? w.time : null,
+    auto: !!w.auto,
+    speed: Number.isFinite(w.speed) && w.speed > 0 ? w.speed : 1,
+    initialized: !!w.initialized,
+  };
+  if (id === 'field' && field && field.food) out.food = field.food.snapshot();
+  return out;
+}
+
+function buildSavePayload() {
+  // Capture the live active map first; the inactive map keeps the snapshot it
+  // had when it was last left.
+  saveCurrentWorld();
+  return normalizeSave({
+    format: SAVE_FORMAT,
+    version: SAVE_VERSION,
+    savedAt: Date.now(),
+    mapId: activeWorld.mapId,
+    sky: savedSkyState(),
+    worlds: { field: worldSaveState('field'), studio: worldSaveState('studio') },
+  });
+}
+
+function applySavePayload(raw) {
+  // Validate everything before touching the live session.
+  const payload = normalizeSave(raw);
+  loadingSave = true;
+  try {
+    for (const id of ['field', 'studio']) {
+      const src = payload.worlds[id];
+      const w = worlds[id];
+      w.bears = src.initialized || src.bears.length ? src.bears : null;
+      w.camera = src.camera;
+      if (src.launcher) w.launcher = { ...src.launcher };
+      if (id === 'field') {
+        w.time = Number.isFinite(src.time) ? src.time : 7.0;
+        w.auto = !!src.auto;
+        w.speed = Number.isFinite(src.speed) && src.speed > 0 ? src.speed : 1;
+      }
+      w.initialized = !!(src.initialized || src.bears.length);
+    }
+    activateMap(payload.mapId);
+    if (payload.mapId === 'field' && field && field.food && Array.isArray(payload.worlds.field.food)) {
+      field.food.restore(payload.worlds.field.food);
+    }
+    if (payload.mapId === 'field' && sky && payload.sky) {
+      if (payload.sky.look) {
+        try { localStorage.setItem(SKY_LOOK_KEY, payload.sky.look); } catch (err) {}
+        if (sky.setLook(payload.sky.look)) {
+          worlds.field.time = sky.hours;
+          worlds.field.auto = false;
+        }
+      } else {
+        try { localStorage.removeItem(SKY_LOOK_KEY); } catch (err) {}
+        sky.setTime(payload.sky.hours);
+        sky.setAuto(!!payload.sky.auto);
+        sky.setSpeed(payload.sky.speed);
+        worlds.field.time = sky.hours;
+        worlds.field.auto = sky.auto;
+        worlds.field.speed = sky.speed;
+        renderer.toneMappingExposure = sky.exposure;
+      }
+    }
+    const l = payload.worlds[payload.mapId].launcher;
+    if (launcher && l) {
+      launcher.setMapState(l);
+      syncCannonCollider();
+      saveLauncherPos(l.x, l.z);
+    }
+    persistWorld('field');
+    syncAeroUI(true);
+    return { ok: true, map: payload.mapId, bears: bears.length, savedAt: payload.savedAt };
+  } finally {
+    loadingSave = false;
+  }
+}
+
+function resetNewGame() {
+  if (!window.__gummy || !window.__gummy.booted) throw new Error('Game is still loading');
+  despawnAll();
+  if (field && field.food) field.food.reset();
+  for (const id of ['field', 'studio']) {
+    const w = worlds[id];
+    w.bears = null;
+    w.camera = null;
+    w.initialized = false;
+  }
+  worlds.field.time = 7.0;
+  worlds.field.auto = true;
+  worlds.field.speed = 1;
+  try {
+    worlds.field.launcher = MAPS.field.launcherHome(TABLE, false);
+    worlds.studio.launcher = MAPS.studio.launcherHome(TABLE, false);
+  } catch (err) {}
+  try {
+    localStorage.removeItem(SKY_LOOK_KEY);
+    localStorage.removeItem('gummy.worlds.v2');
+  } catch (err) {}
+  setActiveMap('field');
+  if (sky) { sky.setTime(7.0); sky.setAuto(true); sky.setSpeed(1); }
+  activateMap('field');
+  resetCamera();
+  persistWorld('field');
+  persistWorld('studio');
+  return { ok: true, bears: bears.length };
+}
+
+async function saveToSlot(slot, name = '') {
+  if (!window.__gummy || !window.__gummy.booted) throw new Error('Game is still loading');
+  const payload = buildSavePayload();
+  await writeSave(slot, payload, name);
+  return { ok: true, slot, savedAt: payload.savedAt, saves: await listSaves() };
+}
+
+async function loadFromSlot(slot) {
+  loadingSave = true;
+  try {
+    const record = await readSave(slot);
+    if (!record) throw new Error('Save slot is empty');
+    return applySavePayload(record.payload);
+  } finally {
+    loadingSave = false;
+  }
+}
+
+async function autosaveNow() {
+  if (loadingSave || mapSwitching || !window.__gummy || !window.__gummy.booted) return null;
+  const payload = buildSavePayload();
+  await writeSave(AUTOSAVE_ID, payload, 'Autosave');
+  return payload.savedAt;
+}
+
+let autosaveTick = 0;
+function maybeAutosave(dt) {
+  autosaveTick += dt;
+  if (autosaveTick < 120) return;
+  autosaveTick = 0;
+  autosaveNow().catch(() => {});
+}
+
+/* ---------------------------------------------------------- saves UI wiring */
+
+const SAVE_SLOT_LABELS = { slot1: 'Slot 1', slot2: 'Slot 2', slot3: 'Slot 3', slot4: 'Slot 4', slot5: 'Slot 5', autosave: 'Autosave' };
+
+function setSaveNote(text) {
+  const el = document.getElementById('saveNote');
+  if (el) el.textContent = text;
+}
+
+function saveTimeLabel(ts) {
+  if (!Number.isFinite(ts) || ts <= 0) return '';
+  try { return new Date(ts).toLocaleString(); } catch (err) { return ''; }
+}
+
+function saveButton(label, action, primary = false) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'saveBtn' + (primary ? ' primary' : '');
+  btn.textContent = label;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try { await action(); } catch (err) { setSaveNote(String(err && err.message || err)); }
+    finally { btn.disabled = false; }
+  });
+  return btn;
+}
+
+async function refreshSavesUI() {
+  const list = document.getElementById('savesList');
+  if (!list) return;
+  let records = [];
+  try { records = await listSaves(); }
+  catch (err) { list.textContent = 'Saves unavailable in this browser.'; return; }
+  const byId = new Map(records.map(r => [r.id, r]));
+  list.textContent = '';
+  for (const id of ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', AUTOSAVE_ID]) {
+    const rec = byId.get(id);
+    const row = document.createElement('div');
+    row.className = 'saveRow';
+    const meta = document.createElement('div');
+    meta.className = 'saveMeta';
+    const title = document.createElement('b');
+    title.textContent = rec ? rec.name : SAVE_SLOT_LABELS[id];
+    const detail = document.createElement('small');
+    detail.textContent = rec
+      ? `${rec.mapId === 'studio' ? 'Studio' : 'Meadow'} · ${rec.bears} bears · ${saveTimeLabel(rec.savedAt)}`
+      : 'Empty';
+    meta.append(title, detail);
+    row.append(meta);
+    if (id !== AUTOSAVE_ID) {
+      row.append(saveButton('Save', async () => {
+        const name = rec ? rec.name : SAVE_SLOT_LABELS[id];
+        await saveToSlot(id, name);
+        await refreshSavesUI();
+        setSaveNote(`Saved to ${name}.`);
+      }, true));
+    }
+    if (rec) {
+      row.append(saveButton('Load', async () => {
+        if (!confirm('Load this save? Current progress will be replaced.')) return;
+        await loadFromSlot(id);
+        await refreshSavesUI();
+        setSaveNote(`Loaded ${rec.name}.`);
+      }));
+      row.append(saveButton('Delete', async () => {
+        if (!confirm('Delete this save?')) return;
+        await removeSave(id);
+        await refreshSavesUI();
+        setSaveNote('Save deleted.');
+      }));
+      if (id !== AUTOSAVE_ID) {
+        row.append(saveButton('Rename', async () => {
+          const name = prompt('Save name', rec.name);
+          if (!name) return;
+          const latest = await readSave(id);
+          if (!latest) return;
+          await writeSave(id, latest.payload, name);
+          await refreshSavesUI();
+          setSaveNote('Save renamed.');
+        }));
+      }
+    }
+    list.append(row);
+  }
+}
+
+async function exportSaveFile() {
+  const payload = buildSavePayload();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gummy-save-${new Date(payload.savedAt).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  setSaveNote('Exported JSON.');
+}
+
+function initSavesUI() {
+  const exportBtn = document.getElementById('saveExport');
+  if (exportBtn) exportBtn.addEventListener('click', () => { exportSaveFile().catch(err => setSaveNote(String(err.message || err))); });
+  const importInput = document.getElementById('saveImportFile');
+  if (importInput) {
+    importInput.addEventListener('change', async () => {
+      const file = importInput.files && importInput.files[0];
+      importInput.value = '';
+      if (!file) return;
+      try {
+        const text = await file.text();
+        await applySavePayload(JSON.parse(text));
+        await refreshSavesUI();
+        setSaveNote(`Imported ${file.name}.`);
+      } catch (err) {
+        setSaveNote('Import failed: ' + String(err.message || err));
+      }
+    });
+  }
+  const newGameBtn = document.getElementById('newGame');
+  if (newGameBtn) {
+    newGameBtn.addEventListener('click', async () => {
+      if (!confirm('Start a new game? Current progress will be replaced.')) return;
+      try {
+        resetNewGame();
+        await refreshSavesUI();
+        setSaveNote('New game started.');
+      } catch (err) { setSaveNote(String(err.message || err)); }
+    });
+  }
+}
+initSavesUI();
+
 let mapSwitching = false;
 function requestMapSwitch(id){
   if (!field || mapSwitching || id === activeWorld.mapId) return;
@@ -4711,6 +5002,7 @@ window.__gummy = {
       sy:+b.sy.toFixed(2), qUpY:+(new (THREE.Vector3)(0,1,0).applyQuaternion(b.q)).y.toFixed(2) };
   }) }; },
   launcher(){ return launcher ? launcher.state() : null; },
+  foodRegistry(){ return field && field.food ? field.food : null; },
   fieldInfo(){
     if (!field) return null;
     return {
@@ -4797,6 +5089,14 @@ window.__gummy = {
     blob: !!(field && field.group && field.group.getObjectByName('meadowShadow')?.visible),
   }; },
   setMap(id){ requestMapSwitch(id); return activeWorld.mapId; },
+  save(slot, name){ return saveToSlot(slot, name); },
+  load(slot){ return loadFromSlot(slot); },
+  saves(){ return listSaves(); },
+  deleteSave(slot){ return removeSave(slot); },
+  exportSave(){ return JSON.stringify(buildSavePayload()); },
+  importSave(json){ return applySavePayload(typeof json === 'string' ? JSON.parse(json) : json); },
+  newGame(){ return resetNewGame(); },
+  autosave(){ return autosaveNow(); },
   navPath(x0,z0,x1,z1){ if (!field) return null; return field.nav.findPath(x0,z0,x1,z1); },
   navDebug(on){ if (!field) return null; field.navDebug.visible = on === undefined ? !field.navDebug.visible : !!on; return field.navDebug.visible; },
   navStats(){ return field ? field.navStats : null; },

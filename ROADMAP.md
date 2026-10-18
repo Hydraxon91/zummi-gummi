@@ -107,7 +107,7 @@ rig and soft-body solver stay.
 | **6b-3 ✅ (desktop + emulated mobile)** | **Performance & mobile pass:** re-profile Off/Soft/Full at 6/20/40 bears; far-grass LOD, god rays off, Balanced defaults; mobile layout and touch checks; record method and before/after in `PERFORMANCE.md` | 40 spread bears on the **Balanced** profile (Soft, device DPR 1.5) at the default camera stay at **≤33 ms** with the stated method; mobile layouts pass at 390×844, 768×1024 and 844×390 (emulated; real devices untested); numbers, method and variability are recorded. The **≤16.7 ms / 60 fps** goal is deferred to Phase 7. |
 | **6b-4 ✅** | **Release checklist (shipped scope):** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync; names the deferred 6b-1 polish and Aero/MSN prop set explicitly | Every listed check passes on the shipped build; the checklist is complete and its evidence named, with deferred items recorded rather than silently missing |
 | **7 🔬 investigated — not scheduled** | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback. Carries the deferred **60 fps** goal (≤16.7 ms at DPR 1.5 with 40 bears on Balanced) | Benchmarks and the actual-grass audit (see *Findings* below) show no renderer-level win: parity grass, +0.38 ms fixed overhead, ≈10% from GPU culling only. The 60 fps goal moves to grass-fill and per-bear work on the WebGL path; the seam plan stays valid if a future feature justifies the port |
-| **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
+| **8a ✅** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
 | **8b** (after 8a) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
 | **8c** (after 8b) | **Possession / third-person:** direct control of one bear with a follow camera and input-driven waddle; AI suspended for that bear only; grab/throw and a clean exit | Possessed movement is continuous (no jitter/NaN) and stays in the arena; exit returns the bear to AI in place with needs intact; the camera never clips ground or field walls; grabbing other bears still works |
 | **9** (after 8a) | **Village & placement editor:** player-authored meadow from the curated library on validated footprints — (9a) editor, (9b) village homes + naming + shared hub, (9c) light jobs and shops; every edit rebuilds nav and re-checks reachability | Zero overlaps and clear door approaches after any edit; no unreachable home or trapped bear in a placement stress test; a layout survives save/load; New Game returns the authored starter layout; a full village stays inside the 6b-3 frame budget |
@@ -264,16 +264,22 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   `screenshots/47`–`52`; the user's real-device phone test passed. The local
   `.selftest.html` 16-check harness is absent from this checkout, so physics was
   covered by `stats()` bounds/NaN/vertex assertions only — recorded as a gap.
-- **Next:** Phase 8a persistence (save/load, slots, New Game, autosave), then
-  8b directives and 8c possession. 6b-1 presentation polish stays post-release;
-  the Aero/MSN prop set and 60 fps target remain deferred.
+- **8a persistence shipped:** five IndexedDB slots plus a two-minute autosave,
+  versioned payloads validated before apply, per-map bears/camera/cannon/food and
+  the shared clock/look, JSON export/import, rename/delete and New Game. Round-trip,
+  reload, invalid-save rejection, studio↔field load, traits/camera restore, New
+  Game reset and the settings UI were verified end-to-end in headless Chrome
+  (desktop and 390×844); no page errors. Offline time does not advance.
+- **Next:** Phase 8b bear directives, then 8c possession. 6b-1 presentation
+  polish stays post-release; the Aero/MSN prop set and 60 fps target remain
+  deferred.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
   assistant only; see the dedicated track below.
-- **Queued after the simulation (Phases 8–9):** 8a persistence (IndexedDB slots +
-  JSON export/import, New Game, autosave) starts once the Phase 5 life schema is
-  frozen, before the 6b passes; 8b bear directives and 8c possession follow;
+- **Queued after the simulation (Phases 8–9):** 8a persistence is shipped (five
+  slots, autosave, JSON export/import, New Game); 8b bear directives and 8c
+  possession follow;
   then 9a placement, 9b village homes/hub/naming and 9c jobs and shops. The
   6b-4 release checklist therefore also covers save/load, directives, possession
   and placement/nav reachability.
