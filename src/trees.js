@@ -504,18 +504,20 @@ export function createTreeCollection({ lots, wind }) {
     const maxR = 2.08 * s;
     const minY = 1.42 * s;
     const maxY = 4.45 * s;
-    const trunkTop = 1.58 * s + rand() * .18 * s;
+    const trunkTop = 1.68 * s + rand() * .20 * s;
     const bendX = (rand() - .5) * .14 * s;
     const bendZ = (rand() - .5) * .14 * s;
     const trunkCurve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(lot.x, 0, lot.z),
-      new THREE.Vector3(lot.x + bendX * .4, trunkTop * .35, lot.z + bendZ * .35),
-      new THREE.Vector3(lot.x + bendX, trunkTop * .72, lot.z + bendZ),
-      new THREE.Vector3(lot.x + bendX * .75, trunkTop, lot.z + bendZ * .75),
+      new THREE.Vector3(lot.x + bendX * .4, trunkTop * .30, lot.z + bendZ * .35),
+      new THREE.Vector3(lot.x + bendX * .85, trunkTop * .62, lot.z + bendZ * .85),
+      new THREE.Vector3(lot.x + bendX, trunkTop * .82, lot.z + bendZ),
+      new THREE.Vector3(lot.x + bendX * .92, trunkTop, lot.z + bendZ * .92),
     ]);
     const trunkRadius = (t) => {
       const flare = 1 + .38 * Math.exp(-t * 14);
-      return s * (.20 + .14 * (1 - t)) * flare;
+      const taper = 1 - .78 * Math.pow(t, 2.2);
+      return Math.max(.045 * s, s * (.20 + .14 * (1 - t)) * flare * taper);
     };
     const trunkFlex = (t) => .02 + .20 * smooth(clamp(t, 0, 1));
     const trunkCol = new THREE.Color().setHSL(.075, .38, .31 + rand() * .05);
@@ -585,9 +587,10 @@ export function createTreeCollection({ lots, wind }) {
       const p2 = limit(start.clone().addScaledVector(dir, length * .70).addScaledVector(up, length * .06).add(side));
       const curve = new THREE.CatmullRomCurve3([start, p1, p2, end]);
       const flexTip = Math.min(1, baseFlex + (isPrimary ? .32 : .22));
-      const radiusFn = t => radius * (1 - .76 * t) * (1 + .32 * Math.max(0, 1 - t * 8));
+      const radiusFn = t => radius * Math.max(.10, 1 - .84 * t)
+        * (1 + (isPrimary ? .55 : .24) * Math.max(0, 1 - t * 7));
       const flexFn = t => lerp(baseFlex, flexTip, smooth(t));
-      const radial = level === 1 ? 7 : level === 2 ? 5 : level === 3 ? 4 : 3;
+      const radial = level === 1 ? 8 : level === 2 ? 5 : level === 3 ? 4 : 3;
       const segments = level === 1 ? 7 : level === 2 ? 6 : 4;
       const col = trunkCol.clone().multiplyScalar(.98 + rand() * .06);
       const geo = makeTube(curve, segments, radial, radiusFn, flexFn, treePhase, phaseAt, col, 1.5);
@@ -643,14 +646,14 @@ export function createTreeCollection({ lots, wind }) {
       const start = trunkCurve.getPointAt(attachT);
       const dir = new THREE.Vector3(Math.cos(a), .34 + rand() * .22, Math.sin(a)).normalize();
       const len = (1.02 + rand() * .28) * s;
-      grow(start, dir, len, 1, trunkFlex(attachT), (0.095 + rand() * .025) * s, treePhase, true);
+      grow(start, dir, len, 1, trunkFlex(attachT), (0.115 + rand() * .030) * s, treePhase, true);
     }
     // one shorter upper leader
     {
       const start = trunkCurve.getPointAt(.9);
       const a = rand() * TWO_PI;
       const dir = new THREE.Vector3(Math.cos(a) * .45, .9, Math.sin(a) * .45).normalize();
-      grow(start, dir, (0.82 + rand() * .22) * s, 1, trunkFlex(.9), .085 * s, treePhase, true);
+      grow(start, dir, (0.82 + rand() * .22) * s, 1, trunkFlex(.9), .105 * s, treePhase, true);
     }
 
     // A fill cluster is a real piece of branchwork: a connector twig from the
