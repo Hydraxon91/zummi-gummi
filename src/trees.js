@@ -195,7 +195,7 @@ function makeTube(curve, segments, radial, radiusAt, flexAt, treePhase, branchPh
       const b = i * radial + (j + 1) % radial;
       const c = (i + 1) * radial + j;
       const d = (i + 1) * radial + (j + 1) % radial;
-      idx.push(a, c, b, b, c, d);
+      idx.push(a, b, c, b, d, c);
     }
   }
   const g = new THREE.BufferGeometry();
