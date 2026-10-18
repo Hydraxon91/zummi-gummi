@@ -54,6 +54,42 @@ Use HTTP, not file://. Do not kill an existing user server to resolve a port con
   fix it. Record it under Known follow-ups in `ROADMAP.md`, as the Agent Behavioral Rules in
   `AGENTS.md` require.
 
+## Shared masks and coordinate parity
+
+- When the same mask drives CPU placement and a GPU shader, compare samples at several
+  **asymmetric** world points, not just at the centre or along one axis. Verify the
+  world-to-UV formula, V-axis direction, `flipY`, filtering, wrapping and clamp behaviour
+  for both consumers.
+- Test both sides of the visible boundary and at least one location where a mirrored or
+  offset sample would land on unrelated geometry. Reconcile coordinates before changing
+  thresholds, density, alpha or other symptom-level values.
+- Keep a debug hook only when it remains useful; otherwise remove temporary probes and
+  confirm the restored file with `git diff`.
+
+## Shader compile and render checks
+
+- After adding or changing a shader, inspect renderer program diagnostics or the browser's
+  shader/WebGL errors in addition to `Runtime.exceptionThrown` and console logs. A reserved
+  GLSL word, missing uniform or invalid varying can leave a material absent without a page
+  exception.
+- Confirm the material is visible in an inspected capture at the expected location. For a
+  debug colour or temporary height change, capture once to prove placement, then restore
+  the exact edit and recheck the diff.
+- Check relevant quality paths, Toon on/off where supported, and day/night lighting; custom
+  shader materials may intentionally bypass a material-conversion toggle.
+
+## Timed behaviour checks
+
+- Verify motion direction, speed, wetting, drying, fades and persistence with timed
+  observations or frame sequences under fixed camera, wind, quality and time-of-day
+  conditions. A still image does not establish direction or duration.
+- Exercise calm, moderate and strong wind, plus at least one reversal where relevant.
+  Assert any available `window.__gummy` state at known elapsed times; otherwise save a
+  numbered sequence under `.dev-shots/` and inspect the movement.
+- For shoreline and blending changes, check the boundary at close range from multiple
+  angles with foam present and after it retreats, and confirm there is no seam, gap,
+  hard colour step or overgrown bank.
+
 ## Visual and performance checks
 
 - Capture before/after, changed-element close-ups and additional angles, with

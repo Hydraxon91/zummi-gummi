@@ -208,6 +208,19 @@ driving it.
   `stats()`, `sim(sec)`, `bench(frames)`, `fieldInfo()`, `map()`, `setMap()`, `setTime()`,
   `navPath()`, `world()`, `launcher*()` and camera helpers. Prefer asserting against these
   over eyeballing the scene. Extend `window.__gummy` when new behavior needs a hook.
+- **Shared masks require coordinate parity.** When CPU placement and GPU shading share a
+  canvas or data mask, verify world-to-texture mapping, V-axis direction, `flipY`, filtering
+  and clamping at asymmetric world points and on both sides of the boundary before tuning
+  thresholds. Pointing both consumers at the same texture does not prove they sample
+  matching locations.
+- **Inspect shader compilation and rendering, not only page errors.** Check renderer
+  program diagnostics and console output after the first render, then confirm the material
+  is actually visible in a capture. Restore temporary diagnostic colours or geometry
+  exactly and verify the restored diff before reporting.
+- **Verify motion and persistence over time.** Drift direction and speed, wetting and
+  drying, fades and transitions require timed assertions or frame sequences under fixed
+  wind, quality and camera conditions. A still image establishes appearance, not direction
+  or duration.
 - **Keep the physics self-test green.** The "16-check" headless self-test (NaN/bounds,
   bounce counting, pour, head pull/stretch, upright hang, press squash, snap-back, throws,
   release launch, surface validity, vertex limits, bear ceiling) lives in a local,
@@ -294,6 +307,10 @@ approved work chunk.
   and UI-hidden). Name them `<step>_<what>_<view>.png` (e.g. `x3_no_backdrop_flowers.png`).
 - Screenshots do not replace semantic success checks: assert the outcome through
   `window.__gummy` as well, and report anything you could not verify.
+- **A smoke or syntax pass is not a visual fix.** Do not report a rendering issue as fixed
+  based only on source inspection or passing checks. Name the inspected captures, timed
+  assertions and quality/time-of-day conditions that passed, and state what remains
+  unverified.
 - **Write scratch captures to the gitignored `.dev-shots/` directory** in the project root
   so the user can watch progress. It is never committed; `/tmp` is not a substitute. Only
   curated, intentional captures belong under `screenshots/`, matching the existing set and
