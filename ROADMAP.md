@@ -106,7 +106,7 @@ rig and soft-body solver stay.
 | **6b-2 ✅** | **Sky, cloud and water tuning + day/night presets:** named Dawn/Day/Dusk/Night looks (hour + mist + cloud density + exposure), night-tinted pond and foam, calmer lily-pad gloss, clouds pulled closer to the horizon | Presets load and persist; dawn/day/dusk/night look polished against the 6a effects tiers; pond/cloud/mist changes hold up in close-up and wide captures |
 | **6b-3 ✅ (desktop + emulated mobile)** | **Performance & mobile pass:** re-profile Off/Soft/Full at 6/20/40 bears; far-grass LOD, god rays off, Balanced defaults; mobile layout and touch checks; record method and before/after in `PERFORMANCE.md` | 40 spread bears on the **Balanced** profile (Soft, device DPR 1.5) at the default camera stay at **≤33 ms** with the stated method; mobile layouts pass at 390×844, 768×1024 and 844×390 (emulated; real devices untested); numbers, method and variability are recorded. The **≤16.7 ms / 60 fps** goal is deferred to Phase 7. |
 | **6b-4 ✅** | **Release checklist (shipped scope):** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync; names the deferred 6b-1 polish and Aero/MSN prop set explicitly | Every listed check passes on the shipped build; the checklist is complete and its evidence named, with deferred items recorded rather than silently missing |
-| **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback. Carries the deferred **60 fps** goal (≤16.7 ms at DPR 1.5 with 40 bears on Balanced) | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets the 6b-3 budget and aims at 16.7 ms at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
+| **7 🔬 investigated — not scheduled** | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback. Carries the deferred **60 fps** goal (≤16.7 ms at DPR 1.5 with 40 bears on Balanced) | Benchmarks and the actual-grass audit (see *Findings* below) show no renderer-level win: parity grass, +0.38 ms fixed overhead, ≈10% from GPU culling only. The 60 fps goal moves to grass-fill and per-bear work on the WebGL path; the seam plan stays valid if a future feature justifies the port |
 | **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
 | **8b** (after 8a) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
 | **8c** (after 8b) | **Possession / third-person:** direct control of one bear with a follow camera and input-driven waddle; AI suspended for that bear only; grab/throw and a clean exit | Possessed movement is continuous (no jitter/NaN) and stays in the arena; exit returns the bear to AI in place with needs intact; the camera never clips ground or field walls; grabbing other bears still works |
@@ -933,6 +933,34 @@ passes. WebGL2 remains the automatic fallback and a fully supported path.
 | **7c — GPU-driven meadow** | Generate/config grass tiles around the camera; compute culling and distance LOD; indirect draws; GPU wind field (world-space gust/swirl, sampled by blades); preserve world-anchored roots, the lawn underlay and seamless density transitions | Dense tufted grass and visible wind close to the camera, no tile seams/pop lines, stable 40-bear field performance, and a WebGL grass fallback that still looks correct |
 | **7d — Water and frame polish** | GPU water normals/ripples if profiling justifies it; planar reflection budget; render bundles/pipeline cache; shader warm-up and compile-hitch handling; timestamp queries in the perf overlay | Water/reflections at parity; fewer CPU stalls and draw calls than WebGL; measured frame-time improvement at equal quality; no shader-compile hitch on first input |
 | **7e — Ship/fallback** | Device/browser matrix, forced-fallback tests, docs and screenshots from both backends | WebGPU is opt-in (auto when healthy), WebGL2 is documented as the safe path, and a user can switch without losing state |
+
+### Findings (Oct 2026) — measured before any port
+
+- **Renderer swap, isolated benchmarks** (headless Brave, 1440×900 at DPR 1.5,
+  three runs per API in alternating order): WebGPU carries a fixed **+0.38 ms per
+  frame**; submission at 570 and 2,000 draws is **slower**, not faster; render
+  bundles save ≈0.05 ms; a representative grass material renders at parity
+  (−4%); the fragment microbenchmark was compiler-dominated and discarded. TSL
+  limits found: unrolled node graphs beyond ≈64 terms fail WGSL compilation
+  (`maximum parser recursive depth`); vertex-stage storage buffers need explicit
+  types, `.toReadOnly()` and `.toAtomic()` counters.
+- **Actual-grass GPU selection** (real placement, matrices, colours, LOD and the
+  production GLSL reused through `onBeforeCompile`; WebGPU compute select →
+  readback → WebGL replay): conservative sphere-frustum selection matched the CPU
+  reference exactly (0 missing, 0 extra) and rendered **0 changed pixels of
+  2,916,000** at default, wide and off-field views. The grass-only pass fell from
+  **12.15 to 10.77 ms** (−1.4 ms) at the default view; net of ≈0.13 ms compute
+  that is **≈1.3 ms (≈10%)** — real, but it removes off-screen instances only and
+  cannot touch the fill term.
+- **Full-frame breakdown** (40 bears, Balanced; details in `PERFORMANCE.md`):
+  grass off −14.6 ms, population 40→6 −8.2 ms, render scale 0.85→0.6 −6.0 ms,
+  nature low −3.2 ms, effects Off −0.5 ms, shadows ≈0. Lowest shipped settings
+  reach **18.0 ms at 6 bears** and **25.5 ms at 40**.
+- **Conclusion:** the 60 fps target at 40 bears/Balanced is **not** a renderer
+  problem. Grass fill (~14.6 ms) and per-bear surface cost dominate. WebGPU stays
+  **opt-in and unscheduled**; the seam and slice plan above remain valid if a
+  future feature (compute wind/water) justifies the port, and the 16.7 ms goal is
+  pursued through grass-fill and per-bear work on the WebGL path.
 
 ### Acceptance
 

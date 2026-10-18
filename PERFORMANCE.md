@@ -109,11 +109,52 @@ forced to 1** (31.6–32.4 typical, one 22 ms outlier) — inside the **≤33 ms
 target. Repeated DPR 1.5 spread runs at draw distance 56 varied by ~2.8 ms
 (36.4 vs 39.2), so treat single readings as ±1–2 ms.
 
-Mobile layout and touch checks are still open. The 16.7 ms / 60 fps goal is
-deferred to Phase 7 (WebGPU).
+Mobile layout/touch checks were emulated (390×844, 768×1024, 844×390); the
+user's real-device phone test passed in 6b-4. The **16.7 ms / 60 fps** goal moved
+to Phase 7, where it was investigated and **not** reached by renderer changes —
+see “Full-frame breakdown” below.
 
 The 6b-4 release build adds only HUD/DOM (mobile sheets), screenshots and
 documentation; it does not change these frame times.
+
+### Full-frame breakdown — 40 bears, Balanced (Oct 2026)
+
+Method: headless Brave (Chromium 155), one tab, 1440×900 CSS at device DPR 1.5,
+shipped **Balanced** profile (tier 2, render scale 0.85, Soft effects, nature
+0.75/0.95/0.70/40 m), day look, default camera, adaptive quality off, AI off,
+physics frozen after a 1.4 s settle; 20-frame warm-up then five `renderProbe(60)`
+samples, first discarded, median reported. Headless rAF was unusable for this
+run (throttled callbacks, 0.5–2 s stalls), so the probe is the measurement; all
+values are frame times, not a refresh-rate claim. Sample spread ≤0.7 ms except
+where noted.
+
+| State (40 bears unless noted) | Probe median | Δ vs Balanced |
+|---|---:|---:|
+| Balanced, as shipped | 31.0 ms | — |
+| render scale 1.0 | 33.9 | +2.9 |
+| render scale 0.7 | 27.2 | −3.8 |
+| render scale 0.6 | 25.1 | −6.0 |
+| effects Off | 30.5 | −0.5 |
+| effects Full | 32.0 | +1.0 |
+| nature low (coverage 0.35, 28 m) | 27.9 | −3.2 |
+| nature full (1.0, 56 m) | 35.2 | +4.1 |
+| **grass off** | **16.4** | **−14.6** |
+| 6 bears instead of 40 | 22.8 | −8.2 |
+| Performance combo (tier 3, effects Off, nature low), 6 bears | 18.0 | −13.0 |
+| Performance combo, 40 bears | 25.5 | −5.5 |
+
+Attribution: **grass is ≈47% of the Balanced 40-bear frame and is fill-bound**;
+population is the next largest term (≈8 ms for the extra 34 bears); Soft effects
+and real shadow maps are small (≤1 ms each at this scene). The
+lowest shipped settings reach **18.0 ms at 6 bears** but **25.5 ms at 40** — the
+40-bear 60 fps target needs grass-fill and per-bear work, not a renderer swap.
+
+GPU selection of the actual grass (real placement, matrices, colours, LOD and the
+production GLSL reused via `onBeforeCompile`; WebGPU compute select → readback →
+WebGL replay, 3 views) matched the CPU reference exactly (0 missing, 0 extra) and
+rendered **0 changed pixels of 2,916,000**; it reduced the grass-only pass from
+12.15 to 10.77 ms at the default view, i.e. **≈1.3 ms (≈10%) net of ~0.13 ms
+compute** — real but an order below the 14.6 ms fill term it does not address.
 
 The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
 and the original supplied 37.1 ms baseline are retained below as historical
