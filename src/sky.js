@@ -265,7 +265,7 @@ export function createSky(scene, renderer) {
           float n2 = cloudFbm(plane * 0.78 - drift * 1.7 + vec2(17.0, 4.0));
           float n = n1 * 0.68 + n2 * 0.32;
           float cover = smoothstep(0.47, 0.60, n);
-          cover *= smoothstep(0.015, 0.13, h);
+          cover *= smoothstep(0.010, 0.10, h);
           cloudCover = cover * uCloudAmount;
           float underside = smoothstep(0.30, 0.72, n2);
           vec3 cloud = mix(uCloudColor * 0.78, uCloudColor * 1.06, underside);

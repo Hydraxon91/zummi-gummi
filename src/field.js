@@ -387,7 +387,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   const stemMat = new THREE.MeshLambertMaterial({ color: 0x4f9a41 });
   const sandMat = new THREE.MeshPhysicalMaterial({ color: 0xc4a77e, roughness: 0.82, clearcoat: 0.16 });
   const pebbleMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, clearcoat: 0.5 });
-  const padMat = new THREE.MeshPhysicalMaterial({ color: 0x66b85b, roughness: 0.25, clearcoat: 0.7 });
+  const padMat = new THREE.MeshPhysicalMaterial({ color: 0x66b85b, roughness: 0.55, clearcoat: 0.18, clearcoatRoughness: 0.55 });
 
   // ---------------------------------------------------------------- dirt trails
   // The trail network is authored, but its ground footprint is one shared mask:
@@ -1362,6 +1362,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     uShallow: { value: new THREE.Color(0x3fa9a2) },
     uShoreSand: { value: new THREE.Color(0x8f6f4f) },
     uAnime: { value: .68 },
+    uNight: { value: 0 },
     uCellScale: { value: 1.2 },
     uPondCenter: { value: new THREE.Vector2(POND.x, POND.z) },
     uPondRadii: { value: new THREE.Vector2(POND.rx * .98, POND.rz * .98) },
@@ -1397,6 +1398,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       uniform float uWavePhase;
       uniform float uAnime;
       uniform float uCellScale;
+      uniform float uNight;
       uniform vec3 uSunDir, uMoonDir, uSunColor, uMoonColor, uDeep, uShallow, uShoreSand, color;
       uniform vec2 uPondCenter, uPondRadii;
       uniform vec3 uShorePhases;
@@ -1486,17 +1488,20 @@ export function buildField({ scene, camera, renderer, sky }) {
         // subtle mirror ripple (projected coordinates)
         uv.xy += vec2(r1, r2) * 0.0018 * uv.w;
         vec3 refl = texture2DProj(tDiffuse, uv).rgb;
-        vec3 base = mix(uDeep, uShallow, 0.45 + 0.35 * r2);
+        // Night deepens the pond instead of leaving the daytime teal glowing.
+        vec3 deepC = mix(uDeep, vec3(.035,.075,.12), uNight);
+        vec3 shallowC = mix(uShallow, vec3(.09,.17,.23), uNight);
+        vec3 base = mix(deepC, shallowC, 0.45 + 0.35 * r2);
         // Keep more of the pond's own ink/teal colour than the raw mirror. The
         // reflection is still present, but does not wash the pond white under a
         // bright noon sky.
         vec3 col = mix(base, refl, clamp(0.28 + fres * 0.42, 0.0, 0.72));
-        col = mix(col, mix(uDeep, uShallow, .70), .26);
+        col = mix(col, mix(deepC, shallowC, .70), .26);
         // A narrow sandy shallows band softens the opaque water cutout. This is
         // colour-only inside the existing water mesh, so transparency and
         // sorting do not change.
         float shallows = smoothstep(.86, 1.0, edge);
-        col = mix(col, mix(uShoreSand, uShallow, .15), shallows * .90);
+        col = mix(col, mix(uShoreSand, shallowC, .15), shallows * .90);
 
         // Anime/Aero cell lines. The cell field stays world-anchored and is
         // translated by a smoothed flow offset, so a wind change redirects the
@@ -1512,7 +1517,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         // than terminating abruptly against the sand.
         float shoreSoft = 1.0 - smoothstep(.90, .99, edge);
         cell *= shoreSoft;
-        col = mix(col, vec3(.54,.94,.94), cell * uAnime * .27);
+        col = mix(col, mix(vec3(.54,.94,.94), vec3(.22,.42,.52), uNight), cell * uAnime * .27);
 
         // Shore foam: a thin, broken crest rather than a continuous halo.
         // The angular breaks and small downwind ripples keep it from reading
@@ -1531,13 +1536,13 @@ export function buildField({ scene, camera, renderer, sky }) {
         float foam = smoothstep(foamStart, .988, edgeBand)
                    * (1.0 - smoothstep(.998, 1.006, edgeBand));
         foam *= windward * shorePatch;
-        col = mix(col, vec3(.84,.99,.96), foam * uAnime * .30);
+        col = mix(col, mix(vec3(.84,.99,.96), vec3(.45,.62,.70), uNight), foam * uAnime * .30 * mix(1.0, .55, uNight));
         float shoreCrest = pow(max(0.0, sin(along * 5.4
           - uWavePhase * 1.25 + sin(ang * 3.5) * .9)), 3.0);
         col += vec3(.045,.105,.095) * max(0.0, edgeWave) * edgeMask
-             * windward * (.35 + uWindStrength * .65) * uAnime;
+             * windward * (.35 + uWindStrength * .65) * uAnime * mix(1.0, .45, uNight);
         col += vec3(.055,.125,.110) * shoreCrest * edgeMask
-             * windward * (.30 + uWindStrength * .70) * uAnime;
+             * windward * (.30 + uWindStrength * .70) * uAnime * mix(1.0, .45, uNight);
 
         // Splash rings: impact events are wind-stretched and drift downwind.
         float rip = 0.0;
@@ -1551,7 +1556,7 @@ export function buildField({ scene, camera, renderer, sky }) {
           float inner = 1.0 - smoothstep(.012, .060, abs(d - rad * .62));
           rip += (ring + inner * .30) * exp(-age * 1.25);
         }
-        col = mix(col, vec3(.80,1.0,.98), clamp(rip, 0.0, 1.0) * .68);
+        col = mix(col, mix(vec3(.80,1.0,.98), vec3(.48,.64,.70), uNight), clamp(rip, 0.0, 1.0) * .68 * mix(1.0, .55, uNight));
 
         // sun and moon glints on the ripples
         vec3 R = reflect(-uSunDir, N);
@@ -1590,7 +1595,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   // The Reflector clones uniforms. Point all *custom* uniforms at the live
   // objects so the sky/water animation updates the material that actually renders.
   const ru = reflector.material.uniforms;
-  for (const k of ['uTime','uWavePhase','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uShoreSand','uAnime','uCellScale','uPondCenter','uPondRadii','uShorePhases','uShoreWobble','uWindDir','uWindStrength','uWindGust','uFlow','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
+  for (const k of ['uTime','uWavePhase','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uShoreSand','uAnime','uCellScale','uNight','uPondCenter','uPondRadii','uShorePhases','uShoreWobble','uWindDir','uWindStrength','uWindGust','uFlow','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
   const reflectionCam = reflector.getReflectionCamera(camera);
   reflectionCam.layers.set(REFLECT_LAYER);
   reflectionCam.far = 400;
@@ -1689,6 +1694,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         uWindGust: waterUniforms.uWindGust,
         uWavePhase: waterUniforms.uWavePhase,
         uTime: waterUniforms.uTime,
+        uNight: waterUniforms.uNight,
       },
       transparent: true,
       depthWrite: false,
@@ -1706,7 +1712,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       `,
       fragmentShader: `
         uniform vec2 uCenter, uRadii, uWindDir;
-        uniform float uWindStrength, uWindGust, uWavePhase, uTime;
+        uniform float uWindStrength, uWindGust, uWavePhase, uTime, uNight;
         varying vec2 vUv;
         varying vec3 vWorld;
         void main(){
@@ -1727,7 +1733,8 @@ export function buildField({ scene, camera, renderer, sky }) {
           float gust = .72 + .28 * clamp(uWindGust, 0.0, 1.0);
           float foam = inner * outer * foamPatch * windward * wind * gust;
           if (foam < .010) discard;
-          gl_FragColor = vec4(.90, 1.0, 1.0, clamp(foam * 1.70, 0.0, .78));
+          vec3 foamCol = mix(vec3(.86,.97,.96), vec3(.52,.68,.74), uNight);
+          gl_FragColor = vec4(foamCol, clamp(foam * mix(1.05, .70, uNight), 0.0, .58));
           #include <colorspace_fragment>
         }
       `,
@@ -2670,6 +2677,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       waterFlow.x += waterFlowVel.x * dt;
       waterFlow.y += waterFlowVel.y * dt;
       const night = sky.night ?? 0;
+      waterUniforms.uNight.value = night;
       glassMat.emissiveIntensity = 0.38 + night*2.1;
         if (night !== lastNight) lastNight = night;
     }

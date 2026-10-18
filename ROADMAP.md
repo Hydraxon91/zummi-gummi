@@ -103,7 +103,7 @@ rig and soft-body solver stay.
 | **5 ✅** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
 | **6a core ✅ / effects follow-up ✅** | **Effects pass:** gentle color grade, restrained thresholded bloom, SMAA, high-tier GTAO contact AO, cloud-masked sky-dome glow, **real sun/moon directional shadow maps**, **depth-aware screen-space god rays** and an optional **Depth of field** toggle; per-bear sleep schedules and the pond recovery path are also in | Effects stay optional/tiered, preserve readable UI/transmission, occlude light shafts against canopies/objects, and keep a blob-shadow fallback below the shadow tier |
 | **6b-1** | **Aero/MSN presentation polish:** HUD/status styling, name plates and emote legibility, gear-sheet visuals, home occupancy / window-glow polish | Dawn/day/dusk/night and UI/UI-hidden captures read as one Aero/MSN look; occupancy glow is legible at night; no layout or readability regressions on desktop or mobile |
-| **6b-2 (presets ✅, water tuning open)** | **Sky, cloud and water tuning + day/night presets:** named Dawn/Day/Dusk/Night looks (hour + mist + cloud density + exposure), cloud/mist and pond tuning | Presets load and persist; dawn/day/dusk/night look polished against the 6a effects tiers; pond/cloud/mist changes hold up in close-up and wide captures |
+| **6b-2 ✅** | **Sky, cloud and water tuning + day/night presets:** named Dawn/Day/Dusk/Night looks (hour + mist + cloud density + exposure), night-tinted pond and foam, calmer lily-pad gloss, clouds pulled closer to the horizon | Presets load and persist; dawn/day/dusk/night look polished against the 6a effects tiers; pond/cloud/mist changes hold up in close-up and wide captures |
 | **6b-3** | **Performance & mobile pass:** re-profile Off/Soft/Full at 6/20/40 bears; grass/DPR/draw-call levers; mobile layout and touch checks; record method and before/after in `PERFORMANCE.md` | The 40-bear field meets the measured performance target with the same camera/population/quality/DPR conditions; mobile layouts pass; numbers, method and variability are recorded rather than assumed |
 | **6b-4** | **Release checklist:** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync | Every listed check passes on the shipped build; the checklist is complete and its evidence named |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the 6b-3 frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
@@ -223,8 +223,19 @@ budget / profile / stress" mean **6b-3**.
   re-enabling Auto returns to a custom clock. Debug hooks: `setSkyLook(name)` and
   `fieldInfo().time.look` / `.mist`. Verified at all four looks plus a dusk pond
   close-up (`verify_look_*`), with the stored look surviving a reload.
-- **Next:** add voluntary pond play/swimming, then the remaining 6b-2 water
-  tuning and 6b-1 presentation chunks (see the Phase 6b order note above).
+- **Pond and cloud tuning (6b-2):** the water shader now takes a `uNight` value
+  from the sky and deepens the deep/shallow colours, cell lines, foam, crest and
+  splash highlights as night falls, so the pond no longer glows daytime teal.
+  The shore wash foam is softer in daylight and dimmer at night, lily pads lost
+  most of their clearcoat (they no longer read as white discs under the moon),
+  and clouds now survive closer to the horizon instead of vanishing above it.
+  Pond probe at 1440x900, DPR 1, quality 2, effects off: **17.9–18.1 ms** after
+  vs **17.4–18.5 ms** before (5x60 frames, first sample discarded), i.e. no
+  measurable cost. Captures: `pond_final2_{dawn,day,dusk,night}_{close,wide}`,
+  `pond_final2_full_{dusk,night}_close`. Cloud shape remains the existing FBM.
+- **Next:** add voluntary pond play/swimming, then 6b-1 Aero/MSN presentation
+  polish (HUD/status, name plates, occupancy/window glow); then 6b-3 performance
+  and 6b-4 the release checklist.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time

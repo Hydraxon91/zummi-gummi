@@ -67,6 +67,11 @@ added cost; the later trunk-collider and bush-colour fixes left it unchanged.
 A mid-pass reading of 62–75 ms was discarded: the unmodified live build read the
 same on a throttled machine, so only same-session comparisons are meaningful.
 
+Pond camera probe (1440×900, DPR 1, quality 2, effects off, five 60-frame runs,
+first sample discarded): **17.4–18.5 ms** before the 6b-2 water tuning and
+**17.9–18.1 ms** after, so the night tint, softer foam and matte lily pads cost
+nothing measurable. The probe looks across the pond from the east bank.
+
 The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
 and the original supplied 37.1 ms baseline are retained below as historical
 comparisons; they describe earlier scene states, not the current disc.
