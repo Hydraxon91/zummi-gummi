@@ -304,6 +304,17 @@ approved work chunk.
 
 ## 13. Visual Verification
 
+- **Define acceptance before editing.** Identify required features, protected state or
+  geometry, affected interfaces and the evidence needed to pass. Verify every affected
+  criterion and neighboring system, not an arbitrary audit of unrelated work.
+- **Match evidence to each claim.** Report topology, reference fidelity, structural
+  completeness, connectivity and preservation separately when applicable. Bounds do not
+  prove unchanged surfaces; topology does not prove attachment; a hero render does not
+  prove complete construction. Name inspected evidence, failures and uncertainty; obscured,
+  unsampled or uninspected regions remain unverified.
+- **Gate progression on all acceptance criteria.** A green script cannot override a failed
+  reference or functional comparison. Retain failed checkpoints only as clearly labeled
+  recovery/debug states, never accepted deliveries. Existing regression-stop rules apply.
 - For any UI, visual or scene change, capture screenshots from the running app (headless
   Chrome is the established path; `scripts/` and `README.md`/`PERFORMANCE.md` describe the
   method) and **view them before reporting the task complete**.
