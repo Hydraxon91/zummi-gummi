@@ -1128,20 +1128,32 @@ export function buildField({ scene, camera, renderer, sky }) {
         col = mix(col, mix(uDeep, uShallow, .70), .26);
 
         // Anime/Aero cell lines. World-locked, slow and low-contrast so the pond
-        // still reads as water rather than a tiled swimming pool.
-        vec2 cellUv = p * uCellScale + vec2(uTime * .018, -uTime * .011);
+        // still reads as water rather than a tiled swimming pool. Fade the
+        // high-frequency cells as their screen-space footprint grows so they
+        // do not shimmer behind foreground silhouettes.
+        vec2 cellUv = p * uCellScale + vec2(uTime * .010, -uTime * .006);
         float f1 = wf1(cellUv);
         float sf1 = wsf1(cellUv);
         float cellEdge = f1 - sf1;
-        float cell = smoothstep(.048, .088, cellEdge);
-        col = mix(col, vec3(.54,.94,.94), cell * uAnime * .36);
+        float cellAA = max(fwidth(cellEdge), .0005);
+        float cell = smoothstep(.048, .088 + cellAA, cellEdge);
+        cell *= 1.0 - smoothstep(.035, .09, cellAA);
+        col = mix(col, vec3(.54,.94,.94), cell * uAnime * .27);
 
-        // Hard-edged shoreline foam, following the pond shape but nibbled by
-        // the same wave field so it is not a vector outline.
+        // Shore foam: a thin, broken crest rather than a continuous halo.
+        // The angular breaks and small time wobble keep it from reading as a
+        // vector outline around the whole pond.
         vec2 ep = (p - uPondCenter) / uPondRadii;
-        float er = length(ep) + (r1 + r2) * .014;
-        float foam = smoothstep(.905, .958, er) * (1.0 - smoothstep(.985, 1.015, er));
-        col = mix(col, vec3(.84,.99,.96), foam * uAnime * .68);
+        float er = length(ep);
+        float ang = atan(ep.y, ep.x);
+        float breakA = .5 + .5 * sin(ang * 7.0 + sin(ang * 3.0 - uTime * .23) + .7);
+        float breakB = .5 + .5 * sin(ang * 13.0 - uTime * .17 + 2.4);
+        float shorePatch = smoothstep(.35, .80, breakA * .65 + breakB * .35);
+        float edgeN = sin(ang * 11.0 + uTime * .22) * .003
+                    + sin(ang * 23.0 - uTime * .13) * .0015;
+        float edge = er + edgeN;
+        float foam = smoothstep(.968, .986, edge) * (1.0 - smoothstep(.996, 1.004, edge));
+        col = mix(col, vec3(.84,.99,.96), foam * shorePatch * uAnime * .38);
 
         // Splash rings: four active impact events are fed from the existing
         // splash-ring state. Rings are intentionally sharp and cyan on the crest.

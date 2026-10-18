@@ -418,6 +418,11 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   recovery path lifts a bear that falls below the lawn/basin, but replacing the
   four-slab cutout with an ellipse-approximating collider set would remove the
   teleport corner case entirely.
+- **Bears against animated water can still shimmer at their silhouette.** The
+  water cells are now slower, anti-aliased and lower-contrast, and the shoreline
+  crest is thin and broken, but the transmissive jelly still samples the moving
+  water. Re-check in a slow-motion 6/20/40-bear pass; if it persists, compare
+  transmission resolution/dispersion and consider fading cells at distance.
 - **DOF is a fixed look, not an autofocus system.** Focus follows the orbit
   distance; aperture/max-blur are constants. Expose them only if a future shot
   system needs authored focus.
@@ -611,9 +616,10 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   no per-firefly physics or raycasts.
 - **Pond:** organic basin, planar reflection of sky/hills/trees at reduced
   resolution, fresnel, explicit sun/moon glints, plus an anime-lite layer of
-  dense world-space Voronoi cells, hard-edged shoreline foam and splash-driven
-  ripple rings. Sixteen validated shore approaches let thirsty bears drink,
-  with a snout dip and ripple; splash/buoyancy still handles flung bears.
+  world-space Voronoi cells with derivative-aware anti-aliasing, a thin broken
+  shoreline crest and splash-driven ripple rings. Sixteen validated shore
+  approaches let thirsty bears drink, with a snout dip and ripple;
+  splash/buoyancy still handles flung bears.
 - **Arena:** a segmented oriented Box3D ring follows the wobbled field disc;
   the Studio keeps its rectangular table walls. Ground underneath and the
   launch-speed cap keep shots contained.
