@@ -198,6 +198,37 @@ function makeTube(curve, segments, radial, radiusAt, flexAt, treePhase, branchPh
       idx.push(a, b, c, b, d, c);
     }
   }
+  // Close both ends. Without these fans the bark tubes are open cylinders:
+  // the trunk top and branch tips can be seen straight through from above.
+  const endRing = segments * radial;
+  const startCap = pos.length / 3;
+  const startTangent = curve.getTangentAt(0).normalize();
+  const startPoint = curve.getPointAt(0);
+  const endTangent = curve.getTangentAt(1).normalize();
+  const endPoint = curve.getPointAt(1);
+  const startPhase = typeof branchPhase === 'function' ? branchPhase(0) : branchPhase;
+  const endPhase = typeof branchPhase === 'function' ? branchPhase(1) : branchPhase;
+  pos.push(startPoint.x, startPoint.y, startPoint.z);
+  nrm.push(-startTangent.x, -startTangent.y, -startTangent.z);
+  uv.push(.5, 0);
+  col.push(color.r, color.g, color.b);
+  flex.push(flexAt(0));
+  tree.push(treePhase);
+  branch.push(startPhase);
+  const endCap = pos.length / 3;
+  pos.push(endPoint.x, endPoint.y, endPoint.z);
+  nrm.push(endTangent.x, endTangent.y, endTangent.z);
+  uv.push(.5, uvRepeat);
+  col.push(color.r, color.g, color.b);
+  flex.push(flexAt(1));
+  tree.push(treePhase);
+  branch.push(endPhase);
+  for (let j = 0; j < radial; j++) {
+    const a = j;
+    const b = (j + 1) % radial;
+    idx.push(startCap, b, a);
+    idx.push(endCap, endRing + a, endRing + b);
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
