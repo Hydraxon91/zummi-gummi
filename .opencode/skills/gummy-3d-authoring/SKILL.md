@@ -67,6 +67,28 @@ remote code in Blender. Report limitations alongside results, not just a pass fl
    them for the whole session. Put parts in collections per system and name objects
    clearly (`Wheel_FL`, `Tire_FL`).
 
+## Locating geometry before you touch it
+
+When the user points at something ("this tube clips the body", "the hood is gone"), identify
+it from the capture, not from bounding boxes or proximity.
+
+1. Cast a ray from the capture camera through the reported position and print the hit
+   object, face index and world coordinate. Reuse the exact camera transform of the capture
+   that showed the problem; a re-framed view relocates the target.
+2. Print that object's island inventory before assuming what it is: island count, vertices
+   per island, and each island's bounds. One object routinely holds both a detail and a
+   structural panel.
+3. Only then decide whether to move, trim, hide or rebuild, and record which control the
+   next attempt will change.
+
+Worked example from a real session: a "hood detail" object contained a 1,188-vertex island
+spanning X ±0.40 / Y −1.14…−0.53 — the raised hood panel itself. Hiding it as "vents"
+flattened the hood and the user caught it. An island inventory before hiding would have
+prevented the whole detour.
+
+Corollary: vertex-based protrusion tests are meaningless on tube meshes, whose vertices sit
+only at the ring ends. Test triangle intersections with a BVH, or cast rays, instead.
+
 ## Capturing views
 
 - `look` may return only a perspective shot even when other views are requested. Check the
@@ -228,8 +250,44 @@ unrelated lighting or cameras to conceal shape defects.
   active object, overlays and shading in `finally`, even when capture fails. Use verified
   orthographic views or a tested camera-framing helper rather than repeated guessed
   perspective rotations. Inspect the capture before claiming the intended framing worked.
+- BMesh elements are invalid after `bm.free()` or `to_mesh()`. Collect indices or plain
+  coordinates, never keep `BMVert`/`BMEdge`/`BMFace` references across the free. The error
+  is `ReferenceError: BMesh data of type BMVert has been removed` and it aborts the script
+  after earlier edits have already been applied.
+- Primitive sizes are half-extents: `bmesh.ops.create_cube(size=s)` spans ±s/2, and object
+  `scale` multiplies that. Decide the intended span, set size/scale, then print `dimensions`
+  and compare before building anything on top of it.
+- `v.co` is local. On a rotated or offset object, edit through `matrix_world` (or
+  `matrix_world.inverted()`); a local Z change does not move the object vertically in world
+  space. Moving a cylinder along its local Z slides it along its own axis.
+- Keep one coordinate space per build script. A rim authored at world X 0.65 on an object
+  sitting at X 0.53 lands 0.65 m outboard. Build one instance, print its world bounding box
+  against the target, then replicate — do not rebuild all four and discover it afterwards.
+- `hide_set` is viewport-only: hidden objects still evaluate into booleans and modifiers, but
+  are excluded from `visible_get()` and from an export built on visible objects.
+- Partial-mesh bisect or boolean leaves T-junctions on the untouched boundary and produces
+  non-manifold edges. Cut whole objects, then run the manifold check immediately.
+- A beveled curve with `use_fill_caps` can still produce doubled cap vertices; weld and fill
+  before claiming a closed mesh.
 - Keep MCP local-only. Do not enable paid generators/download integrations without
   approval or use Blender scripting to bypass repository file-edit requirements.
+
+## Asset libraries (Poly Haven, Sketchfab, Poly Pizza)
+
+Enabled in the Blender MCP addon but **not yet validated in this project**. Treat every
+library asset as untrusted until checked:
+
+- Record source, asset id, author and licence beside the import; never mix licences in one
+  deliverable.
+- Imported models arrive at arbitrary scale, axis and origin. Measure the bounding box, then
+  set scale, rotation and origin explicitly; do not assume metres or Z-up.
+- A library asset is not evidence of reference fidelity. Do not substitute it for a part the
+  user calibrated against a reference sheet without approval, and do not let a download
+  stand in for a requested silhouette.
+- Keep downloads inside the project's approved asset folder. `inspiration/` and third-party
+  caches are never committed.
+- Report the import as a separate delivery state: present in the scene is not integrated,
+  textured, or verified in-game.
 
 ## Deformation and export (only when requested)
 
@@ -243,6 +301,14 @@ unrelated lighting or cameras to conceal shape defects.
 - Export only intended objects to the approved path. Check scale, axis conversion,
   origin, normals, material support and required extensions. Blender is Z-up;
   glTF is Y-up: verify conversion rather than adding an untested extra rotation.
+- Check export readiness explicitly, not by assumption: every visible mesh has at least one
+  material slot (a mesh with none renders default grey and reads as a hole in the paint),
+  every exported mesh has a UV layer, and a re-import confirms the images travelled with the
+  file when textures are expected. Procedural shader nodes do not survive any interchange
+  format; bake them to images with real UVs first, or state that the paint arrives flat.
+- Bake on the object's own UV layout and give each baked object its own material copy; a
+  shared material cannot hold two different bakes. Set metallic/roughness to constants when
+  their procedural drivers are baked away, and say so in the report.
 - Quads/ngons triangulate on glTF export; UV/normal discontinuities can increase
   vertex counts. Record exported stats and validate the GLB with Khronos's validator
   when available. Its browser tool processes files locally; no new project package

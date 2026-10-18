@@ -418,6 +418,35 @@ approved work chunk.
   rebuild). Preserve unrelated live changes during restoration; reopening a whole `.blend`
   requires approval if it would discard them. If safe restoration is blocked, stop and
   report. Do not keep patching on top of a failing generator.
+- **Locate the target before editing it.** When a change is aimed at something visible,
+  cast a ray from the capture camera through that point and print the object name, face
+  index and world coordinate. Do not infer the target from bounding boxes, vertex scans or
+  proximity: a body shell, a cage tube and a bed rail can share a region. No edit before the
+  target is identified this way.
+- **Hiding is destructive.** Before hiding, deleting or superseding an object, print its
+  island inventory (island count, vertices per island, bounds) and check whether one island
+  is the structural surface rather than a detail. Hiding a body panel flattens the model;
+  keep the source and restore it if the silhouette changes.
+- **Never run partial-mesh surgery.** Bisecting or boolean-cutting a subset of an object's
+  faces leaves T-junctions and non-manifold edges on the untouched boundary. Cut whole
+  objects, then run the manifold/loose/flipped check immediately.
+- **One coordinate space per build.** State whether coordinates are local or world before
+  writing geometry, and never mix them: `v.co` is local, `matrix_world` is not, and a rotated
+  object's local Z is not world Z. Build one instance, print its world bounding box against
+  the target, then replicate.
+- **Locked dimensions are asserts.** After every geometry step, print the locked values
+  (roof, nose, tail, wheel size and position, track, overall bounding box) and compare them
+  with the locked baseline. A transient pass during editing is still a failure.
+- **The two-failure stop counts symptoms, not edits.** If the observed defect is unchanged
+  after two edits, stop editing and return to locating the target. A third edit to the same
+  control is forbidden even when the fix looks right; report the evidence and the attempts.
+- **Report on a call budget.** At twenty tool calls in one turn, post one line: done,
+  blocked, next. Do not keep working past it silently.
+- **Asset-library integrations are unvalidated.** Poly Haven, Sketchfab and Poly Pizza are
+  enabled in the Blender MCP addon but have not been exercised in this project. Treat them as
+  untrusted: record source, author and licence for every imported asset, verify scale, axis
+  and origin on import, and do not substitute a library asset for a reference-faithful part
+  without approval. A downloaded library item is not evidence of likeness.
 - **Inspect, don't infer success.** View front/back, both sides and three-quarter
   captures for shape changes; use neutral solid shading as well as material/rendered
   views. Check topology and, when applicable, rig weights/deformation. A successful
