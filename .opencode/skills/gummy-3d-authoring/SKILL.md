@@ -67,6 +67,28 @@ rig/export notes are in "Deformation and export".
    numbers; a wrong sampling position or a mask that catches unrelated parts gives
    confident but false results.
 
+## Direct comparison with reference planes
+
+- When calibrated reference planes are available, capture reference-only, reference plus
+  model edges, and solid-model views with identical aligned orthographic framing before
+  and after every silhouette-changing step and before accepting the stage.
+- Hide unrelated reference planes to avoid overlapping drawings. Use see-through or
+  wireframe overlays, and inspect the captures to confirm the reference stays textured
+  and readable beneath the model edges. Material Preview may ignore X-ray; full wireframe
+  may hide the reference texture. A toggle is not evidence that the overlay works.
+- Compare both upper and lower contours, openings, and fixed structural landmarks. For
+  vehicles, explicitly check cab/window openings, wheel arches, door depth, rocker height
+  against axle centres, and body-to-chassis relationships. Do not move unrelated parts to
+  conceal a mismatch.
+- Distinguish physical edges from paint boundaries, shadows, cage tubing, spare tyres and
+  other overlapping components. Confirm feature identity visually before measuring.
+- Report measured offsets and uncertainty. Agreement at sparse landmarks or sampled top
+  heights does not establish whole-profile fidelity. Preserving image aspect proves only
+  that the plane adds no aspect distortion, not that the source image or calibration is
+  correct.
+- Preserve reference calibration and restore temporary object visibility and viewport
+  settings after captures. Report any intentionally retained comparison setup.
+
 ## Build protocol
 
 1. One system or part per step (chassis, wheels, suspension, cage, body). Report and wait

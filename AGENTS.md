@@ -331,6 +331,14 @@ approved work chunk.
   colours or decal boundaries, for geometry measurements. Lock calibrated references;
   recalibration requires reporting the discrepancy, approval and rechecking dependent
   measurements.
+- **Use reference planes for direct comparison.** When calibrated reference planes are
+  available, compare the model against them in aligned orthographic views before and after
+  each silhouette-changing step. Use a verified see-through or wireframe overlay so both
+  model edges and reference features remain visible; hide unrelated reference planes to
+  prevent overlapping drawings. Inspect the resulting capture: enabling an X-ray setting
+  alone does not prove transparency works. Compare upper and lower silhouettes, openings
+  and fixed structural landmarks, not only overall bounds or sampled top heights. Preserve
+  reference calibration and restore temporary visibility settings.
 - **Reference fidelity before optimisation.** Establish the silhouette and proportions
   first. Reduce geometry only while preserving the approved appearance; do not equate
   low-poly with flat shading or choose an arbitrary minimum triangle count.
