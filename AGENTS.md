@@ -206,8 +206,27 @@ driving it.
   to `main` and every PR (`.github/workflows/smoke.yml`).
 - **Drive behavior through the debug API.** `src/app.js` exposes `window.__gummy` — e.g.
   `stats()`, `sim(sec)`, `bench(frames)`, `fieldInfo()`, `map()`, `setMap()`, `setTime()`,
-  `navPath()`, `world()`, `launcher*()` and camera helpers. Prefer asserting against these
-  over eyeballing the scene. Extend `window.__gummy` when new behavior needs a hook.
+  `navPath()`, `world()`, `launcher*()`, `start()`, `menu(open)`, `pause(v)`, `paused()`,
+  `returnToMenu()`, and camera helpers. Prefer asserting against these over eyeballing the
+  scene. Extend `window.__gummy` when new behavior needs a hook.
+- **Wait for the module before asserting UI or menu state.** The menu markup ships in
+  `index.html`, so a failed or partial module load leaves static DOM with **no handlers**:
+  the menu looks normal, buttons do nothing and no console error appears. In a browser
+  harness, wait for `window.__gummy` before treating DOM state as evidence. Harnesses that
+  do not test the menu should navigate to `?autostart=1` (or click a menu action) and assert
+  `__gummy.booted`; otherwise they silently measure the menu. The menu overlay blocks
+  canvas pointer input and pausing freezes the animate loop, so dismiss or resume before
+  pointer-driven or frame-based checks.
+- **A burst of `ERR_CONNECTION_RESET` on module loads is the dev server, not the game.**
+  First paint requests ~20 ES modules at once; `launch.py` raises the accept backlog to 64
+  for exactly this. If resets return, confirm the running server started after that change
+  and restart it; do not record it as an app regression or paper over it with retries.
+- **Browser profiles and IndexedDB are test state.** Saves and autosaves persist per browser
+  profile, so delete the harness `--user-data-dir` per run and confirm no orphan browser
+  still holds it before asserting Continue/load behavior. A leftover autosave makes those
+  assertions lie.
+- **The smoke test is HTTP-only.** It does not boot the game, exercise the menu or run
+  gameplay, so a pass is not evidence for those paths.
 - **Shared masks require coordinate parity.** When CPU placement and GPU shading share a
   canvas or data mask, verify world-to-texture mapping, V-axis direction, `flipY`, filtering
   and clamping at asymmetric world points and on both sides of the boundary before tuning

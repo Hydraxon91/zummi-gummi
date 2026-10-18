@@ -39,6 +39,25 @@ Inspect `scripts/smoke.mjs` for its current coverage. It checks the served shell
 modules and WASM delivery; a pass does not establish simulation or visual correctness.
 Use HTTP, not file://. Do not kill an existing user server to resolve a port conflict.
 
+## Boot, menu and session state
+
+- The app opens on a DOM menu and boots lazily. A harness that is not testing the menu
+  must navigate with `?autostart=1` (or click a menu action) and assert
+  `window.__gummy.booted`; otherwise it measures the menu and reports nothing.
+- Wait for `!!window.__gummy` before asserting DOM or gameplay state. If `app.js` fails or
+  loads partially, the static menu still renders, its buttons have no handlers and no page
+  error is raised. Treat that as a load failure, not a UI result.
+- The menu overlay blocks canvas pointer input, and pausing returns early from the animate
+  loop. Dismiss the menu and resume before pointer-driven or frame-based assertions; check
+  `paused()` after Escape/Resume, and remember that Return to menu writes an autosave.
+- Saves and autosaves live in IndexedDB per browser profile. Delete the harness
+  `--user-data-dir` for each run and confirm no orphan browser still holds it, or
+  Continue/load assertions read stale state.
+- Bursts of `net::ERR_CONNECTION_RESET` while loading the ~20 ES modules are the dev
+  server's accept backlog, not the game. `launch.py` sets `request_queue_size = 64`; if
+  resets appear, confirm the running server started after that change and restart it
+  instead of retrying the test.
+
 ## Behaviour and regression checks
 
 - Drive the served app through a browser and verified `window.__gummy` hooks.

@@ -77,7 +77,6 @@ src/ai.js               needs, state machine, steering, invites, conflict, mate,
 src/effects.js          optional meadow composer: grade, bloom, GTAO, SMAA
 src/launcher.js         cannon build/move/aim/fire
 src/ui.js / styles.css  Aero/MSN shell and HUD
-src/renderer.js         WebGL/WebGPU backend selection, capabilities, fallback
 src/studio-room.js      authored Studio lounge/bar/TV interaction surface
 assets/studio/          exported glTF/GLB room kit, collision proxies, credits
 src/save.js             IndexedDB slots, save format/migration, New Game
@@ -104,9 +103,9 @@ rig and soft-body solver stay.
 | **6a core ✅ / effects follow-up ✅** | **Effects pass:** gentle color grade, restrained thresholded bloom, SMAA, high-tier GTAO contact AO, cloud-masked sky-dome glow, **real sun/moon directional shadow maps**, **depth-aware screen-space god rays** and an optional **Depth of field** toggle; per-bear sleep schedules and the pond recovery path are also in | Effects stay optional/tiered, preserve readable UI/transmission, occlude light shafts against canopies/objects, and keep a blob-shadow fallback below the shadow tier |
 | **6b-1 (post-release)** | **Aero/MSN presentation polish:** HUD/status styling, name plates and emote legibility, gear-sheet visuals, home occupancy / window-glow polish | Dawn/day/dusk/night and UI/UI-hidden captures read as one Aero/MSN look; occupancy glow is legible at night; no layout or readability regressions on desktop or mobile |
 | **6b-2 ✅** | **Sky, cloud and water tuning + day/night presets:** named Dawn/Day/Dusk/Night looks (hour + mist + cloud density + exposure), night-tinted pond and foam, calmer lily-pad gloss, clouds pulled closer to the horizon | Presets load and persist; dawn/day/dusk/night look polished against the 6a effects tiers; pond/cloud/mist changes hold up in close-up and wide captures |
-| **6b-3 ✅ (desktop + emulated mobile)** | **Performance & mobile pass:** re-profile Off/Soft/Full at 6/20/40 bears; far-grass LOD, god rays off, Balanced defaults; mobile layout and touch checks; record method and before/after in `PERFORMANCE.md` | 40 spread bears on the **Balanced** profile (Soft, device DPR 1.5) at the default camera stay at **≤33 ms** with the stated method; mobile layouts pass at 390×844, 768×1024 and 844×390 (emulated; real devices untested); numbers, method and variability are recorded. The **≤16.7 ms / 60 fps** goal is deferred to Phase 7. |
+| **6b-3 ✅ (desktop + emulated mobile)** | **Performance & mobile pass:** re-profile Off/Soft/Full at 6/20/40 bears; far-grass LOD, god rays off, Balanced defaults; mobile layout and touch checks; record method and before/after in `PERFORMANCE.md` | 40 spread bears on the **Balanced** profile (Soft, device DPR 1.5) at the default camera stay at **≤33 ms** with the stated method; mobile layouts pass at 390×844, 768×1024 and 844×390 (emulated; real devices untested); numbers, method and variability are recorded. The **≤16.7 ms / 60 fps** goal remains open on the WebGL path (the dropped Phase 7 investigation found it is not renderer-bound). |
 | **6b-4 ✅** | **Release checklist (shipped scope):** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync; names the deferred 6b-1 polish and Aero/MSN prop set explicitly | Every listed check passes on the shipped build; the checklist is complete and its evidence named, with deferred items recorded rather than silently missing |
-| **7 🔬 investigated — not scheduled** | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback. Carries the deferred **60 fps** goal (≤16.7 ms at DPR 1.5 with 40 bears on Balanced) | Benchmarks and the actual-grass audit (see *Findings* below) show no renderer-level win: parity grass, +0.38 ms fixed overhead, ≈10% from GPU culling only. The 60 fps goal moves to grass-fill and per-bear work on the WebGL path; the seam plan stays valid if a future feature justifies the port |
+| **7 ⛔ dropped** (Oct 2026) | **WebGPU renderer path — dropped.** Investigated but not scheduled after benchmarks showed no path to the **60 fps** goal (≤16.7 ms at DPR 1.5 with 40 bears on Balanced): parity grass, +0.38 ms fixed overhead, ≈10% from GPU culling only | No work planned; WebGL2 remains the renderer. The 60 fps goal stays open on the WebGL path through grass-fill and per-bear work. Measured findings are retained in the dropped section below and in `PERFORMANCE.md` |
 | **8a ✅** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
 | **8b** (after 8a) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
 | **8c** (after 8b) | **Possession / third-person:** direct control of one bear with a follow camera and input-driven waddle; AI suspended for that bear only; grab/throw and a clean exit | Possessed movement is continuous (no jitter/NaN) and stays in the arena; exit returns the bear to AI in place with needs intact; the camera never clips ground or field walls; grabbing other bears still works |
@@ -245,7 +244,8 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   spread bears, default camera, device DPR 1.5 and render scale forced to 1
   measures **32.3 ms** (31.6–32.4 typical, one 22 ms outlier), and **30.2 ms**
   as shipped (scale .85) — inside the **≤33 ms** target. The 16.7 ms / 60 fps
-  goal is now a Phase 7 target. This was a grid stress scene versus a spread
+  goal remains open; the Phase 7 investigation showed it is not a renderer
+  problem. This was a grid stress scene versus a spread
   population; both are recorded in `PERFORMANCE.md`.
 - **Mobile UI refresh (6b-3):** at ≤900 px the bear card collapses into a
   "Bears & toys" sheet and the meadow stack starts collapsed; opening one closes
@@ -295,7 +295,7 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   6b-4 release checklist therefore also covers save/load, directives, possession
   and placement/nav reachability.
 - **Later, opt-in:** Phase 6a is the effects pass (before the 6b-3 optimization);
-  Phase 7 adds the WebGPU renderer path, with WebGL2 as the fallback.
+  Phase 7 (WebGPU) is dropped, so WebGL2 remains the renderer.
 
 Each phase ends playable, with screenshots and headless checks, so the direction
 can be adjusted without losing the working app.
@@ -915,41 +915,14 @@ grass density are the main levers. The headless run is not a 60 fps claim.
   cluster/occupancy, baby/teen/adult lineup, social/conflict/mating, buddy list,
   cannon aim/move, mobile.
 
-## WebGPU upgrade (Phase 7, opt-in)
+## WebGPU investigation (Phase 7 — dropped, Oct 2026)
 
-WebGPU is a second renderer, not a second game. The goal is to keep the same
-meadow, bears and UI while using the GPU to carry the parts that are hardest on
-WebGL: dense camera-local grass, wind, water, instancing overhead and render
-passes. WebGL2 remains the automatic fallback and a fully supported path.
-
-### Principles
-
-- **Ship behind a capability check.** WebGPU requires a secure context and an
-  available adapter/device. `localhost` qualifies; a network LAN URL may not.
-  If anything fails, boot WebGL2 and keep playing.
-- **One renderer seam.** `src/renderer.js` owns backend creation, async readiness,
-  capabilities (`compute`, `timestamp-query`, float render targets), tone
-  mapping, color space, resize, render targets and disposal. Game code asks for
-  a backend, not for `THREE.WebGLRenderer` directly.
-- **No gameplay fork.** Physics, AI, navigation, saves and map state stay
-  backend-independent. Box3D stays on the CPU/WASM.
-- **Parity before speed.** Do not remove a WebGL feature until the WebGPU
-  equivalent passes the same visual beats. Prefer TSL/NodeMaterial so materials
-  are authored once, with a WebGL2 fallback for the few features WebGPU cannot
-  match.
-- **Explicit escape hatches.** Support `?renderer=webgpu` (force) and
-  `?renderer=webgl` (force fallback) for testing and support. Surface the active
-  backend in the debug/performance overlay.
-
-### Migration slices
-
-| Slice | Work | Done when |
-|---|---|---|
-| **7a — Backend seam** | Add `renderer.js`, async renderer boot/loading state, feature flags, forced-backend query flags, fallback error handling, backend indicator | Field and Studio boot on WebGL2 exactly as before; WebGPU boots on a supported browser; missing `navigator.gpu`, adapter or device falls back silently with no page error |
-| **7b — Material parity** | Port the custom grass vertex deformation, sky dome/clouds/stars, pond reflection/water and any post passes to TSL/NodeMaterial; verify transmission, tone mapping and color management; keep the DOM HUD untouched | Dawn/day/dusk/night, grass close-up, pond, cottages and bears match the WebGL screenshots at the same camera/time; the existing self-test and visual beats pass on both |
-| **7c — GPU-driven meadow** | Generate/config grass tiles around the camera; compute culling and distance LOD; indirect draws; GPU wind field (world-space gust/swirl, sampled by blades); preserve world-anchored roots, the lawn underlay and seamless density transitions | Dense tufted grass and visible wind close to the camera, no tile seams/pop lines, stable 40-bear field performance, and a WebGL grass fallback that still looks correct |
-| **7d — Water and frame polish** | GPU water normals/ripples if profiling justifies it; planar reflection budget; render bundles/pipeline cache; shader warm-up and compile-hitch handling; timestamp queries in the perf overlay | Water/reflections at parity; fewer CPU stalls and draw calls than WebGL; measured frame-time improvement at equal quality; no shader-compile hitch on first input |
-| **7e — Ship/fallback** | Device/browser matrix, forced-fallback tests, docs and screenshots from both backends | WebGPU is opt-in (auto when healthy), WebGL2 is documented as the safe path, and a user can switch without losing state |
+**Dropped: no work is planned and WebGL2 remains the renderer.** The port was
+investigated to see whether the GPU could carry dense camera-local grass, wind,
+water, instancing overhead and render passes. It could not deliver the 60 fps
+goal, and renderer-level changes do not address the dominant costs. The measured
+findings below are retained as the record; the former principles, migration
+slices, acceptance criteria and risk plan are withdrawn.
 
 ### Findings (Oct 2026) — measured before any port
 
@@ -974,41 +947,9 @@ passes. WebGL2 remains the automatic fallback and a fully supported path.
   nature low −3.2 ms, effects Off −0.5 ms, shadows ≈0. Lowest shipped settings
   reach **18.0 ms at 6 bears** and **25.5 ms at 40**.
 - **Conclusion:** the 60 fps target at 40 bears/Balanced is **not** a renderer
-  problem. Grass fill (~14.6 ms) and per-bear surface cost dominate. WebGPU stays
-  **opt-in and unscheduled**; the seam and slice plan above remain valid if a
-  future feature (compute wind/water) justifies the port, and the 16.7 ms goal is
-  pursued through grass-fill and per-bear work on the WebGL path.
-
-### Acceptance
-
-- Both backends pass the 16-check physics self-test, map switching, cannon
-  validation, pond buoyancy, cottage collision and 40-bear stress run.
-- Screenshot parity at matching camera/time/quality, plus deliberate captures of
-  the grass LOD, wind, pond and night sky. No new clipping, seams or color
-  drift.
-- Target: **60 fps at the default quality tier with 40 field bears** on the
-  reference machine, and never slower than the WebGL path at the same quality.
-  If that target is not reached, keep WebGL as the default and leave WebGPU
-  opt-in.
-- Forced fallback works when WebGPU is disabled, the adapter request fails, the
-  device is lost, or shader/pipeline creation fails. A backend failure must not
-  trap the app on a loading screen.
-- Memory/render-target usage is documented; no orphaned GPU resources after map
-  switches or quality changes.
-
-### Risks and non-goals
-
-- WebGPU boot is asynchronous and shader compilation can stall; mitigate with a
-  loading state, pipeline warm-up and fallback.
-- TSL ports can drift visually from hand-written GLSL; keep per-material
-  screenshots and migrate one material at a time.
-- Browser/driver coverage is uneven; the WebGL2 path stays tested, not
-  “best effort”.
-- Custom planar reflection and transmission need measurement before porting
-  aggressively; do not rewrite the whole render graph just to use WebGPU.
-- **Not in scope:** GPU physics, GPU AI/navigation, WebGPU-only gameplay or
-  content, a UI rewrite, or removing the WebGL renderer. The upgrade is
-  successful only if the meadow still feels and plays the same.
+  problem. Grass fill (~14.6 ms) and per-bear surface cost dominate. The WebGPU
+  path is **dropped**; the 16.7 ms goal is pursued through grass-fill and
+  per-bear work on the WebGL path.
 
 ## Persistence (Phase 8a)
 

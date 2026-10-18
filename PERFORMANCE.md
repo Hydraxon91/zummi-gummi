@@ -110,9 +110,9 @@ target. Repeated DPR 1.5 spread runs at draw distance 56 varied by ~2.8 ms
 (36.4 vs 39.2), so treat single readings as ±1–2 ms.
 
 Mobile layout/touch checks were emulated (390×844, 768×1024, 844×390); the
-user's real-device phone test passed in 6b-4. The **16.7 ms / 60 fps** goal moved
-to Phase 7, where it was investigated and **not** reached by renderer changes —
-see “Full-frame breakdown” below.
+user's real-device phone test passed in 6b-4. The **16.7 ms / 60 fps** goal
+remains open; the Phase 7 WebGPU investigation (now dropped) found it is **not**
+a renderer problem — see “Full-frame breakdown” below.
 
 The 6b-4 release build adds only HUD/DOM (mobile sheets), screenshots and
 documentation; it does not change these frame times.
@@ -299,5 +299,5 @@ The 32.1 ms circular-pass table above remains the last stable profile.
 - Night adds four short-range firefly point lights plus the additive swarm; the
   lights are disabled during the day. Re-profile night separately before using
   the night view as a performance reference.
-- A WebGPU migration is intentionally deferred to Phase 7. It is not assumed to
-  fix fill-rate/overdraw by itself.
+- The WebGPU renderer migration is **dropped**. It was not assumed to fix
+  fill-rate/overdraw on its own, and the investigation confirmed it does not.
