@@ -1361,11 +1361,11 @@ export function buildField({ scene, camera, renderer, sky }) {
         // Randomly varying inner threshold makes broken tongues of foam creep
         // toward the downwind bank instead of drawing one smooth ellipse.
         float foamTongue = .5 + .5 * sin(ang * 19.0 + sin(ang * 7.0 + uTime * .31) * 1.8);
-        float foamStart = .944 + .020 * foamTongue;
-        float foam = smoothstep(foamStart, .986, edgeBand)
+        float foamStart = .950 + .014 * foamTongue;
+        float foam = smoothstep(foamStart, .988, edgeBand)
                    * (1.0 - smoothstep(.998, 1.006, edgeBand));
         foam *= windward * shorePatch;
-        col = mix(col, vec3(.84,.99,.96), foam * uAnime * .38);
+        col = mix(col, vec3(.84,.99,.96), foam * uAnime * .30);
         float shoreCrest = pow(max(0.0, sin(along * 5.4
           - uWavePhase * 1.25 + sin(ang * 3.5) * .9)), 3.0);
         col += vec3(.045,.105,.095) * max(0.0, edgeWave) * edgeMask
@@ -1524,13 +1524,13 @@ export function buildField({ scene, camera, renderer, sky }) {
           float p2 = .5 + .5 * sin(phase * 13.0 - uWavePhase * .45 + 2.1);
           float p3 = .5 + .5 * sin(phase * 29.0 + uWavePhase * .9 + 1.3);
           float foamPatch = smoothstep(.38, .82, p1 * .50 + p2 * .30 + p3 * .20);
-          float reach = .28 + .46 * foamPatch + .14 * wind;
+          float reach = .22 + .34 * foamPatch + .10 * wind;
           float inner = smoothstep(.00, .26, vUv.y);
-          float outer = 1.0 - smoothstep(reach - .07, reach, vUv.y);
+          float outer = 1.0 - smoothstep(reach - .05, reach, vUv.y);
           float gust = .72 + .28 * clamp(uWindGust, 0.0, 1.0);
           float foam = inner * outer * foamPatch * windward * wind * gust;
-          if (foam < .008) discard;
-          gl_FragColor = vec4(.90, 1.0, 1.0, clamp(foam * 2.0, 0.0, .95));
+          if (foam < .010) discard;
+          gl_FragColor = vec4(.90, 1.0, 1.0, clamp(foam * 1.70, 0.0, .78));
           #include <colorspace_fragment>
         }
       `,
