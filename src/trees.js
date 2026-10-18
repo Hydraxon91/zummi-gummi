@@ -539,7 +539,7 @@ function hiveGeometryAt(center, anchor, flex, treePhase, branchPhase) {
  * stand instead of ten copies of the same tree. Multipliers apply on top of the
  * lot scale; trunk colliders and nav stay untouched.
  */
-const TREE_KINDS = [
+export const TREE_KINDS = [
   { name: 'mature', trunk: 1.00, trunkR: 1.00, flare: .38, crownY: 1.00, crownR: 1.00, crownH: 1.00, primary: 4, fill: 1.00, leaf: 1.00, droop: .00, tint: 1.00 },
   { name: 'old',    trunk: 0.92, trunkR: 1.22, flare: .52, crownY: 0.96, crownR: 1.08, crownH: 0.94, primary: 5, fill: 1.10, leaf: 1.06, droop: .35, tint: 0.94 },
   { name: 'slim',   trunk: 1.14, trunkR: 0.58, flare: .16, crownY: 1.08, crownR: 0.76, crownH: 1.16, primary: 3, fill: 0.82, leaf: 0.94, droop: .00, tint: 1.02 },
@@ -547,7 +547,7 @@ const TREE_KINDS = [
   { name: 'mature', trunk: 1.04, trunkR: 1.02, flare: .40, crownY: 1.02, crownR: 1.02, crownH: 1.03, primary: 4, fill: 1.02, leaf: 1.00, droop: .05, tint: 1.00 },
 ];
 // Fixed assignment keeps tree 0/1 (the hive hosts) large and stable.
-const TREE_KIND_ORDER = [0, 1, 2, 3, 4, 2, 1, 0, 3, 2];
+export const TREE_KIND_ORDER = [0, 1, 2, 3, 4, 2, 1, 0, 3, 2];
 
 /**
  * Build the complete visual tree collection.

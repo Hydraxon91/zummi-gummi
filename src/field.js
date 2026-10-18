@@ -10,7 +10,7 @@ import { createNavMesh } from './navmesh.js';
 import { REFLECT_LAYER } from './sky.js';
 import { createWind, WIND_GLSL } from './wind.js';
 import { createSunState, updateSunState } from './sunlight.js';
-import { createTreeCollection } from './trees.js';
+import { createTreeCollection, TREE_KINDS, TREE_KIND_ORDER } from './trees.js';
 import { createHorizon } from './horizon.js';
 import { createAeroHomes } from './homes.js';
 import { createBackdrop } from './backdrop.js';
@@ -325,12 +325,17 @@ export function buildField({ scene, camera, renderer, sky }) {
     colliders.push({ kind: 'house', x: lot.x, z: lot.z, r, y: 1.0 * WORLD_SCALE.house, name: lot.name, door });
     nav.addSolid({ kind: 'house', x: lot.x, z: lot.z, r, door, name: lot.name });
   }
-  for (const lot of TREE_LOTS) {
+  TREE_LOTS.forEach((lot, index) => {
     const s = lot.s * WORLD_SCALE.tree;
     const r = 0.33 * WORLD_SCALE.tree;
-    colliders.push({ kind: 'tree', x: lot.x, z: lot.z, r, y: 1.1 * WORLD_SCALE.tree, canopy: 2.5 * s, scale: s });
+    // Grow-form trunks flare at the base. The chest-height sphere keeps nav and
+    // walking unchanged; baseR adds a low sphere so a bear cannot slide into the
+    // visible flare. 1.14 is the maximum per-tree girth jitter in trees.js.
+    const kind = TREE_KINDS[TREE_KIND_ORDER[index % TREE_KIND_ORDER.length]];
+    const baseR = Math.max(r, s * 0.34 * (1 + kind.flare) * kind.trunkR * 1.14);
+    colliders.push({ kind: 'tree', x: lot.x, z: lot.z, r, baseR, baseY: baseR, y: 1.1 * WORLD_SCALE.tree, canopy: 2.5 * s, scale: s });
     nav.addSolid({ kind: 'tree', x: lot.x, z: lot.z, r });
-  }
+  });
   for (const lot of ROCK_LOTS) {
     const s = lot.s * WORLD_SCALE.prop;
     const r = 0.5 * s;

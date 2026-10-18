@@ -4008,6 +4008,9 @@ function ensureMeadow(){
   applyRealShadows();
   for (const c of field.colliders){
     fieldColliderHandles.push(PHYS.staticSphere(c.x, c.y, c.z, c.r, 0.62, 0.08, 0));
+    // Tree trunks flare toward the ground; the chest sphere alone leaves the
+    // base open, so a low/lying bear could enter the visible trunk.
+    if (c.baseR) fieldColliderHandles.push(PHYS.staticSphere(c.x, c.baseY, c.z, c.baseR, 0.62, 0.08, 0));
   }
   if (field.layoutErrors && field.layoutErrors.length){
     console.warn('[meadow] collision/layout warnings:', field.layoutErrors);

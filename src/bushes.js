@@ -97,7 +97,7 @@ const foliageUniforms = {
   uSunDir: { value: new THREE.Vector3(.35, .82, .25).normalize() },
   uShadow: { value: new THREE.Color(0x4a7839) },
   uLit: { value: new THREE.Color(0x86b65a) },
-  uHigh: { value: new THREE.Color(0xc1df91) },
+  uHigh: { value: new THREE.Color(0xa6c47a) },
 };
 
 function foliageMaterial(side, leafNormals = false, map = null) {
@@ -136,8 +136,8 @@ function foliageMaterial(side, leafNormals = false, map = null) {
         float lit = smoothstep(-.50, .38, a);
         float hi = smoothstep(.24, .88, a);
         vec3 col = mix(uShadow, uLit, lit);
-        col = mix(col, uHigh, hi * .55);
-        col *= mix(vec3(1.0), vBushTint, .24);
+        col = mix(col, uHigh, hi * .42);
+        col *= mix(vec3(1.0), vBushTint, .45);
         diffuseColor.rgb *= col;
       `)
       .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>'

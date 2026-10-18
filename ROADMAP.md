@@ -409,16 +409,35 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   olive/yellow, rare gold). Bushes now use their own 30-leaf alpha-tested sprig
   card (previously solid untextured leaf strips), placed as 13-14 outward-angled
   sprays per lobe, with smaller and slightly darker lobes so the leaves define
-  the silhouette. 72.8k hero-tree leaf cards total. Headless 1440x900, DPR 1,
-  quality 2, effects off, tree-focused camera: **23.0–23.8 ms** at 88.7k cards
-  vs **19.9–20.1 ms** at the pre-pass baseline. A later re-measure of the
-  archetype/bush build was invalid: the machine was thermally throttled and the
-  unmodified live build also measured ~62–75 ms in the same window. Re-profile
-  on an idle machine before quoting a frame time for this state. Still
-  card-based: hard leaf edges when viewed edge-on and no leaf-level shadowing
-  remain; edge-on fading is a follow-up. Enlarged crowns keep trunk colliders
-  and nav unchanged; the widest crown reaches about 3.0x lot scale.
+  the silhouette. Lobes and cards share the same green gradient (leaf-green
+  highlight, stronger bush tint), so the lit side no longer reads as pale white
+  spheres. 72.8k hero-tree leaf cards total. Re-profiled on an idle
+  machine at 1440x900, DPR 1, quality 2, effects off, tree-focused camera:
+  **22.0–22.4 ms** (five 60-frame forced-sync runs after warm-up, first sample
+  discarded as warm-up) versus **19.9–20.1 ms** at the pre-pass baseline; the
+  collider and bush-colour fixes did not move it.
+  The earlier 23.0–23.8 ms reading
+  belongs to the 88.7k-card state; a mid-pass run read 62–75 ms on a thermally
+  throttled machine (the unmodified live build read the same) and was discarded.
+  Still card-based: hard leaf edges when viewed edge-on and no leaf-level
+  shadowing remain; edge-on fading is a follow-up. The widest crown reaches
+  about 3.0x lot scale. Verified with smoke 30/30, valid layout, no program
+  errors, day/dusk/night, Ultra, bush, wind and bear-vs-trunk captures, and
+  re-verified after the collider and bush-colour fixes.
   Distant backdrop trees and hill grass are untouched.
+- **Tree trunk colliders — fixed:** the chest-height sphere (0.396 m) left the
+  flared base open, so a low or dragged bear could enter the trunk (head reached
+  0.15 m from the axis). `field.js` now computes each tree's flared base radius
+  from its grow form (0.32–0.78 m) and the app adds a second low static sphere
+  at `y = baseR`; the chest sphere and nav solid stay at 0.396 m, so walking and
+  nav are unchanged. Re-test: the same drag now stops the head 1.18 m from the
+  old trunk axis and 0.77 m from the slim trunk, with no visual penetration.
+- **Rapid bear spawning can merge bears into one stuck blob — user-reported,
+  not started:** `spawn()` and the launcher's `fire()` do not check clearance at
+  the spawn point or throttle repeated spawns, so several bears spawned at one
+  spot overlap and stick. Proposed failsafe: minimum spacing with a nearby
+  free-spot search, a short spawn cooldown, and/or a small separation impulse on
+  overlap.
 - **White pond-adjacent grass clumps — fixed:** `meadowBankFringe` used the
   grass material without instance colours and placed pond-local coordinates in
   the world group. The main-grass-only audit missed this separate batch. It now

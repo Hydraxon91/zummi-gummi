@@ -60,10 +60,12 @@ lush-foliage pass (small-leaf procedural clusters, denser crowns, interior
 filler); grow-form archetypes later brought it to 72.8k. At the same 1440×900,
 DPR 1, quality 2, effects-off, tree-focused camera the 88.7k state measured
 **23.0–23.8 ms** versus **19.9–20.1 ms** before (five 60-frame runs after
-warm-up, ~+3.4 ms). A later re-measure was discarded: the machine was thermally
-throttled and the unmodified live build also read ~62–75 ms, so only
-same-session comparisons are meaningful. Re-profile the current build on an idle
-machine before quoting it.
+warm-up, ~+3.4 ms). Re-profiled on an idle machine, the current 72.8k-card
+build measures **22.0–22.4 ms** with the same method versus the same
+19.9–20.1 ms baseline (~+2.1 ms), so the archetype pass recovered part of the
+added cost; the later trunk-collider and bush-colour fixes left it unchanged.
+A mid-pass reading of 62–75 ms was discarded: the unmodified live build read the
+same on a throttled machine, so only same-session comparisons are meaningful.
 
 The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
 and the original supplied 37.1 ms baseline are retained below as historical
