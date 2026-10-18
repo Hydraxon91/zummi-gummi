@@ -270,6 +270,17 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   reload, invalid-save rejection, studio↔field load, traits/camera restore, New
   Game reset and the settings UI were verified end-to-end in headless Chrome
   (desktop and 390×844); no page errors. Offline time does not advance.
+- **Main menu, pause and lazy boot shipped (8a follow-up):** the page opens on a
+  lightweight menu (Continue/Load/New/How to play) and does not build the meadow,
+  grass or physics until a choice is made; Escape pauses with Resume, Settings and
+  Return to menu (which autosaves first). `?autostart=1` skips the menu for
+  harnesses. Verified headless: menu before boot with no field, Continue disabled
+  without an autosave, New Game boot, pause/resume, return-to-menu autosave,
+  continue, load-from-menu, reload+continue, autostart, mobile capture.
+- **Dev server backlog raised to 64:** the first paint loads ~20 ES modules at
+  once; the socketserver default of 5 dropped bursts and produced
+  `ERR_CONNECTION_RESET` in headless first-loads (and could affect real first
+  visits). Verified by running the menu suite against a second `launch.py` instance.
 - **Next:** Phase 8b bear directives, then 8c possession. 6b-1 presentation
   polish stays post-release; the Aero/MSN prop set and 60 fps target remain
   deferred.

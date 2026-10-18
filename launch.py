@@ -72,6 +72,10 @@ class GummyHandler(http.server.SimpleHTTPRequestHandler):
 class GummyServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
+    # The app loads ~20 ES modules at once on first paint. The socketserver
+    # default backlog of 5 drops the excess and browsers report
+    # ERR_CONNECTION_RESET, so keep a generous accept queue.
+    request_queue_size = 64
 
 
 def lan_ips():

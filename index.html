@@ -664,6 +664,77 @@
     .skyIcon{font-size:18px}
     .aeroHintBubble{display:none}
   }
+
+  /* ---------- main menu / pause ---------- */
+  .menu{
+    position:fixed;inset:0;z-index:210;display:flex;align-items:center;justify-content:center;
+    padding:24px;opacity:0;visibility:hidden;transition:opacity .32s ease,visibility .32s ease;
+  }
+  .menu.open{opacity:1;visibility:visible}
+  .mainMenu{
+    background:
+      radial-gradient(90rem 60rem at 15% -10%,rgba(255,255,255,.95),rgba(255,255,255,0) 60%),
+      radial-gradient(70rem 50rem at 90% 110%,rgba(151,214,177,.55),rgba(151,214,177,0) 62%),
+      linear-gradient(160deg,#eaf5ec 0%,#dff0e4 42%,#cfe8d6 100%);
+  }
+  .mainMenu::before,.mainMenu::after{
+    content:"";position:absolute;border-radius:50%;filter:blur(42px);opacity:.55;pointer-events:none;
+  }
+  .mainMenu::before{width:34vmax;height:34vmax;left:-8vmax;top:-10vmax;background:radial-gradient(circle,rgba(255,214,230,.9),rgba(255,214,230,0) 68%)}
+  .mainMenu::after{width:40vmax;height:40vmax;right:-12vmax;bottom:-14vmax;background:radial-gradient(circle,rgba(255,236,180,.75),rgba(255,236,180,0) 68%)}
+  .menuCard{
+    position:relative;z-index:1;width:min(520px,100%);padding:38px 38px 30px;border-radius:30px;
+    background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9);
+    box-shadow:0 40px 90px -50px rgba(11,64,52,.55),inset 0 1px rgba(255,255,255,.9);
+    -webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);
+  }
+  .menuKick{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3);display:flex;gap:.8em;align-items:center}
+  .menuKick i{display:block;width:24px;height:1px;background:var(--line);font-style:normal}
+  .menuTitle{
+    font-family:var(--serif);font-weight:600;font-size:clamp(2.6rem,7vw,4rem);line-height:.94;
+    letter-spacing:-.035em;margin:14px 0 10px;color:#0f3d33;
+  }
+  .menuTitle em{font-style:italic;color:#0d7b76}
+  .menuSub{margin:0 0 22px;max-width:36ch;font-size:13px;line-height:1.55;color:var(--ink-2)}
+  .menuActions{display:grid;gap:9px}
+  .menuBtn{
+    width:100%;border:1px solid rgba(13,123,118,.18);border-radius:15px;padding:13px 16px;
+    font-family:var(--sans);font-size:12px;letter-spacing:.10em;text-transform:uppercase;font-weight:600;
+    color:#0b4351;background:rgba(255,255,255,.82);cursor:pointer;text-align:left;
+    transition:background .16s ease,border-color .16s ease,transform .12s ease,opacity .16s ease;
+  }
+  .menuBtn:hover:not(:disabled){background:#fff;border-color:rgba(13,123,118,.4);transform:translateY(-1px)}
+  .menuBtn:disabled{opacity:.42;cursor:default}
+  .menuBtn.primary{background:linear-gradient(180deg,#17878f,#0d5b68);border-color:#0d5b68;color:#fff;box-shadow:0 16px 28px -18px rgba(7,82,95,.8)}
+  .menuBtn.ghost{background:transparent;border-color:transparent;color:var(--ink-2);padding:8px 2px;text-align:center;text-transform:none;letter-spacing:.04em;font-weight:500}
+  .menuBtn.ghost:hover{background:transparent;color:var(--ink);transform:none}
+  .menuNote{margin:16px 0 0;font-size:10px;color:var(--ink-3);min-height:14px;letter-spacing:.02em}
+  .menuSlots{
+    position:fixed;inset:0;z-index:215;display:flex;align-items:center;justify-content:center;padding:20px;
+    background:rgba(18,40,36,.42);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    opacity:0;visibility:hidden;transition:opacity .24s ease,visibility .24s ease;
+  }
+  .menuSlots.open{opacity:1;visibility:visible}
+  .menuSlotsCard{width:min(560px,100%);max-height:80vh;overflow:auto;border-radius:24px;background:#fff;padding:20px 20px 18px;box-shadow:0 30px 80px -40px rgba(0,0,0,.5)}
+  .menuSlotsHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .menuSlotsHead h2{font-family:var(--serif);font-size:24px;margin:0;color:#0f3d33}
+  .menuSaveList{display:grid;gap:8px}
+  .menuSaveRow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+  .menuSaveRow .saveMeta b{font-size:12px}
+  .menuSaveRow .saveMeta small{font-size:10px}
+  .menuEmpty{font-size:12px;color:var(--ink-3);padding:10px 2px}
+  .pauseMenu{
+    background:rgba(10,38,33,.34);-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
+  }
+  .menuCard.small{width:min(380px,100%);padding:26px 24px 22px;border-radius:24px}
+  .menuCard.small h2{font-family:var(--serif);font-size:28px;margin:0 0 16px;color:#0f3d33}
+  body.menu-open #cursor{opacity:0!important}
+  body.menu-open .help{z-index:220}
+  @media (max-width:640px){
+    .menuCard{padding:26px 20px 20px;border-radius:24px}
+    .menuTitle{font-size:clamp(2.2rem,12vw,3.2rem)}
+    .menuSub{font-size:12px;margin-bottom:18px}
+  }
 </style>
 <script type="importmap">
 { "imports": {
@@ -729,6 +800,38 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
 <button class="uiToggle" id="uiToggle" type="button" aria-pressed="false" aria-label="Hide interface" title="Hide interface (U)">
   <span class="uiToggleMark" aria-hidden="true">◉</span><span class="uiToggleLabel">Hide UI</span>
 </button>
+
+<div class="menu mainMenu open" id="mainMenu" aria-hidden="false">
+  <div class="menuCard" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+    <div class="menuKick"><i></i>Soft-body confection — No.&nbsp;01</div>
+    <h1 class="menuTitle" id="menuTitle">Gummy <em>/</em><br>Bears.</h1>
+    <p class="menuSub">Six translucent bears on a meadow. Pull, stretch, toss — and let a colony grow.</p>
+    <div class="menuActions">
+      <button class="menuBtn primary" id="menuContinue" type="button">Continue</button>
+      <button class="menuBtn" id="menuLoad" type="button">Load game</button>
+      <button class="menuBtn" id="menuNew" type="button">New game</button>
+      <button class="menuBtn ghost" id="menuHelp" type="button">How to play</button>
+    </div>
+    <p class="menuNote" id="menuNote"></p>
+  </div>
+</div>
+<div class="menuSlots" id="menuSlots" aria-hidden="true">
+  <div class="menuSlotsCard" role="dialog" aria-modal="true" aria-labelledby="menuSlotsTitle">
+    <div class="menuSlotsHead"><h2 id="menuSlotsTitle">Load game</h2><button class="helpclose" id="menuSlotsClose" aria-label="Close load game">×</button></div>
+    <div class="menuSaveList" id="menuSaveList"></div>
+    <div class="savesActions"><button class="settingsAction" id="menuSlotsBack" type="button">Back</button></div>
+  </div>
+</div>
+<div class="menu pauseMenu" id="pauseMenu" aria-hidden="true">
+  <div class="menuCard small" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+    <h2 id="pauseTitle">Paused</h2>
+    <div class="menuActions">
+      <button class="menuBtn primary" id="pauseResume" type="button">Resume</button>
+      <button class="menuBtn" id="pauseSettings" type="button">Settings</button>
+      <button class="menuBtn" id="pauseMenuBtn" type="button">Return to menu</button>
+    </div>
+  </div>
+</div>
 
 <div class="hud">
   <header class="fade studioHeader">
@@ -818,6 +921,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>P</dt><dd>Performance overlay; it stays visible when the rest of the UI is hidden.</dd>
             <dt>Settings</dt><dd>The gear opens graphics profiles, resolution, effects, depth of field, toon shading and meadow detail. Profiles are starting points; tweaking a control switches to Custom.</dd>
             <dt>Saves</dt><dd>The Saves section in Settings holds five named slots plus an autosave (every two minutes). Save, Load, Delete and Rename work per slot; Export JSON downloads a file and Import JSON restores one. Saves live in this browser. New Game resets to the authored starter colony, 07:00 and a full meadow.</dd>
+            <dt>Menu &amp; pause</dt><dd>The game opens on the main menu: Continue resumes the autosave, Load game picks a slot, New game starts fresh, How to play opens this guide. Escape pauses the meadow and offers Resume, Settings or Return to menu (which autosaves first).</dd>
             <dt>Time looks</dt><dd>Dawn / Day / Dusk / Night in the time panel apply a full look (hour, mist, cloud density and exposure) and turn Auto off. They persist across reloads; the slider or Auto returns to a custom clock.</dd>
             <dt>Toon shading</dt><dd>Swaps compatible ordinary materials to <b>MeshToonMaterial</b> for a banded cel look. Custom water, sky and particle shaders keep their own programs.</dd>
             <dt>Effects</dt><dd>Off, Soft or Full meadow post-processing. Soft adds bloom and a gentle grade; Full also adds ambient occlusion, depth-aware god rays and, on high tiers, directional sun/moon shadows. Depth of field focuses on the object under the view centre and softens only the background. Studio stays crisp.</dd>

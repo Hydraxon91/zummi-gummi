@@ -2534,6 +2534,7 @@ addEventListener('keydown', (e)=>{
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   if (helpOpen) return;
+  if (menuOpen || paused) return;
   const k = e.key.toLowerCase();
   if (k === 'u'){ if (!e.repeat) toggleUi(); return; }
   if (k === 'g'){ if (!e.repeat && aiDebug && isMeadow()) aiDebug.toggle(); return; }
@@ -2684,7 +2685,14 @@ document.getElementById('settingsClose')?.addEventListener('click', ()=>setSetti
 document.getElementById('settingsDone')?.addEventListener('click', ()=>setSettings(false));
 settingsEl?.addEventListener('pointerdown', (e)=>{ if (e.target === settingsEl) setSettings(false); });
 addEventListener('keydown', (e)=>{
-  if (e.key === 'Escape'){ setHelp(false); setSettings(false); return; }
+  if (e.key === 'Escape'){
+    const slots = document.getElementById('menuSlots');
+    if (slots && slots.classList.contains('open')) { openMenuSlots(false); return; }
+    if (helpOpen || settingsOpen){ setHelp(false); setSettings(false); return; }
+    if (paused){ setPaused(false); return; }
+    if (!menuOpen && window.__gummy && window.__gummy.booted) setPaused(true);
+    return;
+  }
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   if (!uiHidden && (e.key === '?' || e.key.toLowerCase() === 'h')) setHelp(true);
@@ -4009,6 +4017,7 @@ function animate(now){
   const dtMsRaw = now - lastNow;
   lastNow = now;
   if (document.hidden) return;
+  if (paused) return;
   const dtMs = Math.min(Math.max(dtMsRaw, 1), 50);
   const dt = dtMs/1000;
   frameMsEma += (dtMs - frameMsEma)*0.08;
@@ -4795,7 +4804,7 @@ function fitWallsToTable(){
     buildWorldBounds();
   }
 }
-(async function boot(){
+async function bootGame(){
   try {
     effects = createEffects({
       renderer, scene, camera,
@@ -4884,7 +4893,172 @@ function fitWallsToTable(){
   requestAnimationFrame(animate);
   requestAnimationFrame(()=>{ document.body.classList.add('ready'); });
   if (window.__gummy) window.__gummy.booted = true;
-})();
+}
+
+/* --------------------------------------------------------------- main menu */
+
+let bootStarted = null;
+function startGame() {
+  if (!bootStarted) {
+    bootStarted = bootGame().catch(err => {
+      bootStarted = null;
+      throw err;
+    });
+  }
+  return bootStarted;
+}
+
+let paused = false;
+let menuOpen = true;
+
+function setMenuNote(text) {
+  const el = document.getElementById('menuNote');
+  if (el) el.textContent = text;
+}
+
+function setMenu(open) {
+  menuOpen = !!open;
+  const el = document.getElementById('mainMenu');
+  if (el) {
+    el.classList.toggle('open', menuOpen);
+    el.setAttribute('aria-hidden', String(!menuOpen));
+  }
+  document.body.classList.toggle('menu-open', menuOpen || paused);
+  if (menuOpen) refreshMenuSaves();
+}
+
+function setPaused(v) {
+  paused = !!v;
+  const el = document.getElementById('pauseMenu');
+  if (el) {
+    el.classList.toggle('open', paused);
+    el.setAttribute('aria-hidden', String(!paused));
+  }
+  document.body.classList.toggle('menu-open', menuOpen || paused);
+  if (paused) refreshMenuSaves();
+  if (!paused) hideCamHint();
+}
+
+function openMenuSlots(open) {
+  const el = document.getElementById('menuSlots');
+  if (!el) return;
+  el.classList.toggle('open', !!open);
+  el.setAttribute('aria-hidden', String(!open));
+  if (open) refreshMenuSaves();
+}
+
+function setMenuBusy(busy) {
+  for (const id of ['menuContinue', 'menuLoad', 'menuNew', 'menuHelp']) {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = !!busy;
+  }
+}
+
+function saveMetaText(rec) {
+  return `${rec.mapId === 'studio' ? 'Studio' : 'Meadow'} · ${rec.bears} bears · ${saveTimeLabel(rec.savedAt)}${rec.id === AUTOSAVE_ID ? ' · autosave' : ''}`;
+}
+
+async function refreshMenuSaves() {
+  let records = [];
+  try { records = await listSaves(); } catch (err) { records = []; }
+  const auto = records.find(r => r.id === AUTOSAVE_ID);
+  const cont = document.getElementById('menuContinue');
+  if (cont) cont.disabled = !auto && !(window.__gummy && window.__gummy.booted);
+  const note = document.getElementById('menuNote');
+  if (note && !note.dataset.busy && !note.dataset.fixed) {
+    note.textContent = auto
+      ? `Autosave ready · ${saveTimeLabel(auto.savedAt)}`
+      : (window.__gummy && window.__gummy.booted ? 'Paused.' : 'No autosave yet — start a new meadow.');
+  }
+  const list = document.getElementById('menuSaveList');
+  if (!list) return;
+  list.textContent = '';
+  if (!records.length) {
+    const empty = document.createElement('p');
+    empty.className = 'menuEmpty';
+    empty.textContent = 'No saves yet. Start a new game, then save from Settings.';
+    list.append(empty);
+    return;
+  }
+  for (const rec of records) {
+    const row = document.createElement('div');
+    row.className = 'menuSaveRow';
+    const meta = document.createElement('div');
+    meta.className = 'saveMeta';
+    const title = document.createElement('b');
+    title.textContent = rec.name;
+    const detail = document.createElement('small');
+    detail.textContent = saveMetaText(rec);
+    meta.append(title, detail);
+    row.append(meta);
+    row.append(saveButton('Load', async () => {
+      openMenuSlots(false);
+      await startFromMenu('load', rec.id);
+    }, true));
+    list.append(row);
+  }
+}
+
+async function startFromMenu(action, slot) {
+  const note = document.getElementById('menuNote');
+  setMenuBusy(true);
+  if (note) { delete note.dataset.fixed; note.dataset.busy = '1'; note.textContent = 'Waking the meadow…'; }
+  try {
+    if (action === 'continue' && window.__gummy && window.__gummy.booted) {
+      setMenu(false);
+      setPaused(false);
+      return;
+    }
+    await startGame();
+    if (action === 'continue') {
+      const rec = await readSave(AUTOSAVE_ID);
+      if (rec) {
+        applySavePayload(rec.payload);
+        if (note) note.textContent = 'Resumed autosave.';
+      } else {
+        resetNewGame();
+        if (note) note.textContent = 'New meadow started.';
+      }
+    } else if (action === 'load') {
+      await loadFromSlot(slot);
+      if (note) note.textContent = 'Save loaded.';
+    } else if (action === 'new') {
+      resetNewGame();
+      if (note) note.textContent = 'New game started.';
+    }
+    setMenu(false);
+    setPaused(false);
+  } catch (err) {
+    if (note) { note.dataset.fixed = '1'; note.textContent = 'Could not start: ' + (err && err.message || err); }
+    console.error('start failed', err);
+  } finally {
+    if (note) delete note.dataset.busy;
+    setMenuBusy(false);
+    refreshMenuSaves();
+  }
+}
+
+async function returnToMenu() {
+  setPaused(false);
+  try { await autosaveNow(); } catch (err) {}
+  setMenu(true);
+  paused = true;
+  document.body.classList.add('menu-open');
+  refreshMenuSaves();
+}
+
+function initMenu() {
+  document.getElementById('menuContinue')?.addEventListener('click', () => startFromMenu('continue'));
+  document.getElementById('menuLoad')?.addEventListener('click', () => openMenuSlots(true));
+  document.getElementById('menuNew')?.addEventListener('click', () => startFromMenu('new'));
+  document.getElementById('menuHelp')?.addEventListener('click', () => setHelp(true));
+  document.getElementById('menuSlotsClose')?.addEventListener('click', () => openMenuSlots(false));
+  document.getElementById('menuSlotsBack')?.addEventListener('click', () => openMenuSlots(false));
+  document.getElementById('pauseResume')?.addEventListener('click', () => setPaused(false));
+  document.getElementById('pauseSettings')?.addEventListener('click', () => { setPaused(false); setSettings(true); });
+  document.getElementById('pauseMenuBtn')?.addEventListener('click', () => returnToMenu());
+  setMenu(true);
+}
 
 /* ----------------------------- debug / selftest --------------------------- */
 function simulateSeconds(sec, rebuildEverySubsteps){
@@ -5330,4 +5504,19 @@ window.__gummy = {
   },
   render(){ renderer.render(scene,camera); },
   three(){ return { THREE, scene, camera, renderer }; },
+  start(){ return startGame(); },
+  menu(open){ setMenu(open); return menuOpen; },
+  pause(v){ setPaused(v === undefined ? !paused : !!v); return paused; },
+  paused(){ return paused; },
+  returnToMenu(){ return returnToMenu(); },
 };
+
+initMenu();
+if (new URLSearchParams(location.search).get('autostart') === '1') {
+  setMenu(false);
+  startGame().catch(err => {
+    setMenu(true);
+    setMenuNote('Could not start: ' + (err && err.message || err));
+    console.error('autostart failed', err);
+  });
+}
