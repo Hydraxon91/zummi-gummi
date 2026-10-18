@@ -69,7 +69,9 @@ working in this repo.
   counts as one task: finish all its steps, then stop.
 - **Avoid over-deliberation:** plan once, then act. Do not re-plan or second-guess a chosen
   approach more than once before executing unless new information genuinely changes the
-  picture. Reserve deep reasoning for genuinely ambiguous or destructive decisions.
+  picture. Reserve deep reasoning for genuinely ambiguous or destructive decisions. This
+  never overrides the two-attempt limit in Approved Work Chunks or the regression stop in 3D
+  Asset Authoring.
 
 ## 4. Destructive Actions, Commits and Pushes
 
@@ -98,15 +100,18 @@ While executing an approved chunk:
 2. After each step, verify it works (load the app / run the smoke test / run the
    applicable self-test check) before moving on.
 3. **If a step fails, diagnose the root cause and try to fix it.** If the fix is in scope,
-   apply it and re-verify. If you are stuck, or the fix needs something outside the chunk,
-   stop and report with evidence — do not commit failing work unless asked.
+   apply it and re-verify. Make at most **two fix attempts per failing step**; a fix that
+   introduces a new failure counts as a failed attempt. If you are stuck, the second attempt
+   fails, or the fix needs something outside the chunk, stop and report with evidence — do
+   not commit failing work unless asked.
 4. Do not expand scope, refactor unrelated code, or touch anything not enumerated.
 5. Follow the approved-chunk row in Commit Discipline for commits, and report at the
    chunk boundary. Do not start the next chunk until instructed.
 
 **Covered by an approved chunk** (when enumerated): creating/editing files, adding a new
 `src/*.js` module and wiring it into `index.html`/imports, and running the app, smoke test
-and self-test checks.
+and self-test checks. In an approved 3D asset step this also covers incremental `.blend`
+checkpoint saves under new filenames (never overwriting an existing file).
 
 **Still individually gated, even inside a chunk:** file deletions, large refactors,
 three.js version or other dependency changes, rebuilding or swapping `vendor/box3d/`
@@ -189,12 +194,16 @@ driving it.
   type/magic/exports and 404 handling. Run it as:
 
   ```bash
-  python3 launch.py --no-open &
+  python3 launch.py --no-open
+  ```
+
+  ```bash
   node scripts/smoke.mjs http://localhost:8000
   ```
 
-  Start the server as its own call and run the smoke test as a separate call. CI runs this
-  on every push to `main` and every PR (`.github/workflows/smoke.yml`).
+  Start the server in the background as its own call, read the port it reports, then run the
+  smoke test as a separate call (use that port in place of 8000). CI runs this on every push
+  to `main` and every PR (`.github/workflows/smoke.yml`).
 - **Drive behavior through the debug API.** `src/app.js` exposes `window.__gummy` — e.g.
   `stats()`, `sim(sec)`, `bench(frames)`, `fieldInfo()`, `map()`, `setMap()`, `setTime()`,
   `navPath()`, `world()`, `launcher*()` and camera helpers. Prefer asserting against these
@@ -308,24 +317,50 @@ approved work chunk.
 
 - **The same scope and approval rules apply to Blender.** Inspect the live file path,
   unsaved state, scene inventory and target objects before editing. Establish a
-  recoverable checkpoint before destructive work; never silently overwrite a saved
-  asset, clear the scene or change unrelated cameras, lights and materials.
+  recoverable checkpoint before destructive work (a new, incrementally named `.blend`,
+  e.g. `name_001.blend`); never silently overwrite a saved asset, clear the scene or change
+  unrelated cameras, lights and materials. State units and axis conventions in the plan.
 - **Keep source editable.** Preserve source geometry/parameters before applying
   destructive booleans, remeshing or decimation. Use a separate export/evaluated copy
   where appropriate. A requested change to one part must not silently reshape others.
+- **Calibrate references before modeling.** Record the real target dimensions, measure what
+  each reference sheet actually encodes, pick one sheet as the dimensional authority and
+  never non-uniformly scale a reference to force agreement. If sheets conflict, that is the
+  user's decision (see the Fix-Classification Gate): present the numbers and wait.
+  Use visually confirmed structural landmarks and physical silhouettes, not livery, paint
+  colours or decal boundaries, for geometry measurements. Lock calibrated references;
+  recalibration requires reporting the discrepancy, approval and rechecking dependent
+  measurements.
 - **Reference fidelity before optimisation.** Establish the silhouette and proportions
   first. Reduce geometry only while preserving the approved appearance; do not equate
   low-poly with flat shading or choose an arbitrary minimum triangle count.
+- **Build for clean topology, one system per step.** Model symmetric parts as one half plus
+  Mirror, as closed manifold solids where solid geometry is intended, using modifiers and
+  unapplied boolean cutters rather than hand-edited vertices or hand-wound faces.
+  Report non-manifold edges, loose vertices
+  and flipped faces after every step; all three must be 0 for intended closed solids before
+  continuing. Report intentional boundaries on open panels, references and construction
+  geometry separately; unexpected non-manifold edges, loose vertices and flipped faces
+  must still be 0. Check consistent winding and component orientation with Face Orientation
+  captures; positive signed volume alone does not prove correct normals.
+- **Regression stop.** If a fix introduces a new defect class, or the same step fails twice,
+  restore the last checkpoint, report the evidence and propose an alternative (often a
+  rebuild). Preserve unrelated live changes during restoration; reopening a whole `.blend`
+  requires approval if it would discard them. If safe restoration is blocked, stop and
+  report. Do not keep patching on top of a failing generator.
 - **Inspect, don't infer success.** View front/back, both sides and three-quarter
   captures for shape changes; use neutral solid shading as well as material/rendered
   views. Check topology and, when applicable, rig weights/deformation. A successful
-  script or boolean is not proof of likeness, watertightness or good deformation.
-  Save scratch captures under `.dev-shots/` as in section 13.
+  script or boolean is not proof of likeness, watertightness or good deformation. State the
+  noise of any measurement taken from reference images and do not tune below it. Save
+  scratch captures under `.dev-shots/` as described in Visual Verification. True orthographic
+  captures need a PNG written there; if the session is read-only, ask for a mode switch
+  before starting rather than after a failed audit.
 - **Separate delivery states.** Report whether work exists only in the live scene,
   is saved to a `.blend`, is exported, or is verified in-game. Asset authoring does
   not authorize game integration. Measure evaluated/exported triangles and vertices,
   check export material support, and validate exports before claiming game readiness.
-- **Blender scripting exception to section 11:** Blender MCP Python may edit the
+- **Blender scripting exception to Tool-Call Discipline:** Blender MCP Python may edit the
   approved scene and save/export approved assets. Repository source/config/document
   edits still use file-edit tools; MCP is not an alternative filesystem editor.
 - **Load the relevant project skill:** `gummy-3d-authoring` for Blender/asset work;

@@ -1,13 +1,17 @@
 ---
-name: Gummy 3D Authoring
-description: Create, edit, inspect and export Blender assets for Gummy Bears using Blender MCP, with reference matching, editable source preservation and multi-angle verification. Asset work does not authorize game integration.
+name: gummy-3d-authoring
+description: Create, edit, calibrate, inspect and export Blender assets (3D models, meshes, props, vehicles, characters, GLB files) for Gummy Bears using Blender MCP, with reference-image matching, editable source preservation and multi-angle verification. Use whenever the task involves Blender, MCP for Blender, a 3D model or mesh, blueprint/reference images, mesh cleanup, or GLB export, even if the user does not name this skill. Asset work does not authorize game integration.
 ---
 
 # Gummy 3D Authoring
 
-Read the repository's `AGENTS.md`, especially sections 4, 11, 13 and 15.
-Follow its approval gates. No game integration unless separately in scope.
-Repository paths below are relative to the project root, not this skill directory.
+Read the repository's `AGENTS.md`: Agent Behavioral Rules, Destructive Actions, Commits and
+Pushes, Tool-Call Discipline, Visual Verification and 3D Asset Authoring. Follow its approval
+gates. No game integration unless separately in scope. Repository paths below are relative to
+the project root, not this skill directory.
+
+This procedure applies to any Blender asset in the project, not only bears. Bear-specific
+rig/export notes are in "Deformation and export".
 
 ## Inspect before editing
 
@@ -16,35 +20,122 @@ Repository paths below are relative to the project root, not this skill director
    the active file is the asset mentioned in chat; do not open another file over
    unsaved work without approval.
 2. Capture the target with `look`, explicitly passing target names. Establish a
-   recoverable checkpoint before destructive edits using the approved destination.
-   Do not rely on a saved `.blend` containing unsaved changes.
+   recoverable checkpoint before destructive edits: save under a new incrementally named
+   file (`name_001.blend`, `name_002.blend`, ...) in the approved destination and never
+   overwrite an existing one. Do not rely on a saved `.blend` containing unsaved changes.
 3. Identify reference landmarks: head/body ratio, shoulder width, arm slope,
    base shape and depth. Distinguish visible measurements from estimates; a single
    front reference does not establish side geometry.
+4. State units and axis conventions in the plan (e.g. metres, +Y front, +Z up) and keep
+   them for the whole session. Put parts in collections per system and name objects
+   clearly (`Wheel_FL`, `Tire_FL`).
 
-## Model and iterate
+## Capturing views
 
-1. Match the silhouette in solid shading before polishing glass or lighting.
-   Keep construction objects, modifiers or reproducible parameters editable.
-   Avoid repeatedly deleting and rebuilding the only model.
-2. Change only the requested region. For percentage edits, record the baseline
+- `look` may return only a perspective shot even when other views are requested. Check the
+  installed tool schema rather than assuming; verify the returned image is the view asked for.
+- True orthographic front/right/top captures need a Blender-side capture that writes a PNG
+  to `.dev-shots/`. A read-only or plan-mode session blocks that write: ask for a mode switch
+  at the start of the task, not after a failed audit.
+- Name captures `<step>_<what>_<view>.png` and never overwrite earlier iterations. View them.
+- Capture the baseline before editing. If no baseline is available, report that gap;
+  do not present a reconstructed image as a before capture.
+
+## Reference calibration (before modeling)
+
+1. Record real target dimensions (e.g. wheelbase, overall width/length, tyre diameter,
+   ride height). Ask the user for any that are unknown and mark estimates as estimates.
+2. Measure what each reference sheet actually encodes, and check that the sheets agree
+   with each other. Report disagreements as numbers (e.g. "same tyre diameter, wheelbase
+   differs by 21%").
+3. Pick one sheet as the dimensional authority; the others stay faithful proportional
+   guides. Never non-uniformly scale a reference to force agreement: it distorts the
+   drawing (circles become ellipses). Conflicting sheets are the user's decision: present
+   the numbers and options and wait.
+4. Scale and place the planes uniformly so all views share one origin and scale, keep them
+   in a `Reference` collection, and lock them after calibration. Recalibration requires
+   reporting the discrepancy, obtaining approval, and rechecking dependent measurements.
+5. Measure geometry from physical silhouettes and named structural landmarks, never from
+   livery, paint colours or decal boundaries. Visually confirm each landmark on the
+   reference before measuring; report obscured or ambiguous landmarks as uncertain rather
+   than substituting a colour boundary. Record landmark names/endpoints, reference view,
+   pixel coordinates, pixel-to-unit scale and uncertainty. State whether a measurement is
+   projected or established by explicit dimensions; perspective images do not imply a
+   uniform pixel-to-unit scale across different depths.
+6. State the noise of any measurement taken from images (silhouette masks, edge scans) and do
+   not tune below it. Validate a measuring script on a known case before trusting its
+   numbers; a wrong sampling position or a mask that catches unrelated parts gives
+   confident but false results.
+
+## Build protocol
+
+1. One system or part per step (chassis, wheels, suspension, cage, body). Report and wait
+   for the user's go before the next one, unless an approved chunk says otherwise.
+2. Prefer primitives and modifiers (Mirror, Bevel, Solidify, Array, Subdivision Surface,
+   Boolean) over editing individual vertices. Model symmetric parts as one half plus a
+   Mirror modifier with clipping on.
+3. Join section loops with Bridge Edge Loops. Do not hand-wind faces or build custom
+   rim/flare strips in generator code. Where a surface will later be smoothed, subdivided,
+   remeshed or boolean-cut as a solid, build it as a closed manifold solid. Intentional
+   open panels may be smoothed or subdivided, but must not be treated as closed volumes.
+4. Cut openings (wheel arches, windows) with Boolean cutters kept unapplied, in a hidden
+   `Cutters` collection. Apply only when approved. Build flares and trim as separate
+   objects so edits to the shell never touch them.
+5. When salvaging a model, keep the parts that match the references. Hide, do not delete,
+   a replaced shape and use it as a size guide.
+6. Match the silhouette in solid shading before polishing glass or lighting. Keep
+   construction objects, modifiers or reproducible parameters editable. Avoid repeatedly
+   deleting and rebuilding the only model.
+7. Change only the requested region. For percentage edits, record the baseline
    dimensions/parameters and preserve unrelated regions. Applied unions make isolated
    edits harder: preserve the source operands before applying them.
-3. After a meaningful shape change, inspect front, back, left, right and
-   three-quarter views; add top/close-up views when useful. Compare against the
-   reference rather than declaring success from tool output. Use explicit targets
-   so unrelated objects do not spoil framing.
-4. Use material/rendered views separately to judge transmission, highlights and
-   colour. Keep a clearly named shared material colour input when easy recolouring
-   is required. Do not alter unrelated lighting or cameras to conceal shape defects.
-5. Use `look` topology inspection where supported by the installed tool schema,
-   or query mesh data for boundary/non-manifold edges, connected components and
-   normals. A single object may contain disconnected shells. Boolean success does
-   not prove a single watertight volume.
-6. Optimise after the shape is acceptable. Smooth shading does not add polygons;
-   flat shading is not synonymous with low-poly. Inspect the silhouette after
-   reduction. Budget triangles, material primitives and exported vertices, not
-   Blender polygon count alone. Do not invent a universal triangle budget.
+
+## Mesh health gate (after every step)
+
+- Report non-manifold edges, loose vertices and flipped faces on the evaluated target.
+  Intended closed solids must have 0 of all three before continuing. For intentional open
+  panels, reference planes and construction geometry, report expected boundary edges
+  separately; unexpected non-manifold edges, loose vertices and flipped faces must be 0.
+  A single object may contain disconnected shells, and Boolean success does not prove a
+  single watertight volume.
+- Verify consistent face winding numerically and inspect each closed component's intended
+  orientation with Face Orientation captures. Blue marks front faces and red back faces;
+  interpret them relative to the intended material volume, including cavity walls.
+  Signed volume is supporting evidence only: a positive total does not prove every face
+  points correctly. Do not use per-face ray tests as proof of orientation on open or
+  concave meshes. For open panels, state the intended front side; reference planes looking
+  red from behind are not defective. Report any orientation that could not be verified.
+- Never run Recalculate Normals on an open panel without comparing Face Orientation before
+  and after. It can pick the wrong side for a whole island.
+- When a Smooth or other modifier is in play, compare evaluated geometry with that modifier
+  enabled and disabled in world units. Report maximum vertex displacement only when vertex
+  correspondence is established; otherwise report sampled surface distances with the
+  sampling method and its limits. Report movement at fixed landmarks (roof, arches, lower
+  edge) in mm, and stay within the tolerance the user set. Unapplied modifiers stay toggleable.
+- Report evaluated, not only source, counts. Optimise after the shape is acceptable: smooth
+  shading does not add polygons, flat shading is not synonymous with low-poly, and the
+  silhouette must be re-inspected after reduction. Budget triangles, material primitives and
+  exported vertices, not Blender polygon count alone. Do not invent a universal triangle
+  budget; ask the user for one if none is given.
+
+## Regression stop
+
+If a fix introduces a new defect class, or the same step fails twice, restore the last
+checkpoint, report the evidence and propose an alternative (often a rebuild with the Build
+protocol). Preserve unrelated live changes during restoration; reopening a whole `.blend`
+requires approval if it would discard them. If safe restoration is blocked, stop and report
+instead of discarding work. Do not keep patching on top of a failing generator. Do not apply
+a tool the agent itself has judged unsuitable (e.g. voxel remesh on a thin open panel) just to be able
+to report progress.
+
+## Inspect the result
+
+After a meaningful shape change, inspect front, back, left, right and three-quarter views;
+add top and close-up views when useful. Compare against the reference rather than declaring
+success from tool output. Use explicit targets so unrelated objects do not spoil framing.
+Judge transmission, highlights and colour in separate material/rendered views. Keep a
+clearly named shared material colour input when easy recolouring is required. Do not alter
+unrelated lighting or cameras to conceal shape defects.
 
 ## Blender Python gotchas
 
@@ -80,13 +171,18 @@ Repository paths below are relative to the project root, not this skill director
   Keep Blender/MCP out of runtime dependencies. Record source/reference provenance;
   do not assume a recreated branded character grants redistribution rights.
 
-## Evidence and handoff
+## Step report format
 
-Save distinct before/after and multi-angle scratch captures in `.dev-shots/`;
-do not overwrite every iteration with the same filenames. View the captures.
-Report verified dimensions, geometry counts, material colour control and exact
-saved/exported paths. Say explicitly when the result is live-only or not integrated.
-Do not claim visual acceptance on the user's behalf.
+Keep each step report short and in the same shape:
+
+1. What changed (objects, modifiers) and what was deliberately left untouched.
+2. Health: non-manifold edges, loose vertices, flipped faces, evaluated tri/vertex counts.
+3. Dimensions versus reference in mm, with the measurement noise.
+4. Files: saved path and dirty state, or "live scene only", or exported path.
+5. Captures viewed (paths), and anything that could not be verified.
+
+Then stop and wait. Say explicitly when the result is live-only or not integrated. Do not
+claim visual acceptance on the user's behalf.
 
 ## Sources
 
@@ -97,5 +193,7 @@ Do not claim visual acceptance on the user's behalf.
 - Structural validation: https://github.com/KhronosGroup/glTF-Validator
 
 The silhouette-first, scoped-percentage-edit and capture-retention requirements
-are project policies informed by the MSN figurine iterations, not universal API rules.
+are project policies informed by the MSN figurine iterations. The calibration, build
+protocol, health gate and regression stop come from the Raptor RC truck test. They are
+project policies, not universal API rules.
 Consult documentation matching the installed Blender version before using examples.

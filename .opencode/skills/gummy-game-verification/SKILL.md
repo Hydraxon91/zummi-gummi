@@ -1,12 +1,15 @@
 ---
-name: Gummy Game Verification
-description: Verify Gummy Bears code, physics, map, UI and rendering changes using the existing HTTP smoke test, window.__gummy hooks, local physics harness and inspected screenshots. Use before reporting game changes complete.
+name: gummy-game-verification
+description: Verify Gummy Bears code, physics, map, UI and rendering changes using the existing HTTP smoke test, window.__gummy hooks, local physics harness and inspected screenshots. Use before reporting any game change complete, and whenever the user asks to test, verify, check, profile or screenshot the game, even if they do not name this skill. Blender asset work uses gummy-3d-authoring instead.
 ---
 
 # Gummy Game Verification
 
-Read `AGENTS.md` sections 9, 12, 13 and 14 and the affected module's callers.
-This skill does not authorize implementation, installation, commits or pushes.
+Read `AGENTS.md`: Verification & Self-Test Standards, Commit Discipline, Visual Verification
+and Performance Discipline, plus the affected module's callers. This skill does not
+authorize implementation, installation, commits or pushes. For Blender asset checks
+(topology, reference matching, export) use `gummy-3d-authoring`; use this skill for the
+in-game result once integration is approved.
 Paths below are relative to the project root, not this skill directory.
 
 ## Pick checks from the approved change
@@ -48,16 +51,21 @@ Use HTTP, not file://. Do not kill an existing user server to resolve a port con
   new-creature demo. Map changes need state-isolation and relevant collision/nav
   assertions. Verify spawn caps and lifecycle behaviour when those paths change.
 - Test only approved scope; discovery of a separate defect is not authorization to
-  fix it. Follow the Known follow-ups rule in `AGENTS.md`.
+  fix it. Record it under Known follow-ups in `ROADMAP.md`, as the Agent Behavioral Rules in
+  `AGENTS.md` require.
 
 ## Visual and performance checks
 
 - Capture before/after, changed-element close-ups and additional angles, with
   relevant time-of-day, mobile layout and quality tiers. Save scratch files under
   `.dev-shots/` and actually view them before reporting completion.
+- Capture the baseline before editing; report a missing baseline rather than presenting
+  a reconstructed capture as the original state.
 - Read `PERFORMANCE.md` for the current profiling method. Compare matching camera,
   population, quality, DPR and render settings. Report measured frame times and
   method; headless rAF is not a reliable basis for a 60 fps claim.
+- Label exploratory measurements as exploratory. Claim an improvement only after
+  repeated measurements under matching conditions, reporting variability and sample count.
 - Do not assume fewer triangles/draw calls implies a frame-time win. Account for
   grass overdraw, transmission and reflection passes using measured results.
 - If browser tooling or the required harness is unavailable, distinguish static
