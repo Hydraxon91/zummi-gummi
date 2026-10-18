@@ -219,10 +219,9 @@ function emoteTexture(kind) {
   ctx.font = '700 46px "Trebuchet MS", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = 'rgba(255,255,255,.92)';
+  // No pale stroke: the old semi-transparent white outline read as a
+  // see-through border around the heart.
   ctx.fillStyle = style.color;
-  ctx.strokeText(style.glyph, 32, 35);
   ctx.fillText(style.glyph, 32, 35);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
