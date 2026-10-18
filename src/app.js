@@ -1743,11 +1743,11 @@ const PROFILES = {
   },
   quality: {
     label: 'Quality', tier: 1, renderScale: .95, effects: 'full', dof: false,
-    adaptive: false, nature: { canopy:.90, leafSize:1, coverage:.90, drawDistance:52 },
+    adaptive: false, nature: { canopy:.90, leafSize:1, coverage:.90, drawDistance:48 },
   },
   ultra: {
     label: 'Ultra', tier: 0, renderScale: 1, effects: 'full', dof: false,
-    adaptive: false, nature: { canopy:1, leafSize:1, coverage:1, drawDistance:56 },
+    adaptive: false, nature: { canopy:1, leafSize:1, coverage:1, drawDistance:48 },
   },
 };
 
