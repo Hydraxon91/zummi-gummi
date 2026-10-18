@@ -112,6 +112,9 @@ target. Repeated DPR 1.5 spread runs at draw distance 56 varied by ~2.8 ms
 Mobile layout and touch checks are still open. The 16.7 ms / 60 fps goal is
 deferred to Phase 7 (WebGPU).
 
+The 6b-4 release build adds only HUD/DOM (mobile sheets), screenshots and
+documentation; it does not change these frame times.
+
 The previous post-polish run (29.5 ms baseline / 558 calls / 2.43 M triangles)
 and the original supplied 37.1 ms baseline are retained below as historical
 comparisons; they describe earlier scene states, not the current disc.

@@ -55,6 +55,12 @@ optional-effects checks, including the real-shadow/god-ray/DOF follow-up.
 | `44_settings_mobile.webp` | 390×844 Settings sheet with the presets wrapping to a compact two-column grid and Auto active |
 | `45_profile_performance.webp` | same meadow view under the Performance preset: 70% render scale, Off effects, blob shadows and lighter meadow detail |
 | `46_profile_ultra.webp` | same meadow view under Ultra: 100% render scale, Full effects, 2048 directional shadows and full meadow detail |
+| `47_mobile_portrait.webp` | 390×844 phone: collapsed “Bears & toys” sheet, collapsed meadow stack, game view clear |
+| `48_mobile_portrait_sheet.webp` | 390×844 phone with the bear sheet expanded (flavours, custom, wobble, limit, actions) |
+| `49_mobile_landscape.webp` | 844×390 phone landscape: side sheet, collapsed meadow stack, hint below the map switch |
+| `50_mobile_tablet.webp` | 768×1024 tablet: collapsed sheets with the single-row action bar |
+| `51_time_look_dusk.webp` | Dusk named look from the time panel |
+| `52_time_look_night.webp` | Night named look; stars, lit windows and dark pond |
 
 The Phase 6 effects follow-up adds real sun/moon maps on the high tiers, a
 half-resolution depth prepass for canopy-occluded sun/moon shafts, and the

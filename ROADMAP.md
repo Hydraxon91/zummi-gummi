@@ -105,7 +105,7 @@ rig and soft-body solver stay.
 | **6b-1 (post-release)** | **Aero/MSN presentation polish:** HUD/status styling, name plates and emote legibility, gear-sheet visuals, home occupancy / window-glow polish | Dawn/day/dusk/night and UI/UI-hidden captures read as one Aero/MSN look; occupancy glow is legible at night; no layout or readability regressions on desktop or mobile |
 | **6b-2 ✅** | **Sky, cloud and water tuning + day/night presets:** named Dawn/Day/Dusk/Night looks (hour + mist + cloud density + exposure), night-tinted pond and foam, calmer lily-pad gloss, clouds pulled closer to the horizon | Presets load and persist; dawn/day/dusk/night look polished against the 6a effects tiers; pond/cloud/mist changes hold up in close-up and wide captures |
 | **6b-3 ✅ (desktop + emulated mobile)** | **Performance & mobile pass:** re-profile Off/Soft/Full at 6/20/40 bears; far-grass LOD, god rays off, Balanced defaults; mobile layout and touch checks; record method and before/after in `PERFORMANCE.md` | 40 spread bears on the **Balanced** profile (Soft, device DPR 1.5) at the default camera stay at **≤33 ms** with the stated method; mobile layouts pass at 390×844, 768×1024 and 844×390 (emulated; real devices untested); numbers, method and variability are recorded. The **≤16.7 ms / 60 fps** goal is deferred to Phase 7. |
-| **6b-4** | **Release checklist (shipped scope):** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync; names the deferred 6b-1 polish and Aero/MSN prop set explicitly | Every listed check passes on the shipped build; the checklist is complete and its evidence named, with deferred items recorded rather than silently missing |
+| **6b-4 ✅** | **Release checklist (shipped scope):** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync; names the deferred 6b-1 polish and Aero/MSN prop set explicitly | Every listed check passes on the shipped build; the checklist is complete and its evidence named, with deferred items recorded rather than silently missing |
 | **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback. Carries the deferred **60 fps** goal (≤16.7 ms at DPR 1.5 with 40 bears on Balanced) | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets the 6b-3 budget and aims at 16.7 ms at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
 | **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
 | **8b** (after 8a) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
@@ -254,8 +254,19 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   844×390 with settings/help sheets and the UI-hidden state; the desktop layout
   is unchanged. Real iOS/Android hardware was not available, so touch checks are
   emulated only.
-- **Next:** run the 6b-4 release checklist for the shipped scope. Optional side
-  items: voluntary pond play/swimming.
+- **6b-4 release checklist passed (shipped scope):** `node --check` on every
+  module, smoke 30/30, layout valid with no errors, 10 trees / 166 bushes / 2
+  hives, no NaN and no shader program errors, nav path clears the old trunk by
+  1.02 m, field↔studio switch clean both ways, all four time looks apply and
+  the slider returns to custom, effects Off/Soft/Full and the Toon toggle
+  render, six rapid drops settle with a 0.89 m closest pair, the cannon fires,
+  and no page errors were logged. Phone/tablet captures were added as
+  `screenshots/47`–`52`; the user's real-device phone test passed. The local
+  `.selftest.html` 16-check harness is absent from this checkout, so physics was
+  covered by `stats()` bounds/NaN/vertex assertions only — recorded as a gap.
+- **Next:** Phase 8a persistence (save/load, slots, New Game, autosave), then
+  8b directives and 8c possession. 6b-1 presentation polish stays post-release;
+  the Aero/MSN prop set and 60 fps target remain deferred.
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
