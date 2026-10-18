@@ -278,6 +278,8 @@
   }
   .helpbtn:hover{color:var(--ink);border-color:rgba(25,24,23,.3);transform:scale(1.05)}
   .helpbtn:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .settingsbtn{top:60px;font-family:var(--sans);font-style:normal;font-size:15px;font-weight:500;color:#347f8b}
+  .settingsbtn:hover{color:#0d6874}
 
   .uiToggle{
     position:fixed;right:clamp(62px,7.5vw,104px);top:18px;z-index:40;
@@ -306,12 +308,13 @@
     body.ui-hidden .uiToggleLabel{display:inline}
   }
   .help{
-    position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;padding:24px;
+    position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;
     background:rgba(250,249,247,.62);-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
     opacity:0;visibility:hidden;pointer-events:none;
     transition:opacity .3s ease,visibility .3s;
   }
   .help.open{opacity:1;visibility:visible;pointer-events:auto}
+  body.modal-open .hud{z-index:61}
   .helpcard{
     width:min(600px,100%);max-height:86vh;overflow:auto;background:#fff;
     border:1px solid var(--line);border-radius:20px;padding:24px 26px 20px;
@@ -329,11 +332,54 @@
   .helpgrid dt{white-space:nowrap;color:var(--ink);font-weight:600}
   .helpgrid dd{margin:0}
   .helpnote{margin:18px 0 0;font-size:11px;line-height:1.6;color:var(--ink-3)}
+  .settingscard{width:min(760px,100%)}
+  .settingsGrid{display:grid;grid-template-columns:1fr 1fr;gap:20px 30px}
+  .settingsSection{min-width:0}
+  .settingsSection h3{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);margin:0 0 9px}
+  .settingsSection h3.settingsSubhead{margin-top:18px}
+  .profileChoices{display:flex;flex-wrap:wrap;gap:5px}
+  .profileBtn{
+    appearance:none;border:1px solid var(--line);background:rgba(250,249,247,.7);color:var(--ink-2);
+    border-radius:9px;padding:7px 9px;cursor:pointer;text-align:left;font-family:var(--sans);
+    transition:background .16s,color .16s,border-color .16s,transform .16s;
+  }
+  .profileBtn b{display:block;font-size:10px;font-weight:650;letter-spacing:.08em;text-transform:uppercase}
+  .profileBtn small{display:block;margin-top:2px;font-size:9px;color:var(--ink-3);line-height:1.3}
+  .profileBtn:hover{background:#fff;border-color:rgba(25,24,23,.24);transform:translateY(-1px)}
+  .profileBtn.on{background:#0d6f79;border-color:#0d6f79;color:#fff}
+  .profileBtn.on small{color:rgba(255,255,255,.72)}
+  .profileBtn:focus-visible{outline:2px solid #2fb9b1;outline-offset:2px}
+  .settingsNote{margin:7px 0 0;font-size:10px;line-height:1.45;color:var(--ink-3)}
+  .settingsRow{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:10px;color:var(--ink-2);letter-spacing:.05em}
+  .settingsRow>span{flex:0 0 96px}
+  .settingsRow input[type=range]{flex:1;min-width:0}
+  .settingsRow input[type=checkbox]{accent-color:#0d7b76;width:15px;height:15px;flex:none;cursor:pointer}
+  .settingsRow select{
+    appearance:none;flex:1;min-width:0;border:1px solid var(--line);border-radius:7px;background:#fff;
+    color:var(--ink-2);font:600 10px var(--sans);padding:5px 7px;cursor:pointer;
+  }
+  .settingsRow select:disabled,.natureRow select:disabled{opacity:.48;cursor:default}
+  .settingsRow b{width:44px;text-align:right;font-size:10px;font-weight:500;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .settingsReadout{display:grid;gap:4px;margin-top:12px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:rgba(250,249,247,.6)}
+  .settingsReadout div{display:flex;align-items:baseline;gap:8px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .settingsReadout b{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:none;color:var(--ink-2)}
+  .settingsFoot{display:flex;align-items:center;gap:8px;margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+  .settingsFoot .settingsNote{margin:0;flex:1}
+  .settingsAction{
+    appearance:none;border:1px solid var(--line);background:transparent;color:var(--ink-2);border-radius:999px;
+    padding:7px 11px;cursor:pointer;font-family:var(--sans);font-size:9px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;
+  }
+  .settingsAction:hover{background:#fff;border-color:rgba(25,24,23,.26)}
+  .settingsAction.primary{background:#0d6f79;border-color:#0d6f79;color:#fff}
+  .settingsAction.primary:hover{background:#095b64;border-color:#095b64}
   @media (max-width:640px){
     .helpgrid{grid-template-columns:1fr;gap:16px}
     .helpcard{padding:20px 18px;border-radius:16px}
     .helphead h2{font-size:24px}
     .helpbtn{top:12px;right:12px}
+    .settingsbtn{top:12px;left:10px;right:auto}
+    .settingsGrid{grid-template-columns:1fr;gap:16px}
+    .settingsRow>span{flex-basis:88px}
   }
 
   .fade{opacity:0;transform:translateY(6px)}
@@ -697,6 +743,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
   </aside>
 
   <button class="helpbtn" id="helpBtn" aria-label="Controls">?</button>
+  <button class="helpbtn settingsbtn" id="settingsBtn" type="button" aria-label="Settings" title="Settings">⚙</button>
 
   <div class="help" id="help" aria-hidden="true">
     <div class="helpcard" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
@@ -716,7 +763,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>Limit</dt><dd>How many bears may exist (8–256).</dd>
             <dt>F / Explode</dt><dd>Firework at the pointer — hold F to spray, Shift+F for a fan; the button volleys three at the pile.</dd>
             <dt>Upright</dt><dd>Bears gently right themselves once settled; pushes still win.</dd>
-            <dt>Health &amp; night</dt><dd>Health bars show condition. Hurt or tired bears return to their villa; from 20:00 to 06:00 they sleep there and wake when morning comes. Very hungry bears may raid a beehive and risk a sting.</dd>
+            <dt>Health &amp; night</dt><dd>Health bars show condition. Hurt or tired bears return to their villa; each bear sleeps from its own bedtime (20:00–22:30) until its own wake time (05:00–07:00). Very hungry bears may raid a beehive and risk a sting.</dd>
             <dt>Friends &amp; snacks</dt><dd>Bears seek company when lonely, offer a nuzzle, and may be turned down. Friends can visit a villa doorway together. A hungry bear may shove another off a claimed snack; the bigger or hungrier bear usually wins.</dd>
             <dt>Growth &amp; family</dt><dd>Babies follow a parent, grow into teens and then adults, and inherit a pace range. Satiated, healthy adults may court; pregnancy lasts about 25 seconds and a birth needs food and room under the limit.</dd>
           </dl>
@@ -730,12 +777,56 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>W A S D</dt><dd>Pan · Q / E zoom · R resets the view.</dd>
             <dt>U</dt><dd>Hide or show the interface.</dd>
             <dt>P</dt><dd>Performance overlay; it stays visible when the rest of the UI is hidden.</dd>
-            <dt>Effects</dt><dd>Off, Soft or Full meadow post-processing. Soft adds bloom and a gentle grade; Full also adds ambient occlusion. Studio stays crisp.</dd>
+            <dt>Settings</dt><dd>The gear opens graphics profiles, resolution, effects, depth of field and meadow detail. Profiles are starting points; tweaking a control switches to Custom.</dd>
+            <dt>Effects</dt><dd>Off, Soft or Full meadow post-processing. Soft adds bloom and a gentle grade; Full also adds ambient occlusion, depth-aware god rays and, on high tiers, directional sun/moon shadows. Studio stays crisp.</dd>
             <dt>G</dt><dd>Bear AI debug (meadow only).</dd>
           </dl>
         </section>
       </div>
       <p class="helpnote">The wobble slider runs from firm to Mr. Fantastic. Press Esc or click outside to close.</p>
+    </div>
+  </div>
+
+  <div class="help settings" id="settings" aria-hidden="true">
+    <div class="helpcard settingscard" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="helphead">
+        <h2 id="settingsTitle">Settings</h2>
+        <button class="helpclose" id="settingsClose" aria-label="Close settings">×</button>
+      </div>
+      <div class="settingsGrid">
+        <section class="settingsSection">
+          <h3>Profile</h3>
+          <div class="profileChoices" role="group" aria-label="Graphics profiles">
+            <button class="profileBtn" type="button" data-profile="auto"><b>Auto</b><small>current look, adaptive</small></button>
+            <button class="profileBtn" type="button" data-profile="performance"><b>Performance</b><small>light meadow</small></button>
+            <button class="profileBtn" type="button" data-profile="balanced"><b>Balanced</b><small>soft meadow</small></button>
+            <button class="profileBtn" type="button" data-profile="quality"><b>Quality</b><small>full effects</small></button>
+            <button class="profileBtn" type="button" data-profile="ultra"><b>Ultra</b><small>shadows + full effects</small></button>
+          </div>
+          <p class="settingsNote" id="settingsProfileNote">Preset: Auto</p>
+          <label class="settingsRow"><span>Adaptive</span><input id="settingsAdaptive" type="checkbox" aria-label="Adaptive quality"><b id="settingsAdaptiveVal">On</b></label>
+          <label class="settingsRow"><span>Resolution</span><input id="settingsScale" type="range" min="0.6" max="1" step="0.01" value="1" aria-label="Render resolution"><b id="settingsScaleVal">100%</b></label>
+          <div class="settingsReadout">
+            <div><span>Tier</span><b id="settingsTier">Tier 1 · 2.00×</b></div>
+            <div><span>Shadows</span><b id="settingsShadow">Directional · 2048</b></div>
+          </div>
+        </section>
+        <section class="settingsSection">
+          <h3>Effects</h3>
+          <label class="settingsRow"><span>Post</span><select id="settingsEffects" aria-label="Post-processing effects"><option value="off">Off</option><option value="soft">Soft</option><option value="full">Full</option></select></label>
+          <label class="settingsRow"><span>Depth of field</span><select id="settingsDof" aria-label="Depth of field"><option value="off">Off</option><option value="on">On</option></select></label>
+          <h3 class="settingsSubhead">Meadow</h3>
+          <label class="settingsRow"><span>Canopy</span><input id="settingsCanopy" type="range" min="0.35" max="1" step="0.01" value="1" aria-label="Canopy fullness"><b id="settingsCanopyVal">1.00</b></label>
+          <label class="settingsRow"><span>Leaf size</span><input id="settingsLeafSize" type="range" min="0.65" max="1.4" step="0.01" value="1" aria-label="Leaf size"><b id="settingsLeafSizeVal">1.00</b></label>
+          <label class="settingsRow"><span>Grass</span><input id="settingsGrassCoverage" type="range" min="0.35" max="1" step="0.01" value="1" aria-label="Grass coverage"><b id="settingsGrassCoverageVal">1.00</b></label>
+          <label class="settingsRow"><span>Distance</span><input id="settingsGrassDistance" type="range" min="28" max="76" step="1" value="56" aria-label="Grass draw distance"><b id="settingsGrassDistanceVal">56</b></label>
+        </section>
+      </div>
+      <div class="settingsFoot">
+        <p class="settingsNote">Changes apply live. Presets are starting points; tweaking a control switches to Custom.</p>
+        <button class="settingsAction" id="settingsReset" type="button">Reset defaults</button>
+        <button class="settingsAction primary" id="settingsDone" type="button">Done</button>
+      </div>
     </div>
   </div>
 

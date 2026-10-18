@@ -43,6 +43,8 @@ check(/<title>Gummy Bears/.test(html), "page has the Gummy Bears title");
 check(html.includes('type="importmap"'), "page declares an import map");
 check(html.includes("three@0.186.1"), "page pins the three.js version");
 check(html.includes('id="aeroHud"'), "page includes the HUD markup");
+check(html.includes('id="settings"'), "page includes the settings sheet");
+check(html.includes('data-profile="auto"'), "page includes graphics presets");
 
 // --- source modules ---------------------------------------------------------
 const modules = [

@@ -1641,15 +1641,52 @@ function drawStudioShadows(){
 }
 
 /* =============================== VIEW / QUALITY ============================ */
-const quality = { dpr:2, grid:42, shadowEvery:1, shadowMap:2048, transmission:0.5, dispersion:true, snap:true, level:0 };
+const quality = {
+  dpr:2, grid:42, shadowEvery:1, shadowMap:2048, transmission:0.5,
+  dispersion:true, snap:true, level:0, cap:0, adaptive:true, renderScale:1,
+};
 const surfaceStats = { built:0, builtMs:0, crowdGrid:42 };
-let effectsMode = 'soft';
+const LOW_POWER_DEVICE = (() => {
+  try { return matchMedia('(pointer: coarse)').matches || innerWidth < 720; }
+  catch (err) { return innerWidth < 720; }
+})();
+const DEFAULT_EFFECTS = LOW_POWER_DEVICE ? 'off' : 'soft';
+const DEFAULT_NATURE = Object.freeze({ canopy:1, leafSize:1, coverage:1, drawDistance:56 });
+let effectsMode = DEFAULT_EFFECTS;
 let effectsDof = false;
+let natureState = { ...DEFAULT_NATURE };
+let settingsProfile = 'auto';
 try {
   const saved = localStorage.getItem('gummy.effects');
   if (saved === 'off' || saved === 'soft' || saved === 'full') effectsMode = saved;
-  else if (matchMedia('(pointer: coarse)').matches || innerWidth < 720) effectsMode = 'off';
   effectsDof = localStorage.getItem('gummy.effectsDof') === 'on';
+
+  const savedLevel = +localStorage.getItem('gummy.qualityLevel');
+  if (Number.isInteger(savedLevel) && savedLevel >= 0 && savedLevel < 4) {
+    quality.level = savedLevel;
+  }
+  const savedCap = +localStorage.getItem('gummy.qualityCap');
+  if (Number.isInteger(savedCap) && savedCap >= 0 && savedCap < 4) {
+    quality.cap = savedCap;
+  }
+  const savedAdaptive = localStorage.getItem('gummy.adaptive');
+  if (savedAdaptive !== null) quality.adaptive = savedAdaptive !== '0';
+  const savedScaleRaw = localStorage.getItem('gummy.renderScale');
+  if (savedScaleRaw !== null) {
+    const savedScale = +savedScaleRaw;
+    if (Number.isFinite(savedScale)) quality.renderScale = clamp(savedScale, .6, 1);
+  }
+  const savedProfile = localStorage.getItem('gummy.profile');
+  if (savedProfile === 'custom' ||
+      ['auto','performance','balanced','quality','ultra'].includes(savedProfile)) {
+    settingsProfile = savedProfile;
+  } else if (localStorage.getItem('gummy.effects') !== null ||
+             localStorage.getItem('gummy.effectsDof') !== null ||
+             localStorage.getItem('gummy.nature') !== null) {
+    settingsProfile = 'custom';
+  }
+  const savedNature = JSON.parse(localStorage.getItem('gummy.nature') || 'null');
+  if (savedNature && typeof savedNature === 'object') natureState = normalizeNature(savedNature);
 } catch (err) {}
 function applyRealShadows(){
   const size = quality.shadowMap | 0;
@@ -1666,6 +1703,101 @@ const LEVELS = [
   { dpr:1.5,  grid:30, shadowEvery:2, shadowMap:0,    transmission:0.42, dispersion:false, snap:false },
   { dpr:1.25, grid:25, shadowEvery:3, shadowMap:0,    transmission:0.36, dispersion:false, snap:false },
 ];
+
+function normalizeNature(v = {}) {
+  return {
+    canopy: clamp(Number(v.canopy) || 1, .35, 1),
+    leafSize: clamp(Number(v.leafSize) || 1, .65, 1.4),
+    coverage: clamp(Number(v.coverage) || 1, .35, 1),
+    drawDistance: clamp(Math.round(Number(v.drawDistance) || 56), 28, 76),
+  };
+}
+
+const PROFILES = {
+  auto: {
+    label: 'Auto', tier: 0, renderScale: 1, effects: DEFAULT_EFFECTS, dof: false,
+    adaptive: true, nature: { canopy:1, leafSize:1, coverage:1, drawDistance:56 },
+  },
+  performance: {
+    label: 'Performance', tier: 3, renderScale: .70, effects: 'off', dof: false,
+    adaptive: false, nature: { canopy:.55, leafSize:.85, coverage:.45, drawDistance:28 },
+  },
+  balanced: {
+    label: 'Balanced', tier: 2, renderScale: .85, effects: 'soft', dof: false,
+    adaptive: false, nature: { canopy:.75, leafSize:.95, coverage:.70, drawDistance:40 },
+  },
+  quality: {
+    label: 'Quality', tier: 1, renderScale: .95, effects: 'full', dof: false,
+    adaptive: false, nature: { canopy:.90, leafSize:1, coverage:.90, drawDistance:52 },
+  },
+  ultra: {
+    label: 'Ultra', tier: 0, renderScale: 1, effects: 'full', dof: false,
+    adaptive: false, nature: { canopy:1, leafSize:1, coverage:1, drawDistance:56 },
+  },
+};
+
+function saveSettings() {
+  try {
+    localStorage.setItem('gummy.profile', settingsProfile);
+    localStorage.setItem('gummy.qualityLevel', String(quality.level));
+    localStorage.setItem('gummy.qualityCap', String(quality.cap));
+    localStorage.setItem('gummy.adaptive', quality.adaptive ? '1' : '0');
+    localStorage.setItem('gummy.renderScale', String(quality.renderScale));
+    localStorage.setItem('gummy.nature', JSON.stringify(natureState));
+    localStorage.setItem('gummy.effects', effectsMode);
+    localStorage.setItem('gummy.effectsDof', effectsDof ? 'on' : 'off');
+  } catch (err) {}
+}
+
+function markSettingsCustom() {
+  if (settingsProfile === 'custom') return;
+  settingsProfile = 'custom';
+  syncSettingsUI();
+}
+
+function settingsSummary() {
+  return {
+    profile: settingsProfile,
+    quality: quality.level,
+    cap: quality.cap,
+    adaptive: quality.adaptive,
+    renderScale: quality.renderScale,
+    effects: effectsMode,
+    activeEffects: effects ? effects.active : null,
+    dof: effectsDof,
+    nature: { ...natureState },
+    shadows: sky && sky.shadowState ? sky.shadowState : null,
+  };
+}
+
+function applyProfile(name) {
+  const p = PROFILES[name];
+  if (!p) return null;
+  settingsProfile = name;
+  quality.level = p.tier;
+  quality.cap = p.tier;
+  quality.adaptive = p.adaptive;
+  quality.renderScale = p.renderScale;
+  effectsMode = p.effects;
+  effectsDof = p.dof;
+  natureState = normalizeNature(p.nature);
+  if (field) field.setNature(natureState);
+  applyQuality();
+  applyEffectsUI();
+  if (isMeadow()) syncAeroUI(true);
+  syncSettingsUI();
+  saveSettings();
+  return settingsSummary();
+}
+
+function applyRenderScale(v) {
+  quality.renderScale = clamp(Number(v) || 1, .6, 1);
+  setPixelRatioBudget();
+  if (effects) effects.resize(innerWidth, innerHeight);
+  syncSettingsUI();
+  saveSettings();
+  return quality.renderScale;
+}
 function applyQuality(){
   const q = LEVELS[quality.level];
   quality.grid=q.grid; quality.shadowEvery=q.shadowEvery; quality.shadowMap=q.shadowMap;
@@ -1693,7 +1825,9 @@ function setPixelRatioBudget(){
   const q = LEVELS[quality.level];
   const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
   const budget = Math.min(2, Math.max(0.7, Math.sqrt(MAX_PIXELS/(w*h))));
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, q.dpr, budget));
+  const scale = clamp(Number(quality.renderScale) || 1, .6, 1);
+  const ratio = Math.min(devicePixelRatio || 1, q.dpr, budget) * scale;
+  renderer.setPixelRatio(clamp(ratio, .6, 2));
 }
 function layoutStudioReturnPortal(){
   if (!studioReturnPortal) return;
@@ -1733,6 +1867,7 @@ function onResize(){
   camera.aspect = w/Math.max(1,h);
   camera.updateProjectionMatrix();
   fitView();
+  syncSettingsUI();
 }
 
 /* ================================= INPUT ================================== */
@@ -2297,19 +2432,35 @@ uprightBtn.addEventListener('click', ()=>setUpright(!uprightAssist, true));
   setUpright(v, false);
 })();
 
-/* controls sheet */
+/* controls sheet + settings */
 let helpOpen = false;
+let settingsOpen = false;
 const helpEl = document.getElementById('help');
+const settingsEl = document.getElementById('settings');
 function setHelp(open){
   helpOpen = !!open;
+  if (helpOpen) setSettings(false);
   helpEl.classList.toggle('open', helpOpen);
   helpEl.setAttribute('aria-hidden', String(!helpOpen));
+  document.body.classList.toggle('modal-open', helpOpen || settingsOpen);
+}
+function setSettings(open){
+  settingsOpen = !!open;
+  if (settingsOpen) setHelp(false);
+  settingsEl.classList.toggle('open', settingsOpen);
+  settingsEl.setAttribute('aria-hidden', String(!settingsOpen));
+  document.body.classList.toggle('modal-open', helpOpen || settingsOpen);
+  if (settingsOpen) syncSettingsUI();
 }
 document.getElementById('helpBtn').addEventListener('click', ()=>setHelp(true));
 document.getElementById('helpClose').addEventListener('click', ()=>setHelp(false));
 helpEl.addEventListener('pointerdown', (e)=>{ if (e.target === helpEl) setHelp(false); });
+document.getElementById('settingsBtn')?.addEventListener('click', ()=>setSettings(true));
+document.getElementById('settingsClose')?.addEventListener('click', ()=>setSettings(false));
+document.getElementById('settingsDone')?.addEventListener('click', ()=>setSettings(false));
+settingsEl?.addEventListener('pointerdown', (e)=>{ if (e.target === settingsEl) setSettings(false); });
 addEventListener('keydown', (e)=>{
-  if (e.key === 'Escape'){ setHelp(false); return; }
+  if (e.key === 'Escape'){ setHelp(false); setSettings(false); return; }
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   if (!uiHidden && (e.key === '?' || e.key.toLowerCase() === 'h')) setHelp(true);
@@ -2334,6 +2485,7 @@ function setUiHidden(hidden){
   if (uiHidden){
     keys.clear();
     setHelp(false);
+    setSettings(false);
     if (aiDebug) aiDebug.setOpen(false);
   }
   syncUiToggle();
@@ -2378,9 +2530,61 @@ const grassCoverageEl = document.getElementById('grassCoverage');
 const grassDistanceEl = document.getElementById('grassDistance');
 const effectsLevelEl = document.getElementById('effectsLevel');
 const effectsDofEl = document.getElementById('effectsDof');
+const settingsReset = document.getElementById('settingsReset');
+const settingsProfileNote = document.getElementById('settingsProfileNote');
+const settingsProfileBtns = [...document.querySelectorAll('[data-profile]')];
+const settingsAdaptiveEl = document.getElementById('settingsAdaptive');
+const settingsAdaptiveVal = document.getElementById('settingsAdaptiveVal');
+const settingsScaleEl = document.getElementById('settingsScale');
+const settingsScaleVal = document.getElementById('settingsScaleVal');
+const settingsEffectsEl = document.getElementById('settingsEffects');
+const settingsDofEl = document.getElementById('settingsDof');
+const settingsTierEl = document.getElementById('settingsTier');
+const settingsShadowEl = document.getElementById('settingsShadow');
+const settingsCanopyEl = document.getElementById('settingsCanopy');
+const settingsCanopyVal = document.getElementById('settingsCanopyVal');
+const settingsLeafSizeEl = document.getElementById('settingsLeafSize');
+const settingsLeafSizeVal = document.getElementById('settingsLeafSizeVal');
+const settingsGrassCoverageEl = document.getElementById('settingsGrassCoverage');
+const settingsGrassCoverageVal = document.getElementById('settingsGrassCoverageVal');
+const settingsGrassDistanceEl = document.getElementById('settingsGrassDistance');
+const settingsGrassDistanceVal = document.getElementById('settingsGrassDistanceVal');
 const meadowMoodEl = document.getElementById('meadowMood');
 let buddySig = '';
 let lastBuddyStatusTick = 0;
+
+const natureBindings = [
+  { key:'canopy', quick:canopyFullnessEl, modal:settingsCanopyEl, quickVal:document.getElementById('canopyFullnessVal'), modalVal:settingsCanopyVal, digits:2 },
+  { key:'leafSize', quick:leafSizeEl, modal:settingsLeafSizeEl, quickVal:document.getElementById('leafSizeVal'), modalVal:settingsLeafSizeVal, digits:2 },
+  { key:'coverage', quick:grassCoverageEl, modal:settingsGrassCoverageEl, quickVal:document.getElementById('grassCoverageVal'), modalVal:settingsGrassCoverageVal, digits:2 },
+  { key:'drawDistance', quick:grassDistanceEl, modal:settingsGrassDistanceEl, quickVal:document.getElementById('grassDistanceVal'), modalVal:settingsGrassDistanceVal, digits:0 },
+];
+
+function syncNatureUI(){
+  for (const b of natureBindings){
+    const v = natureState[b.key];
+    if (b.quick && document.activeElement !== b.quick) b.quick.value = String(v);
+    if (b.modal && document.activeElement !== b.modal) b.modal.value = String(v);
+    const text = b.digits ? Number(v).toFixed(b.digits) : String(Math.round(v));
+    if (b.quickVal) b.quickVal.textContent = text;
+    if (b.modalVal) b.modalVal.textContent = text;
+  }
+}
+
+function bindNatureInput(input, key){
+  if (!input) return;
+  input.addEventListener('input', () => {
+    natureState = normalizeNature({ ...natureState, [key]: Number(input.value) });
+    if (field) field.setNature(natureState);
+    markSettingsCustom();
+    saveSettings();
+    syncNatureUI();
+  });
+}
+for (const b of natureBindings) {
+  bindNatureInput(b.quick, b.key);
+  bindNatureInput(b.modal, b.key);
+}
 
 function updateMapButtons(){
   const cur = activeWorld.mapId;
@@ -2577,17 +2781,8 @@ function syncAeroUI(force){
     if (windStrengthEl && document.activeElement !== windStrengthEl) windStrengthEl.value = String(ws);
     if (windValueEl) windValueEl.textContent = ws.toFixed(1);
   }
-  if (field && field.natureControls){
-    const n = field.natureControls;
-    if (canopyFullnessEl && document.activeElement !== canopyFullnessEl) canopyFullnessEl.value = String(n.canopy);
-    if (leafSizeEl && document.activeElement !== leafSizeEl) leafSizeEl.value = String(n.leafSize);
-    if (grassCoverageEl && document.activeElement !== grassCoverageEl) grassCoverageEl.value = String(n.coverage);
-    if (grassDistanceEl && document.activeElement !== grassDistanceEl) grassDistanceEl.value = String(n.drawDistance);
-    const cv = document.getElementById('canopyFullnessVal'); if (cv) cv.textContent = n.canopy.toFixed(2);
-    const lv = document.getElementById('leafSizeVal'); if (lv) lv.textContent = n.leafSize.toFixed(2);
-    const gv = document.getElementById('grassCoverageVal'); if (gv) gv.textContent = n.coverage.toFixed(2);
-    const dv = document.getElementById('grassDistanceVal'); if (dv) dv.textContent = String(Math.round(n.drawDistance));
-  }
+  if (field && field.natureControls) natureState = normalizeNature(field.natureControls);
+  syncNatureUI();
 }
 (function initAeroCollapse(){
   const btn = document.getElementById('aeroMin');
@@ -2631,34 +2826,72 @@ if (windStrengthEl) windStrengthEl.addEventListener('input', ()=>{
   field.wind.setStrength(+windStrengthEl.value);
   syncAeroUI(false);
 });
-function applyNatureUI() {
-  if (!field) return;
-  field.setNature({
-    canopy: canopyFullnessEl ? +canopyFullnessEl.value : 1,
-    leafSize: leafSizeEl ? +leafSizeEl.value : 1,
-    coverage: grassCoverageEl ? +grassCoverageEl.value : 1,
-    drawDistance: grassDistanceEl ? +grassDistanceEl.value : 56,
-  });
-  syncAeroUI(true);
-}
-for (const el of [canopyFullnessEl, leafSizeEl, grassCoverageEl, grassDistanceEl]) {
-  if (el) el.addEventListener('input', applyNatureUI);
-}
 function syncEffectsUI(){
   if (effectsLevelEl) effectsLevelEl.value = effectsMode;
+  if (settingsEffectsEl) settingsEffectsEl.value = effectsMode;
+  const disabled = !effects || (effects.active === 'off');
   if (effectsDofEl){
     effectsDofEl.value = effectsDof ? 'on' : 'off';
-    effectsDofEl.disabled = (effects ? effects.active : effectsMode) === 'off';
+    effectsDofEl.disabled = disabled;
+  }
+  if (settingsDofEl){
+    settingsDofEl.value = effectsDof ? 'on' : 'off';
+    settingsDofEl.disabled = disabled;
   }
   if (effects){
     const state = effects.state();
-    if (effectsLevelEl){
-      effectsLevelEl.title = state.active !== state.requested
-        ? `Active: ${state.active} (quality fallback)`
-        : '';
-    }
+    const note = state.active !== state.requested
+      ? `Active: ${state.active} (quality fallback)`
+      : '';
+    if (effectsLevelEl) effectsLevelEl.title = note;
+    if (settingsEffectsEl) settingsEffectsEl.title = note;
   }
+  syncSettingsUI();
 }
+
+function syncSettingsUI(){
+  if (settingsProfileNote){
+    const label = settingsProfile === 'custom'
+      ? 'Custom settings'
+      : `Preset: ${PROFILES[settingsProfile] ? PROFILES[settingsProfile].label : 'Auto'}`;
+    settingsProfileNote.textContent = label;
+  }
+  for (const btn of settingsProfileBtns){
+    const on = btn.dataset.profile === settingsProfile;
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  }
+  if (settingsAdaptiveEl) settingsAdaptiveEl.checked = quality.adaptive;
+  if (settingsAdaptiveVal) settingsAdaptiveVal.textContent = quality.adaptive ? 'On' : 'Off';
+  if (settingsScaleEl && document.activeElement !== settingsScaleEl){
+    settingsScaleEl.value = String(quality.renderScale);
+  }
+  if (settingsScaleVal) settingsScaleVal.textContent = `${Math.round(quality.renderScale * 100)}%`;
+  if (settingsTierEl){
+    const q = LEVELS[quality.level];
+    settingsTierEl.textContent = `Tier ${quality.level + 1} · ${renderer.getPixelRatio().toFixed(2)}×`;
+    if (settingsShadowEl) settingsShadowEl.textContent = q.shadowMap
+      ? `Directional · ${q.shadowMap}px`
+      : 'Blob fallback';
+  }
+  syncNatureUI();
+}
+
+function setEffectsModeFromUI(mode){
+  effectsMode = ['off', 'soft', 'full'].includes(mode) ? mode : 'soft';
+  markSettingsCustom();
+  saveSettings();
+  applyEffectsUI();
+}
+
+function setDofFromUI(on){
+  effectsDof = !!on;
+  markSettingsCustom();
+  saveSettings();
+  if (effects) effects.setDof(effectsDof);
+  syncEffectsUI();
+}
+
 function applyEffectsUI(){
   if (effects){
     effects.setMode(effectsMode);
@@ -2669,21 +2902,40 @@ function applyEffectsUI(){
 }
 if (effectsLevelEl) {
   effectsLevelEl.value = effectsMode;
-  effectsLevelEl.addEventListener('change', () => {
-    effectsMode = ['off', 'soft', 'full'].includes(effectsLevelEl.value)
-      ? effectsLevelEl.value : 'soft';
-    try { localStorage.setItem('gummy.effects', effectsMode); } catch (err) {}
-    applyEffectsUI();
-  });
+  effectsLevelEl.addEventListener('change', () => setEffectsModeFromUI(effectsLevelEl.value));
+}
+if (settingsEffectsEl) {
+  settingsEffectsEl.addEventListener('change', () => setEffectsModeFromUI(settingsEffectsEl.value));
 }
 if (effectsDofEl) {
   effectsDofEl.value = effectsDof ? 'on' : 'off';
-  effectsDofEl.addEventListener('change', () => {
-    effectsDof = effectsDofEl.value === 'on';
-    try { localStorage.setItem('gummy.effectsDof', effectsDof ? 'on' : 'off'); } catch (err) {}
-    if (effects) effects.setDof(effectsDof);
-    syncEffectsUI();
+  effectsDofEl.addEventListener('change', () => setDofFromUI(effectsDofEl.value === 'on'));
+}
+if (settingsDofEl) {
+  settingsDofEl.addEventListener('change', () => setDofFromUI(settingsDofEl.value === 'on'));
+}
+for (const btn of settingsProfileBtns) {
+  btn.addEventListener('click', () => applyProfile(btn.dataset.profile));
+}
+if (settingsAdaptiveEl) {
+  settingsAdaptiveEl.addEventListener('change', () => {
+    quality.adaptive = settingsAdaptiveEl.checked;
+    qualityCooldown = 0;
+    markSettingsCustom();
+    saveSettings();
+    syncSettingsUI();
   });
+}
+if (settingsScaleEl) {
+  settingsScaleEl.addEventListener('input', () => {
+    const value = Number(settingsScaleEl.value);
+    if (settingsScaleVal) settingsScaleVal.textContent = `${Math.round(value * 100)}%`;
+    markSettingsCustom();
+    applyRenderScale(value);
+  });
+}
+if (settingsReset) {
+  settingsReset.addEventListener('click', () => applyProfile('auto'));
 }
 
 /* --------------------------- performance overlay -------------------------- */
@@ -3461,12 +3713,13 @@ function animate(now){
 
   // quality governor: react early, drop fast when the machine is loaded
   if (frozen) { /* debug: hold the current tier */ }
+  else if (!quality.adaptive) qualityCooldown = 250;
   else if (qualityCooldown > 0) qualityCooldown -= dtMs;
   else if (frameMsEma > 17.5 && quality.level < LEVELS.length-1){
     quality.level = Math.min(LEVELS.length-1, quality.level + (frameMsEma > 30 ? 2 : 1));
     applyQuality(); qualityCooldown = 1600;
   }
-  else if (frameMsEma < 10.0 && quality.level > 0){ quality.level--; applyQuality(); qualityCooldown = 5200; }
+  else if (frameMsEma < 10.0 && quality.level > quality.cap){ quality.level--; applyQuality(); qualityCooldown = 5200; }
   else qualityCooldown = 250;
 }
 
@@ -3516,6 +3769,7 @@ function ensureMeadow(){
   sky.setVisible(false);
   field = buildField({ scene, camera, renderer, sky });
   field.setVisible(false);
+  field.setNature(natureState);
   configureMeadowShadows();
   applyRealShadows();
   for (const c of field.colliders){
@@ -4275,19 +4529,30 @@ window.__gummy = {
   },
   setCeiling(n){ setCeiling(Number(n), false); return bearCeiling; },
   setEffects(mode){
-    effectsMode = ['off', 'soft', 'full'].includes(mode) ? mode : 'soft';
-    try { localStorage.setItem('gummy.effects', effectsMode); } catch (err) {}
-    applyEffectsUI();
+    setEffectsModeFromUI(mode);
     return effects ? effects.state() : null;
   },
   effectsState(){ return effects ? effects.state() : null; },
   setEffectsDof(on){
-    effectsDof = !!on;
-    try { localStorage.setItem('gummy.effectsDof', effectsDof ? 'on' : 'off'); } catch (err) {}
-    if (effects) effects.setDof(effectsDof);
-    syncEffectsUI();
+    setDofFromUI(!!on);
     return effects ? effects.state() : null;
   },
+  settings(){ return settingsSummary(); },
+  setProfile(name){ return applyProfile(name); },
+  setAdaptive(on){
+    quality.adaptive = !!on;
+    qualityCooldown = 0;
+    markSettingsCustom();
+    saveSettings();
+    syncSettingsUI();
+    return settingsSummary();
+  },
+  setRenderScale(v){
+    markSettingsCustom();
+    applyRenderScale(v);
+    return settingsSummary();
+  },
+  resetSettings(){ return applyProfile('auto'); },
   setEffectsBloom(v){ return effects ? effects.setBloomScale(v) : null; },
   setEffectsExposure(v){ return effects ? effects.setExposureScale(v) : null; },
   renderProbe(frames = 30){
