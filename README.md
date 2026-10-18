@@ -44,7 +44,7 @@ The app uses ES modules and a `.wasm` file, so it must be served over HTTP (open
 ## Controls
 
 - **Grab** a bear with the left mouse button (or a finger) and pull to stretch; release to throw. Multiple pointers can grab at once.
-- **Orbit** by dragging empty space, right-dragging, or two-finger dragging. **Pan** with middle-drag, shift-drag, or two-finger drag. **Zoom** with the wheel or pinch. `WASD` pan, `Q`/`E` orbit, `R` resets the camera.
+- **Orbit** by dragging empty space, right-dragging, or two-finger dragging. **Pan** with middle-drag, shift-drag, or two-finger drag. **Zoom** with the wheel or pinch, from a close bear portrait (about 3.2 m) out to the skyline. `WASD` pan, `Q`/`E` orbit, `R` resets the camera.
 - **F** fires a firework at the cursor, hold to spray, `Shift+F` fans; the EXPLODE button fires a volley. `?` opens the controls sheet.
 - **L / Launch bear** arms the glass cannon. Aim with the mouse (or drag a finger) and release/click to fire a bear on a ballistic arc; `Esc` or the button cancels. The landing ring shows where it will come down.
 - **Move cannon**: drag the cannon itself, or press **Move cannon** and click/tap the table. The footprint ring turns green/red for a valid spot; `Esc` cancels and restores the previous position. The position persists for each map.

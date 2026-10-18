@@ -120,8 +120,8 @@ rig and soft-body solver stay.
 - **Phase 2 complete (current scope):** the Grass Field is the default map with
   the Studio switch, independent map state, reflective pond and splash/buoyancy.
   The field has a wobbled 65 m playable disc, 8 detailed Aero villas, a large
-  Studio portal house, 10 merged hero trees, 88k chunked/shader-LOD grass tufts,
-  dirt trails, a detailed rolling backdrop with branched trees and 120+ bushes,
+  Studio portal house, 10 merged hero trees, 88k chunked continuous-carpet grass
+  tufts, dirt trails, a detailed rolling backdrop with branched trees and 120+ bushes,
   anime-lite water, shared tree/grass wind, procedural clouds, aurora,
   fireflies, a distant Aero skyline and wind turbines. Villa doors are validated
   at 1.646 m against a 1.375 m adult bear. The starter colony remains 2 adult ♀,
@@ -428,11 +428,28 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   glints and splash rings still move. Re-check in a slow-motion 6/20/40-bear
   pass; if it persists, compare transmission resolution/dispersion and consider
   fading the remaining reflection ripple behind foreground silhouettes.
-- **DOF now uses a view-centre target and a far-only blur.** In the meadow it
-  raycasts bears, villas, the Studio house, trees and bushes, smooths the focus
-  distance, and disables the pass when the centre ray finds no target. Near
-  objects stay sharp while the background softens; aperture/max-blur remain
-  fixed look controls. Revisit if a future shot system needs authored focus.
+- **DOF uses a view-centre target and a far-only blur.** In the meadow it
+  raycasts a small centre fan against bears, then the nearest villas, Studio
+  house, trees and bushes, puts the focal plane at the back of the selected
+  object, and holds focus briefly through occlusion. The Bokeh depth prepass is
+  double-sided so foliage cards contribute depth instead of being treated as
+  sky. Near objects stay sharp while only the background softens; the pass turns
+  off when no target is found. The meadow camera now zooms from 3.2 m to 88 m.
+  Aperture/max-blur remain fixed look controls; revisit if a future shot system
+  needs authored focus.
+- **Continuous grass removed the stochastic distance LOD.** The old 82% removal
+  left visible holes; every tuft now survives to the smooth draw-distance fade.
+  The grass rows in `PERFORMANCE.md` predate this change, so re-profile the
+  default camera/quality before treating them as the current grass budget.
+  Draw distance and coverage remain the intended relief controls.
+- **Close meadow zoom uses the map-height orbit target.** At the new 3.2 m
+  minimum the camera can get close, but a ground-level bear portrait still needs
+  the buddy-focus target or a future explicit focus-mode decision; the generic
+  orbit target stays at the meadow's 1.7 m framing height.
+- **DOF focus is intentionally a centre fan.** Bears are searched across a small
+  centre window; villas, the Studio house, trees and bushes use the exact centre
+  ray. Off-centre architecture does not acquire focus until it reaches the
+  centre, which avoids focusing on incidental background scenery.
 - **Effect timing is not a final frame-rate claim.** The headless effect probe is
   noisy and GPU-async; Phase 6b must profile Off/Soft/Full at 6/20/40 bears and
   record the method before committing to defaults.
@@ -604,6 +621,8 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   Aero sheen, wandering dirt trails and a dirt hub, procedural hero trees with
   rounded leaf puffs, branched background trees, 120+ branched bushes, jelly
   flowers/fruit/honey hives, pebbles, bubbles and the Aero villa cluster.
+  The grass carpet keeps every tuft out to the smooth draw-distance fade rather
+  than stochastically deleting blades, so the lawn has no random bare holes.
   Flower blooms and fallen jelly fruit are edible claims with respawn timers;
   the Studio stays sandbox-only. Foreground trees are merged/instanced; backdrop tree trunks/branches and
   canopy-centre gradient foliage stay in a handful of batches. Leaf cards are

@@ -623,23 +623,16 @@ export function buildField({ scene, camera, renderer, sky }) {
         vec2 wp = vec2(wx, wz);
         float phase = fract(sin(dot(wp, vec2(12.9898, 78.233))) * 43758.5453) * 6.283;
 
-        // Camera-relative density LOD: the meadow carries a full dense carpet
-        // near the camera and thins stochastically with distance. Blades are
-        // world-stable; the stochastic field uses world position, not screen.
+        // Keep the carpet continuous at every distance. Stochastic blade
+        // removal leaves visible holes in the lawn, so distance is handled by
+        // the smooth far fade and instance scale instead.
         float camDist = distance(wp, cameraPosition.xz);
         float farFade = 1.0 - smoothstep(uGrassDrawDistance, uGrassDrawDistance + 12.0, camDist);
-        float keep = 1.0;
-        if (camDist > 24.0) {
-          float t = clamp((camDist - 24.0) / max(8.0, uGrassDrawDistance - 24.0), 0.0, 1.0);
-          float density = 1.0 - 0.82 * t * t;
-          float rnd = fract(sin(dot(wp, vec2(12.9898, 78.233))) * 43758.5453);
-          keep = step(rnd, density);
-        }
         float coverage = step(
           fract(sin(dot(wp + vec2(7.13, 3.31), vec2(41.93, 91.17))) * 43758.5453),
           uGrassCoverage
         );
-        float lod = keep * farFade * coverage;
+        float lod = farFade * coverage;
         if (lod < 0.02) {
           transformed = vec3(0.0);
         } else {
@@ -699,7 +692,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         normal = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));
       `);
   };
-  grassMat.customProgramCacheKey = () => 'meadowGrassV8';
+  grassMat.customProgramCacheKey = () => 'meadowGrassV9';
 
   const grassChunks = [];
   let grassEnabled = true;
@@ -754,8 +747,8 @@ export function buildField({ scene, camera, renderer, sky }) {
       for (const [ox, oz] of [[.24, 0], [-.24, 0], [0, .24], [0, -.24]]) {
         if (pathValueAt(x + ox, z + oz) > .30) return false;
       }
-      const patch = 0.92 + 0.07 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 2.1)
-                          + 0.04 * Math.cos(z * 0.23 - x * 0.07);
+      const patch = 0.985 + 0.010 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 2.1)
+                          + 0.005 * Math.cos(z * 0.23 - x * 0.07);
       if (gr() > patch) return false;
       if (solidAt(x, z, 0.055)) return false;
       const scale = (0.52 + gr() * 0.34) * (0.84 + gr() * 0.34);

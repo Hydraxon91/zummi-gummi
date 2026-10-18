@@ -2010,10 +2010,19 @@ const _camHome = new THREE.Vector3();
 const _lookTarget = new THREE.Vector3();
 const _dofRay = new THREE.Raycaster();
 const _dofNdc = new THREE.Vector2(0, 0);
+const _dofScale = new THREE.Vector3();
+// A small centre fan picks up a bear that sits just below the exact screen
+// centre, while the nearest-hit rule keeps a foreground object from being
+// mistaken for the tree/house behind it.
+const DOF_FOCUS_OFFSETS = [
+  [0, 0], [0, -.16], [0, .16], [-.16, 0], [.16, 0],
+  [-.12, -.12], [.12, -.12], [-.12, .12], [.12, .12],
+];
 let dofFocusClock = 0;
 let dofFocusDistance = 8;
 let dofFocusTarget = 8;
 let dofFocusHas = false;
+let dofFocusHold = 0;
 function cameraHome(){
   const map = getActiveMap();
   if (map.kind === 'life') {
@@ -2064,28 +2073,61 @@ function applyCamera(dt){
   camera.updateMatrixWorld(true);
 }
 
+function dofHitRadius(hit) {
+  const obj = hit.object;
+  const geo = obj && obj.geometry;
+  if (!geo) return .6;
+  if (!geo.boundingSphere) geo.computeBoundingSphere();
+  const bs = geo.boundingSphere;
+  if (!bs) return .6;
+  obj.getWorldScale(_dofScale);
+  const scale = Math.max(Math.abs(_dofScale.x), Math.abs(_dofScale.y), Math.abs(_dofScale.z));
+  return clamp(bs.radius * scale, .25, 3.0);
+}
+
 function updateDofFocus(dt) {
   if (!effects || !effectsDof) return;
   dofFocusClock -= dt;
   if (dofFocusClock <= 0) {
     dofFocusClock = .11;
-    _dofRay.setFromCamera(_dofNdc, camera);
-    const roots = [];
-    if (isMeadow() && field) {
-      if (field.aeroHomes && field.aeroHomes.group) roots.push(field.aeroHomes.group);
-      if (field.studioHouse && field.studioHouse.group) roots.push(field.studioHouse.group);
-      if (field.trees && field.trees.group) roots.push(field.trees.group);
-      if (field.bushes && field.bushes.group) roots.push(field.bushes.group);
-    }
+    const bearRoots = [];
     for (const b of bears) {
-      if (b.active && b.mesh && b.mesh.visible) roots.push(b.mesh);
+      if (b.active && b.mesh && b.mesh.visible) bearRoots.push(b.mesh);
     }
-    const hits = roots.length ? _dofRay.intersectObjects(roots, true) : [];
-    if (hits.length) {
-      dofFocusTarget = clamp(hits[0].distance, .6, 60);
+    const envRoots = [];
+    if (isMeadow() && field) {
+      if (field.aeroHomes && field.aeroHomes.group) envRoots.push(field.aeroHomes.group);
+      if (field.studioHouse && field.studioHouse.group) envRoots.push(field.studioHouse.group);
+      if (field.trees && field.trees.group) envRoots.push(field.trees.group);
+      if (field.bushes && field.bushes.group) envRoots.push(field.bushes.group);
+    }
+
+    let best = null;
+    if (bearRoots.length) {
+      for (const [x, y] of DOF_FOCUS_OFFSETS) {
+        _dofNdc.set(x, y);
+        _dofRay.setFromCamera(_dofNdc, camera);
+        const hits = _dofRay.intersectObjects(bearRoots, true);
+        if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
+      }
+    }
+    if (envRoots.length) {
+      _dofNdc.set(0, 0);
+      _dofRay.setFromCamera(_dofNdc, camera);
+      const hits = _dofRay.intersectObjects(envRoots, true);
+      if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
+    }
+
+    if (best) {
+      // Put the focal plane at the back of the viewed object, not on its front
+      // surface. The whole object stays sharp and the background starts to
+      // soften immediately behind it.
+      dofFocusTarget = clamp(best.distance + dofHitRadius(best), .8, 60);
+      dofFocusHold = .20;
       dofFocusHas = true;
     } else {
-      dofFocusHas = false;
+      dofFocusHold = Math.max(0, dofFocusHold - dt);
+      if (dofFocusHold <= 0) dofFocusHas = false;
     }
   }
   if (dofFocusHas) {
@@ -2192,7 +2234,8 @@ function updateCameraKeys(dt){
     markCamMoved();
   }
   if (dolly){
-    cam.dist = clamp(cam.dist * Math.exp(dolly * 1.4 * dt), 4.2, 18);
+    const [zmin, zmax] = camZoomLimits();
+    cam.dist = clamp(cam.dist * Math.exp(dolly * 1.4 * dt), zmin, zmax);
     markCamMoved();
   }
 }
@@ -2907,7 +2950,8 @@ function focusBuddy(b){
   if (!b || !b.active) return;
   cam.goal.set(b.cx, Math.min(1.15, Math.max(0.45, b.cy + 0.2)), b.cz);
   cam.target.copy(cam.goal);
-  cam.dist = clamp(cam.dist, 9, 16);
+  const [zmin, zmax] = camZoomLimits();
+  cam.dist = clamp(Math.min(cam.dist, 9), zmin, zmax);
   cam.moved = true;
   if (resetViewBtn) resetViewBtn.hidden = false;
   applyCamera(0);

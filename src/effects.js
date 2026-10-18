@@ -220,6 +220,9 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     'float factor = min( 0.0, focus + viewZ );'
   );
   bokehPass.materialBokeh.needsUpdate = true;
+  // The depth prepass must match the double-sided foliage cards; otherwise
+  // grass and leaf backs are missing their depth and get treated as sky.
+  bokehPass._materialDepth.side = THREE.DoubleSide;
   const gradePass = new ShaderPass(GradeShader);
   const smaaPass = new SMAAPass();
   const outputPass = new OutputPass();

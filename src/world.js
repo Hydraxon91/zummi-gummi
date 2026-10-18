@@ -35,7 +35,7 @@ export const FIELD = {
     yaw: 0.30,
     pitch: 0.07,
     dist: 27,
-    minDist: 8,
+    minDist: 3.2,
     maxDist: 88,
   },
   launcherHome() {
