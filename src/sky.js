@@ -504,6 +504,18 @@ export function createSky(scene, renderer) {
   let speed = 1;
   let lastApplied = -1;
   let mistOverride = null;
+  // Named time-of-day looks: a fixed hour plus a small overhang on the palette
+  // (cloud density, mist, exposure) so Dawn/Day/Dusk/Night read as complete
+  // looks rather than just four slider positions.
+  const LOOKS = {
+    dawn:  { hours: 6.35, mist: .55, cloudScale: 1.05, exposureScale: .98 },
+    day:   { hours: 12.0, mist: 0,   cloudScale: 1.00, exposureScale: 1.00 },
+    dusk:  { hours: 18.6, mist: .15, cloudScale: .95, exposureScale: 1.00 },
+    night: { hours: 22.0, mist: 0,   cloudScale: .75, exposureScale: .95 },
+  };
+  let lookName = null;
+  let cloudScale = 1;
+  let exposureScale = 1;
   const dayHash = (d) => {
     const n = Math.sin((d + 1) * 127.13 + 4.71) * 43758.5453;
     return n - Math.floor(n);
@@ -541,15 +553,35 @@ export function createSky(scene, renderer) {
       return Math.max(0, rise * fall) * 0.62;
     },
     get mistToday() { return mistToday; },
+    get look() { return lookName; },
     setMistOverride(v) { mistOverride = v === null || v === undefined ? null : THREE.MathUtils.clamp(Number(v) || 0, 0, 1); },
+    setLook(name) {
+      const look = LOOKS[name];
+      if (!look) return null;
+      api.setTime(look.hours);
+      lookName = name;
+      auto = false;
+      mistOverride = look.mist;
+      cloudScale = look.cloudScale;
+      exposureScale = look.exposureScale;
+      apply(true);
+      return lookName;
+    },
     setTime(h) {
+      lookName = null;
+      cloudScale = 1;
+      exposureScale = 1;
+      mistOverride = null;
       hours = ((Number(h) || 0) % 24 + 24) % 24;
       totalHours = Math.floor(totalHours / 24) * 24 + hours;
       const d = Math.floor(totalHours / 24);
       if (d !== dayIndex) { dayIndex = d; mistToday = dayHash(dayIndex) < 0.34; }
       apply(true);
     },
-    setAuto(v) { auto = !!v; },
+    setAuto(v) {
+      auto = !!v;
+      if (auto) { lookName = null; cloudScale = 1; exposureScale = 1; mistOverride = null; }
+    },
     setSpeed(v) { speed = Math.max(0.25, Math.min(4, Number(v) || 1)); },
     setCloudsVisible(v) { cloudsVisible = !!v; apply(true); },
     get cloudsVisible() { return cloudsVisible; },
@@ -632,8 +664,8 @@ export function createSky(scene, renderer) {
     const cloudCol = blendColor(tmpA, a.cloud, b.cloud, t);
     const cloudO = lerp(a.cloudO, b.cloudO, t);
     domeMat.uniforms.uCloudColor.value.copy(cloudCol);
-    domeMat.uniforms.uCloudAmount.value = cloudsVisible ? cloudO : 0;
-    expValue = lerp(a.exposure, b.exposure, t) * 0.84;
+    domeMat.uniforms.uCloudAmount.value = cloudsVisible ? cloudO * cloudScale : 0;
+    expValue = lerp(a.exposure, b.exposure, t) * 0.84 * exposureScale;
     if (renderer) renderer.toneMappingExposure = expValue;
     placeCelestial();
   }

@@ -102,13 +102,23 @@ rig and soft-body solver stay.
 | **4 ✅** | SEEK_COMPANY / invite handshake / mutual SOCIAL, food conflict, affection/bonds, **door-level home visits**, buddy statuses/emotes | The other bear visibly accepts and switches mode; same-food target causes a shoving conflict; friends can visit a villa doorway; MSN-style statuses update |
 | **5 ✅** | Growth stages + scale rebuilds, sexes, mating, pregnancy, births, **inherited hop-pace range**, population/food caps, baby following, **family homes/nursery** | Babies grow through teen to adult; opposite-sex satiated adults can mate; births respect cap/food; children inherit a blended pace range with a small mutation; babies stay with/return to a parent’s home; body/surface/eyes/scale stay in sync |
 | **6a core ✅ / effects follow-up ✅** | **Effects pass:** gentle color grade, restrained thresholded bloom, SMAA, high-tier GTAO contact AO, cloud-masked sky-dome glow, **real sun/moon directional shadow maps**, **depth-aware screen-space god rays** and an optional **Depth of field** toggle; per-bear sleep schedules and the pond recovery path are also in | Effects stay optional/tiered, preserve readable UI/transmission, occlude light shafts against canopies/objects, and keep a blob-shadow fallback below the shadow tier |
-| **6b** | Aero/MSN polish, **graphics profiles/settings sheet**, dawn/cloud/water tuning, day/night presets, performance/mobile, **home occupancy/window glow polish**, full test suite | Dawn/day/dusk/night look polished; profiles/settings persist and stay in sync with Meadow detail; field and 40 bears hit the performance target; mobile layouts; no-clipping/home tests pass; complete checklist |
-| **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the Phase 6b frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
+| **6b-1** | **Aero/MSN presentation polish:** HUD/status styling, name plates and emote legibility, gear-sheet visuals, home occupancy / window-glow polish | Dawn/day/dusk/night and UI/UI-hidden captures read as one Aero/MSN look; occupancy glow is legible at night; no layout or readability regressions on desktop or mobile |
+| **6b-2 (presets ✅, water tuning open)** | **Sky, cloud and water tuning + day/night presets:** named Dawn/Day/Dusk/Night looks (hour + mist + cloud density + exposure), cloud/mist and pond tuning | Presets load and persist; dawn/day/dusk/night look polished against the 6a effects tiers; pond/cloud/mist changes hold up in close-up and wide captures |
+| **6b-3** | **Performance & mobile pass:** re-profile Off/Soft/Full at 6/20/40 bears; grass/DPR/draw-call levers; mobile layout and touch checks; record method and before/after in `PERFORMANCE.md` | The 40-bear field meets the measured performance target with the same camera/population/quality/DPR conditions; mobile layouts pass; numbers, method and variability are recorded rather than assumed |
+| **6b-4** | **Release checklist:** self-test subset, smoke, map-switch, no-clipping/home checks, screenshot set, doc sync | Every listed check passes on the shipped build; the checklist is complete and its evidence named |
+| **7** (opt-in, after 6b) | **WebGPU renderer path:** backend abstraction, TSL material ports, GPU-driven grass/water, render bundles and timestamp queries; WebGL stays as the automatic fallback | WebGPU boots through the same self-test and visual beats with material parity; the 40-bear field meets or beats the 6b-3 frame budget at equal quality; fallback works when WebGPU or a suitable adapter is unavailable |
 | **8a** (after Phase 5) | **Persistence:** full-state save/load (bears, homes, food, clock, cannon, camera), named slots in IndexedDB plus JSON export/import, New Game, autosave, versioned save format | A save reloads both maps exactly; New Game restores the authored starter colony; 5 slots + autosave coexist, rename and delete; a corrupt/incompatible save fails visibly without killing the current game |
 | **8b** (after 8a) | **Bear directives (Sims-lite):** select a bear and issue a command the utility selector treats as a high-priority, time-limited proposal the bear may refuse, with a legible accept/refuse emote and a short queue | Commands visibly change behaviour; refusal is readable and explainable from needs/personality/health; needs and no-death rules hold; directives persist through save/load; no NaN/stuck/perf regressions |
 | **8c** (after 8b) | **Possession / third-person:** direct control of one bear with a follow camera and input-driven waddle; AI suspended for that bear only; grab/throw and a clean exit | Possessed movement is continuous (no jitter/NaN) and stays in the arena; exit returns the bear to AI in place with needs intact; the camera never clips ground or field walls; grabbing other bears still works |
-| **9** (after 8a) | **Village & placement editor:** player-authored meadow from the curated library on validated footprints — (9a) editor, (9b) village homes + naming + shared hub, (9c) light jobs and shops; every edit rebuilds nav and re-checks reachability | Zero overlaps and clear door approaches after any edit; no unreachable home or trapped bear in a placement stress test; a layout survives save/load; New Game returns the authored starter layout; a full village stays inside the Phase 6b frame budget |
+| **9** (after 8a) | **Village & placement editor:** player-authored meadow from the curated library on validated footprints — (9a) editor, (9b) village homes + naming + shared hub, (9c) light jobs and shops; every edit rebuilds nav and re-checks reachability | Zero overlaps and clear door approaches after any edit; no unreachable home or trapped bear in a placement stress test; a layout survives save/load; New Game returns the authored starter layout; a full village stays inside the 6b-3 frame budget |
 | **S — Studio modelling** (parallel, required; can run alongside 3–6) | Authored Studio interior/architecture: modular bar, lounge and giant Frutiger-Aero TV; Blender-to-glTF asset pipeline; evaluate Blender MCP as an authoring-time helper | Bar is interactable and navigable; TV lounge is visually complete; modular assets are exported to the repo with license/provenance, tested at bear scale, and integrated without a runtime MCP/Blender dependency |
+
+**Phase 6b order:** 6b-2 sky/water tuning → 6b-1 presentation → 6b-3 performance
+and mobile → 6b-4 release checklist, so the frame budget is measured against the
+settled look rather than a moving target. The graphics profiles/settings sheet
+that previously sat inside 6b already shipped (see Status); the remaining
+sub-phases do not rework it. References elsewhere in this file to the "Phase 6b
+budget / profile / stress" mean **6b-3**.
 
 ## Status
 
@@ -199,26 +209,33 @@ rig and soft-body solver stay.
   lawn/basin at the rectangular pond cutout. The post stack tone-maps sky/cloud
   materials that bypass ACES in the direct path, so the optional tiers have a
   slightly softer sky.
-- **Graphics profiles/settings slice complete (Phase 6b):** the gear sheet adds
+- **Graphics profiles/settings slice complete:** the gear sheet adds
   Auto, Performance, Balanced, Quality and Ultra presets over the existing
   quality tiers, plus adaptive quality, render scale, effects/DoF and meadow
   detail. Presets are live starting bundles; tweaking any control switches the
   label to Custom. Individual settings persist, and the Meadow-detail quick
   controls stay synchronized. Headless checks cover each preset, Custom,
   reset, reload persistence and desktop/mobile layouts.
-- **Next:** add voluntary pond play/swimming, then the remaining Phase 6b
-  effects/profile pass.
+- **Named time-of-day looks (6b-2 presets):** the time panel gained Dawn / Day /
+  Dusk / Night chips. Each applies a full look — fixed hour plus mist, cloud
+  density and exposure multipliers layered on the existing palette — turns Auto
+  off, persists in `localStorage` and restores on reload; dragging the slider or
+  re-enabling Auto returns to a custom clock. Debug hooks: `setSkyLook(name)` and
+  `fieldInfo().time.look` / `.mist`. Verified at all four looks plus a dusk pond
+  close-up (`verify_look_*`), with the stored look surviving a reload.
+- **Next:** add voluntary pond play/swimming, then the remaining 6b-2 water
+  tuning and 6b-1 presentation chunks (see the Phase 6b order note above).
 - **Studio modelling track queued (parallel, required):** author the Studio
   interior with an interactable bar and a living room anchored by a huge
   Frutiger-Aero TV (references 19–24). Evaluate Blender MCP as an authoring-time
   assistant only; see the dedicated track below.
 - **Queued after the simulation (Phases 8–9):** 8a persistence (IndexedDB slots +
   JSON export/import, New Game, autosave) starts once the Phase 5 life schema is
-  frozen, before the 6a/6b passes; 8b bear directives and 8c possession follow;
-  then 9a placement, 9b village homes/hub/naming and 9c jobs and shops. Phase 6b's
-  "full test suite" therefore also covers save/load, directives, possession and
-  placement/nav reachability.
-- **Later, opt-in:** Phase 6a is the effects pass (before Phase 6b optimization);
+  frozen, before the 6b passes; 8b bear directives and 8c possession follow;
+  then 9a placement, 9b village homes/hub/naming and 9c jobs and shops. The
+  6b-4 release checklist therefore also covers save/load, directives, possession
+  and placement/nav reachability.
+- **Later, opt-in:** Phase 6a is the effects pass (before the 6b-3 optimization);
   Phase 7 adds the WebGPU renderer path, with WebGL2 as the fallback.
 
 Each phase ends playable, with screenshots and headless checks, so the direction
@@ -339,7 +356,7 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   debug toggle) freezes vitals; that is intended for the Studio, but should be
   documented or separated from the debug pause.
 - **The occupied-villa marker is an entrance halo, not per-window emissive.**
-  This is the Phase 3b approximation; revisit with the Phase 6b occupancy/window
+  This is the Phase 3b approximation; revisit with the 6b-1 occupancy/window
   polish.
 
 **Known follow-ups after Phase 4** — recorded for later, not current blockers:
@@ -351,7 +368,7 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **Bonds are not shown in the roster yet.** The buddy list reflects the live
   social state, but the numeric pair bond is only in the AI debug readout and
   `__gummy.traits()`. Decide whether a friendship/heart indicator belongs in the
-  Phase 6b MSN polish.
+  Phase 6b-1 MSN polish.
 - **Removed bears leave stale bond keys.** `bonds` is keyed by a persistent uid;
   removing a bear does not prune other bears’ entries. Harmless in memory, but a
   save/cleanup pass should prune dead uids before Phase 8a persistence.
@@ -388,7 +405,7 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - **A rare 20-bear ground tunnel was observed once.** One stress run reported
   `minY -99.66` before the conflict-shove guard; shove impulses now skip airborne,
   pond and near-rim losers and are clamped. Two immediate reruns were normal
-  (only the expected pond basin dips). Re-check in the Phase 6b 40-bear stress and
+  (only the expected pond basin dips). Re-check in the 6b-3 40-bear stress and
   inspect solver seams/CCD if it returns.
 - **The life schema is now the Phase 8a freeze point.** Any further change to
   `age`, stages, pregnancy, parent uids or inheritance should add a save migration.
@@ -498,7 +515,7 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   expensive pieces and are opt-in/tiered.** Full AO is half-resolution with eight
   samples and Poisson denoise; the quality governor may fall back to Soft or Off.
   High tiers use 2048/1024 sun/moon maps; quality 3 falls back to blob shadows.
-  Phase 6b still owns the full 40-bear effect profile and final defaults.
+  6b-3 still owns the full 40-bear effect profile and final defaults.
 - **GTAO previously rendered the transparent sun/moon sprites into its normal
   buffer and produced a dark square around the sun in Full.** Fixed by hiding the
   sky group for the AO prepass only; the sky is already present in the composer
@@ -549,11 +566,11 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   ray. Off-centre architecture does not acquire focus until it reaches the
   centre, which avoids focusing on incidental background scenery.
 - **Effect timing is not a final frame-rate claim.** The headless effect probe is
-  noisy and GPU-async; Phase 6b must profile Off/Soft/Full at 6/20/40 bears and
+  noisy and GPU-async; 6b-3 must profile Off/Soft/Full at 6/20/40 bears and
   record the method before committing to defaults.
 - **The graphics-profile spot check is only a six-bear, headless probe.** Preset
   values are deliberately conservative starting points, not a 40-bear budget;
-  revisit the bundles after the Phase 6b full profile and on mobile hardware.
+  revisit the bundles after the 6b-3 full profile and on mobile hardware.
 
 ## Health, hives, mating
 
@@ -665,7 +682,7 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   fallback, canopy-occluded shafts, DOF toggle and no page errors are checked
   headlessly. The direct path explicitly clears the render target before Off
   rendering; without it a headless capture could keep the previous composed
-  frame. Effect timing is not yet a final frame profile; Phase 6b owns the full
+  frame. Effect timing is not yet a final frame profile; 6b-3 owns the full
   40-bear measurement.
 
 ## Homes & no-clipping
@@ -1032,7 +1049,7 @@ through the same exclusion map and footprint + clearance rules in
 **Acceptance:** zero overlaps and clear doors after any edit sequence; no
 unreachable home or trapped bear in a randomized placement stress test; a village
 layout round-trips through save/load; New Game returns the authored starter
-layout; frame time after a fully built village stays inside the Phase 6b budget
+layout; frame time after a fully built village stays inside the 6b-3 budget
 (measure, don't assume).
 
 **Still deferred:** freeform/room-by-room building (walls, floors, roofs) and

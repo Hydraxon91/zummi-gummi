@@ -93,7 +93,7 @@ as a historical comparison only.
 ## Earlier Phase 2 reference (pre-polish)
 
 These measurements were supplied for the earlier Phase 2 build and are retained
-for comparison; the current sign-off data above should be used for Phase 6b
+for comparison; the current sign-off data above should be used for 6b-3
 planning.
 
 | State | Frame time | Draw calls | Triangles |
@@ -170,7 +170,7 @@ A single forced `renderProbe` pass at quality 0 measured roughly **6.1 ms Off /
 10.0 ms Soft / 45.2 ms Full** for the six-bear view; Full includes GTAO and the
 real shadow map, and the headless command-timing probe is GPU-asynchronous and
 noisy, so this is not a frame-rate claim. The quality-3 tier intentionally
-falls back to no composer/no shadow maps. Phase 6b must profile Off/Soft/Full at
+falls back to no composer/no shadow maps. 6b-3 must profile Off/Soft/Full at
 6/20/40 bears before fixing defaults.
 
 ### Graphics-profile spot check

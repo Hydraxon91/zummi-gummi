@@ -565,6 +565,8 @@
   .natureRow select{appearance:none;flex:1;min-width:0;border:1px solid rgba(53,145,161,.22);border-radius:7px;background:rgba(255,255,255,.58);color:#2b7782;font:600 8px var(--sans);padding:4px 6px;cursor:pointer}
   .natureRow b{width:28px;text-align:right;font-size:8px;font-weight:600;color:#2b7782;font-variant-numeric:tabular-nums}
   .timeTicks{display:flex;justify-content:space-between;font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:#638b92;position:relative;z-index:1}
+  .lookRow{display:flex;gap:4px;margin-top:8px;position:relative;z-index:1}
+  .lookRow .aeroChip{margin-left:0;flex:1;text-align:center;padding:4px 0}
   .aeroMin{appearance:none;border:1px solid rgba(61,146,160,.22);background:rgba(255,255,255,.4);color:#4b8b97;width:20px;height:20px;border-radius:50%;line-height:14px;font-size:13px;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.9);margin-left:3px}
   .aeroMin:hover{background:rgba(255,255,255,.8)}
   #aeroHud.min .buddyList,#aeroHud.min .aeroFoot,#aeroHud.min .timePanel,#aeroHud.min .naturePanel{display:none}
@@ -675,6 +677,12 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
     </div>
     <input id="timeSlider" type="range" min="0" max="24" step="0.05" value="7" aria-label="Time of day">
     <div class="timeTicks"><span>midnight</span><span>dawn</span><span>noon</span><span>dusk</span></div>
+    <div class="lookRow" id="skyLooks" role="group" aria-label="Time-of-day look">
+      <button class="aeroChip" data-look="dawn" aria-pressed="false">Dawn</button>
+      <button class="aeroChip" data-look="day" aria-pressed="false">Day</button>
+      <button class="aeroChip" data-look="dusk" aria-pressed="false">Dusk</button>
+      <button class="aeroChip" data-look="night" aria-pressed="false">Night</button>
+    </div>
     <div class="windRow"><span>Wind</span><input id="windStrength" type="range" min="0" max="1.8" step="0.05" value="1" aria-label="Wind strength"><span id="windValue">1.0</span></div>
   </div>
   <details class="aeroPanel naturePanel">
@@ -778,6 +786,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>U</dt><dd>Hide or show the interface.</dd>
             <dt>P</dt><dd>Performance overlay; it stays visible when the rest of the UI is hidden.</dd>
             <dt>Settings</dt><dd>The gear opens graphics profiles, resolution, effects, depth of field, toon shading and meadow detail. Profiles are starting points; tweaking a control switches to Custom.</dd>
+            <dt>Time looks</dt><dd>Dawn / Day / Dusk / Night in the time panel apply a full look (hour, mist, cloud density and exposure) and turn Auto off. They persist across reloads; the slider or Auto returns to a custom clock.</dd>
             <dt>Toon shading</dt><dd>Swaps compatible ordinary materials to <b>MeshToonMaterial</b> for a banded cel look. Custom water, sky and particle shaders keep their own programs.</dd>
             <dt>Effects</dt><dd>Off, Soft or Full meadow post-processing. Soft adds bloom and a gentle grade; Full also adds ambient occlusion, depth-aware god rays and, on high tiers, directional sun/moon shadows. Depth of field focuses on the object under the view centre and softens only the background. Studio stays crisp.</dd>
             <dt>G</dt><dd>Bear AI debug (meadow only).</dd>

@@ -2745,6 +2745,9 @@ const buddyListEl = document.getElementById('buddyList');
 const timeSliderEl = document.getElementById('timeSlider');
 const timeAutoEl = document.getElementById('timeAuto');
 const timeSpeedEl = document.getElementById('timeSpeed');
+const skyLooksEl = document.getElementById('skyLooks');
+const skyLookButtons = skyLooksEl ? Array.from(skyLooksEl.querySelectorAll('[data-look]')) : [];
+const SKY_LOOK_KEY = 'gummy.skyLook';
 const windStrengthEl = document.getElementById('windStrength');
 const windValueEl = document.getElementById('windValue');
 const canopyFullnessEl = document.getElementById('canopyFullness');
@@ -2999,6 +3002,11 @@ function syncAeroUI(force){
     timeAutoEl.classList.toggle('on', sky.auto);
     timeAutoEl.setAttribute('aria-pressed', String(sky.auto));
   }
+  for (const btn of skyLookButtons){
+    const on = sky.look === btn.dataset.look;
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  }
   if (timeSpeedEl){
     timeSpeedEl.textContent = `${sky.speed}×`;
   }
@@ -3029,13 +3037,26 @@ if (timeSliderEl) timeSliderEl.addEventListener('input', ()=>{
   sky.setAuto(false);
   sky.setTime(+timeSliderEl.value);
   if (worlds.field){ worlds.field.time = sky.hours; worlds.field.auto = false; }
+  try { localStorage.removeItem(SKY_LOOK_KEY); } catch (err) {}
   syncAeroUI(true);
 });
+for (const btn of skyLookButtons){
+  btn.addEventListener('click', ()=>{
+    if (!sky) return;
+    const name = sky.setLook(btn.dataset.look);
+    if (!name) return;
+    if (worlds.field){ worlds.field.time = sky.hours; worlds.field.auto = false; }
+    try { localStorage.setItem(SKY_LOOK_KEY, name); } catch (err) {}
+    try { persistWorld('field'); } catch (err) {}
+    syncAeroUI(true);
+  });
+}
 if (timeAutoEl) timeAutoEl.addEventListener('click', ()=>{
   if (!sky) return;
   sky.setAuto(!sky.auto);
   worlds.field.auto = sky.auto;
   worlds.field.time = sky.hours;
+  try { if (sky.auto) localStorage.removeItem(SKY_LOOK_KEY); } catch (err) {}
   syncAeroUI(true);
   try { persistWorld('field'); } catch (err) {}
 });
@@ -4232,6 +4253,14 @@ function applyMapVisuals(id){
       sky.setTime(worlds.field.time ?? 7.0);
       sky.setAuto(worlds.field.auto !== false);
       sky.setSpeed(worlds.field.speed || 1);
+      // A saved named look wins over the stored clock time: it owns the look
+      // (mist, cloud density, exposure) as well as the hour.
+      let savedLook = null;
+      try { savedLook = localStorage.getItem(SKY_LOOK_KEY); } catch (err) {}
+      if (savedLook && sky.setLook(savedLook)){
+        worlds.field.time = sky.hours;
+        worlds.field.auto = false;
+      }
       renderer.toneMappingExposure = sky.exposure;
     }
     document.body.dataset.map = 'field';
@@ -4666,7 +4695,7 @@ window.__gummy = {
       grass: field.grassControls,
       mist: field.mist,
       camera: { fov:camera.fov, far:camera.far },
-      time: sky ? { hours:sky.hours, auto:sky.auto, speed:sky.speed, night:sky.night } : null,
+      time: sky ? { hours:sky.hours, auto:sky.auto, speed:sky.speed, night:sky.night, look:sky.look, mist:sky.mist } : null,
     };
   },
   setWind(v){
@@ -4700,7 +4729,17 @@ window.__gummy = {
       cam: { x:+camera.position.x.toFixed(2), y:+camera.position.y.toFixed(2), z:+camera.position.z.toFixed(2) },
     };
   },
-  setTime(h){ if (!sky) return null; sky.setAuto(false); sky.setTime(+h); if (worlds.field){ worlds.field.time=sky.hours; worlds.field.auto=false; } syncAeroUI(true); return sky.hours; },
+  setTime(h){ if (!sky) return null; sky.setAuto(false); sky.setTime(+h); if (worlds.field){ worlds.field.time=sky.hours; worlds.field.auto=false; } try { localStorage.removeItem(SKY_LOOK_KEY); } catch (err) {} syncAeroUI(true); return sky.hours; },
+  setSkyLook(name){
+    if (!sky) return null;
+    const n = sky.setLook(name);
+    if (n){
+      if (worlds.field){ worlds.field.time = sky.hours; worlds.field.auto = false; }
+      try { localStorage.setItem(SKY_LOOK_KEY, n); } catch (err) {}
+      syncAeroUI(true);
+    }
+    return n;
+  },
   sun(){ return sky ? { dir: sky.sunDir, visible: sky.sunVisible, hours: sky.hours } : null; },
   shadows(){ return {
     renderer: renderer.shadowMap.enabled,
