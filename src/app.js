@@ -2017,15 +2017,25 @@ const _dofScale = new THREE.Vector3();
 const DOF_FOCUS_OFFSETS = [
   [0, 0], [0, -.16], [0, .16], [-.16, 0], [.16, 0],
   [-.12, -.12], [.12, -.12], [-.12, .12], [.12, .12],
+  [0, -.26], [-.12, -.26], [.12, -.26],
 ];
-// Do not turn a fully zoomed-out overview into a blurry close-up. The effect
-// is for a nearby subject, not for a distant bear or tree at the centre.
-const DOF_MAX_FOCUS = 34;
+// DOF is a close-subject portrait effect. It is full strength within 5 m,
+// fades to zero at 10 m, and is completely off for the default/far orbit.
+const DOF_FOCUS_FULL = 5;
+const DOF_FOCUS_OFF = 10;
 let dofFocusClock = 0;
 let dofFocusDistance = 8;
 let dofFocusTarget = 8;
+let dofFocusAmount = 0;
 let dofFocusHas = false;
 let dofFocusHold = 0;
+let dofLastHit = 0;
+
+function dofFocusStrengthFor(distance) {
+  if (distance <= DOF_FOCUS_FULL) return 1;
+  if (distance >= DOF_FOCUS_OFF) return 0;
+  return 1 - (distance - DOF_FOCUS_FULL) / (DOF_FOCUS_OFF - DOF_FOCUS_FULL);
+}
 function cameraHome(){
   const map = getActiveMap();
   if (map.kind === 'life') {
@@ -2121,23 +2131,26 @@ function updateDofFocus(dt) {
       if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
     }
 
-    if (best && best.distance <= DOF_MAX_FOCUS) {
+    dofLastHit = best ? best.distance : 0;
+    if (best && best.distance < DOF_FOCUS_OFF) {
       // Put the focal plane at the back of the viewed object, not on its front
       // surface. The whole object stays sharp and the background starts to
       // soften immediately behind it.
       dofFocusTarget = clamp(best.distance + dofHitRadius(best), .8, 60);
+      dofFocusAmount = dofFocusStrengthFor(best.distance);
       dofFocusHold = .20;
       dofFocusHas = true;
     } else {
+      dofFocusAmount = Math.max(0, dofFocusAmount - dt * 4);
       dofFocusHold = Math.max(0, dofFocusHold - dt);
       if (dofFocusHold <= 0) dofFocusHas = false;
     }
   }
   if (dofFocusHas) {
     dofFocusDistance += (dofFocusTarget - dofFocusDistance) * Math.min(1, dt * 8);
-    effects.setFocus(dofFocusDistance, true);
+    effects.setFocus(dofFocusDistance, true, dofFocusAmount);
   } else {
-    effects.setFocus(dofFocusDistance, false);
+    effects.setFocus(dofFocusDistance, false, 0);
   }
 }
 
@@ -4760,6 +4773,7 @@ window.__gummy = {
     return effects ? effects.state() : null;
   },
   effectsState(){ return effects ? effects.state() : null; },
+  dofInfo(){ return { hit:dofLastHit, active:dofFocusHas, distance:dofFocusDistance, amount:dofFocusAmount }; },
   setEffectsDof(on){
     setDofFromUI(!!on);
     return effects ? effects.state() : null;

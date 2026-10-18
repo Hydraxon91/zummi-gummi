@@ -434,10 +434,11 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   object, and holds focus briefly through occlusion. The Bokeh depth prepass is
   double-sided so foliage cards contribute depth instead of being treated as
   sky. Near objects stay sharp while only the background softens; the pass turns
-  off when no target is found or the target is farther than 34 m, so a fully
-  zoomed-out overview stays fully sharp. The meadow camera now zooms from 3.2 m
-  to 88 m. Aperture/max-blur remain fixed look controls; revisit if a future shot
-  system needs authored focus.
+  off when no target is found. The effect is full strength inside 5 m, fades
+  linearly to zero at 10 m, and therefore stays completely sharp at the default
+  and fully zoomed-out orbits. The meadow camera now zooms from 3.2 m to 88 m.
+  Aperture/max-blur remain fixed look controls; revisit if a future shot system
+  needs authored focus.
 - **Continuous grass removed the stochastic distance LOD.** The old 82% removal
   left visible holes; every tuft now survives to the smooth draw-distance fade.
   The grass rows in `PERFORMANCE.md` predate this change, so re-profile the
@@ -630,7 +631,10 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   the Studio stays sandbox-only. Foreground trees are merged/instanced; backdrop tree trunks/branches and
   canopy-centre gradient foliage stay in a handful of batches. Leaf cards are
   alpha-tested (not transparent glass), and the baked blob shadows stay.
-  Authored trail masks clear grass from every dirt footprint and shoulder.
+  Authored trail masks clear grass from every dirt footprint and shoulder. The
+  mask texture is uploaded unflipped so CPU scatter, grass shading and the
+  painted soil all sample the same world Z; earlier mirrored sampling produced
+  bare-green corridors beside the visible roads.
 - **Distant horizon:** a clustered Frutiger-Aero skyline of rounded glass towers
   and flat-topped blocks plus three three-blade wind turbines. These are outside
   the playable bounds and never enter Box3D or nav.
@@ -654,12 +658,21 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   no per-firefly physics or raycasts.
 - **Pond:** organic **1.62 m** basin, planar reflection of sky/hills/trees at
   reduced resolution, fresnel and explicit sun/moon glints, plus an anime-lite
-  layer of downwind-drifting Voronoi cells with derivative-aware anti-aliasing,
-  a thin broken shoreline crest, downwind edge wavelets and a procedural dark
-  wet-sand band following the water outline. Splashes emit staggered,
-  wind-stretched ripples, droplets and a light paddling wake; buoyancy and
-  recovery handle flung bears. Sixteen validated shore approaches let thirsty
-  bears drink, with a snout dip and ripple.
+  layer of Voronoi cells translated by a smoothed wind-flow offset, with
+  derivative-aware anti-aliasing, a narrow sandy shallows blend at the inner
+  shoreline, and a near-shore contrast fade, plus irregular
+  windward foam tongues on the actual wobbled outline and a separate wet-bank
+  wash ribbon that lets broken foam creep onto the sand. The same angular field
+  feeds a short-lived wetness mask: newly washed sand darkens, then dries back
+  over 4–8 seconds as the foam retreats. A loose grass fringe outside the bank
+  softens the lawn transition. Downwind edge wavelets and a procedural dark
+  wet-sand band follow the water outline. Surface
+  splash rings are masked by
+  the same wobbled water outline, so they disappear at the shoreline instead of
+  drawing over the sand; airborne droplets still travel naturally. Splashes
+  emit staggered, wind-stretched ripples, a light paddling wake and droplets;
+  buoyancy and recovery handle flung bears. Sixteen validated shore approaches
+  let thirsty bears drink, with a snout dip and ripple.
 - **Arena:** a segmented oriented Box3D ring follows the wobbled field disc;
   the Studio keeps its rectangular table walls. Ground underneath and the
   launch-speed cap keep shots contained.

@@ -223,7 +223,7 @@ function outlineShape(rx, rz, seed = 1, wobble = 0.075) {
   shape.moveTo(pts[0].x, pts[0].y);
   for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i].x, pts[i].y);
   shape.closePath();
-  return { shape, pts };
+  return { shape, pts, phases, wobble };
 }
 
 function localMatrix({ x=0,y=0,z=0, rx=0,ry=0,rz=0, sx=1,sy=1,sz=1 }) {
@@ -347,7 +347,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   });
   const flowerCenterMat = new THREE.MeshStandardMaterial({ color: 0xfff2a3, emissive: 0xffd35c, emissiveIntensity: 0.25, roughness: 0.4 });
   const stemMat = new THREE.MeshLambertMaterial({ color: 0x4f9a41 });
-  const sandMat = new THREE.MeshPhysicalMaterial({ color: 0xd8c4a0, roughness: 0.82, clearcoat: 0.16 });
+  const sandMat = new THREE.MeshPhysicalMaterial({ color: 0xc4a77e, roughness: 0.82, clearcoat: 0.16 });
   const pebbleMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.4, clearcoat: 0.5 });
   const padMat = new THREE.MeshPhysicalMaterial({ color: 0x66b85b, roughness: 0.25, clearcoat: 0.7 });
 
@@ -429,6 +429,10 @@ export function buildField({ scene, camera, renderer, sky }) {
   pathMaskTex.minFilter = THREE.LinearFilter;
   pathMaskTex.magFilter = THREE.LinearFilter;
   pathMaskTex.wrapS = pathMaskTex.wrapT = THREE.ClampToEdgeWrapping;
+  // Canvas Y grows downward; the CPU pathValueAt sampler reads the same rows.
+  // Upload without the default vertical flip so shader dirt and placement
+  // exclusions stay on the authored trails instead of mirroring across Z.
+  pathMaskTex.flipY = false;
   const pathMaskUniform = { value: pathMaskTex };
   const pathExtentUniform = { value: pathMaskExtent };
 
@@ -674,8 +678,8 @@ export function buildField({ scene, camera, renderer, sky }) {
         vec2 pathBase = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
         float pathRaw = texture2D(uPathMask, (pathBase + uPathExtent * .5) / uPathExtent).r;
         vPathDirt = smoothstep(.16, .55, pathRaw);
-        if (vPathDirt > .40) {
-          transformed = vec3(0.0); // no blades on the dirt footprint
+        if (vPathDirt > .72) {
+          transformed = vec3(0.0); // no blades on the painted dirt footprint
         } else {
           transformed.y *= 1.0 - vPathDirt * .98;
         }
@@ -692,7 +696,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         normal = normalize(mat3(viewMatrix) * vec3(0.0, 1.0, 0.0));
       `);
   };
-  grassMat.customProgramCacheKey = () => 'meadowGrassV11';
+  grassMat.customProgramCacheKey = () => 'meadowGrassV12';
 
   const grassChunks = [];
   let grassEnabled = true;
@@ -740,12 +744,12 @@ export function buildField({ scene, camera, renderer, sky }) {
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (!outer && !fieldInside(x, z, 0.9)) return false;
       if (outer && r > R) return false;
-      // Keep only the visibly painted dirt clear. The old .04 cutoff removed
-      // the soft shoulder as well, leaving a broad grassless band where the
-      // lawn shader had not yet started painting soil.
-      if (pathValueAt(x, z) > .18) return false;
+      // Clear grass only where the lawn has clearly painted soil. Earlier
+      // shoulder cutoffs removed blades while the ground was still green,
+      // leaving narrow bare-green lines beside the trails.
+      if (pathValueAt(x, z) > .40) return false;
       for (const [ox, oz] of [[.24, 0], [-.24, 0], [0, .24], [0, -.24]]) {
-        if (pathValueAt(x + ox, z + oz) > .30) return false;
+        if (pathValueAt(x + ox, z + oz) > .55) return false;
       }
       const patch = 0.985 + 0.010 * Math.sin(x * 0.19 + Math.sin(z * 0.13) * 2.1)
                           + 0.005 * Math.cos(z * 0.23 - x * 0.07);
@@ -786,8 +790,11 @@ export function buildField({ scene, camera, renderer, sky }) {
       const rr = (c.r || 0.35) + pad;
       if ((x - c.x) ** 2 + (z - c.z) ** 2 < rr * rr) return true;
     }
-    const px = (x - POND.x) / (POND.rx + pad * 0.6);
-    const pz = (z - POND.z) / (POND.rz + pad * 0.6);
+    // Keep scatter off the full sand bank, not just the water ellipse. The
+    // bank reaches 1.15x the water shape; vegetation starting there reads as
+    // grass growing out of the sand.
+    const px = (x - POND.x) / (POND.rx * 1.17 + pad * 0.6);
+    const pz = (z - POND.z) / (POND.rz * 1.17 + pad * 0.6);
     return px * px + pz * pz < 1;
   }
 
@@ -992,7 +999,8 @@ export function buildField({ scene, camera, renderer, sky }) {
   pondGroup.position.set(POND.x, 0, POND.z);
   group.add(pondGroup);
 
-  const { shape: waterShape, pts: outlinePts } = outlineShape(POND.rx * 0.98, POND.rz * 0.98, 33, 0.06);
+  const { shape: waterShape, pts: outlinePts, phases: shorePhases, wobble: shoreWobble } =
+    outlineShape(POND.rx * 0.98, POND.rz * 0.98, 33, 0.06);
   // bank ring: outer outline with the water outline as a hole
   {
     const outer = outlineShape(POND.rx * 1.15, POND.rz * 1.15, 33, 0.06);
@@ -1012,14 +1020,14 @@ export function buildField({ scene, camera, renderer, sky }) {
     // A thin procedural wet band follows the same wobbled water outline as
     // the bank instead of relying on a texture or a separate water plane.
     {
-      const wet = new THREE.Color(0x8a674c);
-      const damp = new THREE.Color(0xa58563);
-      const dry = new THREE.Color(0xd8c4a0);
+      const wet = new THREE.Color(0x7f6047);
+      const damp = new THREE.Color(0x9d7e5d);
+      const dry = new THREE.Color(0xc4a77e);
       const rings = [
         { scale: 1.000, color: wet },
-        { scale: 1.015, color: new THREE.Color(0x927053) },
+        { scale: 1.015, color: new THREE.Color(0x8a674c) },
         { scale: 1.035, color: damp },
-        { scale: 1.060, color: new THREE.Color(0xbfa17e) },
+        { scale: 1.060, color: new THREE.Color(0xb39571) },
         { scale: 1.085, color: dry },
       ];
       const n = outlinePts.length;
@@ -1058,10 +1066,99 @@ export function buildField({ scene, camera, renderer, sky }) {
       wetBand.position.y = 0.021;
       pondGroup.add(wetBand);
     }
-    const edgePts = outlinePts.map(p => new THREE.Vector3(p.x, 0.026, -p.y));
-    const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edgePts),
-      new THREE.LineBasicMaterial({ color: 0x577f75, transparent: true, opacity: 0.32 }));
-    pondGroup.add(edge);
+    // A soft outer blend hides the hard sand-to-lawn cut. It shares the bank
+    // colour and fades into a stable noisy edge instead of ending on a clean
+    // vector arc.
+    {
+      const blendInner = 1.14, blendOuter = 1.30;
+      const n = outlinePts.length;
+      const positions = [], uvs = [], indices = [];
+      for (let i = 0; i <= n; i++) {
+        const p = outlinePts[i % n];
+        const u = i / n;
+        for (const [r, v] of [[blendInner, 0], [blendOuter, 1]]) {
+          positions.push(p.x * r, 0.0205, -p.y * r);
+          uvs.push(u, v);
+        }
+      }
+      for (let i = 0; i < n; i++) {
+        const a = i * 2, b = a + 1, c = (i + 1) * 2, d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+
+      // Match the bank's lit physical material. An unlit transparent shader
+      // here produced a pale strip because it bypassed lighting/tone mapping.
+      const mat = sandMat.clone();
+      mat.transparent = true;
+      mat.depthWrite = false;
+      mat.side = THREE.DoubleSide;
+      mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = `varying float vBlendEdge;\nvarying vec3 vBlendWorld;\n` + shader.vertexShader;
+        shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+          vBlendEdge = uv.y;
+          vBlendWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        `);
+        shader.fragmentShader = `varying float vBlendEdge;\nvarying vec3 vBlendWorld;
+          float blendHash(vec2 p){
+            p = fract(p * vec2(123.34, 456.21));
+            p += dot(p, p + 45.32);
+            return fract(p.x * p.y);
+          }
+          float blendNoise(vec2 p){
+            vec2 i = floor(p), f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(blendHash(i), blendHash(i + vec2(1,0)), f.x),
+                       mix(blendHash(i + vec2(0,1)), blendHash(i + vec2(1,1)), f.x), f.y);
+          }
+        ` + shader.fragmentShader;
+        shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+          float blendN = blendNoise(vBlendWorld.xz * 2.15) * .68
+                       + blendNoise(vBlendWorld.xz * 5.40) * .32;
+          float blendCut = .43 + (blendN - .5) * .22;
+          diffuseColor.a *= 1.0 - smoothstep(blendCut, .98, vBlendEdge);
+        `);
+      };
+      mat.customProgramCacheKey = () => 'meadowPondBlendV2';
+      const blend = new THREE.Mesh(geo, mat);
+      blend.name = 'meadowPondBlend';
+      blend.renderOrder = 2;
+      pondGroup.add(blend);
+    }
+
+    // The wet band and foam ribbon define the shore; a separate 1px line here
+    // read as a dotted clipping seam through the foam.
+  }
+
+  // A loose fringe just outside the sand hides the hard bank/lawn cut and
+  // blends the shore into the meadow. Roots stay beyond the 1.17x exclusion.
+  {
+    const fringe = [];
+    const fr = rng(771);
+    for (let i = 0; i < 220; i++) {
+      const a = fr() * Math.PI * 2;
+      const rr = 1.18 + fr() * .23;
+      const x = Math.cos(a) * POND.rx * rr;
+      const z = Math.sin(a) * POND.rz * rr;
+      if (pathValueAt(x, z) > .35) continue;
+      const s = .30 + fr() * .38;
+      fringe.push({
+        m: localMatrix({
+          x, y: 0, z,
+          ry: fr() * Math.PI * 2,
+          rx: (fr() - .5) * .12,
+          rz: (fr() - .5) * .12,
+          sx: s, sy: s * (0.72 + fr() * .28), sz: s,
+        }),
+      });
+    }
+    if (fringe.length) {
+      const mesh = instanced(grassGeo, grassMat, fringe, false, group);
+      mesh.name = 'meadowBankFringe';
+    }
   }
 
   function handShapeFromPoints(shape, pts) {
@@ -1077,24 +1174,37 @@ export function buildField({ scene, camera, renderer, sky }) {
 
   // water reflector
   const waterGeo = new THREE.ShapeGeometry(waterShape, 32);
+  const waterFlow = new THREE.Vector2();
+  const waterFlowVel = new THREE.Vector2();
+  let waterWavePhase = 0;
+  let shoreWetness = null;
+  let shoreWetnessData = null;
+  let shoreWetnessTex = null;
+  let shoreWetnessDry = null;
+  let shoreWetnessClock = 0;
   const waterUniforms = {
     color: { value: new THREE.Color(0x4e7c78) },
     tDiffuse: { value: null },
     textureMatrix: { value: new THREE.Matrix4() },
     uTime: { value: 0 },
+    uWavePhase: { value: 0 },
     uSunDir: { value: new THREE.Vector3(-0.7, 0.3, -0.4) },
     uMoonDir: { value: new THREE.Vector3(0.7, 0.4, 0.4) },
     uSunColor: { value: new THREE.Color(0xffd49c) },
     uMoonColor: { value: new THREE.Color(0xc9dcff) },
     uDeep: { value: new THREE.Color(0x133d4a) },
     uShallow: { value: new THREE.Color(0x3fa9a2) },
+    uShoreSand: { value: new THREE.Color(0x8f6f4f) },
     uAnime: { value: .68 },
     uCellScale: { value: 1.2 },
     uPondCenter: { value: new THREE.Vector2(POND.x, POND.z) },
     uPondRadii: { value: new THREE.Vector2(POND.rx * .98, POND.rz * .98) },
+    uShorePhases: { value: new THREE.Vector3(shorePhases[0], shorePhases[1], shorePhases[2]) },
+    uShoreWobble: { value: shoreWobble },
     uWindDir: wind.uniforms.uWindDir,
     uWindStrength: wind.uniforms.uWindStrength,
     uWindGust: wind.uniforms.uWindGust,
+    uFlow: { value: waterFlow },
     uRippleCenters: { value: Array.from({ length: 8 }, () => new THREE.Vector2(POND.x, POND.z)) },
     uRippleT: { value: [0, 0, 0, 0, 0, 0, 0, 0] },
     uRippleCount: { value: 0 },
@@ -1118,13 +1228,17 @@ export function buildField({ scene, camera, renderer, sky }) {
     fragmentShader: `
       uniform sampler2D tDiffuse;
       uniform float uTime;
+      uniform float uWavePhase;
       uniform float uAnime;
       uniform float uCellScale;
-      uniform vec3 uSunDir, uMoonDir, uSunColor, uMoonColor, uDeep, uShallow, color;
+      uniform vec3 uSunDir, uMoonDir, uSunColor, uMoonColor, uDeep, uShallow, uShoreSand, color;
       uniform vec2 uPondCenter, uPondRadii;
+      uniform vec3 uShorePhases;
+      uniform float uShoreWobble;
       uniform vec2 uWindDir;
       uniform float uWindStrength;
       uniform float uWindGust;
+      uniform vec2 uFlow;
       uniform vec2 uRippleCenters[8];
       uniform float uRippleT[8];
       uniform int uRippleCount;
@@ -1169,21 +1283,32 @@ export function buildField({ scene, camera, renderer, sky }) {
         vec2 rel = p - uPondCenter;
         float along = dot(rel, wd);
         float across = dot(rel, side);
-        float windSpeed = .45 + uWindStrength * .95 + uWindGust * .25;
-        float phase = along * 1.15 - uTime * windSpeed;
+        float phase = along * 1.15 - uWavePhase;
         float crossPhase = across * 1.9 + sin(along * .6 + uTime * .17) * .55;
         float r1 = sin(phase) * cos(crossPhase) * .80
                  + sin(phase * .53 + crossPhase * .7 + uTime * .13) * .20;
         float r2 = sin(phase * .82 + crossPhase * .55 - uTime * .11) * .65
-                 + sin(crossPhase * 1.4 - uTime * (windSpeed * .7)) * .35;
+                 + sin(crossPhase * 1.4 - uWavePhase * .7) * .35;
         float waveAmp = .055 + uWindStrength * .035;
         vec3 N = normalize(vec3(
           (wd.x * r1 + side.x * r2 * .5) * waveAmp,
           1.0,
           (wd.y * r1 + side.y * r2 * .5) * waveAmp
         ));
-        float edgeMask = smoothstep(.80, .985, er) * (1.0 - smoothstep(1.0, 1.045, er));
-        float edgeWave = sin(along * 4.4 - uTime * (1.1 + uWindStrength * 1.7)
+        // The bank and wet rim use the same three-phase wobble as the mesh.
+        // Evaluate that outline here instead of the old ideal ellipse.
+        float shoreK = 1.0
+          + uShoreWobble * sin(ang * 3.0 + uShorePhases.x)
+          + uShoreWobble * .55 * sin(ang * 5.0 + uShorePhases.y)
+          + uShoreWobble * .30 * cos(ang * 7.0 + uShorePhases.z);
+        float edge = er / shoreK;
+        vec2 shoreNormal = normalize(vec2(
+          cos(ang) / uPondRadii.x,
+          sin(ang) / uPondRadii.y
+        ) + vec2(0.00001));
+        float windward = smoothstep(-.10, .60, dot(shoreNormal, wd));
+        float edgeMask = smoothstep(.80, .985, edge) * (1.0 - smoothstep(1.0, 1.045, edge));
+        float edgeWave = sin(along * 4.4 - uWavePhase * 1.15
                              + sin(ang * 4.3 + uTime * .12) * .7);
         float edgeAmp = edgeMask * (.035 + uWindStrength * .045);
         N.x += wd.x * edgeWave * edgeAmp;
@@ -1201,19 +1326,26 @@ export function buildField({ scene, camera, renderer, sky }) {
         // bright noon sky.
         vec3 col = mix(base, refl, clamp(0.28 + fres * 0.42, 0.0, 0.72));
         col = mix(col, mix(uDeep, uShallow, .70), .26);
+        // A narrow sandy shallows band softens the opaque water cutout. This is
+        // colour-only inside the existing water mesh, so transparency and
+        // sorting do not change.
+        float shallows = smoothstep(.86, 1.0, edge);
+        col = mix(col, mix(uShoreSand, uShallow, .15), shallows * .90);
 
-        // Anime/Aero cell lines. They drift slowly downwind, but stay
-        // low-contrast and anti-aliased so they do not shimmer behind
-        // foreground silhouettes.
-        // Pattern coordinates must move *against* the sampled offset so the
-        // visible cells travel downwind with the wave phase above.
-        vec2 cellUv = p * uCellScale - wd * (uTime * (.010 + uWindStrength * .008));
+        // Anime/Aero cell lines. The cell field stays world-anchored and is
+        // translated by a smoothed flow offset, so a wind change redirects the
+        // drift without rotating or jumping the existing pattern.
+        vec2 cellUv = p * uCellScale - uFlow;
         float f1 = wf1(cellUv);
         float sf1 = wsf1(cellUv);
         float cellEdge = f1 - sf1;
         float cellAA = max(fwidth(cellEdge), .0005);
         float cell = smoothstep(.048, .088 + cellAA, cellEdge);
         cell *= 1.0 - smoothstep(.035, .09, cellAA);
+        // Let the fine webbing dissolve into the shallow-water/wet edge rather
+        // than terminating abruptly against the sand.
+        float shoreSoft = 1.0 - smoothstep(.90, .99, edge);
+        cell *= shoreSoft;
         col = mix(col, vec3(.54,.94,.94), cell * uAnime * .27);
 
         // Shore foam: a thin, broken crest rather than a continuous halo.
@@ -1225,15 +1357,21 @@ export function buildField({ scene, camera, renderer, sky }) {
         float edgeN = sin(ang * 11.0 + along * .25 + uTime * .22) * .003
                     + sin(ang * 23.0 - along * .18 - uTime * .13) * .0015
                     + edgeWave * .0022 * (.4 + uWindStrength * .6);
-        float edge = er + edgeN;
-        float foam = smoothstep(.968, .986, edge) * (1.0 - smoothstep(.996, 1.004, edge));
-        col = mix(col, vec3(.84,.99,.96), foam * shorePatch * uAnime * .38);
+        float edgeBand = edge + edgeN;
+        // Randomly varying inner threshold makes broken tongues of foam creep
+        // toward the downwind bank instead of drawing one smooth ellipse.
+        float foamTongue = .5 + .5 * sin(ang * 19.0 + sin(ang * 7.0 + uTime * .31) * 1.8);
+        float foamStart = .944 + .020 * foamTongue;
+        float foam = smoothstep(foamStart, .986, edgeBand)
+                   * (1.0 - smoothstep(.998, 1.006, edgeBand));
+        foam *= windward * shorePatch;
+        col = mix(col, vec3(.84,.99,.96), foam * uAnime * .38);
         float shoreCrest = pow(max(0.0, sin(along * 5.4
-          - uTime * (1.3 + uWindStrength * 2.0) + sin(ang * 3.5) * .9)), 3.0);
+          - uWavePhase * 1.25 + sin(ang * 3.5) * .9)), 3.0);
         col += vec3(.045,.105,.095) * max(0.0, edgeWave) * edgeMask
-             * (.35 + uWindStrength * .65) * uAnime;
+             * windward * (.35 + uWindStrength * .65) * uAnime;
         col += vec3(.055,.125,.110) * shoreCrest * edgeMask
-             * (.30 + uWindStrength * .70) * uAnime;
+             * windward * (.30 + uWindStrength * .70) * uAnime;
 
         // Splash rings: impact events are wind-stretched and drift downwind.
         float rip = 0.0;
@@ -1286,7 +1424,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   // The Reflector clones uniforms. Point all *custom* uniforms at the live
   // objects so the sky/water animation updates the material that actually renders.
   const ru = reflector.material.uniforms;
-  for (const k of ['uTime','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uAnime','uCellScale','uPondCenter','uPondRadii','uWindDir','uWindStrength','uWindGust','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
+  for (const k of ['uTime','uWavePhase','uSunDir','uMoonDir','uSunColor','uMoonColor','uDeep','uShallow','uShoreSand','uAnime','uCellScale','uPondCenter','uPondRadii','uShorePhases','uShoreWobble','uWindDir','uWindStrength','uWindGust','uFlow','uRippleCenters','uRippleT','uRippleCount']) ru[k] = waterUniforms[k];
   const reflectionCam = reflector.getReflectionCamera(camera);
   reflectionCam.layers.set(REFLECT_LAYER);
   reflectionCam.far = 400;
@@ -1297,6 +1435,143 @@ export function buildField({ scene, camera, renderer, sky }) {
     if (++reflectTick % reflectEvery !== 0) return;
     originalOnBefore.apply(this, args);
   };
+
+  // Wind-driven wash over the wet bank. The ribbon starts just inside the
+  // water so its foam meets the surface shader, then reaches onto the sand.
+  // A second ribbon carries persistent, foam-fed wetness that dries after the
+  // foam retreats.
+  {
+    const washN = outlinePts.length;
+    const makeRibbon = (inner, outer, y) => {
+      const positions = [], uvs = [], indices = [];
+      for (let i = 0; i <= washN; i++) {
+        const p = outlinePts[i % washN];
+        const u = i / washN;
+        for (const [r, v] of [[inner, 0], [outer, 1]]) {
+          positions.push(p.x * r, y, -p.y * r);
+          uvs.push(u, v);
+        }
+      }
+      for (let i = 0; i < washN; i++) {
+        const a = i * 2, b = a + 1;
+        const c = (i + 1) * 2, d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      return geo;
+    };
+
+    const wetRes = 256;
+    shoreWetness = new Float32Array(wetRes);
+    shoreWetnessData = new Uint8Array(wetRes * 4);
+    const wetDry = new Float32Array(wetRes);
+    for (let i = 0; i < wetRes; i++) {
+      const h = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+      wetDry[i] = 4 + 4 * h;
+      shoreWetnessData[i * 4 + 3] = 255;
+    }
+    shoreWetnessDry = wetDry;
+    shoreWetnessTex = new THREE.DataTexture(shoreWetnessData, wetRes, 1, THREE.RGBAFormat);
+    shoreWetnessTex.colorSpace = THREE.NoColorSpace;
+    shoreWetnessTex.minFilter = THREE.LinearFilter;
+    shoreWetnessTex.magFilter = THREE.LinearFilter;
+    shoreWetnessTex.wrapS = THREE.RepeatWrapping;
+    shoreWetnessTex.wrapT = THREE.ClampToEdgeWrapping;
+    shoreWetnessTex.flipY = false;
+    shoreWetnessTex.needsUpdate = true;
+
+    const washMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uCenter: waterUniforms.uPondCenter,
+        uRadii: waterUniforms.uPondRadii,
+        uWindDir: waterUniforms.uWindDir,
+        uWindStrength: waterUniforms.uWindStrength,
+        uWindGust: waterUniforms.uWindGust,
+        uWavePhase: waterUniforms.uWavePhase,
+        uTime: waterUniforms.uTime,
+      },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorld;
+        void main(){
+          vUv = uv;
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorld = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform vec2 uCenter, uRadii, uWindDir;
+        uniform float uWindStrength, uWindGust, uWavePhase, uTime;
+        varying vec2 vUv;
+        varying vec3 vWorld;
+        void main(){
+          vec2 rel = vWorld.xz - uCenter;
+          vec2 n = normalize(vec2(rel.x / uRadii.x, rel.y / uRadii.y) + vec2(0.00001));
+          vec2 wd = normalize(uWindDir + vec2(0.00001));
+          float windward = smoothstep(-.10, .58, dot(n, wd));
+          float wind = smoothstep(.04, .75, uWindStrength);
+          float phase = vUv.x * 6.2831853;
+          float p1 = .5 + .5 * sin(phase * 7.0 + uWavePhase * .70
+                    + sin(phase * 3.0 + uTime * .25) * 1.7);
+          float p2 = .5 + .5 * sin(phase * 13.0 - uWavePhase * .45 + 2.1);
+          float p3 = .5 + .5 * sin(phase * 29.0 + uWavePhase * .9 + 1.3);
+          float foamPatch = smoothstep(.38, .82, p1 * .50 + p2 * .30 + p3 * .20);
+          float reach = .28 + .46 * foamPatch + .14 * wind;
+          float inner = smoothstep(.00, .26, vUv.y);
+          float outer = 1.0 - smoothstep(reach - .07, reach, vUv.y);
+          float gust = .72 + .28 * clamp(uWindGust, 0.0, 1.0);
+          float foam = inner * outer * foamPatch * windward * wind * gust;
+          if (foam < .008) discard;
+          gl_FragColor = vec4(.90, 1.0, 1.0, clamp(foam * 2.0, 0.0, .95));
+          #include <colorspace_fragment>
+        }
+      `,
+    });
+
+    const wetMat = new THREE.ShaderMaterial({
+      uniforms: { uWet: { value: shoreWetnessTex } },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+      vertexShader: `
+        varying vec2 vUv;
+        void main(){
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uWet;
+        varying vec2 vUv;
+        void main(){
+          float wet = texture2D(uWet, vec2(vUv.x, .5)).r;
+          float band = smoothstep(.02, .14, vUv.y) * (1.0 - smoothstep(.72, .98, vUv.y));
+          float a = wet * band * .58;
+          if (a < .004) discard;
+          gl_FragColor = vec4(.20, .11, .055, a);
+          #include <colorspace_fragment>
+        }
+      `,
+    });
+
+    const shoreWash = new THREE.Mesh(makeRibbon(.94, 1.14, 0.029), washMat);
+    shoreWash.name = 'meadowShoreWash';
+    shoreWash.renderOrder = 4;
+    pondGroup.add(shoreWash);
+    const shoreWet = new THREE.Mesh(makeRibbon(1.0, 1.14, 0.0245), wetMat);
+    shoreWet.name = 'meadowShoreWet';
+    shoreWet.renderOrder = 3;
+    pondGroup.add(shoreWet);
+  }
 
   // lily pads, reeds, shore pebbles
   {
@@ -1326,7 +1601,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     const reeds = [];
     for (let i = 0; i < 60; i++) {
       const a = pr() * 6.283;
-      const rr = 1.03 + pr() * 0.16;
+      const rr = .93 + pr() * .05;
       const x = Math.cos(a) * POND.rx * rr, z = Math.sin(a) * POND.rz * rr;
       reeds.push({ m: localMatrix({ x, y: 0.01, z, ry: pr()*6.283, rz: (pr()-0.5)*0.2, sx: 0.8+pr()*0.5, sy: 0.7+pr()*0.8, sz: 0.8+pr()*0.5 }), c: new THREE.Color().setHSL(0.19, 0.35, 0.36 + pr()*0.18) });
     }
@@ -1343,11 +1618,84 @@ export function buildField({ scene, camera, renderer, sky }) {
     instanced(pebGeo, pebbleMat, pebbles, false, pondGroup);
   }
 
+  // The surface rings must disappear at the real wobbled shoreline, not the
+  // sand bank or the rectangular pond cutout. Build one small point-in-polygon
+  // mask from the same outline used by the water mesh and sample it in the ring
+  // shader.
+  const pondMaskExtent = Math.max(POND.rx, POND.rz) * 1.14;
+  const pondMaskRes = 256;
+  const pondMaskData = new Uint8Array(pondMaskRes * pondMaskRes * 4);
+  const pondMaskInside = (px, py) => {
+    let inside = false;
+    for (let i = 0, j = outlinePts.length - 1; i < outlinePts.length; j = i++) {
+      const a = outlinePts[i], b = outlinePts[j];
+      if (((a.y > py) !== (b.y > py)) &&
+          (px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x)) inside = !inside;
+    }
+    return inside;
+  };
+  for (let iy = 0; iy < pondMaskRes; iy++) {
+    const localZ = -pondMaskExtent + ((iy + .5) / pondMaskRes) * pondMaskExtent * 2;
+    const shapeY = -localZ;
+    for (let ix = 0; ix < pondMaskRes; ix++) {
+      const localX = -pondMaskExtent + ((ix + .5) / pondMaskRes) * pondMaskExtent * 2;
+      const o = (iy * pondMaskRes + ix) * 4;
+      const on = pondMaskInside(localX, shapeY) ? 255 : 0;
+      pondMaskData[o] = on;
+      pondMaskData[o + 1] = on;
+      pondMaskData[o + 2] = on;
+      pondMaskData[o + 3] = 255;
+    }
+  }
+  const pondMaskTex = new THREE.DataTexture(pondMaskData, pondMaskRes, pondMaskRes, THREE.RGBAFormat);
+  pondMaskTex.colorSpace = THREE.NoColorSpace;
+  pondMaskTex.minFilter = THREE.LinearFilter;
+  pondMaskTex.magFilter = THREE.LinearFilter;
+  pondMaskTex.wrapS = pondMaskTex.wrapT = THREE.ClampToEdgeWrapping;
+  pondMaskTex.needsUpdate = true;
+  const pondMaskCenter = { value: new THREE.Vector2(POND.x, POND.z) };
+  const pondMaskExtentUniform = { value: pondMaskExtent };
+  const splashRingMaterial = () => new THREE.ShaderMaterial({
+    uniforms: {
+      uMask: { value: pondMaskTex },
+      uCenter: pondMaskCenter,
+      uExtent: pondMaskExtentUniform,
+      uOpacity: { value: 0 },
+    },
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+    vertexShader: `
+      uniform vec2 uCenter;
+      uniform float uExtent;
+      varying vec2 vMaskUv;
+      void main(){
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vMaskUv = vec2(
+          (wp.x - uCenter.x + uExtent) / (2.0 * uExtent),
+          (wp.z - uCenter.y + uExtent) / (2.0 * uExtent)
+        );
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uMask;
+      uniform float uOpacity;
+      varying vec2 vMaskUv;
+      void main(){
+        if (uOpacity <= 0.0 || texture2D(uMask, vMaskUv).r < 0.5) discard;
+        gl_FragColor = vec4(0.88, 0.98, 1.0, uOpacity);
+        #include <colorspace_fragment>
+      }
+    `,
+  });
+
   // splash rings
   for (let i = 0; i < 10; i++) {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.18, 0.26, 36),
-      new THREE.MeshBasicMaterial({ color: 0xdff7ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false })
+      splashRingMaterial()
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = POND.waterY + 0.012;
@@ -1951,6 +2299,42 @@ export function buildField({ scene, camera, renderer, sky }) {
     dropMesh.instanceMatrix.needsUpdate = true;
   }
 
+  function updateShoreWetness(dt) {
+    if (!shoreWetness || !shoreWetnessData || !shoreWetnessTex) return;
+    shoreWetnessClock += dt;
+    if (shoreWetnessClock < .10) return;
+    const step = shoreWetnessClock;
+    shoreWetnessClock = 0;
+    const smooth = (a, b, x) => {
+      const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+      return t * t * (3 - 2 * t);
+    };
+    const wd = wind.direction;
+    const windAmt = smooth(.04, .75, wind.strength);
+    const gustAmt = .72 + .28 * Math.min(1, Math.max(0, wind.gust));
+    const phaseTime = waterUniforms.uTime.value;
+    const wave = waterWavePhase;
+    const count = shoreWetness.length;
+    for (let i = 0; i < count; i++) {
+      const u = i / count;
+      const a = u * Math.PI * 2;
+      const nx = Math.cos(a) / (POND.rx * .98);
+      const nz = Math.sin(a) / (POND.rz * .98);
+      const nl = Math.hypot(nx, nz) || 1;
+      const windward = smooth(-.10, .58, (nx * wd.x + nz * wd.z) / nl);
+      const phase = u * Math.PI * 2;
+      const p1 = .5 + .5 * Math.sin(phase * 7 + wave * .70 + Math.sin(phase * 3 + phaseTime * .25) * 1.7);
+      const p2 = .5 + .5 * Math.sin(phase * 13 - wave * .45 + 2.1);
+      const p3 = .5 + .5 * Math.sin(phase * 29 + wave * .9 + 1.3);
+      const target = smooth(.38, .82, p1 * .50 + p2 * .30 + p3 * .20)
+        * windward * windAmt * gustAmt;
+      const next = Math.max(shoreWetness[i], target);
+      shoreWetness[i] = Math.max(0, next - step / shoreWetnessDry[i]);
+      shoreWetnessData[i * 4] = Math.round(shoreWetness[i] * 255);
+    }
+    shoreWetnessTex.needsUpdate = true;
+  }
+
   function splash(x, z, strength = 1) {
     const s = THREE.MathUtils.clamp(Number(strength) || 0, .08, 1.5);
     const pulses = s > .72 ? 3 : s > .28 ? 2 : 1;
@@ -1962,7 +2346,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       ring.strength = s * (1 - k * .16);
       ring.mesh.position.set(x, POND.waterY + .012, z);
       ring.mesh.scale.setScalar(.4 + ring.strength * .2);
-      ring.mesh.material.opacity = .62 * ring.strength;
+      ring.mesh.material.uniforms.uOpacity.value = .62 * ring.strength;
       ring.mesh.visible = false;
     }
     emitDroplets(x, z, s);
@@ -2077,10 +2461,21 @@ export function buildField({ scene, camera, renderer, sky }) {
       waterUniforms.uSunDir.value.copy(sky.sunDir);
       waterUniforms.uMoonDir.value.copy(sky.moonDir);
       waterUniforms.uTime.value += dt;
+      const wd = wind.direction;
+      const waveSpeed = .25 + wind.strength * 1.05 + wind.gust * .28;
+      waterWavePhase += dt * waveSpeed;
+      waterUniforms.uWavePhase.value = waterWavePhase;
+      const flowSpeed = wind.strength * (.095 + wind.gust * .045);
+      const flowK = 1 - Math.exp(-1.8 * dt);
+      waterFlowVel.x += (wd.x * flowSpeed - waterFlowVel.x) * flowK;
+      waterFlowVel.y += (wd.z * flowSpeed - waterFlowVel.y) * flowK;
+      waterFlow.x += waterFlowVel.x * dt;
+      waterFlow.y += waterFlowVel.y * dt;
       const night = sky.night ?? 0;
       glassMat.emissiveIntensity = 0.38 + night*2.1;
         if (night !== lastNight) lastNight = night;
     }
+    updateShoreWetness(dt);
     const ripCenters = waterUniforms.uRippleCenters.value;
     const ripT = waterUniforms.uRippleT.value;
     let ripCount = 0;
@@ -2093,7 +2488,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       const grow = .4 + p * 3.8;
       r.mesh.visible = true;
       r.mesh.scale.set(grow, grow * .88, 1);
-      r.mesh.material.opacity = (1 - p) * .68 * (r.strength || 1);
+      r.mesh.material.uniforms.uOpacity.value = (1 - p) * .68 * (r.strength || 1);
       if (ripCount < 8) {
         ripCenters[ripCount].set(r.mesh.position.x, r.mesh.position.z);
         ripT[ripCount] = age;
