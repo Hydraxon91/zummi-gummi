@@ -1014,6 +1014,56 @@ export function buildField({ scene, camera, renderer, sky }) {
     bank.rotation.x = -Math.PI / 2;
     bank.position.y = 0.020;
     pondGroup.add(bank);
+
+    // A thin procedural wet band follows the same wobbled water outline as
+    // the bank instead of relying on a texture or a separate water plane.
+    {
+      const wet = new THREE.Color(0x8a674c);
+      const damp = new THREE.Color(0xa58563);
+      const dry = new THREE.Color(0xd8c4a0);
+      const rings = [
+        { scale: 1.000, color: wet },
+        { scale: 1.015, color: new THREE.Color(0x927053) },
+        { scale: 1.035, color: damp },
+        { scale: 1.060, color: new THREE.Color(0xbfa17e) },
+        { scale: 1.085, color: dry },
+      ];
+      const n = outlinePts.length;
+      const positions = [], colors = [], indices = [];
+      for (const ring of rings) {
+        for (let i = 0; i < n; i++) {
+          const p = outlinePts[i];
+          const wobble = ring.scale === 1 ? 1
+            : 1 + Math.sin(i * 2.3 + .7) * .012 + Math.sin(i * 5.1 - 1.1) * .007;
+          positions.push(p.x * ring.scale * wobble, p.y * ring.scale * wobble, 0);
+          colors.push(ring.color.r, ring.color.g, ring.color.b);
+        }
+      }
+      for (let i = 0; i < n; i++) {
+        const ni = (i + 1) % n;
+        for (let r = 0; r < rings.length - 1; r++) {
+          const a = r * n + i;
+          const b = r * n + ni;
+          const c = (r + 1) * n + i;
+          const d = (r + 1) * n + ni;
+          indices.push(a, c, d, a, d, b);
+        }
+      }
+      const wetGeo = new THREE.BufferGeometry();
+      wetGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      wetGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      wetGeo.setIndex(indices);
+      wetGeo.computeVertexNormals();
+      const wetMat = sandMat.clone();
+      wetMat.vertexColors = true;
+      wetMat.color.set(0xffffff);
+      const wetBand = new THREE.Mesh(wetGeo, wetMat);
+      wetBand.name = 'meadowPondWetBand';
+      wetBand.receiveShadow = true;
+      wetBand.rotation.x = -Math.PI / 2;
+      wetBand.position.y = 0.021;
+      pondGroup.add(wetBand);
+    }
     const edgePts = outlinePts.map(p => new THREE.Vector3(p.x, 0.026, -p.y));
     const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edgePts),
       new THREE.LineBasicMaterial({ color: 0x577f75, transparent: true, opacity: 0.32 }));
@@ -1089,7 +1139,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         float h = max(k - abs(a - b), 0.0) / k;
         return min(a, b) - h * h * h * k / 6.0;
       }
-      vec2 wcell(vec2 seed){ return .5 + .5 * sin(uTime * .14 + 6.2831 * seed); }
+      vec2 wcell(vec2 seed){ return .5 + .5 * sin(6.2831 * seed); }
       float wf1(vec2 p){
         vec2 i = floor(p), f = fract(p);
         float md = 8.0;
@@ -1118,7 +1168,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         float fres = pow(1.0 - max(dot(N, V), 0.0), 2.4);
         vec4 uv = vUv;
         // subtle mirror ripple (projected coordinates)
-        uv.xy += vec2(r1, r2) * 0.0032 * uv.w;
+        uv.xy += vec2(r1, r2) * 0.0018 * uv.w;
         vec3 refl = texture2DProj(tDiffuse, uv).rgb;
         vec3 base = mix(uDeep, uShallow, 0.45 + 0.35 * r2);
         // Keep more of the pond's own ink/teal colour than the raw mirror. The
@@ -1127,11 +1177,11 @@ export function buildField({ scene, camera, renderer, sky }) {
         vec3 col = mix(base, refl, clamp(0.28 + fres * 0.42, 0.0, 0.72));
         col = mix(col, mix(uDeep, uShallow, .70), .26);
 
-        // Anime/Aero cell lines. World-locked, slow and low-contrast so the pond
-        // still reads as water rather than a tiled swimming pool. Fade the
-        // high-frequency cells as their screen-space footprint grows so they
-        // do not shimmer behind foreground silhouettes.
-        vec2 cellUv = p * uCellScale + vec2(uTime * .010, -uTime * .006);
+        // Anime/Aero cell lines. The cells are world-locked and intentionally
+        // static; the water still moves through reflection, foam and glints.
+        // Keeping the high-frequency pattern still avoids shimmer behind
+        // foreground silhouettes. Fade cells as their screen footprint grows.
+        vec2 cellUv = p * uCellScale;
         float f1 = wf1(cellUv);
         float sf1 = wsf1(cellUv);
         float cellEdge = f1 - sf1;
@@ -1175,7 +1225,7 @@ export function buildField({ scene, camera, renderer, sky }) {
         float moonSpec = pow(max(dot(Rm, V), 0.0), 380.0) * 1.8;
         col += uSunColor * sunSpec;
         col += uMoonColor * moonSpec;
-        float sparkle = pow(max(0.0, sin(p.x*4.2 + uTime*1.8) * sin(p.y*3.4 - uTime*1.4)), 12.0) * 0.045;
+        float sparkle = pow(max(0.0, sin(p.x*4.2 + uTime*1.1) * sin(p.y*3.4 - uTime*.9)), 12.0) * 0.032;
         col += vec3(sparkle);
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>

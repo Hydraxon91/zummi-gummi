@@ -419,10 +419,11 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   four-slab cutout with an ellipse-approximating collider set would remove the
   teleport corner case entirely.
 - **Bears against animated water can still shimmer at their silhouette.** The
-  water cells are now slower, anti-aliased and lower-contrast, and the shoreline
-  crest is thin and broken, but the transmissive jelly still samples the moving
-  water. Re-check in a slow-motion 6/20/40-bear pass; if it persists, compare
-  transmission resolution/dispersion and consider fading cells at distance.
+  high-frequency cells are now static and anti-aliased, the shoreline crest is
+  thin and broken, and a wet-sand band grounds the edge. Reflection, foam,
+  glints and splash rings still move. Re-check in a slow-motion 6/20/40-bear
+  pass; if it persists, compare transmission resolution/dispersion and consider
+  fading the remaining reflection ripple behind foreground silhouettes.
 - **DOF is a fixed look, not an autofocus system.** Focus follows the orbit
   distance; aperture/max-blur are constants. Expose them only if a future shot
   system needs authored focus.
@@ -615,11 +616,12 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   on only at night. Predetermined paths avoid clumping and keep the update cheap;
   no per-firefly physics or raycasts.
 - **Pond:** organic basin, planar reflection of sky/hills/trees at reduced
-  resolution, fresnel, explicit sun/moon glints, plus an anime-lite layer of
-  world-space Voronoi cells with derivative-aware anti-aliasing, a thin broken
-  shoreline crest and splash-driven ripple rings. Sixteen validated shore
-  approaches let thirsty bears drink, with a snout dip and ripple;
-  splash/buoyancy still handles flung bears.
+  resolution, fresnel and explicit sun/moon glints, plus an anime-lite layer of
+  world-locked Voronoi cells with derivative-aware anti-aliasing, a thin broken
+  shoreline crest, splash-driven ripple rings and a procedural dark wet-sand
+  band following the water outline. Sixteen validated shore approaches let
+  thirsty bears drink, with a snout dip and ripple; splash/buoyancy still handles
+  flung bears.
 - **Arena:** a segmented oriented Box3D ring follows the wobbled field disc;
   the Studio keeps its rectangular table walls. Ground underneath and the
   launch-speed cap keep shots contained.
