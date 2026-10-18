@@ -432,12 +432,18 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   at `y = baseR`; the chest sphere and nav solid stay at 0.396 m, so walking and
   nav are unchanged. Re-test: the same drag now stops the head 1.18 m from the
   old trunk axis and 0.77 m from the slim trunk, with no visual penetration.
-- **Rapid bear spawning can merge bears into one stuck blob — user-reported,
-  not started:** `spawn()` and the launcher's `fire()` do not check clearance at
-  the spawn point or throttle repeated spawns, so several bears spawned at one
-  spot overlap and stick. Proposed failsafe: minimum spacing with a nearby
-  free-spot search, a short spawn cooldown, and/or a small separation impulse on
-  overlap.
+- **Rapid bear spawning can merge bears into one stuck blob — fixed:** the drop
+  buttons and pour now pick the emptiest of 14 candidates inside a capped central
+  patch (about 2.0 x 1.6 m; the meadow's table is the whole field, so the spread
+  is clamped) instead of a fixed small box. The cannon gained a 260 ms cooldown
+  and a `canSpawnAt` clearance check against houses, trees, bushes, rocks and
+  other bears, with a single forward nudge before a shot is refused. Measured:
+  12 rapid drops settle with a 0.62 m closest pair, six cannon shots 0.53 m,
+  eight same-tick `fire()` calls spawn one bear, and a shot aimed at a tree from
+  1 m away returns false.
+- **Emote sprites — fixed:** the 5 px white stroke at .92 alpha read as a
+  see-through border around the heart. The stroke is gone; the glyph is a solid
+  colour.
 - **White pond-adjacent grass clumps — fixed:** `meadowBankFringe` used the
   grass material without instance colours and placed pond-local coordinates in
   the world group. The main-grass-only audit missed this separate batch. It now

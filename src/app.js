@@ -3265,15 +3265,62 @@ addEventListener('resize', ()=>{ if (perfOnFlag) placePerf(); });
 let bouncePulse = 0;
 function pulseBounce(){ bouncePulse = 1; }
 
+// The cannon must not spawn a bear inside a house, tree, bush, rock or another
+// bear; blocked shots are skipped rather than left stuck in the obstacle.
+function launcherSpotClear(x, z, r){
+  if (isMeadow() && field && field.colliders){
+    for (const c of field.colliders){
+      if (Math.hypot(x - c.x, z - c.z) < c.r + r) return false;
+    }
+  }
+  for (const b of bears){
+    if (!b.active) continue;
+    if (Math.hypot(x - b.cx, z - b.cz) < 0.62 + r * .5) return false;
+  }
+  return true;
+}
+
 /* ------------------------------ spawning ---------------------------------- */
+// Distance from (x,z) to the nearest active bear; used to scatter rapid drops.
+function bearClearanceAt(x, z) {
+  let best = Infinity;
+  for (const b of bears){
+    if (!b.active) continue;
+    const d = Math.hypot(x - b.cx, z - b.cz);
+    if (d < best) best = d;
+  }
+  return best;
+}
+// Pick a random spot in the central table area, preferring the emptiest of a
+// handful of candidates. Rapid drops then spread out instead of stacking into
+// one blob at the same coordinates.
+function freeDropSpot(){
+  // The meadow's TABLE is the whole field, so cap the spread: drops stay in a
+  // readable central patch instead of scattering across the map.
+  const rx = clamp(TABLE.hx * 0.52, 1.0, 2.0);
+  const rz = clamp(TABLE.hz * 0.48, 0.8, 1.6);
+  let best = { x: (Math.random() - .5) * 1.6, z: (Math.random() - .5) * 1.1 };
+  let bestD = bearClearanceAt(best.x, best.z);
+  for (let i = 0; i < 14; i++){
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random());
+    const x = Math.cos(a) * rx * r;
+    const z = Math.sin(a) * rz * r;
+    const d = bearClearanceAt(x, z);
+    if (d > bestD){ bestD = d; best = { x, z }; }
+    if (bestD > .95) break;
+  }
+  return best;
+}
 function dropFromAbove(flavor){
-  const fx = (Math.random()-0.5)*1.6, fz = (Math.random()-0.5)*1.1;
-  spawn(fx, fz, 2.6, flavor, {tilt:0.22});
+  const spot = freeDropSpot();
+  spawn(spot.x, spot.z, 2.6, flavor, {tilt:0.22});
 }
 function dropCustom(){
   const key = customKey();
   const f = customFlavor();
-  const b = spawn((Math.random()-0.5)*1.6, (Math.random()-0.5)*1.1, 2.6, DEFAULT_FLAVOR, {tilt:0.22});
+  const spot = freeDropSpot();
+  const b = spawn(spot.x, spot.z, 2.6, DEFAULT_FLAVOR, {tilt:0.22});
   if (b){
     b.flavor = -1;
     b.material = customMaterial(key);
@@ -3285,7 +3332,7 @@ function dropCustom(){
 const dropQueue = [];
 function pourBears(){
   for (let i=0;i<5;i++){
-    dropQueue.push({ t: i*0.13, f: Math.floor(Math.random()*FLAVORS.length), x:(Math.random()-0.5)*1.5, z:(Math.random()-0.5)*1.1, y:3.3+Math.random()*0.5 });
+    dropQueue.push({ t: i*0.13, f: Math.floor(Math.random()*FLAVORS.length), y:3.3+Math.random()*0.5 });
   }
 }
 
@@ -3427,7 +3474,11 @@ function frameTick(dt){
   for (let i=dropQueue.length-1;i>=0;i--){
     const d = dropQueue[i];
     d.t -= dt;
-    if (d.t <= 0){ spawn(d.x, d.z, d.y, d.f, {tilt:0.3}); dropQueue.splice(i,1); }
+    if (d.t <= 0){
+      const spot = freeDropSpot();
+      spawn(spot.x, spot.z, d.y, d.f, {tilt:0.3});
+      dropQueue.splice(i,1);
+    }
   }
   // idle hops + anticipation. An AI bear that is travelling or eating has its
   // own hop controller; only genuinely idle meadow bears keep the random hop.
@@ -4404,6 +4455,7 @@ function fitWallsToTable(){
     getTable: () => TABLE,
     getBears: () => bears,
     spawnBear: (x, z, y, f, opts) => spawn(x, z, y, f, opts),
+    canSpawnAt: (x, z, r) => launcherSpotClear(x, z, r),
     uploadVelocities: uploadBearVelocities,
     restDY: REST_DY, np: NP, flavors: FLAVORS,
     isPhysicsReady: () => !!PHYS,

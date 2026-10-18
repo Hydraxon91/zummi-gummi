@@ -23,7 +23,7 @@ export function createLauncher(ctx) {
     getTable, getBears, spawnBear, uploadVelocities,
     restDY, np, flavors, isPhysicsReady,
     getHome, placementExtra, insideBounds, clampBounds,
-    state, onPlace,
+    state, onPlace, canSpawnAt,
     ui = {},
   } = ctx;
 
@@ -32,6 +32,8 @@ export function createLauncher(ctx) {
   let shadowCanvas = null;
   let aiming = false, hasAim = false;
   let speed = 6, recoil = 0, flash = 0, lastShot = null;
+  const FIRE_COOLDOWN_MS = 260;
+  let lastFireAt = -Infinity;
   let aimPointer = null, dragPointer = null;
   let moveMode = false, dragging = false, savedPos = null, previewValid = true;
   let current = null;
@@ -417,10 +419,22 @@ export function createLauncher(ctx) {
 
   function fire() {
     if (!group || !hasAim || !isPhysicsReady || !isPhysicsReady()) return false;
+    // Rapid clicks used to spawn several bears into the same muzzle point and
+    // weld them together. One shot per cooldown keeps them separated.
+    const now = performance.now();
+    if (now - lastFireAt < FIRE_COOLDOWN_MS) return false;
     const f = Math.floor(Math.random() * flavors.length);
-    const ox = muzzle.x + dir.x * 0.36;
-    const oy = muzzle.y + dir.y * 0.36;
-    const oz = muzzle.z + dir.z * 0.36;
+    let ox = muzzle.x + dir.x * 0.36;
+    let oy = muzzle.y + dir.y * 0.36;
+    let oz = muzzle.z + dir.z * 0.36;
+    if (canSpawnAt && !canSpawnAt(ox, oz, 0.40)) {
+      // Try one short step along the shot line before refusing the shot.
+      const nx = ox + dir.x * 0.60;
+      const ny = oy + dir.y * 0.60;
+      const nz = oz + dir.z * 0.60;
+      if (!canSpawnAt(nx, nz, 0.40)) return false;
+      ox = nx; oy = ny; oz = nz;
+    }
 
     _y.copy(dir).normalize();
     _z.set(0, 1, 0).addScaledVector(_y, -_y.y);
@@ -432,6 +446,7 @@ export function createLauncher(ctx) {
 
     const b = spawnBear(ox, oz, oy - restDY, f, { quat: _q, lift: 0 });
     if (!b) return false;
+    lastFireAt = now;
     for (let i = 0; i < np; i++) {
       b.vx[i] = vel.x;
       b.vy[i] = vel.y;
