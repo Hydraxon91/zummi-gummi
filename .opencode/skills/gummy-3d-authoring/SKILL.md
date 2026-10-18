@@ -19,6 +19,9 @@ Read [references/asset-workflows.md](references/asset-workflows.md) for hard-sur
 modifier/shading choices, UV preparation, asset budgets and the local reporting tools.
 Load the focused references when the task needs them:
 
+- [references/assembly-verification.md](references/assembly-verification.md): mandatory
+  acceptance loop for assembly edits, structural completeness, connections, neighboring
+  clearances and protected-surface preservation. Apply before calling a stage verified.
 - [references/pbr-materials.md](references/pbr-materials.md): Principled values, color
   spaces, ORM, normals, alpha, view transforms and glTF material export.
 - [references/texture-baking.md](references/texture-baking.md): high-to-low and
