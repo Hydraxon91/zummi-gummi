@@ -303,3 +303,31 @@ approved work chunk.
 - **Re-profile before claiming a performance win**, and record meaningful changes in
   `PERFORMANCE.md` (method, before/after, the retention rule for older numbers).
 - Keep the scene's batching/instancing structure; measure, don't guess.
+
+## 15. 3D Asset Authoring
+
+- **The same scope and approval rules apply to Blender.** Inspect the live file path,
+  unsaved state, scene inventory and target objects before editing. Establish a
+  recoverable checkpoint before destructive work; never silently overwrite a saved
+  asset, clear the scene or change unrelated cameras, lights and materials.
+- **Keep source editable.** Preserve source geometry/parameters before applying
+  destructive booleans, remeshing or decimation. Use a separate export/evaluated copy
+  where appropriate. A requested change to one part must not silently reshape others.
+- **Reference fidelity before optimisation.** Establish the silhouette and proportions
+  first. Reduce geometry only while preserving the approved appearance; do not equate
+  low-poly with flat shading or choose an arbitrary minimum triangle count.
+- **Inspect, don't infer success.** View front/back, both sides and three-quarter
+  captures for shape changes; use neutral solid shading as well as material/rendered
+  views. Check topology and, when applicable, rig weights/deformation. A successful
+  script or boolean is not proof of likeness, watertightness or good deformation.
+  Save scratch captures under `.dev-shots/` as in section 13.
+- **Separate delivery states.** Report whether work exists only in the live scene,
+  is saved to a `.blend`, is exported, or is verified in-game. Asset authoring does
+  not authorize game integration. Measure evaluated/exported triangles and vertices,
+  check export material support, and validate exports before claiming game readiness.
+- **Blender scripting exception to section 11:** Blender MCP Python may edit the
+  approved scene and save/export approved assets. Repository source/config/document
+  edits still use file-edit tools; MCP is not an alternative filesystem editor.
+- **Load the relevant project skill:** `gummy-3d-authoring` for Blender/asset work;
+  `gummy-game-verification` for game verification. Skills supply procedures, not
+  additional authorization, and do not override this guide.
