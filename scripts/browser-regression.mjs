@@ -28,8 +28,9 @@ const initScript = lowQuality ? `(() => {
 const launched = await launchBrowser();
 const browser = await connectBrowser(launched);
 let failure = null;
+let page = null;
 try {
-  const page = await browser.openPage({
+  page = await browser.openPage({
     url: target.href,
     width: Number(process.env.WIDTH || 1440),
     height: Number(process.env.HEIGHT || 900),
@@ -162,6 +163,46 @@ try {
   console.log('BROWSER OK');
 } catch (error) {
   failure = error;
+  if (page) {
+    try {
+      const diagnostics = await page.evaluate(`(() => {
+        const g = window.__gummy;
+        if (!g) return { booted: false, now: performance.now(), readyState: document.readyState };
+        let assets = null;
+        try { assets = g.assets(); } catch (err) { assets = { error: String(err) }; }
+        let glass = null;
+        try {
+          const state = g.glass();
+          glass = state ? {
+            count: state.count,
+            actors: state.actors.map(a => ({
+              uid: a.uid, ready: a.ready, error: a.error,
+              inside: a.inside, state: a.state, position: a.position,
+            })),
+          } : null;
+        } catch (err) { glass = { error: String(err) }; }
+        let map = null;
+        try { map = g.map(); } catch (err) { map = { error: String(err) }; }
+        const resources = performance.getEntriesByType('resource')
+          .filter(entry => /(GLTFLoader|msn\\.glb|asset\\.json|catalog\\.json|three)/.test(entry.name))
+          .map(entry => ({
+            name: entry.name.replace(location.origin, ''),
+            start: Math.round(entry.startTime),
+            duration: Math.round(entry.duration),
+            size: entry.transferSize,
+          }));
+        return {
+          booted: !!g.booted,
+          now: Math.round(performance.now()),
+          readyState: document.readyState,
+          assets, glass, map, resources,
+        };
+      })()`, 10000);
+      console.error('DIAG', JSON.stringify(diagnostics));
+    } catch (diagnosticError) {
+      console.error('DIAG ERROR', String(diagnosticError).slice(0, 800));
+    }
+  }
   console.error('STOP', String(error && error.stack || error).slice(0, 2400));
   if (browser.pageErrors.length) console.error('ERRORS', JSON.stringify(browser.pageErrors.slice(0, 5)));
 } finally {
