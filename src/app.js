@@ -1083,14 +1083,14 @@ function physicsStep(dt){
   if (!PHYS) return;
   let n = 0;
   for (const b of bears){
-    if (!b.active) continue;
+    if (!b.active || !b.handles) continue;
     for (let i=0;i<b.np;i++) flatHandles[n++] = b.handles[i];
   }
   if (!n) return;
   PHYS.read(flatHandles, flatOut, n);
   let o = 0;
   for (const b of bears){
-    if (!b.active) continue;
+    if (!b.active || !b.handles) continue;
     let awake = 0;
     for (let i=0;i<b.np;i++){
       const base = (o+i)*7;
@@ -1162,11 +1162,13 @@ function physicsStep(dt){
   }
   let k = 0;
   for (const b of bears){
-    if (!b.active) continue;
+    if (!b.active || !b.handles) continue;
     for (let i=0;i<b.np;i++){ flatForces[k*3]=b.fx[i]; flatForces[k*3+1]=b.fy[i]; flatForces[k*3+2]=b.fz[i]; k++; }
   }
+  if (msnPrototype) msnPrototype.physicsForces(dt);
   PHYS.applyForces(flatHandles, flatForces, false, n);
   PHYS.step(dt, 3);   // Box3D contact sub-solve at 180 Hz
+  if (msnPrototype) msnPrototype.physicsRead();
 }
 
 /* ========================= SURFACE (METABALLS) ============================ */
@@ -2357,13 +2359,14 @@ function pickPortal(cx, cy){
   const target = isMeadow()
     ? (field && field.studioHouse ? field.studioHouse.portal : null)
     : (studioReturnPortal ? studioReturnPortal.hit : null);
-  if (!target || !target.visible) return false;
+  if (!target || !target.visible) return null;
   const rect = canvas.getBoundingClientRect();
   _portalRay.setFromCamera({
     x: ((cx-rect.left)/rect.width)*2-1,
     y: -((cy-rect.top)/rect.height)*2+1,
   }, camera);
-  return _portalRay.intersectObject(target, true).length > 0;
+  const hits = _portalRay.intersectObject(target, true);
+  return hits.length ? hits[0].distance : null;
 }
 
 function pickMsn(cx, cy){
@@ -2541,13 +2544,25 @@ addEventListener('pointerdown', (e)=>{
     return;
   }
   // Primary click/tap on the Aero portal switches maps through the existing
-  // state-preserving transition. It is checked before bear picking so the door
-  // stays a reliable target.
-  if ((e.pointerType !== 'mouse' || e.button === 0) && pickPortal(e.clientX, e.clientY)){
-    p.mode = 'ignore';
-    requestMapSwitch(isMeadow() ? 'studio' : 'field');
-    hideCamHint();
-    return;
+  // state-preserving transition. A visible MSN or bear in front of the door
+  // must win, otherwise clicking the character can switch maps through it.
+  if (e.pointerType !== 'mouse' || e.button === 0){
+    const portalDist = pickPortal(e.clientX, e.clientY);
+    if (portalDist){
+      rayFromClient(e.clientX, e.clientY);
+      const raceHit = pickMsn(e.clientX, e.clientY);
+      const bearHit = pickBear();
+      const actorDist = Math.min(
+        raceHit ? raceHit.distance : Infinity,
+        bearHit ? bearHit.depth : Infinity,
+      );
+      if (portalDist <= actorDist){
+        p.mode = 'ignore';
+        requestMapSwitch(isMeadow() ? 'studio' : 'field');
+        hideCamHint();
+        return;
+      }
+    }
   }
   // Studio race prototype: the GLB is a separate actor, so give it priority
   // only when its hit proxy is closer than any bear under the same pointer.
@@ -2557,6 +2572,7 @@ addEventListener('pointerdown', (e)=>{
       p.mode = 'msn';
       p.moved = false;
       msnPrototype.select(true);
+      msnPrototype.beginDrag(e.clientX, e.clientY, e.shiftKey);
       hideCamHint();
       return;
     }
@@ -2618,7 +2634,7 @@ addEventListener('pointermove', (e)=>{
   }
   if (p.mode === 'msn'){
     if (Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 4) p.moved = true;
-    if (msnPrototype) msnPrototype.drag(dx, dy, e.shiftKey);
+    if (msnPrototype) msnPrototype.drag(e.clientX, e.clientY, dx, dy, e.shiftKey);
     p.lx = e.clientX; p.ly = e.clientY;
     return;
   }
@@ -2659,11 +2675,15 @@ function pointerUp(e){
     if (p.mode === 'launcher'){
       if (launcher) launcher.pointerUp(e);
     } else if (p.mode === 'msn'){
-      if (!p.moved && e.type === 'pointerup' && msnPrototype){
-        msnPrototype.activate();
-        if (hintEl){
-          hintEl.textContent = 'MSN Buddy — drag to turn · Shift-drag to move · double-click to frame';
-          showCamHint();
+      if (msnPrototype){
+        if (p.moved) msnPrototype.endDrag();
+        else if (e.type === 'pointerup'){
+          msnPrototype.endDrag();
+          msnPrototype.activate();
+          if (hintEl){
+            hintEl.textContent = 'MSN Buddy — drag to grab or turn · double-click to frame';
+            showCamHint();
+          }
         }
       }
     } else if (p.mode === 'grab' && p.grab) endGrab(p.grab, true);
@@ -4105,7 +4125,7 @@ function updateSurfaces(){
   }
   buildOrder.length = 0;
   for (const b of bears){
-    if (!b.active || b.sleeping) continue;
+    if (!b.active || b.sleeping || studioActorHidden(b)) continue;
     if (b.grabs > 0 || b.needsBuild){ buildOrder.push(b); continue; }
     // rigid motion is handled by the mesh matrix, so only *shape* changes rebuild
     if (b.deform > 0.30*b.cell) buildOrder.push(b);
@@ -4866,6 +4886,23 @@ function applyMapVisuals(id){
   }
 }
 
+function syncStudioCastPhysics(){
+  if (isMeadow()) return;
+  if (grabs.size) releaseAllGrabs();
+  for (const b of bears){
+    const hidden = studioActorHidden(b);
+    if (hidden && b.handles){
+      destroyBearBodies(b);
+      b.physicsSuspended = true;
+      b.needsBuild = true;
+    } else if (!hidden && b.physicsSuspended){
+      createBearBodies(b);
+      b.needsBuild = true;
+      b.physicsSuspended = false;
+    }
+  }
+}
+
 function syncStudioCastUI(){
   for (const btn of document.querySelectorAll('#raceCast [data-cast]')){
     const on = btn.dataset.cast === studioCast;
@@ -4901,7 +4938,10 @@ function applyStudioCast(value = studioCast, persist = true){
   if (!msnOn) cursorEl.classList.remove('move');
   document.body.classList.toggle('msn-only', !meadow && studioCast === 'msn');
   syncStudioCastUI();
-  if (!meadow) drawStudioShadows(true);
+  if (!meadow){
+    syncStudioCastPhysics();
+    drawStudioShadows(true);
+  }
   return {
     cast: studioCast,
     msnVisible: !!(msnPrototype && msnPrototype.state().visible),
@@ -4962,6 +5002,7 @@ function activateMap(id, opts = {}){
   } else {
     seedStudioBears();
   }
+  syncStudioCastPhysics();
   w.initialized = true;
   selectedBear = null;
   directivePick = false;
@@ -5457,7 +5498,7 @@ async function bootGame(){
   studioReturnPortal.group.visible = false;
   scene.add(studioReturnPortal.group);
   layoutStudioReturnPortal();
-  msnPrototype = createMSNPrototype({ scene, camera, renderer, enabled: RACE_ENABLED, getTable: () => TABLE, look: RACE_LOOK });
+  msnPrototype = createMSNPrototype({ scene, camera, renderer, physics: PHYS, enabled: RACE_ENABLED, getTable: () => TABLE, look: RACE_LOOK });
   activateMap(activeWorld.mapId, { initial: true });
   if (toonEnabled) applyToonMaterials();
   drawShadows();
@@ -6110,7 +6151,9 @@ window.__gummy = {
     screen(){ return msnPrototype ? msnPrototype.screen() : null; },
     select(v){ return msnPrototype ? msnPrototype.select(v) : null; },
     activate(){ return msnPrototype ? msnPrototype.activate() : null; },
-    drag(dx, dy, shift){ return msnPrototype ? msnPrototype.drag(dx, dy, shift) : null; },
+    beginDrag(x, y, shift){ return msnPrototype ? msnPrototype.beginDrag(x, y, shift) : false; },
+    drag(x, y, dx, dy, shift){ return msnPrototype ? msnPrototype.drag(x, y, dx, dy, shift) : null; },
+    endDrag(){ return msnPrototype ? msnPrototype.endDrag() : null; },
     focus(){ return focusMsn(); },
   },
   start(){ return startGame(); },

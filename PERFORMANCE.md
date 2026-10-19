@@ -359,6 +359,15 @@ free replacements; profile at the target quality tiers before making a
 tier/fallback decision. The reflective coat uses the studio environment map, not
 a planar reflection probe.
 
+### Glass Box3D spot check
+
+Glass adds one rigid Box3D sphere (radius 0.62 m, mass 2.4) that is anchored to
+the model while idle and switched to dynamic/spring-grabbed while dragging. It
+is collision-stepped with the existing world rather than a second physics world.
+The proxy is intentionally one sphere, not the bears' 24-body rig, because Glass
+must stay rigid. A full frame-time comparison for Glass grabbing versus idle has
+not been run.
+
 ### Gummy first-slice spot check
 
 The Gummy MSN is a seventh Studio actor with 24 Box3D bodies and a measured

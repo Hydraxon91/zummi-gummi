@@ -960,6 +960,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
     <label class="raceField"><span>Speed</span><input id="raceSpeed" type="range" min="0.25" max="2" step="0.05" value="1" aria-label="Animation speed"><b id="raceSpeedValue">1.00×</b></label>
     <div class="raceActions"><button class="raceReset" id="raceReset" type="button">Reset</button><button class="raceReset" id="raceFrame" type="button">Frame</button></div>
     <label class="raceField"><span>Rough</span><input id="raceRoughness" type="range" min="0.01" max="0.6" step="0.01" value="0.05" aria-label="Glass roughness"><b id="raceRoughnessValue">0.05</b></label>
+    <label class="raceField"><span>Drag</span><select id="raceDrag" aria-label="Glass drag mode"><option value="grab">Grab</option><option value="turn">Turn</option></select></label>
     <div class="raceStatus" id="raceStatus">Loading MSN Buddy…</div>
   </div>
 </div>

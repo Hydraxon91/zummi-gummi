@@ -48,6 +48,7 @@ check(html.includes('data-profile="auto"'), "page includes graphics presets");
 check(html.includes('id="raceLab"'), "page includes the Studio race prototype");
 check(html.includes('id="raceFrame"'), "page includes the race camera-frame control");
 check(html.includes('id="raceRoughness"'), "page includes the glass roughness control");
+check(html.includes('id="raceDrag"'), "page includes the glass drag-mode control");
 
 // --- source modules ---------------------------------------------------------
 const modules = [

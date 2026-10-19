@@ -58,7 +58,7 @@ function makeContactShadow() {
   return mesh;
 }
 
-export function createMSNPrototype({ scene, camera, renderer, enabled = true, getTable, look = 'glass' } = {}) {
+export function createMSNPrototype({ scene, camera, renderer, physics, enabled = true, getTable, look = 'glass' } = {}) {
   const root = new THREE.Group();
   root.name = 'msnRacePrototype';
   root.visible = false;
@@ -108,6 +108,7 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     opacityLabel: document.getElementById('raceOpacityLabel'),
     roughness: document.getElementById('raceRoughness'),
     roughnessValue: document.getElementById('raceRoughnessValue'),
+    drag: document.getElementById('raceDrag'),
   };
 
   let ready = false;
@@ -138,6 +139,22 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
   let selected = false;
   let hovered = false;
   let activationIndex = 0;
+  let dragMode = 'grab';
+  let bodyHandle = -1;
+  let bodyRadius = .62;
+  let grabbing = false;
+  let anchored = true;
+  let grabDepth = 6;
+  let grabStartY = .62;
+  let grabStartClientY = 0;
+  const bodyPos = new THREE.Vector3();
+  const bodyVel = new THREE.Vector3();
+  const grabTarget = new THREE.Vector3();
+  const grabPrev = new THREE.Vector3();
+  const _bodyRead = new Float32Array(7);
+  const _bodyForce = new Float32Array(3);
+  const _grabPlane = new THREE.Plane();
+  const _grabHit = new THREE.Vector3();
 
   function layout() {
     const table = getTable ? getTable() : null;
@@ -203,8 +220,14 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     return { ...result, selected: true };
   }
 
-  function drag(dx, dy, shift = false) {
+  function drag(clientX, clientY, dx, dy, shift = false) {
     if (!ready || !root.visible) return state();
+    if (grabbing) {
+      if (shift) root.rotation.y += dx * .012;
+      else updateGrabTarget(clientX, clientY);
+      root.updateMatrixWorld(true);
+      return state();
+    }
     if (shift) {
       const table = getTable ? getTable() : null;
       const hx = table && Number.isFinite(table.hx) ? table.hx : 3.4;
@@ -238,6 +261,112 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     };
   }
 
+  function ensureBody() {
+    if (!physics || bodyHandle >= 0 || !ready || !enabled || !root.visible) return;
+    bodyHandle = physics.sphere(
+      root.position.x, root.position.y + bodyRadius, root.position.z,
+      bodyRadius, 2.4, -777, .72, .10, true, true,
+    );
+    bodyPos.set(root.position.x, root.position.y + bodyRadius, root.position.z);
+    bodyVel.set(0, 0, 0);
+    anchored = true;
+  }
+
+  function destroyBody() {
+    if (bodyHandle >= 0 && physics) physics.destroy(bodyHandle);
+    bodyHandle = -1;
+    grabbing = false;
+    anchored = true;
+    bodyVel.set(0, 0, 0);
+  }
+
+  function syncAnchoredBody() {
+    if (bodyHandle < 0 || !physics) return;
+    physics.setPositions([bodyHandle], [root.position.x, root.position.y + bodyRadius, root.position.z], 1);
+    physics.setVelocities([bodyHandle], [0, 0, 0], 1);
+  }
+
+  function updateGrabTarget(clientX, clientY) {
+    if (!camera || !renderer) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    raycaster.setFromCamera(pointer, camera);
+    grabTarget.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, grabDepth);
+    const table = getTable ? getTable() : null;
+    if (table) {
+      grabTarget.x = clamp(grabTarget.x, -table.hx + .35, table.hx - .35);
+      grabTarget.z = clamp(grabTarget.z, -table.hz + .35, table.hz - .35);
+    }
+    // Screen-up is a direct lift input; the ray plane alone can stay below the
+    // body centre because the studio camera looks down at the table.
+    grabTarget.y = clamp(grabStartY + (grabStartClientY - clientY) * .005, .08, 2.6);
+  }
+
+  function beginDrag(clientX, clientY, shift = false) {
+    if (dragMode !== 'grab' || shift) return false;
+    ensureBody();
+    if (bodyHandle < 0) return false;
+    grabbing = true;
+    anchored = false;
+    grabDepth = camera ? camera.position.distanceTo(root.position) : 6;
+    grabStartY = bodyPos.y;
+    grabStartClientY = clientY;
+    updateGrabTarget(clientX, clientY);
+    grabPrev.copy(grabTarget);
+    physics.setVelocities([bodyHandle], [0, 0, 0], 1);
+    return true;
+  }
+
+  function endDrag() {
+    if (!grabbing) return state();
+    grabbing = false;
+    anchored = false;
+    if (bodyHandle >= 0 && physics) {
+      const vx = clamp(bodyVel.x, -7, 7);
+      const vy = clamp(bodyVel.y, -7, 7);
+      const vz = clamp(bodyVel.z, -7, 7);
+      physics.setVelocities([bodyHandle], [vx, vy, vz], 1);
+    }
+    return state();
+  }
+
+  function physicsForces() {
+    if (bodyHandle < 0 || !physics) return;
+    if (anchored && !grabbing) {
+      syncAnchoredBody();
+      return;
+    }
+    if (!grabbing) return;
+    const dx = grabTarget.x - bodyPos.x;
+    const dy = grabTarget.y - bodyPos.y;
+    const dz = grabTarget.z - bodyPos.z;
+    const mass = 2.4, k = 95 * mass, damp = 14 * mass;
+    _bodyForce[0] = dx * k - bodyVel.x * damp;
+    _bodyForce[1] = dy * k - bodyVel.y * damp;
+    _bodyForce[2] = dz * k - bodyVel.z * damp;
+    physics.applyForces([bodyHandle], _bodyForce, true, 1);
+  }
+
+  function physicsRead() {
+    if (bodyHandle < 0 || !physics) return;
+    physics.read([bodyHandle], _bodyRead, 1);
+    bodyPos.set(_bodyRead[0], _bodyRead[1], _bodyRead[2]);
+    bodyVel.set(_bodyRead[3], _bodyRead[4], _bodyRead[5]);
+    const baseY = Math.max(0, bodyPos.y - bodyRadius);
+    root.position.set(bodyPos.x, baseY, bodyPos.z);
+    contactShadow.position.y = .004 - root.position.y;
+    selectionRing.position.y = .006 - root.position.y;
+    root.updateMatrixWorld(true);
+    if (!grabbing && !anchored && baseY <= .002 && bodyVel.length() < .16) {
+      anchored = true;
+      root.position.y = 0;
+      syncAnchoredBody();
+    }
+  }
+
   function state() {
     return {
       enabled: !!enabled,
@@ -249,6 +378,10 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
       selected,
       hovered,
       yaw: +root.rotation.y.toFixed(3),
+      dragMode,
+      body: bodyHandle >= 0,
+      grabbing,
+      anchored,
       look: materialLook,
       clips: clips.map(clip => clip.name),
       active: activeName,
@@ -324,6 +457,10 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     if (ui.tag) ui.tag.textContent = glass ? 'Glass · skinned' : 'Alpha · skinned';
     if (ui.reset) ui.reset.disabled = !controlsOn;
     if (ui.frame) ui.frame.disabled = !controlsOn;
+    if (ui.drag) {
+      ui.drag.disabled = !controlsOn;
+      ui.drag.value = dragMode;
+    }
   }
 
   function fillClipOptions() {
@@ -429,10 +566,15 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     root.visible = on;
     if (on){
       load();
+      ensureBody();
     } else {
+      destroyBody();
       hovered = false;
       selected = false;
       selectionRing.visible = false;
+      root.position.y = 0;
+      contactShadow.position.y = .004;
+      selectionRing.position.y = .006;
       if (!ready && !loading) setStatus('MSN hidden — choose Both or MSN to load.');
     }
     syncPanel();
@@ -518,6 +660,7 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
       fillClipOptions();
       ready = true;
       placed = true;
+      ensureBody();
       setStatus(`Ready · ${clips.length} clips · ${meshes} meshes · ${tris.toLocaleString()} tris · ${(performance.now() - started).toFixed(0)} ms`);
       applyMaterial();
       play(IDLE_CLIP, false);
@@ -545,9 +688,15 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
   function reset() {
     layout();
     root.rotation.y = RACE_SPOT.yaw;
+    root.position.y = 0;
+    contactShadow.position.y = .004;
+    selectionRing.position.y = .006;
     selected = false;
     hovered = false;
     selectionRing.visible = false;
+    grabbing = false;
+    anchored = true;
+    syncAnchoredBody();
     setClarity(materialLook === 'glass' ? GLASS.clarity : DEFAULT_OPACITY);
     setRoughness(GLASS.roughness);
     setSpeed(DEFAULT_SPEED);
@@ -558,6 +707,7 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
   }
 
   function dispose() {
+    destroyBody();
     root.removeFromParent();
     for (const material of materials) material.dispose();
     materials = [];
@@ -607,6 +757,12 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
   if (ui.reset) {
     ui.reset.addEventListener('click', reset);
   }
+  if (ui.drag) {
+    ui.drag.addEventListener('change', () => {
+      dragMode = ui.drag.value === 'turn' ? 'turn' : 'grab';
+      syncUi();
+    });
+  }
   if (ui.toggle && ui.panel) {
     ui.toggle.addEventListener('click', () => {
       const collapsed = ui.panel.classList.toggle('collapsed');
@@ -638,7 +794,11 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     setHovered,
     select,
     activate,
+    beginDrag,
     drag,
+    endDrag,
+    physicsForces,
+    physicsRead,
     screen,
     focusInfo,
     reset,

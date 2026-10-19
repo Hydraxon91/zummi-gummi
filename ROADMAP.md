@@ -432,10 +432,11 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
 - **Verification:** isolated GLB audit and live browser checks cover the lazy
   load, mesh/bone/clip counts, mixer advance, one-shot return, Glass material
   values, alpha fallback, cast filters, cast persistence, `?race=off`, map
-  isolation, hover/click selection, click reaction clips, drag-to-turn,
-  Shift-drag placement, Frame focus, Reset, the 24-body Gummy actor, distinct
-  blue/green materials, Gummy grabbing, Meadow six-bear regression and
-  desktop/390×844 captures. Numbers are in `PERFORMANCE.md`.
+  isolation, hover/click selection, click reaction clips, Glass Box3D
+  grab/lift/drop, Drag Grab/Turn, drag-to-turn, Shift-drag placement, Frame
+  focus, Reset, the 24-body Gummy actor, distinct blue/green materials, Gummy
+  grabbing and save/load, Meadow six-bear regression and desktop/390×844
+  captures. Numbers are in `PERFORMANCE.md`.
 - **Known follow-ups:** the prototype has no physics, collision, AI, possession
   or soft-body deformation; a playable race is a separate scope. The cast filter
   intentionally leaves hidden bears simulating, so their arrangement survives a
@@ -446,8 +447,10 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
 - **MSN variants (requested 2026-10-19):**
   - **Glass MSN — current:** blue GLB path with authored skeletal clips, a
     reflective transmission/refraction material and no soft-body stretch. It is
-    rigid by design and does not reuse the bears' soft-body solver. Its future
-    Box3D spheres are deferred.
+    rigid by design and does not reuse the bears' 24-body solver. A single rigid
+    Box3D sphere proxy now gives it grab/lift/drop physics; the Race Lab has a
+    **Grab / Turn** drag mode. Expand the proxy to a multi-sphere rigid body only
+    if the single-sphere fit proves inadequate.
   - **Gummy MSN — first Studio slice (Oct 2026):** green 24-body Box3D +
     metaball soft body derived from `BUDDY_RIG` through `src/msnrig.js`, using
     the bear-style gummy material. The per-species `Bear` actor now carries
