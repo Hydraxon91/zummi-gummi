@@ -36,8 +36,8 @@ node --test tests
 These are deterministic and run in CI. They cover the registry capabilities and
 compatibility matrix, genome defaults/combination/clamping, all three reproduction gates,
 save validation (including unsupported top-level and genome versions), mixed soft-body/Glass
-actor-view queries, and the `assets/MSN_Figure/asset.json` GLB manifest. Add a test in the
-same approved scope when the underlying rule changes.
+actor-view queries, the `assets/MSN_Figure/asset.json` GLB manifest and the manifest loader.
+Add a test in the same approved scope when the underlying rule changes.
 
 ## HTTP smoke check
 
@@ -54,8 +54,25 @@ node scripts/smoke.mjs http://localhost:8000
 ```
 
 Inspect `scripts/smoke.mjs` for its current coverage. It checks the served shell,
-modules and WASM delivery; a pass does not establish simulation or visual correctness.
-Use HTTP, not file://. Do not kill an existing user server to resolve a port conflict.
+modules, the asset manifest and WASM delivery; a pass does not establish simulation or
+visual correctness. Use HTTP, not file://. Do not kill an existing user server to
+resolve a port conflict.
+
+## Browser regression
+
+With the server running:
+
+```sh
+node scripts/browser-regression.mjs
+```
+
+It boots `?autostart=1`, seeds randomness, checks the 10-row roster, 8 soft-body
+actors, 2 Glass actors, starter lineage, a sibling play start and save/load.
+Use `STUDIO=1` to load the Studio Glass prototype and verify 3 meshes/9 bones/10
+clips, and `SHOTS=1` to write a capture. The harness uses a temporary browser
+profile and `BROWSER_BIN`/`CHROME_BIN` when the browser is not in a standard
+location. The older `.dev-shots/race-test.mjs` and `glass-test.mjs` remain useful
+for deeper Studio/Glass lifecycle passes.
 
 ## Boot, menu and session state
 
@@ -147,7 +164,8 @@ cover the applicable rows rather than only the happy path:
 | Reproduction | current gate for every pair, child species/rig/phenotype, deferred hybrid target |
 | Save | old save without genome, genome round-trip, future save/genome rejection, Glass optional fields |
 | Actor view | mixed soft-body/Glass `all`/`active`/`byUid`/`homeResidents` |
-| Meadow | cross-species birth, parent/sibling bonds and play, visits, shelter/door fade |
+| Asset loader | manifest schema/path validation, GLB resolution, mesh/bone/material/clip count match |
+| Meadow | cross-species birth, parent/sibling bonds and play, family lineage UI, visits, shelter/door fade |
 | Studio | Glass/Gummy load, 3 meshes/9 bones/10 clips, cast filters, `?race=off` |
 | UI | roster rows and family status, save/continue, desktop and mobile |
 

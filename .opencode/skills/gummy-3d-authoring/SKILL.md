@@ -374,9 +374,12 @@ Treat a new species/variant as a rig and delivery contract, not only a new silho
 5. Write the asset manifest beside the delivery: tracked file, hash, scale/axis, bounds,
    mesh/skin/clip/material inventory, extensions, source and rights. Run
    `node scripts/glb-inventory.mjs <asset>.glb` and `node --test tests`; a matching
-   game-side loader check is separate evidence.
-6. For Glass/Gummy/Bear, record which runtime path the asset uses: skinned GLB, 24-body
-   metaball, or a future authored hybrid. Do not promise runtime mesh blending.
+   game-side loader check is separate evidence. `src/assets.js` validates the manifest and
+   runtime counts; `assets/README.md` documents the schema.
+6. Add the species entry with `asset` and `assetManifest`; start from
+   `docs/species-template.md`. For Glass/Gummy/Bear, record which runtime path the asset
+   uses: skinned GLB, 24-body metaball, or a future authored hybrid. Do not promise
+   runtime mesh blending.
 
 ## Deformation and export (only when requested)
 
