@@ -8,6 +8,7 @@ import {
   canMate, HOME_CAPACITY, MATE_TIME, MATE_COOLDOWN, MATE_FOOD_MIN,
   GESTATION_TIME, PREGNANCY_HUNGER,
 } from './life.js';
+import { getSpecies } from './species.js';
 
 const WANDER_MIN = 3.0;
 const WANDER_MAX = 12.0;
@@ -1057,7 +1058,9 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
   function canMatePair(a, b) {
     // Species isolation until the DNA/hybrid-model pass. Cross-species social
     // bonds and visits stay enabled; only reproduction is same-species for now.
-    if (!a || !b || a.species !== b.species) return false;
+    if (!a || !b) return false;
+    const aDef = getSpecies(a.species), bDef = getSpecies(b.species);
+    if (!aDef || !bDef || aDef.id !== bDef.id || !aDef.canReproduce || !bDef.canReproduce) return false;
     return canMate(a, b, {
       room: bears.length < populationCap(),
       food: safeFoodCount() >= MATE_FOOD_MIN,

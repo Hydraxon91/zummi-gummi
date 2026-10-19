@@ -483,6 +483,22 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
 
 **Species & DNA (design agreed 2026-10-19, deferred)** — recorded:
 
+- **Species registry — first layer (Oct 2026, done):** `src/species.js` registers
+  **bear**, **msn** (Gummy) and **glass** definitions with kind, cast group,
+  rig/asset, material, studio/meadow/roster availability, grab/possession/
+  breeding/life/eyes/tells capabilities and behavior/growth tags. App spawn,
+  save/load, cast visibility, possession, roster, life and same-species breeding
+  resolve through the registry; the metaball/Box3D hot paths remain specialized.
+  A fixture species registration test proves a new definition can be added
+  without editing the registry internals. Future race = species module +
+  registry entry + assets + tests.
+- **DNA metadata — first layer (Oct 2026, done):** every species now carries a
+  breed group, all-three compatibility list, genome loci/defaults, phenotype
+  id, deferred hybrid target ids and separate `canBreed` / `canReproduce`
+  flags. Bear and Gummy currently reproduce; Glass is compatible in the roadmap
+  but not yet reproductive. The actual crossover/mutation/expression engine
+  lives in the next `src/dna.js` pass; no save-schema change yet.
+
 - **Decision:** all three — bears, Glass MSN and Gummy MSN — may interbreed
   later. Glass breeding is explicitly allowed; its offspring art/rig and
   reproductive role are not designed yet.

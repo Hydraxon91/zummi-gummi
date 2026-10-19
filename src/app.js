@@ -13,7 +13,7 @@ import {
 } from './life.js';
 import { createStudioReturnPortal } from './studiohouse.js';
 import { createMSNPrototype } from './msn.js';
-import { MSN_RIG } from './msnrig.js';
+import { getSpecies, speciesForRig, listSpecies } from './species.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
@@ -50,11 +50,14 @@ const BEAR_NAMES = ['Mochi','Boba','Gumdrop','Taffy','Pip','Pebble','Juniper','M
 let nextBearName = 0;
 function takeBearName(){ return BEAR_NAMES[(nextBearName++) % BEAR_NAMES.length]; }
 function isMeadow(){ return getActiveMap().kind === 'life'; }
+function speciesOf(b){ return b ? (b.speciesDef || getSpecies(b.species)) : null; }
+function isGummyActor(b){ const def = speciesOf(b); return !!(def && def.hasTells); }
 function studioActorHidden(b){
   if (isMeadow()) return false;
-  if (b.species === 'msn' && !RACE_ENABLED) return true;
-  if (studioCast === 'msn') return b.species === 'bear';
-  if (studioCast === 'bears') return b.species === 'msn';
+  const def = b.speciesDef || getSpecies(b.species);
+  if (def.id === 'msn' && !RACE_ENABLED) return true;
+  if (studioCast === 'msn') return def.castGroup === 'bear';
+  if (studioCast === 'bears') return def.castGroup === 'msn';
   return false;
 }
 function studioCannonHidden(){ return !isMeadow() && studioCast === 'msn'; }
@@ -372,6 +375,7 @@ class Bear{
     this.slot = slot;
     this.rig = rigCfg;
     this.species = rigCfg.species || 'bear';
+    this.speciesDef = speciesForRig(rigCfg);
     this.np = rigCfg.NP;
     this.active = false;
     this.px=new Float32Array(this.np); this.py=new Float32Array(this.np); this.pz=new Float32Array(this.np);
@@ -454,20 +458,25 @@ const lifeStats = { births: 0, stageUps: 0, blockedBirths: 0 };
 
 function spawn(x, z, y, flavor, opts={}){
   if (bears.length >= bearCeiling) removeBear(bears[0]);
-  const rigCfg = opts.rig || RIGCFG;
+  const requestedSpecies = opts.species ? getSpecies(opts.species) : null;
+  if (requestedSpecies && !requestedSpecies.rig) return null;
+  const rigCfg = opts.rig || (requestedSpecies && requestedSpecies.rig) || RIGCFG;
   const b = getFreeBear(rigCfg);
   if (!b) return null;
   b.active = true; bears.push(b);
   b.rig = rigCfg;
   b.species = rigCfg.species || 'bear';
+  b.speciesDef = speciesForRig(rigCfg);
   b.np = rigCfg.NP;
   b.flavor = flavor;
-  const baseMaterial = b.species === 'msn' ? MSN_MAT : FLAVOR_MATS[flavor];
-  b.material = b.species === 'msn'
+  const speciesDef = b.speciesDef;
+  const useMsnMaterial = speciesDef.material === 'msn';
+  const baseMaterial = useMsnMaterial ? MSN_MAT : FLAVOR_MATS[flavor];
+  b.material = useMsnMaterial
     ? baseMaterial
     : (toonEnabled ? (toonMaterialFor(baseMaterial) || baseMaterial) : baseMaterial);
-  b.sprite = FLAVOR_SPRITES[b.species === 'msn' ? 3 : flavor];
-  b.spriteId = b.species === 'msn' ? 'msn' : FLAVORS[flavor].id;
+  b.sprite = FLAVOR_SPRITES[useMsnMaterial ? speciesDef.spriteFlavor : flavor];
+  b.spriteId = useMsnMaterial ? 'msn' : FLAVORS[flavor].id;
   b.mesh.material = b.material;
   b.mesh.visible = true;
   const stage = opts.stage || 'adult';
@@ -564,7 +573,7 @@ function chooseBirthHome(mother) {
 // points around the current COM so the bear grows in place instead of snapping
 // to a new origin.
 function applyBearStage(b, nextStage) {
-  if (!b || !b.active || !STAGE_ORDER.includes(nextStage) || b.stage === nextStage) {
+  if (!b || !b.active || !speciesOf(b).hasLife || !STAGE_ORDER.includes(nextStage) || b.stage === nextStage) {
     if (b) b.pendingStage = null;
     return false;
   }
@@ -660,7 +669,7 @@ function tryBirth(mother) {
 function stepLife(dt) {
   if (!isMeadow() || !field || frozen) return;
   for (const b of bears) {
-    if (!b.active) continue;
+    if (!b.active || !speciesOf(b).hasLife) continue;
     if (b.mateCooldown > 0) b.mateCooldown = Math.max(0, b.mateCooldown - dt);
     if (b.birthRetryT > 0) b.birthRetryT = Math.max(0, b.birthRetryT - dt);
     if (b.pendingStage && b.grabs === 0 && !b.airborne && !b.inPond) {
@@ -935,7 +944,7 @@ const GUMMY_ARM_L = [12, 13, 14, 15];
 const GUMMY_ARM_R = [16, 17, 18, 19];
 
 function startGummyPose(b, kind) {
-  if (!b || b.species !== 'msn' || !b.active) return false;
+  if (!b || !isGummyActor(b) || !b.active) return false;
   const action = GUMMY_POSE_DUR[kind] ? kind : 'Idle';
   b.gummyPose = { kind: action, t: 0, dur: GUMMY_POSE_DUR[action] };
   if ((action === 'Hop' || action === 'Cheer') && b.grabs === 0 && !b.airborne && b.contacts > 0) {
@@ -947,7 +956,7 @@ function startGummyPose(b, kind) {
 }
 
 function gummyReact(b, kind = null) {
-  if (!b || b.species !== 'msn' || !b.active) return false;
+  if (!b || !isGummyActor(b) || !b.active) return false;
   const choices = ['Nod', 'Wave', 'Cheer'];
   const action = kind || choices[(Math.random() * choices.length) | 0];
   const ok = startGummyPose(b, action);
@@ -960,7 +969,7 @@ function gummyReact(b, kind = null) {
 function stepGummyBehavior(dt) {
   if (!dt || !Number.isFinite(dt)) return;
   for (const b of bears) {
-    if (!b.active || b.species !== 'msn') continue;
+    if (!b.active || !isGummyActor(b)) continue;
     if (b.sleeping || b.grabs > 0 || b.inPond) continue;
     if (b.ai && b.ai.possessed) continue;
     if (b.gummyPose) {
@@ -988,7 +997,7 @@ function stepGummyBehavior(dt) {
 
 function applyGummyPose(b) {
   const p = b.gummyPose;
-  if (!p || b.species !== 'msn') return;
+  if (!p || !isGummyActor(b)) return;
   const tx = b.tx, ty = b.ty, tz = b.tz;
   const k = Math.min(1, p.t / p.dur);
   const env = p.kind === 'Idle' ? 1 : Math.sin(Math.PI * k);
@@ -1671,7 +1680,7 @@ function marchSurface(b, ax, ay, az, dx, dy, dz, maxD, fallback){
   return maxD;
 }
 function writeEyeInstance(b, vanish){
-  if (b.species !== 'bear') return;
+  if (!speciesOf(b).hasEyes) return;
   const slotBase = b.slot*3;
   if (vanish){
     _m4.makeScale(1e-4, 1e-4, 1e-4);
@@ -1763,7 +1772,7 @@ function updateMeshTransforms(){
     }
     b.deform = Math.sqrt(maxD2);
     // eyes ride the same rigid correction
-    if (b.species === 'bear'){
+    if (speciesOf(b).hasEyes){
       for (let k=0;k<3;k++){
         _mEye.fromArray(b.eyeLocal, k*16);
         _m4.multiplyMatrices(b.meshM, _mEye);
@@ -2726,7 +2735,7 @@ addEventListener('pointerdown', (e)=>{
     const hit = pickBear();
     if (hit){
       selectBear(hit.bear);
-      if (hit.bear.species === 'msn') gummyReact(hit.bear);
+      if (isGummyActor(hit.bear)) gummyReact(hit.bear);
       p.mode = 'orbit';
       if (hintEl){
         hintEl.textContent = `${hit.bear.name || 'Bear'} selected — choose a command or Control`;
@@ -2829,7 +2838,7 @@ function pointerUp(e){
       }
     } else if (p.mode === 'grab' && p.grab){
       const clicked = e.type === 'pointerup' && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < 4;
-      if (clicked && p.grab.bear.species === 'msn'){
+      if (clicked && isGummyActor(p.grab.bear)){
         endGrab(p.grab, false);
         gummyReact(p.grab.bear);
       } else {
@@ -3254,7 +3263,7 @@ function refreshBuddyList(){
   if (!buddyListEl) return;
   buddyListEl.innerHTML = '';
   if (!isMeadow()) return;
-  const list = bears.filter(b => b.active);
+  const list = bears.filter(b => b.active && speciesOf(b).roster);
   for (const b of list){
     const row = document.createElement('button');
     row.type = 'button';
@@ -3424,7 +3433,9 @@ function syncPossessHud(){
 }
 function enterPossession(b){
   if (!b || !b.active || !ai) return false;
-  if (!isMeadow() && b.species !== 'msn') return false;
+  const def = speciesOf(b);
+  if (!def || !def.canPossess) return false;
+  if (!isMeadow() && !def.studio) return false;
   if (possessedBear && possessedBear !== b) exitPossession();
   // Sleeping is not a refusal: possession wakes the bear and hands control over.
   if (b.sleeping){
@@ -3453,13 +3464,13 @@ function exitPossession(){
   return true;
 }
 function gummyActor(){
-  return bears.find(b => b.active && b.species === 'msn') || null;
+  return bears.find(b => b.active && isGummyActor(b)) || null;
 }
 function syncRaceControlUI(){
   const btn = document.getElementById('raceControl');
   if (!btn) return;
   const g = gummyActor();
-  const available = !!g && !studioActorHidden(g);
+  const available = !!g && speciesOf(g).canPossess && !studioActorHidden(g);
   btn.disabled = !available;
   const controlling = !!possessedBear && possessedBear === g;
   btn.textContent = controlling ? 'Exit control' : 'Control Gummy';
@@ -3488,7 +3499,8 @@ function possessionJump(){
 }
 function updatePossessionLocomotion(dt){
   if (!possessedBear) return;
-  if (!possessedBear.active || (!isMeadow() && possessedBear.species !== 'msn')) { exitPossession(); return; }
+  const possessedDef = speciesOf(possessedBear);
+  if (!possessedBear.active || (!isMeadow() && !possessedDef.studio)) { exitPossession(); return; }
   const b = possessedBear;
   if (possessHopCd > 0) possessHopCd = Math.max(0, possessHopCd - dt);
   if (b.grabs > 0 || b.inPond) return;
@@ -3601,7 +3613,7 @@ function focusMsn(){
 }
 function syncAeroUI(force){
   if (!isMeadow()) return;
-  const list = bears.filter(b => b.active);
+  const list = bears.filter(b => b.active && speciesOf(b).roster);
   const sig = list.map(b=>`${b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
   if (force || sig !== buddySig) refreshBuddyList();
   updateBuddyStatuses(force);
@@ -4259,7 +4271,7 @@ function frameTick(dt){
   // idle hops + anticipation. An AI bear that is travelling or eating has its
   // own hop controller; only genuinely idle meadow bears keep the random hop.
   for (const b of bears){
-    if (b.species === 'msn') continue;
+    if (isGummyActor(b)) continue;
     const aiBusy = b.ai && (b.ai.moving || b.ai.state !== 'wander' ||
       b.ai.hopState === 'crouch');
     if (!frozen && b.grabs === 0 && !aiBusy){
@@ -4771,7 +4783,7 @@ function animate(now){
     hudAcc = 0;
     elStretch.textContent = stretchShown.toFixed(2) + '×';
     elBounces.textContent = String(bounces);
-    elBears.textContent = String(bears.filter(b => b.species === 'bear').length);
+    elBears.textContent = String(bears.filter(b => speciesOf(b).countsAsBear).length);
     elBounces.classList.toggle('hit', bouncePulse > 0.25);
     if (isMeadow()) syncAeroUI(false);
     if (perfOnFlag) updatePerfPanel();
@@ -4882,9 +4894,9 @@ function seedStudioBears(){
     const b = spawn(x, z, 0.004, flavors[i%flavors.length], {tilt:0.05, name:takeBearName()});
     if (b) { b.stage='adult'; b.sex = (i % 2 ? 'M' : 'F'); }
   }
-  if (RACE_ENABLED){
+  if (RACE_ENABLED && getSpecies('msn').studio){
     const gummy = spawn(-Math.min(.72, TABLE.hx * .42), 0.45, 0.004, 3, {
-      rig: MSN_RIG, name: 'MSN Buddy', stage: 'adult', scale: 1, tilt: 0.02, lift: 0.004,
+      rig: getSpecies('msn').rig, name: 'MSN Buddy', stage: 'adult', scale: 1, tilt: 0.02, lift: 0.004,
     });
     if (gummy) gummy.home = '';
   }
@@ -4924,7 +4936,7 @@ function seedMeadowBears(){
       }
     }
   }
-  if (RACE_ENABLED && field && field.nav){
+  if (RACE_ENABLED && field && field.nav && getSpecies('msn').meadow){
     const gummies = [
       { x: 0.5, z: 6.0, sex: 'F', name: 'MSN Buddy' },
       { x: 2.8, z: 6.4, sex: 'M', name: 'MSN Buddy 2' },
@@ -4932,7 +4944,7 @@ function seedMeadowBears(){
     for (const item of gummies){
       const spot = field.nav.nearestWalkable(item.x, item.z) || { x: item.x, z: item.z };
       const gummy = spawn(spot.x, spot.z, 0.004, 3, {
-        rig: MSN_RIG, name: item.name, sex: item.sex, stage: 'adult', scale: 1, tilt: 0.02, lift: 0.004,
+        rig: getSpecies('msn').rig, name: item.name, sex: item.sex, stage: 'adult', scale: 1, tilt: 0.02, lift: 0.004,
       });
       if (gummy) gummy.home = '';
     }
@@ -4975,8 +4987,9 @@ function spawnFromState(st){
     z = clamp(z, -TABLE.hz+0.28, TABLE.hz-0.28);
   }
   const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), st.yaw || 0);
-  if (st.species === 'msn' && !RACE_ENABLED) return null;
-  const rigCfg = st.species === 'msn' ? MSN_RIG : RIGCFG;
+  const speciesDef = getSpecies(st.species, 'bear');
+  if (speciesDef.id === 'msn' && !RACE_ENABLED) return null;
+  const rigCfg = speciesDef.rig || RIGCFG;
   const b = spawn(x, z, 0.004, st.flavor >= 0 ? st.flavor : 0, {
     rig: rigCfg,
     quat: q, lift: 0, name: st.name || takeBearName(), sex: st.sex || 'F', home: st.home || '',
@@ -5125,7 +5138,7 @@ function applyStudioCast(value = studioCast, persist = true){
     directivePick = false;
     syncDirectivePanel();
   }
-  if (!meadow && studioCast === 'bears' && possessedBear && possessedBear.species === 'msn') exitPossession();
+  if (!meadow && studioCast === 'bears' && possessedBear && isGummyActor(possessedBear)) exitPossession();
   syncRaceControlUI();
   if (!msnOn) cursorEl.classList.remove('move');
   document.body.classList.toggle('msn-only', !meadow && studioCast === 'msn');
@@ -5991,12 +6004,15 @@ window.__gummy = {
   cancelDirectives(i){ return ai ? ai.cancelDirectives(bears[i]) : false; },
   possess(i){ const b = bears[i]; return enterPossession(b) ? (possessedBear.name || '') : null; },
   exitPossession(){ return exitPossession(); },
-  gummy(i){ const b = bears[i]; return b && b.species === 'msn' ? {
+  gummy(i){ const b = bears[i]; return b && isGummyActor(b) ? {
     index: i, name: b.name, idleT: +b.gummyIdleT.toFixed(2),
     pose: b.gummyPose ? { ...b.gummyPose, t: +b.gummyPose.t.toFixed(2) } : null,
     ai: b.ai ? b.ai.state : null,
   } : null; },
-  gummyReact(i, kind){ const b = bears[i]; return b && b.species === 'msn' ? gummyReact(b, kind) : false; },
+  gummyReact(i, kind){ const b = bears[i]; return b && isGummyActor(b) ? gummyReact(b, kind) : false; },
+  species(){ return listSpecies().map(({ id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, genetics, hybrids }) => ({
+    id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, genetics, hybrids,
+  })); },
   possessed(){ return possessedBear ? {
     index: bears.indexOf(possessedBear), name: possessedBear.name || '',
     x: +possessedBear.cx.toFixed(2), z: +possessedBear.cz.toFixed(2), y: +possessedBear.cy.toFixed(2),

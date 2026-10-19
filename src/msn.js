@@ -5,8 +5,10 @@
 // module owns one display model, its material and its animation mixer.
 
 import * as THREE from 'three';
+import { getSpecies } from './species.js';
 
-const ASSET_URL = new URL('../assets/MSN_Figure/msn.glb', import.meta.url).href;
+const GLASS_SPECIES = getSpecies('glass');
+const ASSET_URL = new URL('../' + GLASS_SPECIES.asset, import.meta.url).href;
 const DEFAULT_OPACITY = 0.55;
 const MIN_OPACITY = 0.25;
 const DEFAULT_SPEED = 1.0;
@@ -370,6 +372,7 @@ export function createMSNPrototype({ scene, camera, renderer, physics, enabled =
   function state() {
     return {
       enabled: !!enabled,
+      species: GLASS_SPECIES.id,
       ready,
       loading: !!loading,
       error: error ? String(error.message || error) : null,
