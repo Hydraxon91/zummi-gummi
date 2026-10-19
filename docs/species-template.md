@@ -15,6 +15,7 @@ registerSpecies({
   rig: null,                           // required for softbody
   asset: null,                         // required for skinned
   assetManifest: null,                 // required when asset is set
+  assetId: null,                       // stable ID in assets/catalog.json
   material: 'flavor',
   spriteFlavor: 3,
   studio: true,
@@ -54,6 +55,8 @@ registerSpecies({
 - [ ] Species id is stable and is not reused by an existing definition.
 - [ ] `kind` matches the runtime representation: 24-body soft body or skinned GLB.
 - [ ] `rig` is present for soft bodies; `asset` + `assetManifest` for skinned assets.
+- [ ] Skinned assets have a catalog `assetId`; the adapter acquires a store lease,
+      clones skeleton/material state, and releases it when disposing the instance.
 - [ ] Compatibility is reciprocal with every species it can breed with.
 - [ ] `canBreed` and `canReproduce` are intentionally separate.
 - [ ] Capabilities match the runtime (grab, possession, life, eyes, tells).

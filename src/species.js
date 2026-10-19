@@ -29,6 +29,7 @@ function defineSpecies(def) {
     rig: def.rig || null,
     asset: def.asset || null,
     assetManifest: def.assetManifest || null,
+    assetId: def.assetId || null,
     material: def.material || 'flavor', // app resolves the actual material
     spriteFlavor: Number.isFinite(def.spriteFlavor) ? def.spriteFlavor : 3,
     studio: def.studio !== false,
@@ -147,6 +148,7 @@ install({
   rig: null,
   asset: 'assets/MSN_Figure/msn.glb',
   assetManifest: 'assets/MSN_Figure/asset.json',
+  assetId: 'msn.glass',
   material: 'glass',
   spriteFlavor: 3,
   studio: true,

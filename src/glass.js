@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getSpecies } from './species.js';
 import { defaultGenome, expressGenome, normalizeGenome } from './dna.js';
-import { fetchAssetManifest, loadManifestedGltf } from './assets.js';
+import { assetStore, disposeInstanceSkeletons } from './assetstore.js';
 import {
   advanceAge, advanceGestation, ageForStage, scaleForStage,
   canMate, HOME_CAPACITY, MATE_TIME, MATE_COOLDOWN,
@@ -16,10 +16,6 @@ import {
 } from './life.js';
 
 const GLASS_SPECIES = getSpecies('glass');
-const ASSET_URL = new URL('../' + GLASS_SPECIES.asset, import.meta.url).href;
-const ASSET_MANIFEST_URL = GLASS_SPECIES.assetManifest
-  ? new URL('../' + GLASS_SPECIES.assetManifest, import.meta.url).href
-  : null;
 const DEFAULT_COLOR = '#a8e5ff';
 const MAX_ACTORS = 8;
 const HOVER = .18;
@@ -90,25 +86,6 @@ function blendHex(a, b, rng = Math.random) {
     return clamp(Math.round(va + (vb - va) * (.35 + rng() * .3)), 0, 255);
   });
   return '#' + mix.map(v => v.toString(16).padStart(2, '0')).join('');
-}
-
-let assetPromise = null;
-function loadAsset() {
-  if (!assetPromise) {
-    assetPromise = (async () => {
-      if (ASSET_MANIFEST_URL) {
-        const manifest = await fetchAssetManifest(ASSET_MANIFEST_URL);
-        const { gltf } = await loadManifestedGltf(manifest, { manifestUrl: ASSET_MANIFEST_URL });
-        return gltf;
-      }
-      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-      return new GLTFLoader().loadAsync(ASSET_URL);
-    })().catch(err => {
-      assetPromise = null;
-      throw err;
-    });
-  }
-  return assetPromise;
 }
 
 function makeShadow() {
@@ -253,7 +230,7 @@ export function createGlassColony({
   function safeFoodCount() {
     const field = fieldNow();
     return field && field.food && field.food.allRipe
-      ? field.food.allRipe({ kinds: ['flower', 'fruit'] }).length
+      ? field.food.allRipe({ safe: true }).length
       : 0;
   }
 
@@ -345,7 +322,7 @@ export function createGlassColony({
     const source = field.food.nearestRipe(a.cx, a.cz, {
       maxDistance: 44,
       bear: a,
-      kinds: ['flower', 'fruit'],
+      safe: true,
     });
     if (!source || !field.food.claim(source, a)) return false;
     if (!setMoving(a, source.approachX, source.approachZ)) {
@@ -1268,8 +1245,10 @@ export function createGlassColony({
   }
 
   function loadModel(a) {
-    loadAsset().then(gltf => {
-      if (!a.active || a.disposed) return;
+    assetStore.acquire(GLASS_SPECIES.assetId).then(lease => {
+      if (!a.active || a.disposed) { lease.release(); return; }
+      a.assetLease = lease;
+      const gltf = lease.gltf;
       const model = cloneSkeleton(gltf.scene);
       model.name = 'GlassMeadowModel';
       const box = new THREE.Box3().setFromObject(model);
@@ -1279,6 +1258,7 @@ export function createGlassColony({
       a.model = model;
       a.holder.add(model);
       const materials = [];
+      a.materials = materials;
       model.traverse(object => {
         if (!object.isMesh) return;
         object.castShadow = false;
@@ -1309,6 +1289,16 @@ export function createGlassColony({
       a.ready = true;
       updateVisual(a);
     }).catch(err => {
+      if (a.mixer) a.mixer.stopAllAction();
+      if (a.model) {
+        a.model.removeFromParent();
+        disposeInstanceSkeletons(a.model);
+      }
+      for (const material of a.materials || []) material.dispose();
+      a.materials = [];
+      a.model = null;
+      a.mixer = null;
+      if (a.assetLease) { a.assetLease.release(); a.assetLease = null; }
       a.error = String(err && err.message || err);
       console.warn('[glass] meadow actor failed to load:', err);
     });
@@ -2021,11 +2011,12 @@ export function createGlassColony({
     a.active = false;
     destroyBody(a);
     if (a.mixer) a.mixer.stopAllAction();
+    if (a.model) disposeInstanceSkeletons(a.model);
     if (a.root) a.root.removeFromParent();
     for (const material of a.materials || []) {
-      if (material.map) material.map.dispose();
       material.dispose();
     }
+    if (a.assetLease) { a.assetLease.release(); a.assetLease = null; }
     const shadow = a.shadow;
     if (shadow) {
       if (shadow.material) {

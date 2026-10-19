@@ -5,17 +5,14 @@
 // module owns one display model, its material and its animation mixer.
 
 import * as THREE from 'three';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getSpecies } from './species.js';
 import { defaultGenome, expressGenome } from './dna.js';
-import { fetchAssetManifest, loadManifestedGltf } from './assets.js';
+import { assetStore, disposeInstanceSkeletons } from './assetstore.js';
 
 const GLASS_SPECIES = getSpecies('glass');
 const GLASS_GENOME = defaultGenome('glass');
 const GLASS_PHENOTYPE = expressGenome(GLASS_GENOME);
-const ASSET_URL = new URL('../' + GLASS_SPECIES.asset, import.meta.url).href;
-const ASSET_MANIFEST_URL = GLASS_SPECIES.assetManifest
-  ? new URL('../' + GLASS_SPECIES.assetManifest, import.meta.url).href
-  : null;
 const DEFAULT_OPACITY = 0.55;
 const MIN_OPACITY = 0.25;
 const DEFAULT_SPEED = 1.0;
@@ -68,6 +65,8 @@ function makeContactShadow() {
 }
 
 export function createMSNPrototype({ scene, camera, renderer, physics, enabled = true, getTable, look = 'glass' } = {}) {
+  let assetLease = null;
+  let disposed = false;
   const root = new THREE.Group();
   root.name = 'msnRacePrototype';
   root.visible = false;
@@ -601,21 +600,19 @@ export function createMSNPrototype({ scene, camera, renderer, physics, enabled =
   }
 
   async function load() {
+    if (disposed) return state();
     if (ready) return state();
     if (loading) return loading;
     error = null;
     setStatus('Loading MSN Buddy…');
     loading = (async () => {
       const started = performance.now();
-      let gltf;
-      if (ASSET_MANIFEST_URL) {
-        const manifest = await fetchAssetManifest(ASSET_MANIFEST_URL);
-        ({ gltf } = await loadManifestedGltf(manifest, { manifestUrl: ASSET_MANIFEST_URL }));
-      } else {
-        const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-        gltf = await new GLTFLoader().loadAsync(ASSET_URL);
-      }
-      const source = gltf.scene;
+      const lease = await assetStore.acquire(GLASS_SPECIES.assetId);
+      if (disposed) { lease.release(); return state(); }
+      assetLease = lease;
+      const gltf = lease.gltf;
+      const source = cloneSkeleton(gltf.scene);
+      model = source;
       source.name = 'MSNBuddy';
       const box = new THREE.Box3().setFromObject(source);
       const size = box.getSize(new THREE.Vector3());
@@ -646,6 +643,7 @@ export function createMSNPrototype({ scene, camera, renderer, physics, enabled =
             copy.userData.authoredColor = copy.color.clone();
             copy.userData.authoredRoughness = copy.roughness;
             materialMap.set(material, copy);
+            materials.push(copy);
           }
           return materialMap.get(material);
         });
@@ -685,6 +683,16 @@ export function createMSNPrototype({ scene, camera, renderer, physics, enabled =
       syncUi();
       return state();
     })().catch(err => {
+      if (mixer) mixer.stopAllAction();
+      if (model) {
+        model.removeFromParent();
+        disposeInstanceSkeletons(model);
+      }
+      for (const material of materials) material.dispose();
+      materials = [];
+      model = null;
+      mixer = null;
+      if (assetLease) { assetLease.release(); assetLease = null; }
       error = err;
       ready = false;
       setStatus('MSN Buddy failed to load — game continues without it.');
@@ -725,10 +733,14 @@ export function createMSNPrototype({ scene, camera, renderer, physics, enabled =
   }
 
   function dispose() {
+    disposed = true;
     destroyBody();
+    if (mixer) mixer.stopAllAction();
+    if (model) disposeInstanceSkeletons(model);
     root.removeFromParent();
     for (const material of materials) material.dispose();
     materials = [];
+    if (assetLease) { assetLease.release(); assetLease = null; }
     const shadow = contactShadow.material;
     if (shadow) {
       if (shadow.map) shadow.map.dispose();

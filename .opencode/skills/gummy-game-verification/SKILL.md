@@ -37,6 +37,8 @@ These are deterministic and run in CI. They cover the registry capabilities and
 compatibility matrix, genome defaults/combination/clamping, all three reproduction gates,
 save validation (including unsupported top-level and genome versions), mixed soft-body/Glass
 actor-view queries, the `assets/MSN_Figure/asset.json` GLB manifest and the manifest loader.
+Food fixtures cover safety/defaults/claim/respawn/save parity; asset-store tests cover
+catalog validation, concurrent loading, error/retry, leases and deduplicated disposal.
 Add a test in the same approved scope when the underlying rule changes.
 
 ## HTTP smoke check
@@ -73,6 +75,13 @@ clips, and `SHOTS=1` to write a capture. The harness uses a temporary browser
 profile and `BROWSER_BIN`/`CHROME_BIN` when the browser is not in a standard
 location. The older `.dev-shots/race-test.mjs` and `glass-test.mjs` remain useful
 for deeper Studio/Glass lifecycle passes.
+
+`STUDIO=1` also returns to Meadow after the transition completes and asserts that
+`__gummy.assets()` still reports one GLB load with three live leases (one retained
+Studio instance and two Meadow instances). Cached GLB bytes are not GPU-memory usage.
+For store changes also check independent skeletons/materials, source texture lifetime,
+save/load, and source reuse over repeated map switches. For food changes check visibility
+on consume/restore and preserve source IDs, balance values and seeded respawn draws.
 
 ## Boot, menu and session state
 

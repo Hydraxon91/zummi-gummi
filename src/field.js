@@ -1035,11 +1035,8 @@ export function buildField({ scene, camera, renderer, sky }) {
       foodSources.push({
         id: `flower-${visualIndex}`,
         kind: 'flower',
-        label: 'jelly flower',
         x, z, y: stemH,
         approachX: x, approachZ: z,
-        satiation: 0.20,
-        respawnMin: 25, respawnMax: 45,
         visualIndex,
       });
     }
@@ -2233,11 +2230,8 @@ export function buildField({ scene, camera, renderer, sky }) {
         foodSources.push({
           id: `fruit-${visualIndex}`,
           kind: 'fruit',
-          label: 'jelly fruit',
           x, z, y: .14,
           approachX: x, approachZ: z,
-          satiation: .35,
-          respawnMin: 45, respawnMax: 90,
           visualIndex,
         });
       }
@@ -2273,11 +2267,8 @@ export function buildField({ scene, camera, renderer, sky }) {
       foodSources.push({
         id: `hive-${i}`,
         kind: 'hive',
-        label: 'beehive',
         x: hive.center.x, z: hive.center.z, y: hive.center.y,
         approachX: approach.x, approachZ: approach.z,
-        satiation: .55,
-        respawnMin: 90, respawnMax: 150,
         visualIndex: i,
       });
     }
@@ -2300,7 +2291,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   function setFoodVisible(source, visible) {
     if (!source) return;
     const m = visible ? null : hiddenFoodMatrix;
-    if (source.kind === 'flower' && flowerFoodVisual) {
+    if (source.type?.visual === 'flower' && flowerFoodVisual) {
       const i = source.visualIndex;
       const { stems, blooms, centers } = flowerFoodVisual.parts;
       if (!stems[i] || !blooms[i] || !centers[i]) return;
@@ -2310,13 +2301,13 @@ export function buildField({ scene, camera, renderer, sky }) {
       flowerFoodVisual.stems.instanceMatrix.needsUpdate = true;
       flowerFoodVisual.blooms.instanceMatrix.needsUpdate = true;
       flowerFoodVisual.centers.instanceMatrix.needsUpdate = true;
-    } else if (source.kind === 'fruit' && fallenFruitVisual) {
+    } else if (source.type?.visual === 'fruit' && fallenFruitVisual) {
       const i = source.visualIndex;
       const part = fallenFruitVisual.parts[i];
       if (!part) return;
       fallenFruitVisual.mesh.setMatrixAt(i, m || part.m);
       fallenFruitVisual.mesh.instanceMatrix.needsUpdate = true;
-    } else if (source.kind === 'hive' && hiveVisual) {
+    } else if (source.type?.visual === 'hive' && hiveVisual) {
       const hive = hiveVisual[source.visualIndex];
       if (hive) hive.mesh.visible = !!visible;
     }

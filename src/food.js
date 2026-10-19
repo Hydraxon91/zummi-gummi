@@ -5,22 +5,26 @@
 // what. That keeps the browser scene, the registry and the state machine from
 // growing into each other.
 
+import { getFoodType, isSafeFood } from './foodtypes.js';
+
 const UPDATE_STEP = 0.20;
 
 export function createFoodRegistry({ sources = [], rng = Math.random, onVisibility = null } = {}) {
   let seq = 0;
   const list = sources.map((s) => {
     const kind = s.kind || 'food';
-    const respawnMin = Number.isFinite(s.respawnMin) ? s.respawnMin : 25;
-    const respawnMax = Number.isFinite(s.respawnMax) ? s.respawnMax : 45;
+    const type = getFoodType(kind);
+    const respawnMin = Number.isFinite(s.respawnMin) ? s.respawnMin : (type?.respawnMin ?? 25);
+    const respawnMax = Number.isFinite(s.respawnMax) ? s.respawnMax : (type?.respawnMax ?? 45);
     return {
       ...s,
       id: s.id || `${kind}-${seq++}`,
       kind,
-      label: s.label || kind,
+      type,
+      label: s.label || type?.label || kind,
       approachX: Number.isFinite(s.approachX) ? s.approachX : s.x,
       approachZ: Number.isFinite(s.approachZ) ? s.approachZ : s.z,
-      satiation: Number.isFinite(s.satiation) ? s.satiation : 0.20,
+      satiation: Number.isFinite(s.satiation) ? s.satiation : (type?.satiation ?? 0.20),
       respawnMin,
       respawnMax,
       respawn: Number.isFinite(s.respawn) ? s.respawn : respawnMin + rng() * (respawnMax - respawnMin),
@@ -86,7 +90,7 @@ export function createFoodRegistry({ sources = [], rng = Math.random, onVisibili
     return true;
   }
 
-  function nearestRipe(x, z, { maxDistance = 40, bear = null, exclude = null, kinds = null } = {}) {
+  function nearestRipe(x, z, { maxDistance = 40, bear = null, exclude = null, kinds = null, safe = null } = {}) {
     let best = null;
     let bestD = maxDistance;
     for (const s of list) {
@@ -94,14 +98,16 @@ export function createFoodRegistry({ sources = [], rng = Math.random, onVisibili
       if (s.claim && s.claim !== bear) continue;
       if (exclude && exclude.has(s.id)) continue;
       if (kinds && !kinds.includes(s.kind)) continue;
+      if (safe !== null && isSafeFood(s) !== safe) continue;
       const d = Math.hypot(s.approachX - x, s.approachZ - z);
       if (d < bestD) { bestD = d; best = s; }
     }
     return best;
   }
 
-  function allRipe({ kinds = null } = {}) {
-    return list.filter(s => s.ripe && (!kinds || kinds.includes(s.kind)));
+  function allRipe({ kinds = null, safe = null } = {}) {
+    return list.filter(s => s.ripe && (!kinds || kinds.includes(s.kind)) &&
+      (safe === null || isSafeFood(s) === safe));
   }
 
   function validate() {

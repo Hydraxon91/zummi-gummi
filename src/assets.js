@@ -15,16 +15,16 @@ function isCount(value, minimum = 0) {
   return Number.isInteger(value) && value >= minimum;
 }
 
-function isRelativeFile(value) {
-  return typeof value === 'string' && value.length > 0 &&
-    !value.startsWith('/') && !value.startsWith('..') && !value.includes('..\\');
+export function isAssetPath(value) {
+  if (typeof value !== 'string' || !value || /[\\:%?#\s]/.test(value)) return false;
+  return value.split('/').every(part => part && part !== '.' && part !== '..');
 }
 
 export function validateAssetManifest(manifest) {
   const errors = [];
   if (!isObj(manifest)) return { ok: false, errors: ['manifest is not an object'] };
   if (manifest.schema !== ASSET_MANIFEST_SCHEMA) errors.push(`unsupported manifest schema ${manifest.schema}`);
-  if (!isRelativeFile(manifest.file)) errors.push('file must be a relative path');
+  if (!isAssetPath(manifest.file)) errors.push('file must be a relative path');
   if (typeof manifest.sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(manifest.sha256)) {
     errors.push('sha256 is invalid');
   }

@@ -9,6 +9,7 @@ import {
   GESTATION_TIME, PREGNANCY_HUNGER,
 } from './life.js';
 import { canSpeciesBreed } from './dna.js';
+import { isSafeFood } from './foodtypes.js';
 
 const WANDER_MIN = 3.0;
 const WANDER_MAX = 12.0;
@@ -94,7 +95,6 @@ const HIVE_DIST = 1.25;
 const HIVE_RAID_TIME = 1.25;
 const FLEE_TIME = 1.4;
 
-const SAFE_FOOD = ['flower', 'fruit'];
 
 function finite(n, fallback) {
   return Number.isFinite(n) ? n : fallback;
@@ -469,7 +469,7 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
         maxDistance: 46,
         bear: b,
         exclude,
-        kinds: SAFE_FOOD,
+        safe: true,
       });
       if (!source) break;
       exclude.add(source.id);
@@ -1106,7 +1106,7 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
 
   function safeFoodCount() {
     if (!field || !field.food || !field.food.allRipe) return 0;
-    return field.food.allRipe({ kinds: SAFE_FOOD }).length;
+    return field.food.allRipe({ safe: true }).length;
   }
 
   function canMatePair(a, b) {
@@ -1305,7 +1305,7 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
     let bestScore = -Infinity;
     for (const source of field.food.sources) {
       if (!source.ripe || !source.claim || source.claim === b) continue;
-      if (!SAFE_FOOD.includes(source.kind)) continue;
+      if (!isSafeFood(source)) continue;
       const other = source.claim;
       if (!other || !other.active || other.sleeping || other.health < HEALTH_WOOZY) continue;
       if (!other.ai || !['wander', 'seekFood', 'eat', 'drink', 'seekWater', 'seekCompany'].includes(other.ai.state)) continue;
@@ -2087,7 +2087,7 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
       return { ok: true, state: 'seekHive', note: 'looking for a hive' };
     }
     if (state === 'eat') {
-      const source = field.food.nearestRipe(b.cx, b.cz, { maxDistance: 999, bear: b, kinds: SAFE_FOOD });
+      const source = field.food.nearestRipe(b.cx, b.cz, { maxDistance: 999, bear: b, safe: true });
       if (!source || !field.food.claim(source, b)) {
         b.ai.state = 'seekFood';
         return { ok: false, state: 'seekFood', note: 'no food target; seeking' };
@@ -2313,13 +2313,13 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
     releaseFood(b);
     let source = null;
     for (const s of field.food.sources) {
-      if (s.ripe && s.claim === b && SAFE_FOOD.includes(s.kind)) { source = s; break; }
+      if (s.ripe && s.claim === b && isSafeFood(s)) { source = s; break; }
     }
     if (!source) {
       let best = null;
       let bestD = Infinity;
       for (const s of field.food.sources) {
-        if (!s.ripe || !SAFE_FOOD.includes(s.kind)) continue;
+        if (!s.ripe || !isSafeFood(s)) continue;
         const d = Math.hypot(s.approachX - b.cx, s.approachZ - b.cz);
         if (d < bestD) { bestD = d; best = s; }
       }

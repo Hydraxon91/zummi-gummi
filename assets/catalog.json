@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "id": "msn.glass",
+      "kind": "gltf",
+      "manifest": "MSN_Figure/asset.json",
+      "groups": ["meadow", "studio"],
+      "tags": ["character", "species:glass"]
+    }
+  ]
+}

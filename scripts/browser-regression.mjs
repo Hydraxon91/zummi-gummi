@@ -25,6 +25,7 @@ try {
     mobile: process.env.MOBILE === '1',
   });
   await page.waitFor('!!window.__gummy?.booted', 45000);
+  await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 30000);
 
   const result = await page.evaluate(`(async () => {
     const g = window.__gummy;
@@ -91,6 +92,7 @@ try {
     await page.evaluate("window.__gummy.setMap('studio')");
     await page.waitFor("window.__gummy.map().id === 'studio'", 15000);
     await page.waitFor("window.__gummy.msn.state().ready", 30000);
+    await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
     const studio = await page.evaluate(`(() => {
       const g = window.__gummy;
       const state = g.msn.state();
@@ -108,6 +110,18 @@ try {
     if (studio.transmission !== 1) studioFailures.push(`Studio transmission ${studio.transmission}`);
     if (studioFailures.length) throw new Error(studioFailures.join('; '));
     console.log('STUDIO', JSON.stringify(studio));
+    const assets = await page.evaluate('window.__gummy.assets()');
+    if (assets.length !== 1 || assets[0].loads !== 1 || assets[0].refs !== 1) {
+      throw new Error(`Studio asset ownership failed: ${JSON.stringify(assets)}`);
+    }
+    await page.evaluate("window.__gummy.setMap('field')");
+    await page.waitFor("window.__gummy.map().id === 'field' && window.__gummy.glass().actors.every(a => a.ready)");
+    await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
+    const restoredAssets = await page.evaluate('window.__gummy.assets()');
+    if (restoredAssets[0].loads !== 1 || restoredAssets[0].refs !== 3) {
+      throw new Error(`Meadow asset reuse failed: ${JSON.stringify(restoredAssets)}`);
+    }
+    console.log('ASSETS', JSON.stringify(restoredAssets));
   }
   if (process.env.SHOTS === '1') {
     await mkdir(`${ROOT}/.dev-shots`, { recursive: true });

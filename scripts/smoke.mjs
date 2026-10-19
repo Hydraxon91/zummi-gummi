@@ -59,6 +59,7 @@ const modules = [
   "/src/launcher.js",
   "/src/field.js",
   "/src/food.js",
+  "/src/foodtypes.js",
   "/src/life.js",
   "/src/ai.js",
   "/src/effects.js",
@@ -67,6 +68,7 @@ const modules = [
   "/src/npc.js",
   "/src/species.js",
   "/src/assets.js",
+  "/src/assetstore.js",
   "/src/dna.js",
   "/src/msnrig.js",
   "/src/buddyrig.js",
@@ -110,6 +112,11 @@ check(manifestRes.status === 200, "GET /assets/MSN_Figure/asset.json returns 200
 check(/json/.test(manifestType), "asset manifest is served as JSON", manifestType);
 const manifest = await manifestRes.json();
 check(manifest.file === "msn.glb" && manifest.sha256?.length === 64, "asset manifest identifies the GLB");
+const catalogRes = await get('/assets/catalog.json');
+check(catalogRes.status === 200, 'asset catalog is served');
+const catalog = await catalogRes.json();
+check(catalog.schema === 1 && catalog.assets.some(entry => entry.id === 'msn.glass'),
+  'asset catalog contains the Glass source');
 
 // --- Box3D wasm -------------------------------------------------------------
 const wasmRes = await get("/vendor/box3d/box3d.wasm");

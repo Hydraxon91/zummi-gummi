@@ -14,6 +14,7 @@ import {
 import { createStudioReturnPortal } from './studiohouse.js';
 import { createMSNPrototype } from './msn.js';
 import { createGlassColony } from './glass.js';
+import { assetStore } from './assetstore.js';
 import { createActorView, isGlassActor } from './npc.js';
 import { getSpecies, speciesForRig, listSpecies } from './species.js';
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
@@ -202,13 +203,7 @@ const BEAR_HEIGHT  = 1.375;      // rest height of a bear
 let wobble = 0.55;               // 0 = firm, 1 = Mr. Fantastic
 
 /* --------------------------- flavour presets ------------------------------ */
-const FLAVORS = [
-  { id:'cherry',    name:'Cherry',    hex:0xd51f3c, att:0x8c1024, attDist:0.95, shadow:[196, 38, 66]  },
-  { id:'orange',    name:'Orange',    hex:0xff7b1c, att:0xb14400, attDist:0.88, shadow:[226,104, 20]  },
-  { id:'lemon',     name:'Lemon',     hex:0xffc61f, att:0xbd8800, attDist:0.80, shadow:[221,170, 22]  },
-  { id:'apple',     name:'Apple',     hex:0x69c22f, att:0x2f7a16, attDist:0.92, shadow:[ 99,172, 44]  },
-  { id:'pineapple', name:'Pineapple', hex:0xf7f2df, att:0xe6d9a6, attDist:3.20, shadow:[210,196,138]  },
-];
+import { FLAVORS } from './config.js';
 const DEFAULT_FLAVOR = 0;
 
 /* ----------------------------- custom picker ------------------------------ */
@@ -789,7 +784,7 @@ function addFamilyBond(parent, child, value = .62) {
 function birthChild(mother, father = null) {
   if (!mother || !mother.active || !mother.pregnant) return false;
   if (mother.grabs > 0 || mother.inPond || mother.airborne || mother.freeBody) return false;
-  const safeFood = field && field.food ? field.food.allRipe({ kinds: ['flower', 'fruit'] }).length : 0;
+  const safeFood = field && field.food ? field.food.allRipe({ safe: true }).length : 0;
   if (safeFood < MATE_FOOD_MIN) return false;
   father = father || actorView.byUid(mother.fatherUid) || null;
   const childSpecies = birthSpecies(mother, father) || speciesOf(mother);
@@ -3513,8 +3508,8 @@ function buddyStatus(b){
     if (b.ai.state === 'raidHive') return 'raiding a beehive';
     if (b.ai.state === 'seekHive') return 'eyeing the beehive';
     if (b.ai.state === 'flee') return 'fleeing the bees';
-    if (b.ai.state === 'eat') return b.ai.source && b.ai.source.kind === 'fruit'
-      ? 'nibbling a jelly fruit' : 'nibbling a jelly flower';
+    if (b.ai.state === 'eat') return b.ai.source
+      ? `nibbling a ${b.ai.source.label}` : 'nibbling a jelly flower';
     if (b.ai.state === 'drink') return 'sipping from the pond';
     if (b.ai.state === 'seekWater') return 'hopping to the pond';
     if (b.ai.state === 'seekFood') return 'looking for a snack';
@@ -6216,6 +6211,7 @@ function simulateSeconds(sec, rebuildEverySubsteps){
   return built;
 }
 window.__gummy = {
+  assets(){ return assetStore.status(); },
   booted: false,
   bears,
   seed(value){

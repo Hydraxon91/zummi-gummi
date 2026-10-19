@@ -173,6 +173,10 @@ existing stack and structure.
   and `msnrig.js`/`buddyrig.js` own rig data. `life.js`/`ai.js` own shared needs, social and
   cross-species behavior. Put new logic in the matching module rather than growing
   `app.js`. See the target split in `ROADMAP.md`.
+  `foodtypes.js` owns food defaults/safety; `food.js` owns placed-source state.
+  `assetstore.js` owns catalog source caching/leases; `assets.js` remains the
+  manifest validator/loader. Consumers clone skeletons/materials and must not
+  dispose shared geometry/textures. Use `assets/catalog.json` IDs, not new loader caches.
 
   | Actor | Representation | Hot-path owner |
   | --- | --- | --- |

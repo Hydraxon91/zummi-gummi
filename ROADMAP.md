@@ -621,6 +621,114 @@ interpretation; the helper does not certify them. Affects
 Each phase ends playable, with screenshots and headless checks, so the direction
 can be adjusted without losing the working app.
 
+## Non-Blender backlog (Oct 2026)
+
+Recorded after the Blender-free family, verification and asset-pipeline pass.
+Glass interiors and authored hybrids stay on the Blender track; everything here
+can proceed with the current runtime and assets.
+
+### Landed
+
+- Committed species/DNA/save/actor-view tests and CI execution.
+- MSN asset manifest, GLB inventory check and source-backup decision.
+- `AGENTS.md` and project-skill updates for the species runtime.
+- Seeded portable browser regression (`scripts/browser-regression.mjs`).
+- Family tree/lineage UI and Glass/soft-body sibling playdates.
+- Manifest-driven GLB loader (`src/assets.js`) and `docs/species-template.md`.
+
+### Open — no Blender required
+
+- **Browser regression in CI.** The committed regression currently runs locally;
+  add a CI browser job where a Chromium binary is available, keeping the pure
+  tests blocking. Port the older `.dev-shots` harnesses to the portable helper,
+  and add a retention policy for their captures.
+- **Stale scratch expectations.** The old menu harness still expects 6 bears;
+  update it to the current 8 soft-body actors after a starter-roster change.
+- **Deeper family life.** Family meals, parent teaching, recurring playdates,
+  household routines and a longer lineage/history view.
+- **Performance.** Re-profile the current Meadow with Glass/family behavior,
+  tune grass/foliage and the quality tiers, and continue toward the open
+  ≤16.7 ms target.
+- **6b-1 presentation polish.** HUD/status styling, nameplates, emote legibility,
+  gear-sheet visuals, home occupancy glow and mobile layout.
+- **Phase 9.** Village placement editor, named homes, shared hub and light
+  jobs/shops.
+- **NPC adapter phase 2.** Reduce remaining `bears` vs Glass branch paths and
+  move more iteration through `src/npc.js`.
+- **Multi-sphere Glass proxy — later.** Only revisit if throws or collisions
+  become gameplay-critical; the single sphere remains the stable default.
+- **Debug/tooling polish.** Add a hook catalog or `debugHooks()` listing and a
+  deterministic seed path for every behavior harness.
+- **Asset source and rights.** The GLB + manifest are committed; the editable
+  `.blend` source still needs an external backup and a final redistribution
+  rights statement.
+
+### Blender-blocked
+
+- Glass interior scenes and entering villas during visits.
+- Authored Bear × Gummy / Glass hybrid models and hybrid species entries.
+- Studio lounge/bar/TV and other modelled-room assets.
+- New silhouettes that cannot be expressed as material/colour/scale variants of
+  the existing models.
+
+### Suggested order
+
+1. Browser regression in CI + old-harness cleanup.
+2. Deeper family life.
+3. Performance or 6b-1 presentation polish.
+4. Phase 9.
+5. Blender authoring wave when MCP is ready.
+
+## Content extensibility track (first slice implemented, Oct 2026)
+
+Extend the existing ES modules, not the engine stack. Stable definition IDs must
+remain separate from placed instance IDs and mutable save state. Preserve current
+visuals, balance, authored layouts, batching and save compatibility during extraction.
+
+1. **Food types + flavor deduplication (done).** Define food labels,
+   satiation, respawn and safety in a pure registry; query safety rather than
+   hardcoded flower/fruit lists. Keep specialized hive behavior and existing
+   batched visual builders. Use the existing `config.js` flavor definitions once.
+2. **Asset catalog/store (done).** Add stable asset IDs, groups and
+   manifest references; coalesce loading, report errors/status and lease resources.
+   Share immutable source geometry/textures, never skeletons, actor materials or
+   mixer state. Release actor-owned state independently; evict cached sources only
+   when unused. Unknown/missing assets report errors, never silent replacements.
+3. **Flora/home-style definitions (later).** Give tree species, bushes, rocks and
+   villa styles stable IDs with builder, palette, LOD, footprint and attachment
+   metadata. Preserve current tree assignment and hive hosts before replacing
+   index-based selection. Share definitions, not per-frame per-leaf CPU work.
+4. **Map content definitions (later).** Separate authored lots, starter colony,
+   bounds, portals and content groups from world state. Add maps through explicit
+   builders and validated map IDs; migrate saves deliberately.
+5. **Genes + actor persistence contracts (later).** Centralize gene ranges,
+   inheritance and expression rules. Keep save-envelope validation separate from
+   actor serialization; specify version and unknown-content behavior before
+   generalizing bear/Glass persistence.
+6. **AI/directive extension points + UI ownership (later).** Add bounded behavior
+   handlers only when new content needs them; preserve shared pair interruption,
+   needs priorities and specialized physics. Extract UI by ownership, not a broad
+   framework rewrite.
+
+Each slice needs fixture-definition tests plus existing-content regressions. The
+asset store is local runtime infrastructure, not a download marketplace or an
+authorization to install generators, dependencies or new assets.
+
+**Known follow-ups from this slice:**
+- **Fixed: shared asset lifetime.** `glass.js` used to dispose a cloned material's
+  texture map even though clones share source textures. Actor disposal now releases
+  only its material/skeleton state and source lease; the store owns source eviction.
+- **Fixed: manifest path validation.** `assets.js` previously accepted nested `..`
+  and external URL forms. Catalog/manifest paths now reject traversal, schemes and
+  encoded paths; tests cover those forms.
+- **Fixed: partial model/material setup failure.** `msn.js` and `glass.js` now
+  detach partial models and dispose tracked actor-owned skeletons/materials before
+  releasing the source lease on failure. Store load/retry failures have pure tests;
+  arbitrary Blender-export/renderer exceptions are not comprehensively fault-injected.
+- **Later: specialized visuals/risks.** A new food type can reuse `flower`/`fruit`
+  renderers and safe eating, but an entirely new visual or risky interaction still
+  needs a builder/handler. Generic risk plugins are not part of this extraction.
+
 ## Bear AI
 
 Each bear has **needs** (hunger, thirst, social, energy, affection), a sex,
