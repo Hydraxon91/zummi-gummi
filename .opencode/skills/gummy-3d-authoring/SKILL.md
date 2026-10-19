@@ -19,6 +19,15 @@ contract below materially change; `AGENTS.md` remains the policy source.
 
 ## Supporting workflows and tools
 
+For a paint template or UV wireframe delivery, follow
+[references/uv-template-delivery.md](references/uv-template-delivery.md): decode saved images,
+record the exact source/UV fingerprint and inspect a same-resolution albedo overlay. A PNG
+header or old filename is not evidence that a guide is valid or current.
+
+Additional tools: `scripts/png_report.py` (read-only structural check),
+`scripts/test_png_report.py` (pure Python fixtures) and `scripts/uv_template_export.py`
+(explicit approved background export; creates new template/layer/overlay/manifest files).
+
 Read [references/asset-workflows.md](references/asset-workflows.md) for hard-surface
 modifier/shading choices, UV preparation, asset budgets and the local reporting tools.
 Load the focused references when the task needs them:

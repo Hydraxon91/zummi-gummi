@@ -494,6 +494,10 @@ approved work chunk.
   matching conditions; simplifications require approval. Verify self-contained exports in
   a clean import with original texture paths unavailable, inspect connected maps and view
   the result. A Blender round trip does not prove support in the destination engine.
+- **UV guides are deliveries too.** Export from the exact final object/UV layer, record source
+  and UV/albedo fingerprints, decode the saved PNG and view an aligned albedo overlay. Header
+  recognition, filenames and successful writes do not prove validity or correspondence. Keep
+  readable artist boundaries separate from topology overlays; preserve older files explicitly.
 - **Asset-library integrations are unvalidated.** Poly Haven, Sketchfab and Poly Pizza are
   enabled in the Blender MCP addon but have not been exercised in this project. Treat them as
   untrusted: record source, author and licence for every imported asset, verify scale, axis

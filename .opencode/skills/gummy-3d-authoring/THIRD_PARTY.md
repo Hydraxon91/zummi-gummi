@@ -24,6 +24,9 @@ the Raptor RC glazing round, not adapted from the upstream suite.
 `scripts/texture_inventory.py` and the external-review guidance are project-authored;
 they are not copied from the upstream suite.
 
+The UV-template delivery reference, PNG checker/fixtures and template exporter are
+project-authored regression measures from the Raptor UV-guide round, not upstream copies.
+
 ## MIT License
 
 Copyright (c) 2026 EL4CTEO

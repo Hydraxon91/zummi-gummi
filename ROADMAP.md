@@ -318,6 +318,14 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   42–68 m. Sectoring without culling is slower, so the split ships with per-pass
   frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
 
+**Known follow-ups — UV guide delivery (fixed):** the Raptor body template was exported
+before the final body/hood unwrap, and its PNG declared RGB with a grayscale-sized payload.
+`body_uv_template_2048.png` and the old wireframe are not current paint guides. Corrected
+checkpoint-166 `body_uv_166_2048_v2_*` guides preserve geometry/UVs and carry source hashes;
+both authoring packages now require saved-byte validation and inspected UV/albedo overlays.
+The PNG regression fixtures explicitly reject this channel/payload mismatch. Structural
+validity is not a padding/overlap or bake-quality verdict.
+
 **Known follow-ups — texture inventory (deferred):** Blender 5.2.2 background fixtures
 emit two colour-space enum warnings when inventorying all image datablocks (including
 Blender-managed images). Assertions pass, but those colour-space entries require manual

@@ -96,6 +96,9 @@ subdivision on a mesh that will not be exported that way.
 
 ## Inspect the result
 
+For an exported paint guide, apply [uv-template-delivery.md](uv-template-delivery.md).
+PNG validity and final-UV/albedo correspondence are separate acceptance gates.
+
 - Establish the delivered material's connected images, UV map, resolution and colour space
   before reviewing maps. Separate current maps, diagnostic overlays and older files.
   A filled atlas background does not prove island padding or eliminate seams: inspect dilation
