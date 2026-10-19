@@ -482,12 +482,13 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     never at night, and may drift inside their villa during daylight. They are
     pointer-draggable in Grab-click mode: normal drag moves, Shift-drag lifts
     or lowers, and release hands velocity to the rigid Box3D proxy so it
-    ricochets off world geometry before returning to hover.
+    ricochets and tumbles before returning upright to hover.
     They use the shared roster/social/bonds/life fields, take their
     baby/teen/adult growth step only at night, follow a living parent as
-    babies, inherit family homes/parent bonds, gain sibling bonds, can continue
-    successful socializing into a door-level visit with Glass or soft-body
-    partners, can become pregnant and give birth, and save/load in the world
+    babies, inherit family homes/parent bonds, gain sibling bonds, start
+    family/sibling play, can continue successful socializing into a door-level
+    visit with Glass or soft-body partners, fade through the door for daytime
+    shelter, can become pregnant and give birth, and save/load in the world
     payload. Bear/Gummy AI scans the combined
     companion list for social and mating, so both directions can initiate
     cross-species pairs. Cross-species Glass × Bear/Gummy births use the
@@ -579,8 +580,13 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   pass.
 - **Close (×) now deselects without cancelling**; queued commands keep running.
   Add an explicit “clear commands” affordance only if that surprises players.
-- **Glass throw uses a locked-rotation sphere proxy.** It ricochets and settles
-  back to hover, but it does not spin or use a multi-sphere body yet.
+- **Glass throw uses a locked-rotation sphere proxy.** It ricochets, visually
+  tumbles and settles back upright to hover, but the physics proxy itself does
+  not spin or use a multi-sphere body.
+- **Multi-sphere Glass proxy — look into later.** A compound proxy could improve
+  contact shape in tight geometry, but it needs multi-body readback, joint
+  tuning, collision filtering and hover re-anchoring. Do not replace the stable
+  single sphere unless throws or collisions become gameplay-critical.
 - **Glass daytime shelter is a hidden home-door state**, not an interior scene.
   A door sparkle marks enter/exit, needs and pregnancy persist, and the actor
   emerges at night; add interiors only with the home pass.

@@ -3423,7 +3423,9 @@ function buddyStatus(b){
       }
       if (b.ai.state === 'seekMate') return 'looking for a mate';
       if (b.ai.state === 'mate') return 'courting';
-      if (b.ai.state === 'social') return `hovering with ${buddyPartnerName(b)}`;
+      if (b.ai.state === 'social') return b.ai.familyPlay
+        ? `playing with ${b.ai.playmateKind || 'family'} ${buddyPartnerName(b)}`
+        : `hovering with ${buddyPartnerName(b)}`;
       if (b.ai.state === 'seekSocial') return 'drifting toward a friend';
       if (b.ai.state === 'seekHome') return 'drifting inside for the day';
       if (b.ai.state === 'eat') return 'sipping nectar';
@@ -6498,6 +6500,7 @@ window.__gummy = {
   },
   glassDragTo(i, x, y, shift){ const a = glassColony ? glassColony.actors[i] : null; return a ? glassColony.drag(a, x, y, camera, renderer, !!shift) : false; },
   glassDragEnd(i){ const a = glassColony ? glassColony.actors[i] : null; return a ? glassColony.endDrag(a) : false; },
+  glassFamilyPlay(i){ return glassColony ? glassColony.forceFamilyPlay(i) : false; },
   glassVisit(i, j){ return glassColony ? glassColony.forceVisit(i, j) : false; },
   glassVisitBear(i, j){ return glassColony ? glassColony.forceVisitWithBear(i, bears[j]) : false; },
   glassMate(i, j){ return glassColony ? glassColony.forceMate(i, j) : { ok:false, note:'meadow only' }; },
