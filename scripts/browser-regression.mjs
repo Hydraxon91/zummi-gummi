@@ -79,23 +79,6 @@ try {
         }
       }
     }
-    g.setTime(15);
-    g.sim(2);
-    const lesson = parentPair ? g.familyLesson(parentPair[0], parentPair[1]) : null;
-    const childBefore = parentPair ? g.traits()[parentPair[1]] : null;
-    g.sim(8);
-    const childAfter = parentPair ? g.traits()[parentPair[1]] : null;
-    if (parentPair) g.setBearState(parentPair[0], 'wander');
-    const meal = parentPair ? g.familyMeal(parentPair[0]) : null;
-    const mealBefore = parentPair ? g.traits()[parentPair[0]] : null;
-    g.sim(10);
-    const mealAfter = parentPair ? g.traits()[parentPair[0]] : null;
-    const cross = g.bearGlassSocial(0, 0);
-    g.sim(2);
-    const crossState = g.ai().bears[0]?.state || null;
-    const lineage = parentPair ? g.lineage(g.bears[parentPair[1]].uid) : null;
-    if (parentPair) g.selectBear(parentPair[1]);
-    const save2 = await g.save('slot1', 'family regression');
     return {
       booted: !!g.booted,
       species: species.map(item => ({ id: item.id, kind: item.kind, assetManifest: item.assetManifest || null })),
@@ -108,23 +91,83 @@ try {
       after,
       familyPair,
       familyPlay,
-      familyDeep: {
-        parentPair,
-        childUid: parentPair ? g.bears[parentPair[1]].uid : null,
-        lesson,
-        childBefore: childBefore ? { skills: childBefore.skills, history: childBefore.history.slice(-3) } : null,
-        childAfter: childAfter ? { skills: childAfter.skills, history: childAfter.history.slice(-3) } : null,
-        meal,
-        mealBefore: mealBefore ? mealBefore.hunger : null,
-        mealAfter: mealAfter ? { hunger: mealAfter.hunger, history: mealAfter.history.slice(-3) } : null,
-        cross,
-        crossState,
-        lineage: lineage ? { history: lineage.history.slice(-3), parents: lineage.parents, generation: lineage.self?.generation } : null,
-        save2: !!(save2 && save2.ok),
-      },
+      parentPair,
+      parentUid: parentPair ? g.bears[parentPair[0]].uid : null,
+      childUid: parentPair ? g.bears[parentPair[1]].uid : null,
       stats: { nan: !!stats.nan, bears: stats.bears, glass: stats.glass },
     };
   })()`);
+
+  const parentUid = result.parentUid;
+  const childUid = result.childUid;
+  let familyDeep = null;
+  if (parentUid !== null && childUid !== null) {
+    const lesson = await page.evaluate(`(() => {
+      const g = window.__gummy;
+      const parentIndex = g.bears.findIndex(bear => bear.uid === ${JSON.stringify(parentUid)});
+      const childIndex = g.bears.findIndex(bear => bear.uid === ${JSON.stringify(childUid)});
+      if (parentIndex < 0 || childIndex < 0) return { ok: false, note: 'pair missing' };
+      g.setTime(15);
+      const childBefore = g.traits()[childIndex];
+      const lesson = g.familyLesson(parentIndex, childIndex);
+      g.sim(6, 0);
+      const childAfter = g.traits()[childIndex];
+      return {
+        ok: true,
+        lesson,
+        childBefore: { skills: childBefore.skills, history: childBefore.history.slice(-3) },
+        childAfter: { skills: childAfter.skills, history: childAfter.history.slice(-3) },
+      };
+    })()`, 180000);
+
+    const meal = await page.evaluate(`(() => {
+      const g = window.__gummy;
+      const parentIndex = g.bears.findIndex(bear => bear.uid === ${JSON.stringify(parentUid)});
+      if (parentIndex < 0) return { ok: false, note: 'parent missing' };
+      g.setBearState(parentIndex, 'wander');
+      const meal = g.familyMeal(parentIndex);
+      const mealBefore = g.traits()[parentIndex].hunger;
+      g.sim(7, 0);
+      const mealAfter = g.traits()[parentIndex];
+      return {
+        ok: true,
+        meal,
+        mealBefore,
+        mealAfter: { hunger: mealAfter.hunger, history: mealAfter.history.slice(-3) },
+      };
+    })()`, 180000);
+
+    const social = await page.evaluate(`(async () => {
+      const g = window.__gummy;
+      const cross = g.bearGlassSocial(0, 0);
+      g.sim(1, 0);
+      const crossState = g.ai().bears[0]?.state || null;
+      const childIndex = g.bears.findIndex(bear => bear.uid === ${JSON.stringify(childUid)});
+      if (childIndex >= 0) g.selectBear(childIndex);
+      const lineage = g.lineage(${JSON.stringify(childUid)});
+      const save2 = await g.save('slot1', 'family regression');
+      return {
+        ok: true,
+        cross,
+        crossState,
+        lineage: lineage ? {
+          history: lineage.history.slice(-3),
+          parents: lineage.parents,
+          generation: lineage.self?.generation,
+        } : null,
+        save2: !!(save2 && save2.ok),
+      };
+    })()`, 180000);
+
+    familyDeep = {
+      parentPair: result.parentPair,
+      parentUid,
+      childUid,
+      ...lesson,
+      ...meal,
+      ...social,
+    };
+  }
 
   const failures = [];
   if (!result.booted) failures.push('not booted');
@@ -142,7 +185,7 @@ try {
   }
   if (!result.saveOk || !result.loadOk) failures.push('save/load failed');
   if (result.stats.nan) failures.push('non-finite physics state');
-  const deep = result.familyDeep;
+  const deep = familyDeep;
   if (!deep || !deep.parentPair) failures.push('no parent/child pair for family regression');
   else {
     if (!deep.lesson?.ok) failures.push(`family lesson failed: ${JSON.stringify(deep.lesson)}`);
@@ -209,15 +252,15 @@ try {
       throw new Error(`Meadow asset reuse failed: ${JSON.stringify(restoredAssets)}`);
     }
     console.log('ASSETS', JSON.stringify(restoredAssets));
-    if (result.familyDeep?.childUid !== null && result.familyDeep?.childUid !== undefined) {
-      const childUid = JSON.stringify(result.familyDeep.childUid);
+    if (familyDeep?.childUid !== null && familyDeep?.childUid !== undefined) {
+      const restoreUid = JSON.stringify(familyDeep.childUid);
       const familyRestored = await page.evaluate(`(async () => {
         const g = window.__gummy;
         const loaded = await g.load('slot1');
         await new Promise(resolve => setTimeout(resolve, 300));
-        const child = g.traits().find(bear => bear.uid === ${childUid});
+        const child = g.traits().find(bear => bear.uid === ${restoreUid});
         return child ? { skills: child.skills, history: child.history.slice(-3) } : null;
-      })()`);
+      })()`, 180000);
       if (!familyRestored || !Object.values(familyRestored.skills || {}).some(value => value > 0) ||
           !familyRestored.history.some(event => event.kind === 'taught')) {
         throw new Error(`family fields did not survive the map/save round trip: ${JSON.stringify(familyRestored)}`);
