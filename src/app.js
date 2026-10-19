@@ -400,6 +400,8 @@ class Bear{
     this.bedtime=20; this.wakeTime=5;
     this.name=''; this.home=''; this.inPond=false;
     this.ai=null;
+    this.gummyIdleT = 3 + Math.random() * 6;
+    this.gummyPose = null;
     this.needsBuild=true;
     this.snap=new Float32Array(this.np*3);
     this.snapC = new THREE.Vector3();
@@ -515,6 +517,8 @@ function spawn(x, z, y, flavor, opts={}){
   b.wakeTime=Number.isFinite(opts.wakeTime) ? opts.wakeTime : 5+Math.random()*2;
   b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
   b.ai=null;
+  b.gummyIdleT = 3 + Math.random() * 6;
+  b.gummyPose = null;
   if (opts.sex) b.sex = opts.sex;
   b.lat = null; b.deform = 0;
   b.needsBuild = true;
@@ -912,7 +916,137 @@ function poseAndTargets(b, dt){
       b.tz[i] = b.cz + (b.tz[i]-b.cz)*(1+p*0.35);
     }
   }
+  applyGummyPose(b);
 }
+/* ---------------------------- Gummy Studio tells -------------------------- */
+// The Gummy has no skeletal clips. These are soft-body target poses named after
+// the authored Glass clips, chosen by a small idle "think" timer.
+const GUMMY_ACTIONS = [
+  ['Idle', 3.0], ['Nod', 2.0], ['Lean', 1.5], ['Wiggle', 1.5],
+  ['Wave', 1.2], ['BigWave', .8], ['Cheer', .8], ['Handshake', 1.0],
+  ['Squash', 1.3], ['Hop', .9],
+];
+const GUMMY_POSE_DUR = {
+  Idle: 2.0, Nod: .85, Lean: 1.1, Wiggle: 1.2, Wave: 1.25,
+  BigWave: 1.55, Cheer: 1.5, Handshake: 1.15, Squash: .8, Hop: .55,
+};
+const GUMMY_HEAD = 0, GUMMY_NECK = 1, GUMMY_CHEST = 6, GUMMY_WAIST = 4, GUMMY_BELLY = 5;
+const GUMMY_ARM_L = [12, 13, 14, 15];
+const GUMMY_ARM_R = [16, 17, 18, 19];
+
+function startGummyPose(b, kind) {
+  if (!b || b.species !== 'msn' || !b.active) return false;
+  const action = GUMMY_POSE_DUR[kind] ? kind : 'Idle';
+  b.gummyPose = { kind: action, t: 0, dur: GUMMY_POSE_DUR[action] };
+  if ((action === 'Hop' || action === 'Cheer') && b.grabs === 0 && !b.airborne && b.contacts > 0) {
+    hopBear(b, action === 'Cheer' ? 2.4 : 2.0, 0, 0, true);
+    b.airborne = true;
+    if (b.ai) { b.ai.hopState = 'air'; b.ai.hopWait = 0; }
+  }
+  return true;
+}
+
+function gummyReact(b, kind = null) {
+  if (!b || b.species !== 'msn' || !b.active) return false;
+  const choices = ['Nod', 'Wave', 'Cheer'];
+  const action = kind || choices[(Math.random() * choices.length) | 0];
+  const ok = startGummyPose(b, action);
+  if (ok && isMeadow() && field && field.emote) {
+    field.emote(b.cx, b.cy + 1.05, b.cz, 'heart');
+  }
+  return ok;
+}
+
+function stepGummyBehavior(dt) {
+  if (!dt || !Number.isFinite(dt)) return;
+  for (const b of bears) {
+    if (!b.active || b.species !== 'msn') continue;
+    if (b.sleeping || b.grabs > 0 || b.inPond) continue;
+    if (b.ai && b.ai.possessed) continue;
+    if (b.gummyPose) {
+      b.gummyPose.t += dt;
+      if (b.gummyPose.t >= b.gummyPose.dur) b.gummyPose = null;
+      continue;
+    }
+    // Let locomotion, eating, sleeping and social states own the body.
+    if (b.ai && !(b.ai.state === 'wander' && !b.ai.moving)) {
+      if (b.gummyIdleT < 1.2) b.gummyIdleT = 1.2;
+      continue;
+    }
+    b.gummyIdleT -= dt;
+    if (b.gummyIdleT > 0) continue;
+    let roll = Math.random() * 100;
+    let action = 'Idle';
+    for (const [name, weight] of GUMMY_ACTIONS) {
+      roll -= weight;
+      if (roll <= 0) { action = name; break; }
+    }
+    startGummyPose(b, action);
+    b.gummyIdleT = 6 + Math.random() * 9;
+  }
+}
+
+function applyGummyPose(b) {
+  const p = b.gummyPose;
+  if (!p || b.species !== 'msn') return;
+  const tx = b.tx, ty = b.ty, tz = b.tz;
+  const k = Math.min(1, p.t / p.dur);
+  const env = p.kind === 'Idle' ? 1 : Math.sin(Math.PI * k);
+  const add = (i, x, y, z) => {
+    if (i === undefined || tx[i] === undefined) return;
+    tx[i] += x; ty[i] += y; tz[i] += z;
+  };
+  const wobble = Math.sin(p.t * 14);
+  switch (p.kind) {
+    case 'Nod':
+      add(GUMMY_HEAD, 0, -.085 * env, .025 * env);
+      add(GUMMY_NECK, 0, -.035 * env, .012 * env);
+      break;
+    case 'Lean':
+      add(GUMMY_HEAD, .10 * env, -.015 * env, .02 * env);
+      add(GUMMY_CHEST, .055 * env, 0, 0);
+      add(GUMMY_WAIST, .02 * env, 0, 0);
+      break;
+    case 'Wiggle':
+      add(GUMMY_HEAD, Math.sin(p.t * 18) * .055 * env, 0, 0);
+      add(GUMMY_CHEST, Math.sin(p.t * 18) * .025 * env, 0, 0);
+      break;
+    case 'Wave':
+      for (const [n, i] of GUMMY_ARM_R.entries()) {
+        add(i, (.17 - n * .01) * env, (.30 - n * .025) * env + wobble * .035 * env, .02 * env);
+      }
+      break;
+    case 'BigWave':
+      for (const [n, i] of GUMMY_ARM_R.entries()) {
+        add(i, (.24 - n * .015) * env, (.43 - n * .03) * env + wobble * .045 * env, .03 * env);
+      }
+      add(GUMMY_HEAD, 0, .025 * env, 0);
+      break;
+    case 'Cheer':
+      for (const i of GUMMY_ARM_L) add(i, -.19 * env, .32 * env, 0);
+      for (const i of GUMMY_ARM_R) add(i, .19 * env, .32 * env, 0);
+      add(GUMMY_HEAD, 0, .045 * env, 0);
+      break;
+    case 'Handshake':
+      for (const [n, i] of GUMMY_ARM_R.entries()) {
+        add(i, (.08 - n * .01) * env, (.12 - n * .015) * env, (.27 + wobble * .035) * env);
+      }
+      break;
+    case 'Squash':
+      add(GUMMY_HEAD, 0, -.095 * env, 0);
+      add(GUMMY_CHEST, 0, -.045 * env, 0);
+      for (const i of GUMMY_ARM_R) add(i, 0, -.03 * env, 0);
+      break;
+    case 'Hop':
+      add(GUMMY_HEAD, 0, Math.sin(p.t * 9) * .012, 0);
+      break;
+    case 'Idle':
+    default:
+      add(GUMMY_HEAD, 0, Math.sin(p.t * 2.6) * .007, 0);
+      break;
+  }
+}
+
 function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
 
 // Gentle righting assist: rotate the whole bear (points + velocities) about its COM
@@ -2592,6 +2726,7 @@ addEventListener('pointerdown', (e)=>{
     const hit = pickBear();
     if (hit){
       selectBear(hit.bear);
+      if (hit.bear.species === 'msn') gummyReact(hit.bear);
       p.mode = 'orbit';
       if (hintEl){
         hintEl.textContent = `${hit.bear.name || 'Bear'} selected — choose a command or Control`;
@@ -2692,8 +2827,15 @@ function pointerUp(e){
           }
         }
       }
-    } else if (p.mode === 'grab' && p.grab) endGrab(p.grab, true);
-    else if (p.mode === 'pinch'){
+    } else if (p.mode === 'grab' && p.grab){
+      const clicked = e.type === 'pointerup' && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < 4;
+      if (clicked && p.grab.bear.species === 'msn'){
+        endGrab(p.grab, false);
+        gummyReact(p.grab.bear);
+      } else {
+        endGrab(p.grab, true);
+      }
+    } else if (p.mode === 'pinch'){
       for (const q of pointers.values()) if (q !== p && q.mode === 'pinch') q.mode = 'orbit';
     }
     pointers.delete(e.pointerId);
@@ -4096,6 +4238,7 @@ function stepMeadowAI(dt) {
 
 function frameTick(dt){
   stepMeadowAI(dt);
+  stepGummyBehavior(dt);
   updatePossessionLocomotion(dt);
   // pointer velocity decays when the pointer stops, so a hold-then-release
   // doesn't fling the bear with stale momentum
@@ -4116,6 +4259,7 @@ function frameTick(dt){
   // idle hops + anticipation. An AI bear that is travelling or eating has its
   // own hop controller; only genuinely idle meadow bears keep the random hop.
   for (const b of bears){
+    if (b.species === 'msn') continue;
     const aiBusy = b.ai && (b.ai.moving || b.ai.state !== 'wander' ||
       b.ai.hopState === 'crouch');
     if (!frozen && b.grabs === 0 && !aiBusy){
@@ -5847,6 +5991,12 @@ window.__gummy = {
   cancelDirectives(i){ return ai ? ai.cancelDirectives(bears[i]) : false; },
   possess(i){ const b = bears[i]; return enterPossession(b) ? (possessedBear.name || '') : null; },
   exitPossession(){ return exitPossession(); },
+  gummy(i){ const b = bears[i]; return b && b.species === 'msn' ? {
+    index: i, name: b.name, idleT: +b.gummyIdleT.toFixed(2),
+    pose: b.gummyPose ? { ...b.gummyPose, t: +b.gummyPose.t.toFixed(2) } : null,
+    ai: b.ai ? b.ai.state : null,
+  } : null; },
+  gummyReact(i, kind){ const b = bears[i]; return b && b.species === 'msn' ? gummyReact(b, kind) : false; },
   possessed(){ return possessedBear ? {
     index: bears.indexOf(possessedBear), name: possessedBear.name || '',
     x: +possessedBear.cx.toFixed(2), z: +possessedBear.cz.toFixed(2), y: +possessedBear.cy.toFixed(2),

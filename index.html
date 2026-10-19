@@ -687,7 +687,7 @@
     cursor:pointer;padding:0;
   }
   .raceFold:hover{background:#fff;border-color:rgba(25,24,23,.28)}
-  .raceBody{display:grid;grid-template-columns:1.05fr .78fr 1.2fr 1fr auto;gap:9px;align-items:center;margin-top:8px}
+  .raceBody{display:grid;grid-template-columns:1.1fr .8fr 1.2fr 1fr;gap:9px;align-items:center;margin-top:8px}
   .raceCast{grid-column:1/-1;display:flex;align-items:center;gap:4px;margin-bottom:1px}
   .raceCast>span{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-right:3px}
   .raceCastBtn{
@@ -712,7 +712,7 @@
   .raceReset:hover{background:#fff;border-color:rgba(25,24,23,.3)}
   .raceReset.on{background:#191817;border-color:#191817;color:#fff}
   .raceReset:disabled,.raceField select:disabled,.raceField input:disabled{opacity:.45;cursor:default}
-  .raceActions{display:flex;gap:4px}
+  .raceActions{grid-column:1/-1;display:flex;gap:4px;justify-content:flex-end}
   .raceStatus{grid-column:1/-1;margin-top:1px;font-size:9px;line-height:1.35;color:var(--ink-3);letter-spacing:.02em}
   .raceStatus.err{color:#b3233f}
   .raceLab.collapsed .raceBody{display:none}

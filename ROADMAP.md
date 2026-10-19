@@ -458,7 +458,7 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     and shadow paths while bears keep their original rig. It is grabbable and
     visible in **Both** and **MSN** casts, hidden in **Bears**, and disabled by
     `?race=off`. Studio save/load preserves its species flag and 24-body rig.
-    It has no dedicated Studio idle/interaction behavior yet.
+    Studio idle/interaction behavior is implemented in the Chunk 2 entry below.
   - **Gummy Meadow parity (in progress, Oct 2026):** two Gummies join the new
     Meadow colony and the buddy roster, using the shared AI navigation/needs,
     food/water, home/sleep, growth, pregnancy/birth and grab/throw paths.
@@ -470,12 +470,13 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     the on-screen stick move, Space hops, and V/Esc exits; the camera follows
     inside the Studio table. Gummy can still be grabbed when not possessed.
     Glass remains rigid and non-possessable.
-  - **Next — Gummy Studio behavior (Chunk 2):** add interactions and random idle
-    "thinks" based on the ten authored MSN clips. Map Nod, Lean, Wiggle, Wave,
-    BigWave, Cheer, Handshake, Hop, Squash and Idle to procedural soft-body pose
-    targets and timed behavior choices rather than skeletal playback. Include
-    look-at/click reactions, occasional idle choices, and a calm default so the
-    Gummy does not fidget constantly.
+  - **Gummy Studio behavior (Chunk 2, Oct 2026):** added click/pet reactions
+    (Nod, Wave or Cheer) and a weighted random idle "think" timer covering Idle,
+    Nod, Lean, Wiggle, Wave, BigWave, Cheer, Handshake, Squash and Hop. These
+    are procedural soft-body target poses and impulses named after the authored
+    Glass clips, not skeletal playback. Behaviours pause during possession,
+    grabbing, sleeping, eating and other AI-owned states; the calm default is a
+    long idle interval rather than constant fidgeting.
   - Add a Race Lab **type** selector only once both paths have their final
     controls. Do not silently share one material, solver or animation set
     between them.
