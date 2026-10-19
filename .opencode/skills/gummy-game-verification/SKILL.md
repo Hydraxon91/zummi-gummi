@@ -58,6 +58,47 @@ Use HTTP, not file://. Do not kill an existing user server to resolve a port con
   resets appear, confirm the running server started after that change and restart it
   instead of retrying the test.
 
+## Browser harness pattern
+
+Captures and assertions are driven by a **Node harness that launches the browser and
+speaks CDP to it** — not by raw CLI flags. `--headless --screenshot`, `--dump-dom` and
+`--virtual-time-budget` against this app hang or return nothing, because the page keeps a
+rAF loop alive so virtual time never expires. The established shape is a `.mjs` script in
+the gitignored `.dev-shots/`; read an existing one before writing a new one
+(`godrays-good-test.mjs`, `profile-ab.mjs`, `menu-test.mjs`, `tree-lod-shots.mjs`,
+`frame-breakdown.mjs`, ~100 lines each).
+
+Required structure, taken from those examples:
+
+1. `spawn` Brave at `/Applications/Brave Browser.app/Contents/MacOS/Brave Browser` with
+   `--headless=new --remote-debugging-port=$PORT --user-data-dir=$PROFILE
+   --no-first-run --no-default-browser-check --disable-background-timer-throttling
+   --disable-renderer-backgrounding --window-size=W,H about:blank`, `stdio:'ignore'`.
+   Delete `$PROFILE` first so IndexedDB/autosave state cannot leak between runs.
+2. Poll `http://127.0.0.1:$PORT/json/version` for `webSocketDebuggerUrl`, then open a
+   WebSocket and keep an `id -> {resolve,reject}` map with a per-call timeout.
+3. `Target.createTarget` -> `Target.attachToTarget {flatten:true}` -> keep `sessionId`;
+   then `Page.enable`, `Runtime.enable`, optionally `Emulation.setDeviceMetricsOverride`,
+   then `Page.navigate`.
+4. Poll `Runtime.evaluate` until the app signals readiness (e.g. `window.__gummy.booted`,
+   or your own `window.__X.ready`). An unready page looks like a valid result otherwise.
+5. Collect `Runtime.exceptionThrown` and `Runtime.consoleAPICalled` errors, and
+   `Page.captureScreenshot` -> write base64 PNG into `.dev-shots/`.
+6. Always tear down in `finally`: `Browser.close`, `ws.close()`, `browser.kill()`, and
+   write a JSON report next to the captures.
+
+Conventions: read `PORT`/`TAG`/`GAME_URL` from `env`, print one tagged line per result
+(`STATE`/`PERF`/`INFO`/`TINT`/`ERRORS`/`STOP`) so a caller can `grep` them, for example:
+
+```sh
+env TAG=g1 PORT=10212 node .dev-shots/<name>.mjs 2>&1 | grep -E "INFO|STATE|ERRORS|STOP" | cut -c1-1600
+```
+
+Keep one check per section rather than printing the whole report. A page-under-test may
+expose a small `window.__X` API (ready flag, `set()`, material getters) purely so the
+harness can pose and probe it deterministically. Harnesses, their captures and the pages
+they load are all scratch: never commit them.
+
 ## Behaviour and regression checks
 
 - Drive the served app through a browser and verified `window.__gummy` hooks.
