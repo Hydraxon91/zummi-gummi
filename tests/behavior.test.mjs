@@ -285,6 +285,30 @@ test('household routine starts a family meal once per window', () => {
   assert.notEqual(a.ai.state, 'familyTask');
 });
 
+test('parent teaching raises the child skill once per day', () => {
+  const { actors, engine } = setup({ rng: () => 1 });
+  const parent = actor(1, { stage: 'adult', skills: { forage: .6, courage: .2, social: .1 } });
+  const child = actor(2, { stage: 'teen', parentUids: [1], cx: .8 });
+  actors.push(parent, child);
+  engine.attach(parent); engine.attach(child);
+  parent.ai.nextThink = 0;
+  engine.tick(parent, .01, { ready: true });
+  assert.equal(parent.ai.state, 'familyTask');
+  assert.equal(parent.ai.familyTask.id, 'familyLesson');
+  assert.equal(parent.ai.familyTask.role, 'teacher');
+  engine.tick(parent, 6, { ready: true });
+  assert.notEqual(parent.ai.state, 'familyTask');
+  assert.ok(child.skills.forage >= .12);
+  assert.ok(child.history.some(event => event.kind === 'taught'));
+  assert.ok(parent.history.some(event => event.kind === 'lesson'));
+
+  parent.ai.state = 'wander';
+  parent.ai.nextThink = 0;
+  parent.ai.taskCooldown = 0;
+  engine.tick(parent, .01, { ready: true });
+  assert.notEqual(parent.ai.state, 'familyTask');
+});
+
 test('interaction primitives create and clear shared pair/task state', () => {
   registerInteraction({ id: 'testTask', mode: 'pair', duration: 2, arriveDist: 1 });
   const def = interactionFor('testTask');

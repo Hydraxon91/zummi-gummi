@@ -15,8 +15,8 @@ import { canSpeciesBreed } from './dna.js';
 import { isSafeFood } from './foodtypes.js';
 import {
   familyRelation, addBond, pairBond, skillsFor, forageEatScale,
-  socialAcceptBonus, pushHistory, playdateDue, schedulePlaydate,
-  nextPlaydateDay, teachSkill, PLAYDATE_WINDOW, routineWindowFor,
+  socialAcceptBonus, courageHiveBonus, pushHistory, playdateDue, schedulePlaydate,
+  nextPlaydateDay, teachSkill, strongestSkill, skillValue, PLAYDATE_WINDOW, routineWindowFor,
 } from './family.js';
 import {
   INTERACTIONS, interactionFor, startTask, cancelTask,
@@ -122,6 +122,13 @@ export function createBehavior({
     if (!actor.bonds || typeof actor.bonds !== 'object') actor.bonds = {};
     if (!actor.skills || typeof actor.skills !== 'object') actor.skills = {};
     if (!actor.playdates || typeof actor.playdates !== 'object') actor.playdates = {};
+    if (actor.stage === 'adult' && Object.values(actor.skills).every(value => !value)) {
+      actor.skills = {
+        forage: .20 + rng() * .35,
+        courage: .15 + clamp(finite(actor.bold, .5), 0, 1) * .35,
+        social: .20 + rng() * .35,
+      };
+    }
     actor.shelteredToday = !!actor.shelteredToday;
     actor.shelterCheckT = finite(actor.shelterCheckT, 0);
     actor.sleeping = !!actor.sleeping;
@@ -420,7 +427,7 @@ export function createBehavior({
     const bold = finite(actor.bold, .5);
     const desperation = finite(actor.hunger, 0) >= .92 ? 5 : 0;
     return Math.max(hive.hardFloor,
-      hive.health + (.5 - bold) * 30 - desperation);
+      hive.health + (.5 - bold) * 30 - desperation - courageHiveBonus(actor));
   }
 
   function canRaidHive(actor) {
@@ -1392,7 +1399,6 @@ export function createBehavior({
   }
 
   /* -------------------------------------------------------------- family meal */
-
   function mealAnchor(actor) {
     const home = homeFor(actor);
     if (!home) return null;
@@ -1443,6 +1449,73 @@ export function createBehavior({
       return false;
     }
     return true;
+  }
+
+  /* ------------------------------------------------------------- family lesson */
+
+  function lessonAnchor(teacher, student) {
+    const home = homeFor(teacher) || homeFor(student);
+    if (home) return { x: home.door.x, z: home.door.z, home: home.name };
+    return { x: (teacher.cx + student.cx) * .5, z: (teacher.cz + student.cz) * .5 };
+  }
+
+  function taughtToday(teacher, student, day) {
+    const teacherHistory = teacher.history || [];
+    const studentHistory = student.history || [];
+    return teacherHistory.some(event => event.kind === 'lesson' && event.uid === student.uid && event.day === day) ||
+      studentHistory.some(event => event.kind === 'taught' && event.uid === teacher.uid && event.day === day);
+  }
+
+  function lessonCandidate(teacher) {
+    if (!teacher || !teacher.ai || teacher.stage !== 'adult') return null;
+    if (!isDayFor(teacher) || teacher.ai.taskCooldown > 0) return null;
+    const p = profile(teacher);
+    if (teacher.health < p.thresholds.healthHurt) return null;
+    const day = dayNow();
+    let best = null;
+    for (const student of actors()) {
+      if (!student || student === teacher || !student.active || !student.ai) continue;
+      if (student.stage !== 'baby' && student.stage !== 'teen') continue;
+      if (!(student.parentUids || []).includes(teacher.uid)) continue;
+      if (student.sleeping || student.inside || student.grabs > 0 || student.inPond) continue;
+      if (student.ai.partner) continue;
+      if (!['wander', 'follow'].includes(student.ai.state)) continue;
+      if (Math.hypot(student.cx - teacher.cx, student.cz - teacher.cz) > 8) continue;
+      if (taughtToday(teacher, student, day)) continue;
+      const skill = strongestSkill(teacher);
+      const teacherValue = skillValue(teacher, skill);
+      if (teacherValue < .15) continue;
+      if (teacherValue <= skillValue(student, skill) + .04) continue;
+      const d = Math.hypot(student.cx - teacher.cx, student.cz - teacher.cz);
+      const score = teacherValue * 2 - d * .04;
+      if (!best || score > best.score) best = { student, skill, score };
+    }
+    return best;
+  }
+
+  function startLesson(teacher, student) {
+    if (!teacher || !student || !teacher.ai || !student.ai) return false;
+    const anchor = lessonAnchor(teacher, student);
+    startTask(teacher, INTERACTIONS.familyLesson, {
+      role: 'teacher', partner: student, anchor,
+      data: { skill: strongestSkill(teacher) }, phase: 'travel',
+    });
+    startTask(student, INTERACTIONS.familyLesson, {
+      role: 'student', partner: teacher, anchor,
+      data: { skill: strongestSkill(teacher) }, phase: 'travel',
+    });
+    if (teacher.ai.familyTask.phase === 'act') stop(teacher);
+    else setDestination(teacher, anchor.x, anchor.z);
+    if (student.ai.familyTask.phase === 'act') stop(student);
+    else setDestination(student, anchor.x, anchor.z);
+    return true;
+  }
+
+  function forceLesson(teacher, student) {
+    if (!teacher || !student || !teacher.ai || !student.ai) return { ok: false, note: 'no pair' };
+    cancelPair(teacher);
+    cancelPair(student);
+    return { ok: startLesson(teacher, student), state: teacher.ai.state };
   }
 
   /* ----------------------------------------------------------- family task */
@@ -1532,6 +1605,8 @@ export function createBehavior({
       if (acquireFood(actor)) return;
       if (p.conflict && acquireContest(actor)) return;
     }
+    const lesson = lessonCandidate(actor);
+    if (lesson && startLesson(actor, lesson.student)) return;
     const due = findDuePlaydate(actor);
     if (due && startPlaydate(actor, due.other, 'friend')) return;
     if (actor.stage === 'adult' && actor.mateCooldown <= 0 &&
@@ -2190,7 +2265,7 @@ export function createBehavior({
   return {
     attach, tick, plan, stats: statsNow, registerAdapter,
     setEnabled, onGrab, onRelease, detach, resumeTask, debugState,
-    setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal,
+    setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal, forceLesson,
     startSeekHome, startPlaydate,
     get enabled() { return enabled; },
     get actors() { return actors(); },

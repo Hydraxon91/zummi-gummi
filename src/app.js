@@ -23,7 +23,7 @@ import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldsha
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
 import { snapshotActor, applyCommonActorState } from './actorrecord.js';
-import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill } from './family.js';
+import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
 
 const nativeRandom = Math.random;
@@ -688,6 +688,7 @@ function applyBearStage(b, nextStage) {
     );
   }
   lifeStats.stageUps++;
+  pushHistory(b, { kind: 'stage', uid: 0, day: sky ? sky.day : 0, hour: sky ? sky.hours : 0 });
   return true;
 }
 
@@ -832,6 +833,11 @@ function birthChild(mother, father = null) {
   addFamilyBond(mother, baby);
   if (father) addFamilyBond(father, baby);
   addSiblingBonds(baby);
+  const birthDay = sky ? sky.day : 0;
+  const birthHour = sky ? sky.hours : 0;
+  pushHistory(baby, { kind: 'born', uid: mother.uid, day: birthDay, hour: birthHour });
+  pushHistory(mother, { kind: 'child', uid: baby.uid, day: birthDay, hour: birthHour });
+  if (father) pushHistory(father, { kind: 'child', uid: baby.uid, day: birthDay, hour: birthHour });
   mother.pregnant = false;
   mother.gestation = 0;
   mother.birthRetryT = 0;
@@ -3323,6 +3329,7 @@ const directivePanelEl = document.getElementById('directivePanel');
 const directiveNameEl = document.getElementById('directiveName');
 const directiveStatusEl = document.getElementById('directiveStatus');
 const directiveFamilyEl = document.getElementById('directiveFamily');
+const directiveHistoryEl = document.getElementById('directiveHistory');
 const directiveActionsEl = document.getElementById('directiveActions');
 const directiveCloseEl = document.getElementById('directiveClose');
 const possessBtnEl = document.getElementById('possessBtn');
@@ -3629,6 +3636,49 @@ const DIRECTIVE_TEXT = { go: 'Go here', eat: 'Eat', drink: 'Drink', home: 'Home'
 function selectedBearIndex(){
   return selectedBear ? bears.indexOf(selectedBear) : -1;
 }
+function historyActorName(uid) {
+  const actor = uid ? actorView.byUid(uid) : null;
+  return actor ? actorName(actor) : (uid ? 'someone' : 'family');
+}
+function historyLabel(event) {
+  const name = historyActorName(event.uid);
+  switch (event.kind) {
+    case 'born': return `was born (${name})`;
+    case 'mated': return `mated with ${name}`;
+    case 'child': return `welcomed ${name}`;
+    case 'meal': return `shared a meal with ${name}`;
+    case 'lesson': return `taught ${name}`;
+    case 'taught': return `learned from ${name}`;
+    case 'playdate': return `played with ${name}`;
+    case 'visit': return `visited ${name}`;
+    case 'stage': return 'grew up';
+    case 'home': return 'went home';
+    case 'moved': return 'moved home';
+    case 'bond': return `grew closer to ${name}`;
+    default: return event.kind;
+  }
+}
+function refreshDirectiveHistory(b) {
+  if (!directiveHistoryEl) return;
+  directiveHistoryEl.innerHTML = '';
+  if (!b) return;
+  const events = historyFor(b).slice(-5).reverse();
+  if (!events.length) {
+    const empty = document.createElement('span');
+    empty.className = 'hEmpty';
+    empty.textContent = 'No family events yet.';
+    directiveHistoryEl.append(empty);
+    return;
+  }
+  for (const event of events) {
+    const line = document.createElement('span');
+    line.className = 'hLine';
+    const when = document.createElement('b');
+    when.textContent = `Day ${(event.day || 0) + 1} · ${formatClock(event.hour || 0)}`;
+    line.append(when, document.createTextNode(` — ${historyLabel(event)}`));
+    directiveHistoryEl.append(line);
+  }
+}
 function syncDirectivePanel(){
   if (!directivePanelEl) return;
   const b = selectedBear;
@@ -3658,6 +3708,7 @@ function syncDirectivePanel(){
   }
   if (directiveStatusEl) directiveStatusEl.textContent = text;
   if (directiveFamilyEl) directiveFamilyEl.textContent = familyLine(b);
+  refreshDirectiveHistory(b);
   for (const btn of directiveButtons) {
     btn.classList.toggle('active', directivePick && btn.dataset.directive === 'go');
   }
@@ -6607,6 +6658,10 @@ window.__gummy = {
   familyMeal(i){
     if (!behavior) return { ok:false, note:'meadow only' };
     return behavior.forceMeal(bears[i]);
+  },
+  familyLesson(i, j){
+    if (!behavior) return { ok:false, note:'meadow only' };
+    return behavior.forceLesson(bears[i], bears[j]);
   },
   forceInvite(i, j, accept = true){
     if (!ai) return { ok:false, note:'meadow only' };

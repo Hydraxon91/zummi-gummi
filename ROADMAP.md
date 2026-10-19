@@ -695,8 +695,7 @@ can proceed with the current runtime and assets.
   `sky.day`, and prunes stale uid references on load.
 - Bear/Gummy/Glass now share social, invite/decline, visit, follow, mate and playdate paths;
   mixed-species pairs use the same protocol.
-- Open E–F: add parent teaching/skills; add the lineage/history panel; then re-profile and
-  update `PERFORMANCE.md`.
+- Open F: re-profile and update `PERFORMANCE.md` on a quiet machine.
 - **Profile-specific states migrated (C, done).** Bear hive raids, flee, conflict and the
   shared branch of the directive system live in `behavior.js`; Glass stargaze and daytime
   shelter are shared. `ai.js` and `glass.js` are now representation adapters; the old Glass
@@ -706,6 +705,11 @@ can proceed with the current runtime and assets.
   safe food source within 9 m, eat for 6 s, relieve hunger/social, gain a small bond with
   co-resident eaters and write a meal history event. One meal per actor per window; the
   buddy status names the routine.
+- **Teaching, skills and history (E, landed).** Adults seed a small skill profile, then
+  teach their strongest skill to a baby/teen child once per pair per in-game day at the
+  family door. `forage` shortens meals, `courage` lowers the safe hive threshold and
+  `social` improves invitation acceptance. The selected-bear panel now lists recent family
+  events (births, meals, lessons, playdates, stage-ups) below the lineage line.
 - **Perf profiling deferred to Phase 3.** A/B verification ran while the authoring machine
   was hosting an Android emulator/Studio workload, so frame-time numbers are not
   comparable to the recorded baselines. Do not publish A/B perf numbers; profile in the
@@ -719,8 +723,13 @@ can proceed with the current runtime and assets.
 - **Glass balance is preserved by profile.** Food/water/social/mate values remain in
   `behaviorprofiles.js`; the Phase C behavior checks cover shelter, stargaze, social and
   mate paths.
-- **Meal tasks now trigger from routines; lessons do not yet.** Phase D adds household
-  meals; parent teaching remains Phase E.
+- **Meal tasks now trigger from routines; lessons are parent/child only.** Phase E adds
+  once-per-day teaching for a parent’s own baby/teen. Non-parent mentoring and sibling
+  teaching are not implemented.
+- **Adult skills are seeded on first attach.** Legacy adult saves with all-zero skills gain
+  a small forage/courage/social baseline; children start at zero and learn. The history
+  panel shows the five most recent events, while `__gummy.lineage(uid)` returns the full
+  saved history.
 - **`__gummy.familyPlay(i,j)` now starts a playdate task** with a shared meeting point,
   not the old in-place social pair. Existing harnesses that expected immediate `social`
   should assert `familyTask` first.

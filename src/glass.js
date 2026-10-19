@@ -10,6 +10,7 @@ import { getSpecies } from './species.js';
 import { defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { assetStore, disposeInstanceSkeletons } from './assetstore.js';
 import { snapshotActor } from './actorrecord.js';
+import { pushHistory } from './family.js';
 import {
   advanceAge, advanceGestation, ageForStage, scaleForStage,
   HOME_CAPACITY, GESTATION_TIME,
@@ -322,6 +323,7 @@ export function createGlassColony({
     const size = finite(a.genome?.genes?.size, 1);
     a.stage = stage;
     a.age = Number.isFinite(opts.age) ? opts.age : a.age;
+    pushHistory(a, { kind: 'stage', uid: 0, day: 0, hour: hoursNow() });
     if (a.freeBody) endFreeBody(a);
     a.scale = clamp(scaleForStage(stage) * size, .35, 1.8);
     a.root.scale.setScalar(a.scale);
