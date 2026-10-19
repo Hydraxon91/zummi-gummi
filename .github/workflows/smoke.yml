@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: "26"
 
+      - name: Check species, DNA, save and asset manifests
+        run: node --test tests
+
       - name: Start the launcher
         run: |
           set -euo pipefail

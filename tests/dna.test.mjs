@@ -1,0 +1,100 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  DNA_VERSION,
+  defaultGenome,
+  normalizeGenome,
+  combineGenomes,
+  expressGenome,
+  hybridTargetFor,
+  canSpeciesBreed,
+} from '../src/dna.js';
+
+function seeded(seed = 123456789) {
+  return () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+}
+
+test('default genomes carry the current version and species baseline', () => {
+  const bear = defaultGenome('bear');
+  const gummy = defaultGenome('msn');
+  const glass = defaultGenome('glass');
+
+  assert.equal(bear.version, DNA_VERSION);
+  assert.deepEqual(bear.species, { bear: 1 });
+  assert.equal(bear.genes.material, 'bearGummy');
+  assert.equal(gummy.genes.material, 'msnGummy');
+  assert.ok(gummy.genes.rigidity < bear.genes.rigidity);
+  assert.equal(glass.genes.rigidity, 1);
+  assert.equal(glass.genes.softness, 0);
+  assert.equal(glass.genes.material, 'glass');
+});
+
+test('genome normalization clamps and orders inherited traits', () => {
+  const genome = normalizeGenome({
+    species: { bear: 1 },
+    genes: {
+      color: '  #AABBCC  ',
+      size: 99,
+      rigidity: -5,
+      softness: 9,
+      stretch: 99,
+      material: 'glass',
+      hopPace: [3, .2],
+    },
+  });
+
+  assert.equal(genome.genes.color, '#AABBCC');
+  assert.equal(genome.genes.size, 1.6);
+  assert.equal(genome.genes.rigidity, 0);
+  assert.equal(genome.genes.softness, 1);
+  assert.equal(genome.genes.stretch, 2);
+  assert.deepEqual(genome.genes.hopPace, [.2, 3]);
+  assert.equal(genome.genes.material, 'glass');
+});
+
+test('same-species combination stays in species and is deterministic', () => {
+  const bear = defaultGenome('bear');
+  const first = combineGenomes(bear, bear, { rng: seeded(7), mutation: .04 });
+  const second = combineGenomes(bear, bear, { rng: seeded(7), mutation: .04 });
+
+  assert.deepEqual(first, second);
+  assert.ok(first.species.bear > .99);
+  assert.equal(first.hybridTarget, null);
+});
+
+test('Bear x Gummy retains both species weights and a deferred hybrid target', () => {
+  const hybrid = combineGenomes(defaultGenome('bear'), defaultGenome('msn'), {
+    rng: seeded(11),
+    mutation: .04,
+  });
+
+  assert.ok(hybrid.species.bear > 0);
+  assert.ok(hybrid.species.msn > 0);
+  assert.equal(hybrid.hybridTarget, 'bear-msn');
+  assert.equal(hybridTargetFor('bear', 'msn'), 'bear-msn');
+  assert.equal(hybridTargetFor('glass', 'msn'), 'msn-glass');
+
+  const phenotype = expressGenome(hybrid);
+  assert.equal(phenotype.hybridTarget, 'bear-msn');
+  assert.equal(phenotype.kind, 'softbody');
+});
+
+test('all three shipped species pass the current reproduction gate', () => {
+  for (const [a, b] of [['bear', 'msn'], ['bear', 'glass'], ['msn', 'glass']]) {
+    const forward = canSpeciesBreed(a, b, { current: true });
+    const reverse = canSpeciesBreed(b, a, { current: true });
+    assert.equal(forward.ok, true, `${a} x ${b}`);
+    assert.equal(reverse.ok, true, `${b} x ${a}`);
+    assert.ok(forward.hybridTarget, `${a} x ${b} hybrid target`);
+  }
+  assert.equal(canSpeciesBreed('bear', 'missing').ok, false);
+});
+
+test('Glass expression keeps the skinned capabilities and cannot be possessed', () => {
+  const phenotype = expressGenome(defaultGenome('glass'));
+  assert.equal(phenotype.resolvedSpecies, 'glass');
+  assert.equal(phenotype.kind, 'skinned');
+  assert.equal(phenotype.capabilities.canReproduce, true);
+  assert.equal(phenotype.capabilities.canPossess, false);
+  assert.equal(phenotype.capabilities.hasLife, true);
+});

@@ -4,6 +4,8 @@
 // validates a payload before anything is applied and stores it. A corrupt or
 // future-version save must be rejected without touching the live session.
 
+import { DNA_VERSION } from './dna.js';
+
 export const SAVE_FORMAT = 'gummy-save';
 export const SAVE_VERSION = 1;
 export const SLOT_IDS = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'autosave'];
@@ -37,6 +39,8 @@ function validateBear(b, where, errors) {
   if (b.genome !== undefined) {
     if (!isObj(b.genome) || !isNum(b.genome.version) || !isObj(b.genome.species) || !isObj(b.genome.genes)) {
       errors.push(`${where}.genome is invalid`);
+    } else if (b.genome.version !== DNA_VERSION) {
+      errors.push(`${where}.genome version ${b.genome.version} is unsupported`);
     }
   }
 }
