@@ -505,8 +505,10 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   and the Glass prototype carries a normalized genome/phenotype. Births combine
   both parents' genomes; stage growth preserves the size gene. Saves store an
   optional versioned genome and old saves fall back to the species default.
-  Size and colour genes are applied; rigidity/material and authored hybrid
-  bodies remain deferred.
+  Size, colour, rigidity, damping/softness, stretch and material-profile genes
+  are expressed; trait scales are normalized to species defaults so default
+  actors keep their previous solver feel. Authored hybrid bodies remain
+  deferred.
 
 - **Decision:** all three — bears, Glass MSN and Gummy MSN — may interbreed
   later. Glass breeding is explicitly allowed; its offspring art/rig and
@@ -526,6 +528,11 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   hybrid is Bear × Gummy because both use the 24-body metaball/Box3D path.
   Glass × Bear/Gummy and Glass × Glass need a separate authored rigid/glassy
   model design.
+- **Later custom models for the hybrids (deferred):** do not generate hybrid
+  geometry at runtime or force one parent's rig to stand in for a hybrid.
+  Author custom Bear × Gummy and Glass hybrid models after the Blender MCP
+  testing/authoring pass is complete; then register each as a hybrid species
+  entry with its own rig/asset, capabilities and tests.
 - **Phases:** same-species reproduction + cross-species social (current) →
   Gummy Meadow life parity → DNA/genome + custom rigidity → Bear × Gummy hybrid
   model → Glass hybrid design → new MSN/Bear hybrid race model. Validate

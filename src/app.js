@@ -53,6 +53,18 @@ function takeBearName(){ return BEAR_NAMES[(nextBearName++) % BEAR_NAMES.length]
 function isMeadow(){ return getActiveMap().kind === 'life'; }
 function speciesOf(b){ return b ? (b.speciesDef || getSpecies(b.species)) : null; }
 function isGummyActor(b){ const def = speciesOf(b); return !!(def && def.hasTells); }
+function applyDnaTraits(b){
+  const defaults = speciesOf(b)?.genetics?.defaults || {};
+  const genes = b.genome?.genes || {};
+  const ratio = (value, base, fallback = 1) => {
+    const v = Number(value), d = Number(base);
+    return Number.isFinite(v) && Number.isFinite(d) && d > 0 ? v / d : fallback;
+  };
+  b.dnaRigidityScale = clamp(ratio(genes.rigidity, defaults.rigidity), .55, 1.8);
+  b.dnaDampingScale = clamp(1 / Math.max(.5, ratio(genes.softness, defaults.softness)), .65, 1.45);
+  b.dnaStretchScale = clamp(ratio(genes.stretch, defaults.stretch), .6, 1.5);
+  b.dnaMaterial = genes.material || speciesOf(b)?.material || 'flavor';
+}
 function studioActorHidden(b){
   if (isMeadow()) return false;
   const def = b.speciesDef || getSpecies(b.species);
@@ -472,8 +484,10 @@ function spawn(x, z, y, flavor, opts={}){
   b.flavor = flavor;
   b.genome = opts.genome ? normalizeGenome(opts.genome) : defaultGenome(b.species);
   b.phenotype = expressGenome(b.genome);
+  applyDnaTraits(b);
   const speciesDef = b.speciesDef;
-  const useMsnMaterial = speciesDef.material === 'msn';
+  const materialGene = b.phenotype.genes.material;
+  const useMsnMaterial = materialGene === 'msnGummy' || materialGene === 'glass' || speciesDef.material === 'msn';
   const baseMaterial = useMsnMaterial ? MSN_MAT : FLAVOR_MATS[flavor];
   let material = useMsnMaterial
     ? baseMaterial.clone()
@@ -482,6 +496,12 @@ function spawn(x, z, y, flavor, opts={}){
   if (typeof dnaColor === 'string' && dnaColor.startsWith('#')) {
     if (material === baseMaterial) material = material.clone();
     material.color.set(dnaColor);
+  }
+  if (materialGene === 'glass') {
+    material.roughness = .03;
+    material.clearcoat = 1;
+    material.envMapIntensity = 1.6;
+    material.needsUpdate = true;
   }
   b.material = material;
   b.sprite = FLAVOR_SPRITES[useMsnMaterial ? speciesDef.spriteFlavor : flavor];
@@ -857,7 +877,7 @@ function poseAndTargets(b, dt){
   }
   const ratio = Math.sqrt(h2)/(rig.REST_H * (b.scale || 1));
   b.volSlow += (ratio - b.volSlow)*(1-Math.exp(-VOL_CREEP*dt));
-  const comp = clamp((b.volSlow - ratio)*VOL_GAIN, -0.16, 0.16);
+  const comp = clamp((b.volSlow - ratio)*VOL_GAIN*(b.dnaStretchScale || 1), -0.16, 0.16);
   b.sy = 1 - comp;
   b.sx = clamp(1/Math.sqrt(b.sy), 0.90, 1.12);
   // world-space targets:  g = c + q · diag(sx, sy, sx) · rest
@@ -1161,7 +1181,8 @@ function accumulateForces(b, dt){
   const rig = b.rig, n = b.np;
   const fx=b.fx, fy=b.fy, fz=b.fz;
   fx.fill(0); fy.fill(0); fz.fill(0);
-  const ks = shapeStiffness(), cd = shapeDamping();
+  const ks = shapeStiffness() * (b.dnaRigidityScale || 1);
+  const cd = shapeDamping() * (b.dnaDampingScale || 1);
   for (let i=0;i<n;i++){
     const m = rig.MASS[i];
     fx[i] += m*ks*(b.tx[i]-b.px[i]);
@@ -6031,7 +6052,13 @@ window.__gummy = {
     ai: b.ai ? b.ai.state : null,
   } : null; },
   gummyReact(i, kind){ const b = bears[i]; return b && isGummyActor(b) ? gummyReact(b, kind) : false; },
-  genome(i){ const b = bears[i]; return b ? { genome: b.genome, phenotype: b.phenotype } : null; },
+  genome(i){ const b = bears[i]; return b ? {
+    genome: b.genome, phenotype: b.phenotype,
+    dna: {
+      rigidityScale: b.dnaRigidityScale, dampingScale: b.dnaDampingScale,
+      stretchScale: b.dnaStretchScale, material: b.dnaMaterial,
+    },
+  } : null; },
   species(){ return listSpecies().map(({ id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, genetics, hybrids }) => ({
     id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, genetics, hybrids,
   })); },
