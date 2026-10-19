@@ -2335,6 +2335,18 @@ function pickPortal(cx, cy){
   return _portalRay.intersectObject(target, true).length > 0;
 }
 
+function pickMsn(cx, cy){
+  return msnPrototype ? msnPrototype.hitTest(cx, cy) : null;
+}
+
+function pickMsnUnderPointer(cx, cy){
+  const race = pickMsn(cx, cy);
+  if (!race) return null;
+  rayFromClient(cx, cy);
+  const bearHit = pickBear();
+  return (!bearHit || race.distance <= bearHit.depth) ? race : null;
+}
+
 function pickBear(){
   if (studioBearsHidden()) return null;
   let bestB=null, bestI=-1, bestT=Infinity;
@@ -2506,6 +2518,20 @@ addEventListener('pointerdown', (e)=>{
     hideCamHint();
     return;
   }
+  // Studio race prototype: the GLB is a separate actor, so give it priority
+  // only when its hit proxy is closer than any bear under the same pointer.
+  if (e.pointerType !== 'mouse' || e.button === 0){
+    const raceHit = pickMsnUnderPointer(e.clientX, e.clientY);
+    if (raceHit){
+      p.mode = 'msn';
+      p.moved = false;
+      msnPrototype.select(true);
+      hideCamHint();
+      return;
+    }
+  }
+  if (msnPrototype) msnPrototype.select(false);
+
   // Select-click mode: pick the bear under the pointer without grabbing it, so
   // left-click can select while a drag still orbits. Grab mode is unchanged.
   if ((e.pointerType !== 'mouse' || e.button === 0) && clickMode === 'select'){
@@ -2548,11 +2574,20 @@ addEventListener('pointermove', (e)=>{
   const p = pointers.get(e.pointerId);
   if (!p){
     if (!studioCannonHidden() && launcher) launcher.pointerHover(e);
+    const overMsn = e.target === canvas && !!pickMsnUnderPointer(e.clientX, e.clientY);
+    if (msnPrototype) msnPrototype.setHovered(overMsn);
+    cursorEl.classList.toggle('move', overMsn);
     return;
   }
   const dx = e.clientX - p.lx, dy = e.clientY - p.ly;
   if (p.mode === 'launcher'){
     if (launcher) launcher.pointerMove(e);
+    p.lx = e.clientX; p.ly = e.clientY;
+    return;
+  }
+  if (p.mode === 'msn'){
+    if (Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 4) p.moved = true;
+    if (msnPrototype) msnPrototype.drag(dx, dy, e.shiftKey);
     p.lx = e.clientX; p.ly = e.clientY;
     return;
   }
@@ -2592,6 +2627,14 @@ function pointerUp(e){
   if (p){
     if (p.mode === 'launcher'){
       if (launcher) launcher.pointerUp(e);
+    } else if (p.mode === 'msn'){
+      if (!p.moved && e.type === 'pointerup' && msnPrototype){
+        msnPrototype.activate();
+        if (hintEl){
+          hintEl.textContent = 'MSN Buddy — drag to turn · Shift-drag to move · double-click to frame';
+          showCamHint();
+        }
+      }
     } else if (p.mode === 'grab' && p.grab) endGrab(p.grab, true);
     else if (p.mode === 'pinch'){
       for (const q of pointers.values()) if (q !== p && q.mode === 'pinch') q.mode = 'orbit';
@@ -2602,6 +2645,9 @@ function pointerUp(e){
 }
 addEventListener('pointerup', pointerUp, {passive:true});
 addEventListener('pointercancel', pointerUp, {passive:true});
+canvas.addEventListener('dblclick', (e)=>{
+  if (pickMsnUnderPointer(e.clientX, e.clientY)) focusMsn();
+});
 addEventListener('blur', ()=>{ releaseAllGrabs(); keys.clear(); });
 canvas.addEventListener('contextmenu', (e)=>e.preventDefault());
 canvas.addEventListener('wheel', (e)=>{
@@ -3306,6 +3352,26 @@ function focusBuddy(b){
     hintEl.textContent = `${b.name || 'Your bear'} is right here`;
     showCamHint();
   }
+}
+
+function focusMsn(){
+  if (!msnPrototype) return false;
+  const s = msnPrototype.state();
+  if (!s.visible || !s.ready) return false;
+  const info = msnPrototype.focusInfo();
+  msnPrototype.select(true);
+  cam.goal.set(info.x, info.y, info.z);
+  cam.target.copy(cam.goal);
+  const [zmin, zmax] = camZoomLimits();
+  cam.dist = clamp(Math.min(cam.dist, info.dist), zmin, zmax);
+  cam.moved = true;
+  if (resetViewBtn) resetViewBtn.hidden = false;
+  applyCamera(0);
+  if (hintEl){
+    hintEl.textContent = 'MSN Buddy — drag to turn · Shift-drag to move';
+    showCamHint();
+  }
+  return true;
 }
 function syncAeroUI(force){
   if (!isMeadow()) return;
@@ -4792,6 +4858,7 @@ function applyStudioCast(value = studioCast, persist = true){
     directivePick = false;
     syncDirectivePanel();
   }
+  if (!msnOn) cursorEl.classList.remove('move');
   document.body.classList.toggle('msn-only', !meadow && studioCast === 'msn');
   syncStudioCastUI();
   if (!meadow) drawStudioShadows(true);
@@ -5350,7 +5417,7 @@ async function bootGame(){
   studioReturnPortal.group.visible = false;
   scene.add(studioReturnPortal.group);
   layoutStudioReturnPortal();
-  msnPrototype = createMSNPrototype({ scene, enabled: RACE_ENABLED, getTable: () => TABLE });
+  msnPrototype = createMSNPrototype({ scene, camera, renderer, enabled: RACE_ENABLED, getTable: () => TABLE });
   activateMap(activeWorld.mapId, { initial: true });
   if (toonEnabled) applyToonMaterials();
   drawShadows();
@@ -5996,6 +6063,13 @@ window.__gummy = {
     visible(v){ return msnPrototype ? msnPrototype.setVisible(v) : null; },
     reset(){ return msnPrototype ? msnPrototype.reset() : null; },
     cast(mode){ return applyStudioCast(mode); },
+    hit(x, y){ return msnPrototype ? msnPrototype.hitTest(x, y) : null; },
+    hover(x, y){ return msnPrototype ? msnPrototype.hoverAt(x, y) : false; },
+    screen(){ return msnPrototype ? msnPrototype.screen() : null; },
+    select(v){ return msnPrototype ? msnPrototype.select(v) : null; },
+    activate(){ return msnPrototype ? msnPrototype.activate() : null; },
+    drag(dx, dy, shift){ return msnPrototype ? msnPrototype.drag(dx, dy, shift) : null; },
+    focus(){ return focusMsn(); },
   },
   start(){ return startGame(); },
   menu(open){ setMenu(open); return menuOpen; },
@@ -6007,6 +6081,7 @@ window.__gummy = {
 for (const btn of document.querySelectorAll('#raceCast [data-cast]')){
   btn.addEventListener('click', () => applyStudioCast(btn.dataset.cast));
 }
+document.getElementById('raceFrame')?.addEventListener('click', focusMsn);
 syncStudioCastUI();
 
 initMenu();

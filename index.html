@@ -711,6 +711,7 @@
   }
   .raceReset:hover{background:#fff;border-color:rgba(25,24,23,.3)}
   .raceReset:disabled,.raceField select:disabled,.raceField input:disabled{opacity:.45;cursor:default}
+  .raceActions{display:flex;gap:4px}
   .raceStatus{grid-column:1/-1;margin-top:1px;font-size:9px;line-height:1.35;color:var(--ink-3);letter-spacing:.02em}
   .raceStatus.err{color:#b3233f}
   .raceLab.collapsed .raceBody{display:none}
@@ -957,7 +958,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
     <label class="raceField"><span>Mode</span><select id="raceMode" aria-label="Playback mode"><option value="loop">Loop</option><option value="once">Once</option></select></label>
     <label class="raceField"><span>Opacity</span><input id="raceOpacity" type="range" min="0.25" max="1" step="0.01" value="0.55" aria-label="Opacity"><b id="raceOpacityValue">0.55</b></label>
     <label class="raceField"><span>Speed</span><input id="raceSpeed" type="range" min="0.25" max="2" step="0.05" value="1" aria-label="Animation speed"><b id="raceSpeedValue">1.00×</b></label>
-    <button class="raceReset" id="raceReset" type="button">Reset</button>
+    <div class="raceActions"><button class="raceReset" id="raceReset" type="button">Reset</button><button class="raceReset" id="raceFrame" type="button">Frame</button></div>
     <div class="raceStatus" id="raceStatus">Loading MSN Buddy…</div>
   </div>
 </div>

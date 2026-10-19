@@ -44,7 +44,7 @@ function makeContactShadow() {
   return mesh;
 }
 
-export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
+export function createMSNPrototype({ scene, camera, renderer, enabled = true, getTable } = {}) {
   const root = new THREE.Group();
   root.name = 'msnRacePrototype';
   root.visible = false;
@@ -58,6 +58,26 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
   const contactShadow = makeContactShadow();
   root.add(contactShadow);
 
+  const selectionRing = new THREE.Mesh(
+    new THREE.RingGeometry(.52, .57, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0x0d7b76, transparent: true, opacity: .65, depthWrite: false, toneMapped: false,
+    }),
+  );
+  selectionRing.name = 'msnSelectionRing';
+  selectionRing.rotation.x = -Math.PI / 2;
+  selectionRing.position.y = .006;
+  selectionRing.renderOrder = 2;
+  selectionRing.visible = false;
+  root.add(selectionRing);
+
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const _dragDir = new THREE.Vector3();
+  const _dragRight = new THREE.Vector3();
+  const _up = new THREE.Vector3(0, 1, 0);
+  const _screenPoint = new THREE.Vector3();
+
   const ui = {
     panel: document.getElementById('raceLab'),
     toggle: document.getElementById('raceLabToggle'),
@@ -68,6 +88,7 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
     speed: document.getElementById('raceSpeed'),
     speedValue: document.getElementById('raceSpeedValue'),
     reset: document.getElementById('raceReset'),
+    frame: document.getElementById('raceFrame'),
     status: document.getElementById('raceStatus'),
   };
 
@@ -92,6 +113,10 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
   let depth = 0;
   let placed = false;
   let panelVisible = false;
+  let hitProxy = null;
+  let selected = false;
+  let hovered = false;
+  let activationIndex = 0;
 
   function layout() {
     const table = getTable ? getTable() : null;
@@ -105,6 +130,93 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
     return state();
   }
 
+  function screen() {
+    if (!camera || !renderer) return null;
+    _screenPoint.set(root.position.x, root.position.y + height * .5, root.position.z).project(camera);
+    const rect = renderer.domElement.getBoundingClientRect();
+    return {
+      x: ( _screenPoint.x * .5 + .5) * rect.width + rect.left,
+      y: (-_screenPoint.y * .5 + .5) * rect.height + rect.top,
+      ndc: [+_screenPoint.x.toFixed(3), +_screenPoint.y.toFixed(3)],
+    };
+  }
+
+  function hitTest(clientX, clientY) {
+    if (!ready || !root.visible || !hitProxy || !camera || !renderer) return null;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    raycaster.setFromCamera(pointer, camera);
+    root.updateMatrixWorld(true);
+    const hits = raycaster.intersectObject(hitProxy, false);
+    if (!hits.length) return null;
+    return { hit: true, distance: +hits[0].distance.toFixed(3), screen: screen() };
+  }
+
+  function hoverAt(clientX, clientY) {
+    const hit = hitTest(clientX, clientY);
+    hovered = !!hit;
+    return hovered;
+  }
+
+  function setHovered(value) {
+    hovered = !!value && ready && root.visible;
+    return hovered;
+  }
+
+  function select(value = true) {
+    const on = !!value && ready && root.visible;
+    selected = on;
+    selectionRing.visible = on;
+    return state();
+  }
+
+  function activate() {
+    if (!ready || !root.visible) return { ok: false, reason: 'not ready', state: state() };
+    select(true);
+    const sequence = ['Nod', 'Wave', 'Cheer'];
+    const clip = sequence[activationIndex++ % sequence.length];
+    const result = play(clip, true);
+    return { ...result, selected: true };
+  }
+
+  function drag(dx, dy, shift = false) {
+    if (!ready || !root.visible) return state();
+    if (shift) {
+      const table = getTable ? getTable() : null;
+      const hx = table && Number.isFinite(table.hx) ? table.hx : 3.4;
+      const hz = table && Number.isFinite(table.hz) ? table.hz : 2.4;
+      const distance = camera ? camera.position.distanceTo(root.position) : 8;
+      const k = clamp(.0012 * distance, .006, .03);
+      if (camera) {
+        camera.getWorldDirection(_dragDir);
+        _dragDir.y = 0;
+        if (_dragDir.lengthSq() > 1e-8) {
+          _dragDir.normalize();
+          _dragRight.crossVectors(_dragDir, _up).normalize();
+          root.position.x = clamp(root.position.x + _dragRight.x * dx * k + _dragDir.x * (-dy) * k, -hx + .72, hx - .72);
+          root.position.z = clamp(root.position.z + _dragRight.z * dx * k + _dragDir.z * (-dy) * k, -hz + .55, hz - .55);
+        }
+      }
+    } else {
+      root.rotation.y += dx * .012;
+    }
+    root.updateMatrixWorld(true);
+    return state();
+  }
+
+  function focusInfo() {
+    return {
+      x: root.position.x,
+      y: Math.max(.55, height * .56),
+      z: root.position.z,
+      dist: 4.8,
+      height,
+    };
+  }
+
   function state() {
     return {
       enabled: !!enabled,
@@ -113,6 +225,9 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
       error: error ? String(error.message || error) : null,
       visible: root.visible,
       panelVisible,
+      selected,
+      hovered,
+      yaw: +root.rotation.y.toFixed(3),
       clips: clips.map(clip => clip.name),
       active: activeName,
       loop,
@@ -164,6 +279,7 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
     }
     if (ui.speedValue) ui.speedValue.textContent = speed.toFixed(2) + '×';
     if (ui.reset) ui.reset.disabled = !controlsOn;
+    if (ui.frame) ui.frame.disabled = !controlsOn;
   }
 
   function fillClipOptions() {
@@ -240,8 +356,11 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
     root.visible = on;
     if (on){
       load();
-    } else if (!ready && !loading){
-      setStatus('MSN hidden — choose Both or MSN to load.');
+    } else {
+      hovered = false;
+      selected = false;
+      selectionRing.visible = false;
+      if (!ready && !loading) setStatus('MSN hidden — choose Both or MSN to load.');
     }
     syncPanel();
     syncUi();
@@ -299,6 +418,19 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
       });
       materials = [...materialMap.values()];
 
+      if (hitProxy){
+        hitProxy.removeFromParent();
+        hitProxy.geometry.dispose();
+        hitProxy.material.dispose();
+      }
+      hitProxy = new THREE.Mesh(
+        new THREE.BoxGeometry(width, height, depth),
+        new THREE.MeshBasicMaterial({ visible: false }),
+      );
+      hitProxy.name = 'msnHitProxy';
+      hitProxy.position.y = height * .5;
+      root.add(hitProxy);
+
       model = source;
       holder.add(model);
       mixer = new THREE.AnimationMixer(model);
@@ -336,6 +468,11 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
   }
 
   function reset() {
+    layout();
+    root.rotation.y = RACE_SPOT.yaw;
+    selected = false;
+    hovered = false;
+    selectionRing.visible = false;
     setOpacity(DEFAULT_OPACITY);
     setSpeed(DEFAULT_SPEED);
     loop = true;
@@ -354,6 +491,14 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
       shadow.dispose();
     }
     contactShadow.geometry.dispose();
+    selectionRing.geometry.dispose();
+    selectionRing.material.dispose();
+    if (hitProxy){
+      hitProxy.removeFromParent();
+      hitProxy.geometry.dispose();
+      hitProxy.material.dispose();
+      hitProxy = null;
+    }
     ready = false;
     model = null;
     mixer = null;
@@ -407,6 +552,14 @@ export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
     setSpeed,
     play,
     setLoop,
+    hitTest,
+    hoverAt,
+    setHovered,
+    select,
+    activate,
+    drag,
+    screen,
+    focusInfo,
     reset,
     state,
     dispose,

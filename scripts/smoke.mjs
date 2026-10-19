@@ -46,6 +46,7 @@ check(html.includes('id="aeroHud"'), "page includes the HUD markup");
 check(html.includes('id="settings"'), "page includes the settings sheet");
 check(html.includes('data-profile="auto"'), "page includes graphics presets");
 check(html.includes('id="raceLab"'), "page includes the Studio race prototype");
+check(html.includes('id="raceFrame"'), "page includes the race camera-frame control");
 
 // --- source modules ---------------------------------------------------------
 const modules = [

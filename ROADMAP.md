@@ -414,15 +414,26 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   or save change. **MSN** hides bear meshes/eyes/painted shadows, the bear card,
   the header and the cannon; bears keep their state and simulation. The choice
   persists locally as `gummy.studio.cast`. Meadow always shows bears.
+- **Interaction pass (Oct 2026):** the MSN has its own invisible hit proxy and
+  raycast, so it is selectable independently of the bear pool. Click selects it
+  and plays a short Nod/Wave/Cheer reaction; drag turns it; Shift-drag moves it
+  inside the Studio table bounds; double-click or the Race Lab **Frame** button
+  focuses the camera. Reset restores the default placement, yaw, opacity, speed
+  and Idle clip. A teal floor ring marks selection. It does not add physics,
+  save state or AI, and it yields to a closer bear when both are under the
+  pointer in Both mode.
 - **Verification:** isolated GLB audit and live browser checks cover the lazy
   load, mesh/bone/clip counts, mixer advance, one-shot return, opacity settings,
-  cast filters, cast persistence, `?race=off`, map isolation and desktop/390×844
-  captures. Numbers are in `PERFORMANCE.md`.
+  cast filters, cast persistence, `?race=off`, map isolation, hover/click
+  selection, click reaction clips, drag-to-turn, Shift-drag placement, Frame
+  focus, Reset and desktop/390×844 captures. Numbers are in `PERFORMANCE.md`.
 - **Known follow-ups:** the prototype has no physics, collision, AI, possession
   or soft-body deformation; a playable race is a separate scope. The cast filter
   intentionally leaves hidden bears simulating, so their arrangement survives a
   round trip. Multiple MSN instances, save-state integration and limb clipping
-  are deferred.
+  are deferred. The open Race Lab panel overlaps the prototype's base and selection
+  ring at the default desktop camera; collapse or reposition the panel if that
+  becomes distracting.
 - **Future — two MSN variants (requested 2026-10-19, deferred):**
   - **Glass MSN:** the current GLB path with authored skeletal clips, a
     transmission/refraction material and little or no soft-body stretch. It is
