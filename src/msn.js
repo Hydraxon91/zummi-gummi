@@ -7,11 +7,15 @@
 import * as THREE from 'three';
 import { getSpecies } from './species.js';
 import { defaultGenome, expressGenome } from './dna.js';
+import { fetchAssetManifest, loadManifestedGltf } from './assets.js';
 
 const GLASS_SPECIES = getSpecies('glass');
 const GLASS_GENOME = defaultGenome('glass');
 const GLASS_PHENOTYPE = expressGenome(GLASS_GENOME);
 const ASSET_URL = new URL('../' + GLASS_SPECIES.asset, import.meta.url).href;
+const ASSET_MANIFEST_URL = GLASS_SPECIES.assetManifest
+  ? new URL('../' + GLASS_SPECIES.assetManifest, import.meta.url).href
+  : null;
 const DEFAULT_OPACITY = 0.55;
 const MIN_OPACITY = 0.25;
 const DEFAULT_SPEED = 1.0;
@@ -603,8 +607,14 @@ export function createMSNPrototype({ scene, camera, renderer, physics, enabled =
     setStatus('Loading MSN Buddy…');
     loading = (async () => {
       const started = performance.now();
-      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-      const gltf = await new GLTFLoader().loadAsync(ASSET_URL);
+      let gltf;
+      if (ASSET_MANIFEST_URL) {
+        const manifest = await fetchAssetManifest(ASSET_MANIFEST_URL);
+        ({ gltf } = await loadManifestedGltf(manifest, { manifestUrl: ASSET_MANIFEST_URL }));
+      } else {
+        const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+        gltf = await new GLTFLoader().loadAsync(ASSET_URL);
+      }
       const source = gltf.scene;
       source.name = 'MSNBuddy';
       const box = new THREE.Box3().setFromObject(source);

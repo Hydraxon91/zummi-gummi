@@ -67,6 +67,7 @@ const SOCIAL_RADIUS = 22;
 const SOCIAL_DIST = 1.45;
 const INVITE_TIME = 0.70;
 const SOCIAL_TIME = 4.2;
+const FAMILY_SOCIAL_TIME = 10;
 const DECLINE_TIME = 0.90;
 const SOCIAL_COOLDOWN = 14;
 const VISIT_BOND = 0.16;
@@ -175,11 +176,15 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
       }
       p.ai.source = null;
       p.ai.follow = null;
+      p.ai.familyPlay = false;
+      p.ai.playmateKind = null;
       p.ai.contestBear = null;
       p.ai.contestSource = null;
       p.ai.conflictSource = null;
     }
     b.ai.follow = null;
+    b.ai.familyPlay = false;
+    b.ai.playmateKind = null;
     b.ai.partner = null;
     b.ai.visitHome = null;
     b.ai.visitRole = null;
@@ -289,6 +294,9 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
       inviteAccepted: false,
       socialT: 0,
       socialCooldown: 0,
+      familyPlay: false,
+      playmateKind: null,
+      familyPlayCooldown: 0,
       heartT: 0,
       declineT: 0,
       conflictT: 0,
@@ -688,6 +696,16 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
     clearPath(b);
   }
 
+  function familyRelation(a, other) {
+    if (!a || !other || other === a) return null;
+    const parents = a.parentUids || [];
+    const otherParents = other.parentUids || [];
+    if (parents.length && otherParents.some(uid => parents.includes(uid))) return 'sibling';
+    if (parents.includes(other.uid)) return 'parent';
+    if (otherParents.includes(a.uid)) return 'child';
+    return null;
+  }
+
   function canCompany(b, other) {
     if (!b || !other || b === other || !other.active || !other.ai) return false;
     if (other.grabs > 0 || other.inPond || other.sleeping) return false;
@@ -700,6 +718,8 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
   function acquireCompany(b) {
     if (!b || !b.ai || b.ai.socialCooldown > 0) return null;
     if (b.social < SEEK_SOCIAL && b.affection < SEEK_AFFECTION) return null;
+    b.ai.familyPlay = false;
+    b.ai.playmateKind = null;
     let best = null;
     let bestScore = -Infinity;
     for (const other of companions()) {
@@ -708,7 +728,10 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
       if (d > SOCIAL_RADIUS) continue;
       const bond = pairBond(b, other);
       const need = unit(other.social);
-      const score = bond * 1.3 + need * .7 - d * .025 +
+      const relation = familyRelation(b, other);
+      const familyBonus = b.ai.familyPlayCooldown > 0 ? 0
+        : relation === 'sibling' ? .35 : relation === 'parent' ? .2 : 0;
+      const score = bond * 1.3 + need * .7 - d * .025 + familyBonus +
         (other.ai.state === 'wander' && !other.ai.moving ? .18 : 0) +
         (rng() - .5) * .08;
       if (score > bestScore) { bestScore = score; best = other; }
@@ -717,6 +740,9 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
       b.ai.socialCooldown = 3.0;
       return null;
     }
+    const relation = familyRelation(b, best);
+    b.ai.familyPlay = b.ai.familyPlayCooldown <= 0 && (relation === 'sibling' || relation === 'parent');
+    b.ai.playmateKind = b.ai.familyPlay ? relation : null;
     startSeekCompany(b, best);
     return best;
   }
@@ -823,12 +849,18 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
 
   function beginSocialPair(a, b) {
     if (!a || !b || !a.ai || !b.ai || a === b) return false;
+    const familyPlay = !!(a.ai.familyPlay || b.ai.familyPlay);
+    const playmateKind = a.ai.playmateKind || b.ai.playmateKind || 'family';
     a.ai.state = 'social';
     b.ai.state = 'social';
     a.ai.partner = b;
     b.ai.partner = a;
-    a.ai.socialT = SOCIAL_TIME;
-    b.ai.socialT = SOCIAL_TIME;
+    a.ai.socialT = familyPlay ? FAMILY_SOCIAL_TIME : SOCIAL_TIME;
+    b.ai.socialT = familyPlay ? FAMILY_SOCIAL_TIME : SOCIAL_TIME;
+    a.ai.familyPlay = familyPlay;
+    b.ai.familyPlay = familyPlay;
+    a.ai.playmateKind = familyPlay ? playmateKind : null;
+    b.ai.playmateKind = familyPlay ? playmateKind : null;
     a.ai.inviteT = 0;
     b.ai.inviteT = 0;
     a.ai.heartT = 0;
@@ -857,15 +889,25 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
   function endSocialPair(a) {
     if (!a || !a.ai || a.ai.state !== 'social') return;
     const b = a.ai.partner;
+    const familyPlay = !!(a.ai.familyPlay || (b && b.ai && b.ai.familyPlay));
     settleSocial(a);
     if (b && b.ai && b.ai.state === 'social' && b.ai.partner === a) settleSocial(b);
-    addBond(a, b, .16 + rng() * .08);
+    addBond(a, b, (familyPlay ? .22 : .16) + rng() * .08);
+    if (familyPlay) {
+      addBond(a, b, .08);
+      a.ai.familyPlayCooldown = 18;
+      if (b && b.ai) b.ai.familyPlayCooldown = 18;
+    }
+    a.ai.familyPlay = false;
+    a.ai.playmateKind = null;
     a.ai.state = 'wander';
     a.ai.idleT = .55;
     a.ai.taskCooldown = 1.0;
     a.ai.partner = null;
     clearPath(a);
     if (b && b.ai && b.ai.state === 'social' && b.ai.partner === a) {
+      b.ai.familyPlay = false;
+      b.ai.playmateKind = null;
       b.ai.state = 'wander';
       b.ai.idleT = .55;
       b.ai.taskCooldown = 1.0;
@@ -2191,6 +2233,36 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
     return { ok: true, accepted: false, state: a.ai.state, partner: b.name || 'bear' };
   }
 
+  function debugFamilyPlay(a, b) {
+    if (!a || !b || a === b || !a.active || !b.active) {
+      return { ok: false, note: 'need two active bears' };
+    }
+    if (!a.ai) attach(a);
+    if (!b.ai) attach(b);
+    const kind = familyRelation(a, b);
+    if (kind !== 'sibling' && kind !== 'parent') {
+      return { ok: false, note: 'not siblings or parent/child' };
+    }
+    breakPair(a);
+    breakPair(b);
+    releaseFood(a);
+    releaseFood(b);
+    a.ai.source = null;
+    b.ai.source = null;
+    a.ai.state = 'wander';
+    b.ai.state = 'wander';
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.familyPlay = true;
+    b.ai.familyPlay = true;
+    a.ai.playmateKind = kind;
+    b.ai.playmateKind = kind;
+    beginSocialPair(a, b);
+    return { ok: true, kind, state: a.ai.state, partner: b.name || 'bear' };
+  }
+
   function debugInvite(a, b, accept = true) {
     if (!a || !b || a === b || !a.active || !b.active) return { ok: false, note: 'need two active bears' };
     if (!a.ai) attach(a);
@@ -2281,6 +2353,8 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
       affection: +b.affection.toFixed(3),
       partner: partnerName(b) || null,
       bond: b.ai.partner ? +pairBond(b, b.ai.partner).toFixed(3) : null,
+      familyPlay: !!b.ai.familyPlay,
+      playmateKind: b.ai.playmateKind || null,
       follow: b.ai.follow ? (b.ai.follow.name || 'parent') : null,
       visitHome: b.ai.visitHome || null,
       visitRole: b.ai.visitRole || null,
@@ -2310,6 +2384,7 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
         HUNGER_RATE * (b.pregnant ? PREGNANCY_HUNGER : 1) * dt);
       b.thirst = Math.min(1, finite(b.thirst, 0.3) + THIRST_RATE * dt);
       if (ai.taskCooldown > 0) ai.taskCooldown = Math.max(0, ai.taskCooldown - dt);
+      if (ai.familyPlayCooldown > 0) ai.familyPlayCooldown = Math.max(0, ai.familyPlayCooldown - dt);
       if (ai.directive) {
         ai.directive.ttl = Math.max(0, ai.directive.ttl - dt);
         if (ai.directive.ttl <= 0) finishDirective(b, 'expired');
@@ -2492,6 +2567,8 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
         affection: +b.affection.toFixed(3),
         partner: partnerName(b) || null,
         bond: b.ai.partner ? +pairBond(b, b.ai.partner).toFixed(3) : null,
+        familyPlay: !!b.ai.familyPlay,
+        playmateKind: b.ai.playmateKind || null,
         follow: b.ai.follow ? (b.ai.follow.name || 'parent') : null,
         visitHome: b.ai.visitHome || null,
         visitRole: b.ai.visitRole || null,
@@ -2534,6 +2611,7 @@ export function createBearAI({ field, getBears, getCompanions, getHours, getPopu
   return {
     update, onGrab, onRelease, detach, setEnabled,
     setNeed, setBond, debugState, debugSocial, debugInvite, debugVisit, debugConflict, debugMate,
+    debugFamilyPlay,
     beginMatePair, canMatePair, matePairDebug,
     plan, stats: statsNow,
     issueDirective, cancelDirectives, directiveState, setPossessed,

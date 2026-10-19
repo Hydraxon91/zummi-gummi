@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getSpecies } from './species.js';
 import { defaultGenome, expressGenome, normalizeGenome } from './dna.js';
+import { fetchAssetManifest, loadManifestedGltf } from './assets.js';
 import {
   advanceAge, advanceGestation, ageForStage, scaleForStage,
   canMate, HOME_CAPACITY, MATE_TIME, MATE_COOLDOWN,
@@ -16,6 +17,9 @@ import {
 
 const GLASS_SPECIES = getSpecies('glass');
 const ASSET_URL = new URL('../' + GLASS_SPECIES.asset, import.meta.url).href;
+const ASSET_MANIFEST_URL = GLASS_SPECIES.assetManifest
+  ? new URL('../' + GLASS_SPECIES.assetManifest, import.meta.url).href
+  : null;
 const DEFAULT_COLOR = '#a8e5ff';
 const MAX_ACTORS = 8;
 const HOVER = .18;
@@ -33,6 +37,8 @@ const SEEK_SOCIAL = .64;
 const SEEK_AFFECTION = .68;
 const STOP_SOCIAL = .32;
 const SOCIAL_TIME = 3.4;
+const PLAYDATE_TIME = 10;
+const PLAYDATE_DIST = 1.7;
 const SOCIAL_COOLDOWN = 15;
 const VISIT_CHANCE = .35;
 const VISIT_BOND = .16;
@@ -89,12 +95,18 @@ function blendHex(a, b, rng = Math.random) {
 let assetPromise = null;
 function loadAsset() {
   if (!assetPromise) {
-    assetPromise = import('three/addons/loaders/GLTFLoader.js')
-      .then(({ GLTFLoader }) => new GLTFLoader().loadAsync(ASSET_URL))
-      .catch(err => {
-        assetPromise = null;
-        throw err;
-      });
+    assetPromise = (async () => {
+      if (ASSET_MANIFEST_URL) {
+        const manifest = await fetchAssetManifest(ASSET_MANIFEST_URL);
+        const { gltf } = await loadManifestedGltf(manifest, { manifestUrl: ASSET_MANIFEST_URL });
+        return gltf;
+      }
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      return new GLTFLoader().loadAsync(ASSET_URL);
+    })().catch(err => {
+      assetPromise = null;
+      throw err;
+    });
   }
   return assetPromise;
 }
@@ -155,6 +167,9 @@ function makeAI() {
     familyPlay: false,
     playmateKind: null,
     familyPlayCooldown: 0,
+    playdate: false,
+    playdateHome: null,
+    playdateTarget: null,
     shelter: false,
     animT: 0,
     directive: null,
@@ -488,25 +503,88 @@ export function createGlassColony({
     return best ? { actor: best, kind: bestKind } : null;
   }
 
+  function playdatePointFor(a, other) {
+    const field = fieldNow();
+    const names = [a.home, other.home].filter(Boolean);
+    const home = field && Array.isArray(field.homes)
+      ? field.homes.find(candidate => names.includes(candidate.name))
+      : null;
+    if (home) return { x: home.door.x, z: home.door.z, home: home.name };
+    return { x: (a.cx + other.cx) * .5, z: (a.cz + other.cz) * .5, home: null };
+  }
+
+  function startPlaydateSocial(a, partner) {
+    if (!a || !a.ai || !partner) return false;
+    const kind = a.ai.playmateKind || 'sibling';
+    if (a.kind === 'glass') {
+      a.ai.state = 'social';
+      a.ai.partner = partner;
+      a.ai.socialT = PLAYDATE_TIME;
+      a.ai.familyPlay = true;
+      a.ai.playmateKind = kind;
+      a.ai.playdate = true;
+      a.ai.moving = false;
+      clearPath(a);
+      a.ai.faceYaw = Math.atan2(partner.cx - a.cx, partner.cz - a.cz);
+    }
+    if (partner.kind === 'glass' && partner.ai) {
+      partner.ai.state = 'social';
+      partner.ai.partner = a;
+      partner.ai.socialT = PLAYDATE_TIME;
+      partner.ai.familyPlay = true;
+      partner.ai.playmateKind = kind;
+      partner.ai.playdate = true;
+      partner.ai.moving = false;
+      partner.ai.path = null;
+      partner.ai.faceYaw = Math.atan2(a.cx - partner.cx, a.cz - partner.cz);
+    }
+    const field = fieldNow();
+    if (field && field.emote) {
+      field.emote(a.cx, a.cy + .95, a.cz, 'heart');
+      if (partner.kind === 'glass') field.emote(partner.cx, partner.cy + .95, partner.cz, 'heart');
+    }
+    return true;
+  }
+
   function startFamilyPlay(a, mate) {
     if (!a || !mate || !mate.actor) return false;
+    const partner = mate.actor;
+    const point = playdatePointFor(a, partner);
     a.ai.familyPlay = true;
     a.ai.playmateKind = mate.kind;
-    a.ai.partner = mate.actor;
-    a.ai.state = 'seekSocial';
-    if (mate.actor.kind === 'glass' && mate.actor.ai) {
-      mate.actor.ai.partner = a;
-      mate.actor.ai.state = 'seekSocial';
-      mate.actor.ai.familyPlay = true;
-      mate.actor.ai.playmateKind = mate.kind;
-      mate.actor.ai.target = { x: a.cx, z: a.cz };
-      mate.actor.ai.moving = false;
-      mate.actor.ai.path = null;
+    a.ai.partner = partner;
+    a.ai.playdate = true;
+    a.ai.playdateHome = point.home;
+    a.ai.playdateTarget = { x: point.x, z: point.z };
+    a.ai.state = 'seekPlaydate';
+    let partnerMoving = true;
+    if (partner.kind === 'glass' && partner.ai) {
+      partner.ai.partner = a;
+      partner.ai.state = 'seekPlaydate';
+      partner.ai.familyPlay = true;
+      partner.ai.playmateKind = mate.kind;
+      partner.ai.playdate = true;
+      partner.ai.playdateHome = point.home;
+      partner.ai.playdateTarget = { x: point.x, z: point.z };
+      partner.ai.moving = false;
+      partner.ai.path = null;
+      partnerMoving = setMoving(partner, point.x, point.z);
     }
-    if (!setMoving(a, mate.actor.cx, mate.actor.cz)) {
+    if (!setMoving(a, point.x, point.z) || !partnerMoving) {
       a.ai.familyPlay = false;
+      a.ai.playdate = false;
+      a.ai.playdateTarget = null;
       a.ai.partner = null;
       a.ai.state = 'wander';
+      if (partner.kind === 'glass' && partner.ai) {
+        partner.ai.familyPlay = false;
+        partner.ai.playdate = false;
+        partner.ai.playdateTarget = null;
+        partner.ai.partner = null;
+        partner.ai.state = 'wander';
+        partner.ai.moving = false;
+        partner.ai.path = null;
+      }
       return false;
     }
     return true;
@@ -693,6 +771,16 @@ export function createGlassColony({
       canVisit = bond >= VISIT_BOND && isDay(hoursNow()) && Math.random() < VISIT_CHANCE;
       a.ai.familyPlay = false;
       a.ai.playmateKind = null;
+      a.ai.playdate = false;
+      a.ai.playdateTarget = null;
+      a.ai.playdateHome = null;
+      if (partner.ai && partner.ai.familyPlay) {
+        partner.ai.familyPlay = false;
+        partner.ai.playmateKind = null;
+        partner.ai.playdate = false;
+        partner.ai.playdateTarget = null;
+        partner.ai.playdateHome = null;
+      }
       if (canVisit && startVisitPair(a, partner)) return;
     }
     a.ai.partner = null;
@@ -700,6 +788,9 @@ export function createGlassColony({
     a.ai.idleT = .5;
     a.ai.socialCooldown = SOCIAL_COOLDOWN;
     a.ai.taskCooldown = 1.0;
+    a.ai.playdate = false;
+    a.ai.playdateTarget = null;
+    a.ai.playdateHome = null;
     clearPath(a);
   }
 
@@ -1468,6 +1559,12 @@ export function createGlassColony({
       follow: a.ai && a.ai.follow ? (a.ai.follow.name || null) : null,
       familyPlay: !!(a.ai && a.ai.familyPlay),
       playmateKind: a.ai ? a.ai.playmateKind : null,
+      playdate: !!(a.ai && a.ai.playdate),
+      playdateHome: a.ai ? a.ai.playdateHome : null,
+      playdateTarget: a.ai && a.ai.playdateTarget
+        ? { x: +a.ai.playdateTarget.x.toFixed(2), z: +a.ai.playdateTarget.z.toFixed(2) }
+        : null,
+      moving: !!(a.ai && a.ai.moving),
       visitRole: a.ai ? a.ai.visitRole : null,
       visitPhase: a.ai ? a.ai.visitPhase : null,
       visitHome: a.ai ? a.ai.visitHome : null,
@@ -1770,6 +1867,36 @@ export function createGlassColony({
         if (a.mixer) a.mixer.update(dt);
         continue;
       }
+      if (a.ai.state === 'seekPlaydate') {
+        const partner = a.ai.partner;
+        if (!partner || !partner.active) {
+          a.ai.partner = null;
+          a.ai.familyPlay = false;
+          a.ai.playdate = false;
+          a.ai.playdateTarget = null;
+          a.ai.state = 'wander';
+          clearPath(a);
+        } else {
+          const target = a.ai.playdateTarget || { x: partner.cx, z: partner.cz };
+          const d = Math.hypot(target.x - a.cx, target.z - a.cz);
+          if (d > .8) {
+            if (!a.ai.path || !a.ai.path.length) setMoving(a, target.x, target.z);
+            move(a, dt);
+          } else {
+            a.ai.moving = false;
+            clearPath(a);
+            const pdist = Math.hypot(partner.cx - a.cx, partner.cz - a.cz);
+            const partnerReady = partner.kind !== 'glass' ||
+              (partner.ai && ['seekPlaydate', 'social'].includes(partner.ai.state));
+            if (partnerReady && pdist <= PLAYDATE_DIST) {
+              startPlaydateSocial(a, partner);
+            }
+          }
+        }
+        updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
+      }
       if (a.ai.state === 'seekSocial') {
         const partner = a.ai.partner;
         if (!partner || !partner.active) {
@@ -2010,10 +2137,22 @@ export function createGlassColony({
     a.tumbleZ = 0;
     a.spinX = 0;
     a.spinZ = 0;
+    a.inside = false;
+    a.sleeping = false;
     a.ai.state = 'wander';
     a.ai.idleT = 0;
     a.ai.nextThink = 0;
     a.ai.socialCooldown = 0;
+    a.ai.partner = null;
+    a.ai.follow = null;
+    a.ai.moving = false;
+    a.ai.path = null;
+    a.ai.target = null;
+    a.ai.familyPlay = false;
+    a.ai.playmateKind = null;
+    a.ai.playdate = false;
+    a.ai.playdateTarget = null;
+    a.ai.playdateHome = null;
     return true;
   }
 

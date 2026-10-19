@@ -28,6 +28,7 @@ test('registry ships bear, Gummy and Glass definitions', () => {
 
   assert.equal(glass.kind, 'skinned');
   assert.equal(glass.asset, 'assets/MSN_Figure/msn.glb');
+  assert.equal(glass.assetManifest, 'assets/MSN_Figure/asset.json');
   assert.equal(glass.canPossess, false);
   assert.equal(glass.canReproduce, true);
   assert.equal(glass.meadow, true);

@@ -167,11 +167,12 @@ existing stack and structure.
   day/night sky; `launcher.js` the cannon; `world.js` the map registry + per-map state;
   `navmesh.js` navigation; `trees.js`/`bushes.js`/`homes.js`/`studiohouse.js`/`backdrop.js`/
   `horizon.js`/`wind.js`/`fieldshape.js` their named systems. The species layer is split:
-  `species.js` is the capability/asset registry, `dna.js` is pure genetics, `npc.js` is the
-  read-only soft-body/Glass actor view, `glass.js` owns the Glass Meadow adapter, `msn.js`
-  owns the Studio prototype, and `msnrig.js`/`buddyrig.js` own rig data. `life.js`/`ai.js`
-  own shared needs, social and cross-species behavior. Put new logic in the matching module
-  rather than growing `app.js`. See the target split in `ROADMAP.md`.
+  `species.js` is the capability/asset registry, `dna.js` is pure genetics, `assets.js`
+  validates manifests and loads manifested GLBs, `npc.js` is the read-only soft-body/Glass
+  actor view, `glass.js` owns the Glass Meadow adapter, `msn.js` owns the Studio prototype,
+  and `msnrig.js`/`buddyrig.js` own rig data. `life.js`/`ai.js` own shared needs, social and
+  cross-species behavior. Put new logic in the matching module rather than growing
+  `app.js`. See the target split in `ROADMAP.md`.
 
   | Actor | Representation | Hot-path owner |
   | --- | --- | --- |
@@ -209,8 +210,13 @@ and plain assertions; stateful and visual behavior is verified by loading the se
 and driving it.
 
 - **Committed pure checks cover the species layer.** `node --test tests` runs the registry,
-  DNA, save-validation, actor-view and asset-manifest checks. A change to species
-  capabilities, genomes, save shape or `npc.js` updates these tests in the same scope.
+  DNA, save-validation, actor-view, asset-manifest and loader checks. A change to species
+  capabilities, genomes, save shape, `npc.js` or the asset contract updates these tests in
+  the same scope.
+- **The browser regression is the committed behavior check.** With a served build,
+  `node scripts/browser-regression.mjs` checks the roster, species counts, lineage, sibling
+  play start and save/load; `STUDIO=1` adds the Studio GLB inventory. It uses a temporary
+  browser profile and a configurable `BROWSER_BIN`/`CHROME_BIN`.
 - **The committed check is the smoke test.** `scripts/smoke.mjs` boots from a running
   `launch.py` server and asserts the page shell, source modules, licenses, the wasm MIME
   type/magic/exports and 404 handling. Run it as:
@@ -284,8 +290,9 @@ and driving it.
   or performance characteristics, update the affected doc(s) as part of that same approved
   scope and commit.
 - **Living docs (keep current):** `README.md`, `ROADMAP.md`, `PERFORMANCE.md`,
-  `screenshots/README.md`, `AGENTS.md`, and the project skills under
-  `.opencode/skills/*/SKILL.md` when a command, harness or verification procedure changes.
+  `screenshots/README.md`, `AGENTS.md`, `assets/README.md`, `docs/species-template.md`,
+  and the project skills under `.opencode/skills/*/SKILL.md` when a command, harness or
+  verification procedure changes.
 - **`ROADMAP.md` status is updated at phase boundaries,** not per intermediate step. Keep
   phase tables, the "Status" list and "Tuning defaults" consistent with reality.
 - **Historical records are immutable:** `snapshots/*.zip`, dated screenshot sets and

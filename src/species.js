@@ -28,6 +28,7 @@ function defineSpecies(def) {
     compatibility: Array.isArray(def.compatibility) ? def.compatibility.slice() : [def.id],
     rig: def.rig || null,
     asset: def.asset || null,
+    assetManifest: def.assetManifest || null,
     material: def.material || 'flavor', // app resolves the actual material
     spriteFlavor: Number.isFinite(def.spriteFlavor) ? def.spriteFlavor : 3,
     studio: def.studio !== false,
@@ -145,6 +146,7 @@ install({
   compatibility: ['bear', 'msn', 'glass'],
   rig: null,
   asset: 'assets/MSN_Figure/msn.glb',
+  assetManifest: 'assets/MSN_Figure/asset.json',
   material: 'glass',
   spriteFlavor: 3,
   studio: true,

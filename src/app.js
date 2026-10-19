@@ -21,6 +21,7 @@ import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldsha
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
 
+const nativeRandom = Math.random;
 let launcher = null;
 let field = null;
 let sky = null;
@@ -61,6 +62,53 @@ const actorView = createActorView({
   getGlass: () => (glassColony ? glassColony.actors : []),
 });
 function allActors(){ return actorView.all(); }
+function actorName(a){
+  return a ? (a.name || (a.kind === 'glass' ? 'Glass' : a.species === 'msn' ? 'Gummy' : 'Bear')) : '';
+}
+function generationOf(a, seen = new Set()) {
+  if (!a || seen.has(a.uid)) return 1;
+  seen.add(a.uid);
+  const all = actorView.all();
+  const parents = (a.parentUids || [])
+    .map(uid => all.find(other => other.uid === uid))
+    .filter(Boolean);
+  if (!parents.length) return 1;
+  return 1 + Math.max(...parents.map(parent => generationOf(parent, new Set(seen))));
+}
+function familyFor(a) {
+  if (!a) return { parents: [], siblings: [], children: [], generation: 1 };
+  const all = actorView.all();
+  const byUid = new Map(all.map(other => [other.uid, other]));
+  const parents = (a.parentUids || []).map(uid => byUid.get(uid)).filter(Boolean);
+  const parentUids = new Set(parents.map(parent => parent.uid));
+  const siblings = all.filter(other => other !== a && other.active &&
+    (other.parentUids || []).some(uid => parentUids.has(uid)));
+  const children = all.filter(other => other !== a && other.active &&
+    (other.parentUids || []).includes(a.uid));
+  return { parents, siblings, children, generation: generationOf(a) };
+}
+function familyNames(list) {
+  return (list || []).map(actorName).filter(Boolean).join(', ');
+}
+function familyLine(a) {
+  const family = familyFor(a);
+  const parts = [];
+  if (family.parents.length) parts.push(`Parents: ${familyNames(family.parents)}`);
+  if (family.siblings.length) parts.push(`Siblings: ${familyNames(family.siblings)}`);
+  if (family.children.length) parts.push(`Children: ${familyNames(family.children)}`);
+  parts.push(`Generation ${family.generation}`);
+  return parts.join(' · ');
+}
+function familyShort(a) {
+  const family = familyFor(a);
+  const siblings = family.siblings.length;
+  const hasFamily = family.parents.length || siblings || family.children.length;
+  if (!hasFamily) return '';
+  const bits = [`Gen ${family.generation}`];
+  if (siblings) bits.push(`${siblings} sibling${siblings === 1 ? '' : 's'}`);
+  if (family.children.length) bits.push(`${family.children.length} child${family.children.length === 1 ? '' : 'ren'}`);
+  return bits.join(' · ');
+}
 function reserveUid(){ return nextBearUid++; }
 function applyDnaTraits(b){
   const defaults = speciesOf(b)?.genetics?.defaults || {};
@@ -3291,6 +3339,7 @@ const buddyListEl = document.getElementById('buddyList');
 const directivePanelEl = document.getElementById('directivePanel');
 const directiveNameEl = document.getElementById('directiveName');
 const directiveStatusEl = document.getElementById('directiveStatus');
+const directiveFamilyEl = document.getElementById('directiveFamily');
 const directiveActionsEl = document.getElementById('directiveActions');
 const directiveCloseEl = document.getElementById('directiveClose');
 const possessBtnEl = document.getElementById('possessBtn');
@@ -3423,8 +3472,9 @@ function buddyStatus(b){
       }
       if (b.ai.state === 'seekMate') return 'looking for a mate';
       if (b.ai.state === 'mate') return 'courting';
+      if (b.ai.state === 'seekPlaydate') return `heading to a playdate with ${buddyPartnerName(b)}`;
       if (b.ai.state === 'social') return b.ai.familyPlay
-        ? `playing with ${b.ai.playmateKind || 'family'} ${buddyPartnerName(b)}`
+        ? `on a playdate with ${b.ai.playmateKind || 'family'} ${buddyPartnerName(b)}${b.ai.playdateHome ? ` at ${b.ai.playdateHome}` : ''}`
         : `hovering with ${buddyPartnerName(b)}`;
       if (b.ai.state === 'seekSocial') return 'drifting toward a friend';
       if (b.ai.state === 'seekHome') return 'drifting inside for the day';
@@ -3448,7 +3498,9 @@ function buddyStatus(b){
     if (b.ai.state === 'follow') return `following ${b.ai.follow ? (b.ai.follow.name || 'a parent') : 'a parent'}`;
     if (b.ai.state === 'seekCompany') return 'looking for a friend';
     if (b.ai.state === 'invite') return 'offering a nuzzle';
-    if (b.ai.state === 'social') return `hanging out with ${buddyPartnerName(b)}`;
+    if (b.ai.state === 'social') return b.ai.familyPlay
+      ? `on a playdate with ${b.ai.playmateKind || 'family'} ${buddyPartnerName(b)}`
+      : `hanging out with ${buddyPartnerName(b)}`;
     if (b.ai.state === 'decline') return 'needs a little space';
     if (b.ai.state === 'visit') {
       const who = buddyPartnerName(b);
@@ -3514,7 +3566,11 @@ function refreshBuddyList(){
     const status = document.createElement('span');
     status.className = 'buddyStatus';
     status.textContent = buddyStatus(b);
+    const family = document.createElement('span');
+    family.className = 'buddyFamily';
+    family.textContent = familyShort(b);
     mid.append(name, document.createElement('br'), status);
+    if (family.textContent) mid.append(family);
     const right = document.createElement('span');
     right.className = 'buddyRight';
     const health = document.createElement('span');
@@ -3550,7 +3606,7 @@ function refreshBuddyList(){
     syncBuddyHealth(b);
   }
   if (onlineCountEl) onlineCountEl.textContent = `${list.length} online`;
-  buddySig = list.map(b=>`${b.kind || b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
+  buddySig = list.map(b=>`${b.kind || b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}:${(b.parentUids || []).join(',')}`).join('|');
   lastBuddyStatusTick = 0;
 }
 function updateBuddyStatuses(force = false){
@@ -3597,6 +3653,7 @@ function syncDirectivePanel(){
     text = `${b.ai.directives.length} queued`;
   }
   if (directiveStatusEl) directiveStatusEl.textContent = text;
+  if (directiveFamilyEl) directiveFamilyEl.textContent = familyLine(b);
   for (const btn of directiveButtons) {
     btn.classList.toggle('active', directivePick && btn.dataset.directive === 'go');
   }
@@ -6161,6 +6218,44 @@ function simulateSeconds(sec, rebuildEverySubsteps){
 window.__gummy = {
   booted: false,
   bears,
+  seed(value){
+    const seed = Number(value);
+    if (!Number.isFinite(seed)) {
+      Math.random = nativeRandom;
+      return null;
+    }
+    let state = (Math.floor(seed) >>> 0) || 1;
+    Math.random = () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+    return state;
+  },
+  unseed(){ Math.random = nativeRandom; return true; },
+  family(uid){
+    const actor = uid === undefined || uid === null
+      ? selectedBear
+      : actorView.all().find(item => String(item.uid) === String(uid));
+    if (!actor) return null;
+    const family = familyFor(actor);
+    return {
+      uid: actor.uid, name: actorName(actor), home: actor.home || '',
+      generation: family.generation,
+      parents: family.parents.map(parent => ({ uid: parent.uid, name: actorName(parent) })),
+      siblings: family.siblings.map(sibling => ({ uid: sibling.uid, name: actorName(sibling) })),
+      children: family.children.map(child => ({ uid: child.uid, name: actorName(child) })),
+    };
+  },
+  roster(){
+    return actorView.active()
+      .filter(actor => speciesOf(actor)?.roster)
+      .map(actor => ({
+        uid: actor.uid, name: actorName(actor), species: speciesOf(actor)?.id || actor.species,
+        kind: actor.kind || (isGlassActor(actor) ? 'glass' : 'softbody'),
+        sex: actor.sex, stage: actor.stage, home: actor.home || '',
+        status: buddyStatus(actor), family: familyShort(actor),
+      }));
+  },
   rig: { rest: Array.from(REST), parent: Array.from(PARENT), parentLen: Array.from(PARENT_LEN), comY: REST_COM_Y }, get bounces(){ return bounces; },
   stats(){
     let nan=false, minY=1e9, maxY=-1e9, maxXZ=0, verts=[], stretch=1, syMin=9, syMax=-9, sxMin=9, sxMax=-9, built=surfaceStats.built||0;
@@ -6283,8 +6378,8 @@ window.__gummy = {
       stretchScale: b.dnaStretchScale, material: b.dnaMaterial,
     },
   } : null; },
-  species(){ return listSpecies().map(({ id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, genetics, hybrids }) => ({
-    id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, genetics, hybrids,
+  species(){ return listSpecies().map(({ id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, asset, assetManifest, genetics, hybrids }) => ({
+    id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, asset, assetManifest, genetics, hybrids,
   })); },
   possessed(){ return possessedBear ? {
     index: bears.indexOf(possessedBear), name: possessedBear.name || '',
@@ -6460,6 +6555,10 @@ window.__gummy = {
   forceSocial(i, j, accept = true){
     if (!ai) return { ok:false, note:'meadow only' };
     return ai.debugSocial(bears[i], bears[j], accept);
+  },
+  familyPlay(i, j){
+    if (!ai) return { ok:false, note:'meadow only' };
+    return ai.debugFamilyPlay(bears[i], bears[j]);
   },
   forceInvite(i, j, accept = true){
     if (!ai) return { ok:false, note:'meadow only' };

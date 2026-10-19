@@ -66,6 +66,7 @@ const modules = [
   "/src/glass.js",
   "/src/npc.js",
   "/src/species.js",
+  "/src/assets.js",
   "/src/dna.js",
   "/src/msnrig.js",
   "/src/buddyrig.js",
@@ -102,6 +103,13 @@ const glbBytes = new Uint8Array(await glbRes.arrayBuffer());
 const glbMagic = new TextDecoder().decode(glbBytes.subarray(0, 4));
 check(glbMagic === "glTF", "GLB has the glTF magic header", glbMagic);
 check(glbBytes.length > 200_000, "GLB payload is present", `${glbBytes.length} bytes`);
+
+const manifestRes = await get("/assets/MSN_Figure/asset.json");
+const manifestType = manifestRes.headers.get("content-type") ?? "";
+check(manifestRes.status === 200, "GET /assets/MSN_Figure/asset.json returns 200");
+check(/json/.test(manifestType), "asset manifest is served as JSON", manifestType);
+const manifest = await manifestRes.json();
+check(manifest.file === "msn.glb" && manifest.sha256?.length === 64, "asset manifest identifies the GLB");
 
 // --- Box3D wasm -------------------------------------------------------------
 const wasmRes = await get("/vendor/box3d/box3d.wasm");

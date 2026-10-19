@@ -491,9 +491,11 @@ interpretation; the helper does not certify them. Affects
     ricochets and tumbles before returning upright to hover.
     They use the shared roster/social/bonds/life fields, take their
     baby/teen/adult growth step only at night, follow a living parent as
-    babies, inherit family homes/parent bonds, gain sibling bonds, start
-    family/sibling play, can continue successful socializing into a door-level
-    visit with Glass or soft-body partners, fade through the door for daytime
+    babies, inherit family homes/parent bonds, gain sibling bonds, show
+    generation/parent/sibling/child lineage in the roster and selected panel,
+    start family/sibling play, can continue successful socializing into a door-level
+    visit with Glass or soft-body partners, meet at the family door for a
+    longer sibling/parent playdate, fade through the door for daytime
     shelter, can become pregnant and give birth, and save/load in the world
     payload. Bear/Gummy AI scans the combined
     companion list for social and mating, so both directions can initiate
@@ -507,6 +509,10 @@ interpretation; the helper does not certify them. Affects
 
 **Species & DNA (agreed and implemented 2026-10-19)** — recorded:
 
+- **Asset pipeline (Oct 2026, done):** `src/assets.js` validates the shipped
+  `asset.json`, resolves the GLB beside it and checks mesh/bone/material/clip
+  counts. `assets/README.md` documents the schema; `docs/species-template.md`
+  is the copyable entry template for future authored assets and hybrids.
 - **Species registry — first layer (Oct 2026, done):** `src/species.js` registers
   **bear**, **msn** (Gummy) and **glass** definitions with kind, cast group,
   rig/asset, material, studio/meadow/roster availability, grab/possession/
