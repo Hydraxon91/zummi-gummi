@@ -20,8 +20,8 @@ const GLASS = {
   thickness: .32,
   ior: 1.45,
   attenuationDistance: 1.8,
-  attenuationColor: 0x5f9f55,
-  color: 0xa8e69e,
+  attenuationColor: 0x4f9fc8,
+  color: 0xa8e5ff,
   dispersion: .015,
   envMapIntensity: 1.6,
   clearcoat: 1,
@@ -267,6 +267,7 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
       depth: +depth.toFixed(3),
       position: [+root.position.x.toFixed(2), +root.position.y.toFixed(2), +root.position.z.toFixed(2)],
       material: materials[0] ? {
+        color: '#' + materials[0].color.getHexString(),
         transmission: materials[0].transmission,
         transparent: materials[0].transparent,
         opacity: materials[0].opacity,

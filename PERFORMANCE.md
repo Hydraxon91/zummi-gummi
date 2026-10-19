@@ -359,6 +359,15 @@ free replacements; profile at the target quality tiers before making a
 tier/fallback decision. The reflective coat uses the studio environment map, not
 a planar reflection probe.
 
+### Gummy first-slice spot check
+
+The Gummy MSN is a seventh Studio actor with 24 Box3D bodies and a measured
+surface of about 2.1k–3.1k vertices across rebuild frames. It shares the
+existing per-frame surface budget and solver step rather than adding a second
+physics world. The six-bear Meadow regression still reports six bears and no
+NaN positions. A full 6-bear + Gummy vs 6-bear frame profile has not been run
+yet, so no frame-time claim is made for this slice.
+
 ## Effects follow-up spot check
 
 The meadow post stack is optional and tiered: Off keeps the direct renderer,

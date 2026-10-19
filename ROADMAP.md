@@ -433,8 +433,9 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   load, mesh/bone/clip counts, mixer advance, one-shot return, Glass material
   values, alpha fallback, cast filters, cast persistence, `?race=off`, map
   isolation, hover/click selection, click reaction clips, drag-to-turn,
-  Shift-drag placement, Frame focus, Reset and desktop/390×844 captures.
-  Numbers are in `PERFORMANCE.md`.
+  Shift-drag placement, Frame focus, Reset, the 24-body Gummy actor, distinct
+  blue/green materials, Gummy grabbing, Meadow six-bear regression and
+  desktop/390×844 captures. Numbers are in `PERFORMANCE.md`.
 - **Known follow-ups:** the prototype has no physics, collision, AI, possession
   or soft-body deformation; a playable race is a separate scope. The cast filter
   intentionally leaves hidden bears simulating, so their arrangement survives a
@@ -443,15 +444,22 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   ring at the default desktop camera; collapse or reposition the panel if that
   becomes distracting.
 - **MSN variants (requested 2026-10-19):**
-  - **Glass MSN — current:** the GLB path with authored skeletal clips, a
+  - **Glass MSN — current:** blue GLB path with authored skeletal clips, a
     reflective transmission/refraction material and no soft-body stretch. It is
-    rigid by design and does not reuse the bears' soft-body solver.
-  - **Gummy MSN — deferred:** a bear-like soft body with real stretch/wobble and
-    a gummy/clarity material closer to the existing bears. This needs a separate
-    metaball/Box3D rig path and its own surface, grab, AI, possession and save
-    decisions; it is not a material swap on the GLB.
-  - Add a Race Lab **type** selector only once both paths exist. Do not silently
-    share one material, solver or animation set between them.
+    rigid by design and does not reuse the bears' soft-body solver. Its future
+    Box3D spheres are deferred.
+  - **Gummy MSN — first Studio slice (Oct 2026):** green 24-body Box3D +
+    metaball soft body derived from `BUDDY_RIG` through `src/msnrig.js`, using
+    the bear-style gummy material. The per-species `Bear` actor now carries
+    per-actor rig data, so Gummy uses the existing surface, spring, grab, throw
+    and shadow paths while bears keep their original rig. It is grabbable and
+    visible in **Both** and **MSN** casts, hidden in **Bears**, and disabled by
+    `?race=off`. Studio save/load preserves its species flag and 24-body rig.
+    It has no AI, needs, life stages, homes, Meadow integration or dedicated
+    locomotion yet.
+  - Add a Race Lab **type** selector only once both paths have their final
+    controls. Do not silently share one material, solver or animation set
+    between them.
 
 **Known follow-ups after 8c** — recorded, not blockers:
 - **Possession is session-only.** Reloading or changing maps returns the bear to

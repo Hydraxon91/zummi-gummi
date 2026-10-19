@@ -13,6 +13,7 @@ import {
 } from './life.js';
 import { createStudioReturnPortal } from './studiohouse.js';
 import { createMSNPrototype } from './msn.js';
+import { MSN_RIG } from './msnrig.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
@@ -49,7 +50,13 @@ const BEAR_NAMES = ['Mochi','Boba','Gumdrop','Taffy','Pip','Pebble','Juniper','M
 let nextBearName = 0;
 function takeBearName(){ return BEAR_NAMES[(nextBearName++) % BEAR_NAMES.length]; }
 function isMeadow(){ return getActiveMap().kind === 'life'; }
-function studioBearsHidden(){ return !isMeadow() && studioCast === 'msn'; }
+function studioActorHidden(b){
+  if (isMeadow()) return false;
+  if (b.species === 'msn' && !RACE_ENABLED) return true;
+  if (studioCast === 'msn') return b.species === 'bear';
+  if (studioCast === 'bears') return b.species === 'msn';
+  return false;
+}
 function studioCannonHidden(){ return !isMeadow() && studioCast === 'msn'; }
 try { document.body.dataset.map = activeWorld.mapId; } catch (err) {}
 
@@ -185,6 +192,11 @@ function makeGummyMaterial(f){
   return m;
 }
 const FLAVOR_MATS = FLAVORS.map(makeGummyMaterial);
+const MSN_MAT = makeGummyMaterial(FLAVORS[3]);
+MSN_MAT.name = 'MSN gummy';
+MSN_MAT.color.set(0x86dd7d);
+MSN_MAT.attenuationColor.set(0x4f9e4a);
+MSN_MAT.attenuationDistance = 2.1;
 const EYE_MAT = new THREE.MeshPhysicalMaterial({
   color:0x17130f, roughness:0.30, metalness:0.0, clearcoat:0.35, clearcoatRoughness:0.22, envMapIntensity:0.6,
   // 0.001 keeps the eyes out of the transmission pass (three.js classifies any
@@ -356,14 +368,17 @@ const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v3 = new THREE.Ve
 
 /* -------------------------------- the bear -------------------------------- */
 class Bear{
-  constructor(slot){
+  constructor(slot, rigCfg = RIGCFG){
     this.slot = slot;
+    this.rig = rigCfg;
+    this.species = rigCfg.species || 'bear';
+    this.np = rigCfg.NP;
     this.active = false;
-    this.px=new Float32Array(NP); this.py=new Float32Array(NP); this.pz=new Float32Array(NP);
-    this.vx=new Float32Array(NP); this.vy=new Float32Array(NP); this.vz=new Float32Array(NP);
-    this.fx=new Float32Array(NP); this.fy=new Float32Array(NP); this.fz=new Float32Array(NP);
-    this.tx=new Float32Array(NP); this.ty=new Float32Array(NP); this.tz=new Float32Array(NP);
-    this.contact=new Uint8Array(NP);
+    this.px=new Float32Array(this.np); this.py=new Float32Array(this.np); this.pz=new Float32Array(this.np);
+    this.vx=new Float32Array(this.np); this.vy=new Float32Array(this.np); this.vz=new Float32Array(this.np);
+    this.fx=new Float32Array(this.np); this.fy=new Float32Array(this.np); this.fz=new Float32Array(this.np);
+    this.tx=new Float32Array(this.np); this.ty=new Float32Array(this.np); this.tz=new Float32Array(this.np);
+    this.contact=new Uint8Array(this.np);
     this.cx=this.cy=this.cz=0; this.vcx=this.vcy=this.vcz=0;
     this.q = new THREE.Quaternion();
     this.rMat = new Float32Array([1,0,0, 0,1,0, 0,0,1]);
@@ -386,7 +401,7 @@ class Bear{
     this.name=''; this.home=''; this.inPond=false;
     this.ai=null;
     this.needsBuild=true;
-    this.snap=new Float32Array(NP*3);
+    this.snap=new Float32Array(this.np*3);
     this.snapC = new THREE.Vector3();
     this.snapR = new Float32Array(9);
     this.meshM = new THREE.Matrix4();
@@ -417,10 +432,10 @@ class Bear{
 }
 
 const pool = [];
-function getFreeBear(){
-  for (const b of pool) if (!b.active) return b;
+function getFreeBear(rigCfg = RIGCFG){
+  for (const b of pool) if (!b.active && b.species === (rigCfg.species || 'bear')) return b;
   if (pool.length >= BEAR_HARD_MAX) return null;
-  const b = new Bear(pool.length);
+  const b = new Bear(pool.length, rigCfg);
   pool.push(b);
   return b;
 }
@@ -437,13 +452,20 @@ const lifeStats = { births: 0, stageUps: 0, blockedBirths: 0 };
 
 function spawn(x, z, y, flavor, opts={}){
   if (bears.length >= bearCeiling) removeBear(bears[0]);
-  const b = getFreeBear();
+  const rigCfg = opts.rig || RIGCFG;
+  const b = getFreeBear(rigCfg);
   if (!b) return null;
   b.active = true; bears.push(b);
+  b.rig = rigCfg;
+  b.species = rigCfg.species || 'bear';
+  b.np = rigCfg.NP;
   b.flavor = flavor;
-  b.material = toonEnabled ? (toonMaterialFor(FLAVOR_MATS[flavor]) || FLAVOR_MATS[flavor]) : FLAVOR_MATS[flavor];
-  b.sprite = FLAVOR_SPRITES[flavor];
-  b.spriteId = FLAVORS[flavor].id;
+  const baseMaterial = b.species === 'msn' ? MSN_MAT : FLAVOR_MATS[flavor];
+  b.material = b.species === 'msn'
+    ? baseMaterial
+    : (toonEnabled ? (toonMaterialFor(baseMaterial) || baseMaterial) : baseMaterial);
+  b.sprite = FLAVOR_SPRITES[b.species === 'msn' ? 3 : flavor];
+  b.spriteId = b.species === 'msn' ? 'msn' : FLAVORS[flavor].id;
   b.mesh.material = b.material;
   b.mesh.visible = true;
   const stage = opts.stage || 'adult';
@@ -460,10 +482,10 @@ function spawn(x, z, y, flavor, opts={}){
     if (opts.tilt){ const a=(Math.random()-0.5)*opts.tilt; b.q.multiply(_q.setFromAxisAngle(_v3.set(1,0,0), a)); _q.setFromAxisAngle(_v3.set(0,0,1), (Math.random()-0.5)*opts.tilt); b.q.multiply(_q); b.q.normalize(); }
   }
   const lift = opts.lift !== undefined ? opts.lift : 0.004;
-  for (let i=0;i<NP;i++){
-    const xr = REST[i*3] * sc, yr = REST[i*3+1] * sc, zr = REST[i*3+2] * sc;
+  for (let i=0;i<b.np;i++){
+    const xr = rigCfg.REST[i*3] * sc, yr = rigCfg.REST[i*3+1] * sc, zr = rigCfg.REST[i*3+2] * sc;
     _v3.set(xr,yr,zr).applyQuaternion(b.q);
-    b.px[i] = x + _v3.x; b.py[i] = y + _v3.y + lift + REST_DY * sc; b.pz[i] = z + _v3.z;
+    b.px[i] = x + _v3.x; b.py[i] = y + _v3.y + lift + rigCfg.REST_DY * sc; b.pz[i] = z + _v3.z;
     b.vx[i]=0; b.vy[i]=opts.vy||0; b.vz[i]=0;
     b.snap[i*3]=b.px[i]; b.snap[i*3+1]=b.py[i]; b.snap[i*3+2]=b.pz[i];
   }
@@ -472,7 +494,7 @@ function spawn(x, z, y, flavor, opts={}){
   // b.cx/cz, and a recycled bear still carried its previous life's COM.
   bearCOM(b);
   b.antic=0; b.hopT=HOP_MIN+Math.random()*(HOP_MAX-HOP_MIN);
-  b.grabs=0; b.stretch=1; b.stretchPt=P_HEAD; b.devSlow=0.05; b.wakeCd=0;
+  b.grabs=0; b.stretch=1; b.stretchPt=rigCfg.P_HEAD; b.devSlow=0.05; b.wakeCd=0;
   b.age = Number.isFinite(opts.age) ? Math.max(0, opts.age) : ageForStage(stage);
   b.sex=(Math.random()<0.5?'F':'M');
   b.health=100; b.hunger=0.3; b.thirst=0.3; b.energy=1;
@@ -538,7 +560,7 @@ function chooseBirthHome(mother) {
 // points around the current COM so the bear grows in place instead of snapping
 // to a new origin.
 function applyBearStage(b, nextStage) {
-  if (!b || !b.active || !STAGE_ORDER.includes(nextStage) || b.stage === nextStage) {
+  if (!b || !b.active || b.species !== 'bear' || !STAGE_ORDER.includes(nextStage) || b.stage === nextStage) {
     if (b) b.pendingStage = null;
     return false;
   }
@@ -633,7 +655,7 @@ function tryBirth(mother) {
 function stepLife(dt) {
   if (!isMeadow() || !field || frozen) return;
   for (const b of bears) {
-    if (!b.active) continue;
+    if (!b.active || b.species !== 'bear') continue;
     if (b.mateCooldown > 0) b.mateCooldown = Math.max(0, b.mateCooldown - dt);
     if (b.birthRetryT > 0) b.birthRetryT = Math.max(0, b.birthRetryT - dt);
     if (b.pendingStage && b.grabs === 0 && !b.airborne && !b.inPond) {
@@ -694,22 +716,25 @@ function extractRotation(A, R){
 }
 
 function bearCOM(b){
+  const rig = b.rig, n = b.np;
   let mx=0,my=0,mz=0;
-  for (let i=0;i<NP;i++){ const m=MASS[i]; mx+=m*b.px[i]; my+=m*b.py[i]; mz+=m*b.pz[i]; }
-  b.cx=mx/TOTAL_M; b.cy=my/TOTAL_M; b.cz=mz/TOTAL_M;
+  for (let i=0;i<n;i++){ const m=rig.MASS[i]; mx+=m*b.px[i]; my+=m*b.py[i]; mz+=m*b.pz[i]; }
+  b.cx=mx/rig.TOTAL_M; b.cy=my/rig.TOTAL_M; b.cz=mz/rig.TOTAL_M;
 }
 function bearVelocity(b){
+  const rig = b.rig, n = b.np;
   let mx=0,my=0,mz=0;
-  for (let i=0;i<NP;i++){ const m=MASS[i]; mx+=m*b.vx[i]; my+=m*b.vy[i]; mz+=m*b.vz[i]; }
-  b.vcx=mx/TOTAL_M; b.vcy=my/TOTAL_M; b.vcz=mz/TOTAL_M;
+  for (let i=0;i<n;i++){ const m=rig.MASS[i]; mx+=m*b.vx[i]; my+=m*b.vy[i]; mz+=m*b.vz[i]; }
+  b.vcx=mx/rig.TOTAL_M; b.vcy=my/rig.TOTAL_M; b.vcz=mz/rig.TOTAL_M;
 }
 
 function poseAndTargets(b, dt){
+  const rig = b.rig, n = b.np;
   // weighted correspondence matrix  A = Σ m (p-c) ⊗ rest
   let a00=0,a01=0,a02=0,a10=0,a11=0,a12=0,a20=0,a21=0,a22=0;
-  for (let i=0;i<NP;i++){
+  for (let i=0;i<n;i++){
     const qx=b.px[i]-b.cx, qy=b.py[i]-b.cy, qz=b.pz[i]-b.cz;
-    const x=REST[i*3], y=REST[i*3+1], z=REST[i*3+2], m=MASS[i];
+    const x=rig.REST[i*3], y=rig.REST[i*3+1], z=rig.REST[i*3+2], m=rig.MASS[i];
     a00+=m*qx*x; a01+=m*qx*y; a02+=m*qx*z;
     a10+=m*qy*x; a11+=m*qy*y; a12+=m*qy*z;
     a20+=m*qz*x; a21+=m*qz*y; a22+=m*qz*z;
@@ -795,11 +820,11 @@ function poseAndTargets(b, dt){
   // (that feedback loop collapsed the bears into pancakes); impacts and pulls still
   // read as jelly, and the resting shape stays exactly the rest pose.
   let h2=0;
-  for (let i=0;i<NP;i++){
+  for (let i=0;i<n;i++){
     const dy = b.py[i]-b.cy;
-    h2 += MASS[i]*dy*dy/TOTAL_M;
+    h2 += rig.MASS[i]*dy*dy/rig.TOTAL_M;
   }
-  const ratio = Math.sqrt(h2)/(REST_H * (b.scale || 1));
+  const ratio = Math.sqrt(h2)/(rig.REST_H * (b.scale || 1));
   b.volSlow += (ratio - b.volSlow)*(1-Math.exp(-VOL_CREEP*dt));
   const comp = clamp((b.volSlow - ratio)*VOL_GAIN, -0.16, 0.16);
   b.sy = 1 - comp;
@@ -808,8 +833,8 @@ function poseAndTargets(b, dt){
   const sx=b.sx, sy=b.sy;
   const qx=b.q.x, qy=b.q.y, qz=b.q.z, qw=b.q.w;
   const bs = b.scale || 1;
-  for (let i=0;i<NP;i++){
-    const lx=REST[i*3]*bs*sx, ly=REST[i*3+1]*bs*sy, lz=REST[i*3+2]*bs*sx;
+  for (let i=0;i<n;i++){
+    const lx=rig.REST[i*3]*bs*sx, ly=rig.REST[i*3+1]*bs*sy, lz=rig.REST[i*3+2]*bs*sx;
     // q * v
     const ix =  qw*lx + qy*lz - qz*ly;
     const iy =  qw*ly + qz*lx - qx*lz;
@@ -880,7 +905,7 @@ function poseAndTargets(b, dt){
   b.press += (pressed - b.press)*(1 - Math.exp(-16*dt));
   if (b.press > 0.002){
     const p = b.press*0.42;
-    for (let i=0;i<NP;i++){
+    for (let i=0;i<b.np;i++){
       b.ty[i] = 0.015 + (b.ty[i]-0.015)*(1-p);
       b.tx[i] = b.cx + (b.tx[i]-b.cx)*(1+p*0.35);
       b.tz[i] = b.cz + (b.tz[i]-b.cz)*(1+p*0.35);
@@ -912,69 +937,72 @@ function ensurePhysicsBuffers(n){
 function bearGroup(slot){ return -(slot + 1); }
 
 function createBearBodies(b){
-  ensurePhysicsBuffers((bears.length + 1) * NP);
+  const rig = b.rig, n = b.np;
+  ensurePhysicsBuffers((bears.length + 1) * n);
   const g = bearGroup(b.slot);
   const sc = b.scale || 1;
-  b.handles = new Int32Array(NP);
-  for (let i=0;i<NP;i++){
-    b.handles[i] = PHYS.sphere(b.px[i], b.py[i], b.pz[i], RSURF[i] * sc, MASS[i] * sc * sc * sc, g, 0.82, 0.10, true, true);
+  b.handles = new Int32Array(n);
+  for (let i=0;i<n;i++){
+    b.handles[i] = PHYS.sphere(b.px[i], b.py[i], b.pz[i], rig.RSURF[i] * sc, rig.MASS[i] * sc * sc * sc, g, 0.82, 0.10, true, true);
   }
-  for (let i=0;i<NP;i++){
-    const p = PARENT[i];
-    if (p >= 0) PHYS.joint(b.handles[i], b.handles[p], PARENT_LEN[i] * sc, JOINT_HZ[i], 0.75, false);
+  for (let i=0;i<n;i++){
+    const p = rig.PARENT[i];
+    if (p >= 0) PHYS.joint(b.handles[i], b.handles[p], rig.PARENT_LEN[i] * sc, rig.JOINT_HZ[i], 0.75, false);
   }
-  for (const [a, bb, hz, d] of BRACES){
-    const len = Math.hypot(REST[a*3]-REST[bb*3], REST[a*3+1]-REST[bb*3+1], REST[a*3+2]-REST[bb*3+2]) * sc;
+  for (const [a, bb, hz, d] of rig.BRACES){
+    const len = Math.hypot(rig.REST[a*3]-rig.REST[bb*3], rig.REST[a*3+1]-rig.REST[bb*3+1], rig.REST[a*3+2]-rig.REST[bb*3+2]) * sc;
     PHYS.joint(b.handles[a], b.handles[bb], len, hz, d, false);
   }
   b.awake = true;
 }
 function destroyBearBodies(b){
   if (!b.handles) return;
-  for (let i=0;i<NP;i++) if (b.handles[i] >= 0) PHYS.destroy(b.handles[i]);
+  for (let i=0;i<b.np;i++) if (b.handles[i] >= 0) PHYS.destroy(b.handles[i]);
   b.handles = null;
   b.awake = false;
 }
 function uploadBearVelocities(b){
   if (!b.handles || !PHYS) return;
-  for (let i=0;i<NP;i++){ _physV[i*3]=b.vx[i]; _physV[i*3+1]=b.vy[i]; _physV[i*3+2]=b.vz[i]; }
-  PHYS.setVelocities(b.handles, _physV, NP);
-  PHYS.wake(b.handles, NP);
+  for (let i=0;i<b.np;i++){ _physV[i*3]=b.vx[i]; _physV[i*3+1]=b.vy[i]; _physV[i*3+2]=b.vz[i]; }
+  PHYS.setVelocities(b.handles, _physV, b.np);
+  PHYS.wake(b.handles, b.np);
   b.awake = true;
 }
 function uploadBearPositions(b, zeroVel){
   if (!b.handles || !PHYS) return;
-  for (let i=0;i<NP;i++){ _physV[i*3]=b.px[i]; _physV[i*3+1]=b.py[i]; _physV[i*3+2]=b.pz[i]; }
-  PHYS.setPositions(b.handles, _physV, NP);
-  if (zeroVel){ for (let i=0;i<NP*3;i++) _physV[i]=0; PHYS.setVelocities(b.handles, _physV, NP); }
-  PHYS.wake(b.handles, NP);
+  for (let i=0;i<b.np;i++){ _physV[i*3]=b.px[i]; _physV[i*3+1]=b.py[i]; _physV[i*3+2]=b.pz[i]; }
+  PHYS.setPositions(b.handles, _physV, b.np);
+  if (zeroVel){ for (let i=0;i<b.np*3;i++) _physV[i]=0; PHYS.setVelocities(b.handles, _physV, b.np); }
+  PHYS.wake(b.handles, b.np);
   b.awake = true;
 }
 function hopBear(b, power, dirX = 0, dirZ = 0, liftAll = false){
   if (!b.handles || !PHYS) return;
-  for (let i=0;i<NP;i++){
+  const n = b.np;
+  for (let i=0;i<n;i++){
     _physV[i*3]=b.vx[i] + dirX;
     _physV[i*3+1]=b.vy[i] + (liftAll ? power : 0);
     _physV[i*3+2]=b.vz[i] + dirZ;
   }
   const add = (i,x,y,z)=>{ _physV[i*3]+=x; _physV[i*3+1]+=y; _physV[i*3+2]+=z; };
   if (!liftAll) {
-    add(P_BELLY, 0, power, 0);
-    add(P_CHEST, (Math.random()-0.5)*0.5, power*0.75, (Math.random()-0.5)*0.5);
-    add(P_FOOTL, 0, power, 0);
-    add(P_FOOTR, 0, power, 0);
+    add(b.rig.P_BELLY, 0, power, 0);
+    add(b.rig.P_CHEST, (Math.random()-0.5)*0.5, power*0.75, (Math.random()-0.5)*0.5);
+    add(b.rig.P_FOOTL, 0, power, 0);
+    add(b.rig.P_FOOTR, 0, power, 0);
   }
-  PHYS.setVelocities(b.handles, _physV, NP);
-  PHYS.wake(b.handles, NP);
+  PHYS.setVelocities(b.handles, _physV, n);
+  PHYS.wake(b.handles, n);
   b.awake = true;
 }
 
 function accumulateForces(b, dt){
+  const rig = b.rig, n = b.np;
   const fx=b.fx, fy=b.fy, fz=b.fz;
   fx.fill(0); fy.fill(0); fz.fill(0);
   const ks = shapeStiffness(), cd = shapeDamping();
-  for (let i=0;i<NP;i++){
-    const m = MASS[i];
+  for (let i=0;i<n;i++){
+    const m = rig.MASS[i];
     fx[i] += m*ks*(b.tx[i]-b.px[i]);
     fy[i] += m*ks*(b.ty[i]-b.py[i]);
     fz[i] += m*ks*(b.tz[i]-b.pz[i]);
@@ -986,29 +1014,29 @@ function accumulateForces(b, dt){
   if (b.upTilt > 0){
     const k = 55 * b.upTilt;
     const ax=b.upAx, ay=b.upAy, az=b.upAz;
-    for (let i=0;i<NP;i++){
+    for (let i=0;i<n;i++){
       const rx=b.px[i]-b.cx, ry=b.py[i]-b.cy, rz=b.pz[i]-b.cz;
       const tx = ay*rz - az*ry, ty = az*rx - ax*rz, tz = ax*ry - ay*rx;
-      const m = MASS[i] * k;
+      const m = rig.MASS[i] * k;
       fx[i] += m*tx; fy[i] += m*ty; fz[i] += m*tz;
     }
   }
   // anticipation crouch before an idle or travel hop
   if (b.antic > 0 || (b.ai && b.ai.hopState === 'crouch')){
-    for (const i of [P_CHEST,P_BELLY]) fy[i] -= MASS[i]*30;
+    for (const i of [rig.P_CHEST,rig.P_BELLY]) fy[i] -= rig.MASS[i]*30;
   }
   // pressing assist: if a grabbed point is driven down near the table, push the
   // torso down too so the whole bear pancakes (volume logic then bulges it out)
   for (const g of grabs.values()){
     if (g.bear !== b) continue;
-    if (g.target.y < b.py[g.grabIdx] - 0.16 * (b.scale || 1) && b.py[g.grabIdx] < REST_COM_Y * (b.scale || 1) * 0.9){
-      for (const j of [P_CHEST, P_BELLY]) fy[j] -= MASS[j]*24;
+    if (g.target.y < b.py[g.grabIdx] - 0.16 * (b.scale || 1) && b.py[g.grabIdx] < rig.REST_COM_Y * (b.scale || 1) * 0.9){
+      for (const j of [rig.P_CHEST, rig.P_BELLY]) fy[j] -= rig.MASS[j]*24;
     }
   }
   // grab springs, one per active pointer
   for (const g of grabs.values()){
     if (g.bear !== b) continue;
-    const i = g.grabIdx, m = MASS[i];
+    const i = g.grabIdx, m = rig.MASS[i];
     fx[i] += m*(GRAB_K*(g.target.x-b.px[i]) - GRAB_D*(b.vx[i]-g.vel.x));
     fy[i] += m*(GRAB_K*(g.target.y-b.py[i]) - GRAB_D*(b.vy[i]-g.vel.y));
     fz[i] += m*(GRAB_K*(g.target.z-b.pz[i]) - GRAB_D*(b.vz[i]-g.vel.z));
@@ -1020,8 +1048,8 @@ function accumulateForces(b, dt){
     const sl = Math.hypot(sdx, sdz) || 1;
     sdx /= sl; sdz /= sl;
     const targetY = 0.36;
-    for (let i=0;i<NP;i++){
-      const m = MASS[i];
+    for (let i=0;i<n;i++){
+      const m = rig.MASS[i];
       fy[i] += m*(12 + 30*(targetY - b.cy) - 4.2*b.vy[i]);
       fx[i] += m*(1.05*sdx - 1.8*b.vx[i]);
       fz[i] += m*(1.05*sdz - 1.8*b.vz[i]);
@@ -1039,7 +1067,7 @@ function rescuePondBear(b, inside) {
   const targetY = inside ? 0.36 : 0.34;
   const dy = targetY - b.cy;
   if (Math.abs(dx) + Math.abs(dz) + Math.abs(dy) < .001) return false;
-  for (let i = 0; i < NP; i++) {
+  for (let i = 0; i < b.np; i++) {
     b.px[i] += dx; b.py[i] += dy; b.pz[i] += dz;
     b.vx[i] = 0; b.vy[i] = 0; b.vz[i] = 0;
     b.snap[i*3] = b.px[i]; b.snap[i*3+1] = b.py[i]; b.snap[i*3+2] = b.pz[i];
@@ -1056,7 +1084,7 @@ function physicsStep(dt){
   let n = 0;
   for (const b of bears){
     if (!b.active) continue;
-    for (let i=0;i<NP;i++) flatHandles[n++] = b.handles[i];
+    for (let i=0;i<b.np;i++) flatHandles[n++] = b.handles[i];
   }
   if (!n) return;
   PHYS.read(flatHandles, flatOut, n);
@@ -1064,18 +1092,18 @@ function physicsStep(dt){
   for (const b of bears){
     if (!b.active) continue;
     let awake = 0;
-    for (let i=0;i<NP;i++){
+    for (let i=0;i<b.np;i++){
       const base = (o+i)*7;
       b.px[i]=flatOut[base]; b.py[i]=flatOut[base+1]; b.pz[i]=flatOut[base+2];
       b.vx[i]=flatOut[base+3]; b.vy[i]=flatOut[base+4]; b.vz[i]=flatOut[base+5];
       if (flatOut[base+6] > 0.5) awake = 1;
     }
-    o += NP;
+    o += b.np;
     b.awake = (awake === 1);
     bearCOM(b); bearVelocity(b);
     let contacts = 0, minVy = 0;
-    for (let i=0;i<NP;i++){
-      if (b.py[i]-RSURF[i]*(b.scale||1) < 0.035){ contacts++; if (b.vy[i] < minVy) minVy = b.vy[i]; }
+    for (let i=0;i<b.np;i++){
+      if (b.py[i]-b.rig.RSURF[i]*(b.scale||1) < 0.035){ contacts++; if (b.vy[i] < minVy) minVy = b.vy[i]; }
     }
     if (contacts > 0 && b.airborne && minVy < -BOUNCE_V){ bounces++; pulseBounce(); }
     b.contacts = contacts;
@@ -1102,7 +1130,7 @@ function physicsStep(dt){
         rescuePondBear(b, inside);
       }
     } else if (b.inPond) b.inPond = false;
-    if (b.grabs > 0 && !b.awake){ PHYS.wake(b.handles, NP); b.awake = true; }
+    if (b.grabs > 0 && !b.awake){ PHYS.wake(b.handles, b.np); b.awake = true; }
     // gentle kinematic righting when settled (yields to pushes via the speed gate)
     if (uprightAssist && b.grabs === 0 && b.contacts > 0 && !b.airborne){
       const spd = Math.hypot(b.vcx, b.vcy, b.vcz);
@@ -1116,7 +1144,7 @@ function physicsStep(dt){
             const ang = Math.min(tilt, 1.6*dt);
             const ax=_v3.x/l, ay=_v3.y/l, az=_v3.z/l;
             const ca=Math.cos(ang), sa=Math.sin(ang);
-            for (let i=0;i<NP;i++){
+            for (let i=0;i<b.np;i++){
               const rx=b.px[i]-b.cx, ry=b.py[i]-b.cy, rz=b.pz[i]-b.cz;
               const dot=ax*rx+ay*ry+az*rz;
               const crx=ay*rz-az*ry, cry=az*rx-ax*rz, crz=ax*ry-ay*rx;
@@ -1135,7 +1163,7 @@ function physicsStep(dt){
   let k = 0;
   for (const b of bears){
     if (!b.active) continue;
-    for (let i=0;i<NP;i++){ flatForces[k*3]=b.fx[i]; flatForces[k*3+1]=b.fy[i]; flatForces[k*3+2]=b.fz[i]; k++; }
+    for (let i=0;i<b.np;i++){ flatForces[k*3]=b.fx[i]; flatForces[k*3+1]=b.fy[i]; flatForces[k*3+2]=b.fz[i]; k++; }
   }
   PHYS.applyForces(flatHandles, flatForces, false, n);
   PHYS.step(dt, 3);   // Box3D contact sub-solve at 180 Hz
@@ -1238,8 +1266,8 @@ function buildBear(b){
   // at the box edge, and this buys real resolution where it matters. The surface
   // always stays well inside the box, so it closes cleanly.
   let tminx=1e9,tminy=1e9,tminz=1e9,tmaxx=-1e9,tmaxy=-1e9,tmaxz=-1e9,maxR=0.02;
-  for (let i=0;i<NP;i++){
-    const R = RSURF[i] * (b.scale || 1);
+  for (let i=0;i<b.np;i++){
+    const R = b.rig.RSURF[i] * (b.scale || 1);
     if (R>maxR) maxR = R;
     if (b.px[i]-R<tminx) tminx=b.px[i]-R;
     if (b.py[i]-R<tminy) tminy=b.py[i]-R;
@@ -1302,9 +1330,9 @@ function buildBear(b){
 
   // ---- scatter sources ----
   const bs = b.scale || 1;
-  for (let p=0;p<NP;p++) scatterSphere(F, nx, ny, nz, ox, oy, oz, cell, b.px[p], b.py[p], b.pz[p], Math.max(RSURF[p] * bs, minR));
-  for (let c=0;c<CAPS.length;c++){
-    const [ia,ib,cr] = CAPS[c];
+  for (let p=0;p<b.np;p++) scatterSphere(F, nx, ny, nz, ox, oy, oz, cell, b.px[p], b.py[p], b.pz[p], Math.max(b.rig.RSURF[p] * bs, minR));
+  for (let c=0;c<b.rig.CAPS.length;c++){
+    const [ia,ib,cr] = b.rig.CAPS[c];
     scatterCapsule(F, nx, ny, nz, ox, oy, oz, cell,
       b.px[ia], b.py[ia], b.pz[ia], b.px[ib], b.py[ib], b.pz[ib], Math.max(cr * bs, minR));
   }
@@ -1448,7 +1476,7 @@ function buildBear(b){
   g.boundingSphere.center.set(bcx,bcy,bcz);
   g.boundingSphere.radius = Math.hypot(tmaxx-tminx,tmaxy-tminy,tmaxz-tminz)/2 + cell*3;
   // remember build state for the motion gate
-  for (let i=0;i<NP;i++){ b.snap[i*3]=b.px[i]; b.snap[i*3+1]=b.py[i]; b.snap[i*3+2]=b.pz[i]; }
+  for (let i=0;i<b.np;i++){ b.snap[i*3]=b.px[i]; b.snap[i*3+1]=b.py[i]; b.snap[i*3+2]=b.pz[i]; }
   b.needsBuild = false;
   // thickness follows the bear's current bulk
   b.material.thickness = clamp(0.36*b.sy, 0.14, 0.95);
@@ -1506,6 +1534,7 @@ function marchSurface(b, ax, ay, az, dx, dy, dz, maxD, fallback){
   return maxD;
 }
 function writeEyeInstance(b, vanish){
+  if (b.species !== 'bear') return;
   const slotBase = b.slot*3;
   if (vanish){
     _m4.makeScale(1e-4, 1e-4, 1e-4);
@@ -1563,10 +1592,9 @@ function writeEyeInstance(b, vanish){
 // at the display rate while polygonisation stays sparse.
 const _mDelta = new THREE.Matrix4(), _mSnapInv = new THREE.Matrix4(), _mTr = new THREE.Matrix4(), _mEye = new THREE.Matrix4();
 function updateMeshTransforms(){
-  const hideBears = studioBearsHidden();
   for (const b of bears){
     if (!b.active) continue;
-    if (b.sleeping || hideBears){
+    if (b.sleeping || studioActorHidden(b)){
       b.mesh.visible = false;
       writeEyeInstance(b, true);
       continue;
@@ -1590,7 +1618,7 @@ function updateMeshTransforms(){
     b.mesh.matrixWorldNeedsUpdate = true;
     // deformation residual = how far the live shape has drifted from this mesh
     let maxD2 = 0;
-    for (let i=0;i<NP;i++){
+    for (let i=0;i<b.np;i++){
       _v3.set(b.snap[i*3], b.snap[i*3+1], b.snap[i*3+2]).applyMatrix4(b.meshM);
       const dx = b.px[i]-_v3.x, dy = b.py[i]-_v3.y, dz = b.pz[i]-_v3.z;
       const d2 = dx*dx + dy*dy + dz*dz;
@@ -1598,10 +1626,12 @@ function updateMeshTransforms(){
     }
     b.deform = Math.sqrt(maxD2);
     // eyes ride the same rigid correction
-    for (let k=0;k<3;k++){
-      _mEye.fromArray(b.eyeLocal, k*16);
-      _m4.multiplyMatrices(b.meshM, _mEye);
-      eyes.setMatrixAt(b.slot*3+k, _m4);
+    if (b.species === 'bear'){
+      for (let k=0;k<3;k++){
+        _mEye.fromArray(b.eyeLocal, k*16);
+        _m4.multiplyMatrices(b.meshM, _mEye);
+        eyes.setMatrixAt(b.slot*3+k, _m4);
+      }
     }
   }
   eyes.instanceMatrix.needsUpdate = true;
@@ -1628,14 +1658,14 @@ function drawStudioShadows(force = false){
   const every = fwRings.length ? 1 : Math.max(quality.shadowEvery, bears.length > 64 ? 2 : 1);
   if (!force && shadowTick % every !== 0 && shadowTick !== 1) return;
   const px = SHADOW_SIZE / SHADOW_WORLD;
-  const hideBears = studioBearsHidden();
+  const hideLauncher = !isMeadow() && studioCast === 'msn';
   sctx.globalCompositeOperation='source-over';
   sctx.globalAlpha=1;
   sctx.drawImage(baseCanvas,0,0);
   sctx.globalCompositeOperation='multiply';
   for (const b of bears){
-    if (hideBears || !b.active || b.sleeping) continue;
-    const h = Math.max(0, b.cy - REST_COM_Y);
+    if (!b.active || b.sleeping || studioActorHidden(b)) continue;
+    const h = Math.max(0, b.cy - b.rig.REST_COM_Y);
     const scale = 1 + h*0.52;
     const wx = b.cx - KEY_DIR.x*h*0.34;
     const wz = b.cz - KEY_DIR.z*h*0.34;
@@ -1650,7 +1680,7 @@ function drawStudioShadows(force = false){
     sctx.globalAlpha = 1.15/(1 + h*2.2);
     sctx.drawImage(b.sprite, cxpx-sz/2, cypx-sz*0.41, sz, sz*0.82);
   }
-  const ls = hideBears ? null : (launcher ? launcher.getShadow() : null);
+  const ls = hideLauncher ? null : (launcher ? launcher.getShadow() : null);
   if (ls && ls.canvas){
     const lx = (ls.x + SHADOW_WORLD/2)*px;
     const lz = (ls.z + SHADOW_WORLD/2)*px;
@@ -2349,14 +2379,14 @@ function pickMsnUnderPointer(cx, cy){
 }
 
 function pickBear(){
-  if (studioBearsHidden()) return null;
   let bestB=null, bestI=-1, bestT=Infinity;
   for (const b of bears){
-    for (let i=0;i<NP;i++){
+    if (studioActorHidden(b)) continue;
+    for (let i=0;i<b.np;i++){
       const ox = b.px[i]-_rayOrigin.x, oy = b.py[i]-_rayOrigin.y, oz = b.pz[i]-_rayOrigin.z;
       const tca = ox*_rayDir.x + oy*_rayDir.y + oz*_rayDir.z;
       if (tca < 0) continue;
-      const r = RCOLL[i]*(b.scale||1)*1.25;
+      const r = b.rig.RCOLL[i]*(b.scale||1)*1.25;
       const d2 = ox*ox+oy*oy+oz*oz - tca*tca;
       if (d2 > r*r) continue;
       const t = tca - Math.sqrt(Math.max(0, r*r-d2));
@@ -2402,14 +2432,14 @@ function endGrab(g, throwIt){
   const pv = g.vel, sp = Math.hypot(pv.x,pv.y,pv.z);
   if (throwIt && sp > 0.7 && b.grabs === 0){
     const k = 0.85;
-    for (let i=0;i<NP;i++){
+    for (let i=0;i<b.np;i++){
       b.vx[i] = b.vx[i]*0.25 + pv.x*k;
       b.vy[i] = b.vy[i]*0.25 + (pv.y > 0 ? pv.y*k : pv.y*0.3);
       b.vz[i] = b.vz[i]*0.25 + pv.z*k;
     }
     const i = g.grabIdx;
     b.vx[i] += pv.x*0.28; b.vy[i] += pv.y*0.28; b.vz[i] += pv.z*0.28;
-    for (let j=0;j<NP;j++){
+    for (let j=0;j<b.np;j++){
       const v = Math.hypot(b.vx[j],b.vy[j],b.vz[j]);
       if (v > VMAX*0.85){ const s2 = VMAX*0.85/v; b.vx[j]*=s2; b.vy[j]*=s2; b.vz[j]*=s2; }
     }
@@ -2417,10 +2447,10 @@ function endGrab(g, throwIt){
   if (throwIt && b.grabs === 0){
     // jelly rebound when released on/near the table
     let lowest = 1e9;
-    for (let i=0;i<NP;i++) lowest = Math.min(lowest, b.py[i]);
+    for (let i=0;i<b.np;i++) lowest = Math.min(lowest, b.py[i]);
     if (lowest < 0.30){
       const pop = Math.min(2.9, Math.abs(b.sy - 1)*20);
-      if (pop > 0.3){ for (let i=0;i<NP;i++) b.vy[i] += pop; b.airborne = true; }
+      if (pop > 0.3){ for (let i=0;i<b.np;i++) b.vy[i] += pop; b.airborne = true; }
     }
   }
   uploadBearVelocities(b);
@@ -3376,7 +3406,7 @@ function focusMsn(){
 }
 function syncAeroUI(force){
   if (!isMeadow()) return;
-  const list = bears.filter(b => b.active);
+  const list = bears.filter(b => b.active && b.species === 'bear');
   const sig = list.map(b=>`${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
   if (force || sig !== buddySig) refreshBuddyList();
   updateBuddyStatuses(force);
@@ -4053,10 +4083,10 @@ function frameTick(dt){
     // live stretch readout: how far the grabbed point has been pulled away from
     // its rest position, measured as the strain of its link to the body
     // (neck/arm/leg length over its rest length) — 1.00× when idle
-    const i = b.stretchPt, pi = PARENT[i];
+    const i = b.stretchPt, pi = b.rig.PARENT[i];
     const nowLen = Math.hypot(b.px[i]-b.px[pi], b.py[i]-b.py[pi], b.pz[i]-b.pz[pi]);
     b.stretchDev = nowLen;
-    b.stretch = Math.max(1, nowLen/PARENT_LEN[i]);
+    b.stretch = Math.max(1, nowLen/b.rig.PARENT_LEN[i]);
   }
   let stretchTarget = 1;
   for (const g of grabs.values()) if (g.bear.stretch > stretchTarget) stretchTarget = g.bear.stretch;
@@ -4289,7 +4319,7 @@ function applyBlastImpulse(bx, by, bz, radius, power){
     const mag = power * (0.45 + 0.55*fall);
     axis.set(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
     const spin = 2.2 + Math.random()*4.4;
-    for (let i=0;i<NP;i++){
+    for (let i=0;i<b.np;i++){
       rel.set(b.px[i]-b.cx, b.py[i]-b.cy, b.pz[i]-b.cz);
       const sx = (axis.y*rel.z - axis.z*rel.y)*spin;
       const sy = (axis.z*rel.x - axis.x*rel.z)*spin;
@@ -4297,12 +4327,12 @@ function applyBlastImpulse(bx, by, bz, radius, power){
       const dvx = ux*mag + sx + (Math.random()-0.5)*0.7;
       const dvy = Math.max(1.0, uy*mag)*0.6 + 4.2*fall + Math.random()*1.8 + sy*0.3;
       const dvz = uz*mag + sz + (Math.random()-0.5)*0.7;
-      _physImp[i*3]   = dvx * MASS[i];
-      _physImp[i*3+1] = dvy * MASS[i];
-      _physImp[i*3+2] = dvz * MASS[i];
+      _physImp[i*3]   = dvx * b.rig.MASS[i];
+      _physImp[i*3+1] = dvy * b.rig.MASS[i];
+      _physImp[i*3+2] = dvz * b.rig.MASS[i];
       b.vx[i]+=dvx; b.vy[i]+=dvy; b.vz[i]+=dvz;
     }
-    PHYS.applyImpulses(b.handles, _physImp, NP);
+    PHYS.applyImpulses(b.handles, _physImp, b.np);
     b.airborne = true;
     b.awake = true;
     b.hopT = Math.max(b.hopT, 2.4);
@@ -4544,7 +4574,7 @@ function animate(now){
     hudAcc = 0;
     elStretch.textContent = stretchShown.toFixed(2) + '×';
     elBounces.textContent = String(bounces);
-    elBears.textContent = String(bears.length);
+    elBears.textContent = String(bears.filter(b => b.species === 'bear').length);
     elBounces.classList.toggle('hit', bouncePulse > 0.25);
     if (isMeadow()) syncAeroUI(false);
     if (perfOnFlag) updatePerfPanel();
@@ -4655,6 +4685,12 @@ function seedStudioBears(){
     const b = spawn(x, z, 0.004, flavors[i%flavors.length], {tilt:0.05, name:takeBearName()});
     if (b) { b.stage='adult'; b.sex = (i % 2 ? 'M' : 'F'); }
   }
+  if (RACE_ENABLED){
+    const gummy = spawn(-Math.min(.72, TABLE.hx * .42), 0.45, 0.004, 3, {
+      rig: MSN_RIG, name: 'MSN Buddy', stage: 'adult', scale: 1, tilt: 0.02, lift: 0.004,
+    });
+    if (gummy) gummy.home = '';
+  }
 }
 
 function seedMeadowBears(){
@@ -4701,7 +4737,7 @@ function snapshotDirective(d){
 }
 function snapshotBear(b){
   return {
-    flavor: b.flavor, sex: b.sex, stage: b.stage, scale: b.scale,
+    species: b.species, flavor: b.flavor, sex: b.sex, stage: b.stage, scale: b.scale,
     health: b.health, hunger: b.hunger, thirst: b.thirst,
     energy: b.energy, bold: b.bold,
     social: b.social, affection: b.affection, bonds: { ...(b.bonds || {}) },
@@ -4729,7 +4765,10 @@ function spawnFromState(st){
     z = clamp(z, -TABLE.hz+0.28, TABLE.hz-0.28);
   }
   const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), st.yaw || 0);
+  if (st.species === 'msn' && !RACE_ENABLED) return null;
+  const rigCfg = st.species === 'msn' ? MSN_RIG : RIGCFG;
   const b = spawn(x, z, 0.004, st.flavor >= 0 ? st.flavor : 0, {
+    rig: rigCfg,
     quat: q, lift: 0, name: st.name || takeBearName(), sex: st.sex || 'F', home: st.home || '',
     stage: st.stage || 'adult', scale: st.scale || scaleForStage(st.stage || 'adult'), uid: st.uid,
     age: Number.isFinite(st.age) ? st.age : ageForStage(st.stage || 'adult'),
@@ -4866,7 +4905,7 @@ function applyStudioCast(value = studioCast, persist = true){
   return {
     cast: studioCast,
     msnVisible: !!(msnPrototype && msnPrototype.state().visible),
-    bearsVisible: !studioBearsHidden(),
+    bearsVisible: !(!isMeadow() && studioCast === 'msn'),
     cannonVisible: cannonOn,
   };
 }
