@@ -8,7 +8,7 @@ import {
   canMate, HOME_CAPACITY, MATE_TIME, MATE_COOLDOWN, MATE_FOOD_MIN,
   GESTATION_TIME, PREGNANCY_HUNGER,
 } from './life.js';
-import { getSpecies } from './species.js';
+import { canSpeciesBreed } from './dna.js';
 
 const WANDER_MIN = 3.0;
 const WANDER_MAX = 12.0;
@@ -1056,11 +1056,12 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
   }
 
   function canMatePair(a, b) {
-    // Species isolation until the DNA/hybrid-model pass. Cross-species social
-    // bonds and visits stay enabled; only reproduction is same-species for now.
     if (!a || !b) return false;
-    const aDef = getSpecies(a.species), bDef = getSpecies(b.species);
-    if (!aDef || !bDef || aDef.id !== bDef.id || !aDef.canReproduce || !bDef.canReproduce) return false;
+    // Bear and Gummy are cross-compatible now; Glass remains blocked until its
+    // life/reproduction design exists. A Glass material gene can still pass to
+    // a Bear/Gummy child in the birth path.
+    const gate = canSpeciesBreed(a.species, b.species, { current: true });
+    if (!gate.ok) return false;
     return canMate(a, b, {
       room: bears.length < populationCap(),
       food: safeFoodCount() >= MATE_FOOD_MIN,

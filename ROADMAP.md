@@ -509,13 +509,21 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   are expressed; trait scales are normalized to species defaults so default
   actors keep their previous solver feel. Authored hybrid bodies remain
   deferred.
+- **Cross-species birth (Oct 2026, done):** Bear × Gummy mates pass the current
+  compatibility gate. The child chooses a random viable parent species and rig,
+  receives the combined genome normalized to that species, and follows a Glass
+  material gene when either parent carries it. Glass actor reproduction remains
+  deferred until its life design; no custom hybrid mesh is generated.
 
 - **Decision:** all three — bears, Glass MSN and Gummy MSN — may interbreed
   later. Glass breeding is explicitly allowed; its offspring art/rig and
   reproductive role are not designed yet.
-- **Current guard:** reproduction is same-species only until DNA and authored
-  hybrid models exist. Cross-species social bonds, visits and play remain
-  allowed. The guard lives in `canMatePair`; remove it only with the DNA pass.
+- **Current reproduction:** Bear × Gummy is enabled. The child species is chosen
+  randomly from the viable parents; it uses that parent's rig and matching
+  genome/phenotype. A Glass material gene is inherited by the child. Glass
+  itself remains Studio-only and non-reproductive until its life design, so
+  Glass × Bear/Gummy and Glass × Glass are not active yet. Cross-species social
+  bonds, visits and play remain enabled.
 - **DNA:** a versioned genome will carry species weights, colour/material genes
   (base colour, attenuation, transmission, opacity, clearcoat), size, softness/
   rigidity, wobble/stretch, hop pace and personality. Save schema changes wait
@@ -534,9 +542,11 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   testing/authoring pass is complete; then register each as a hybrid species
   entry with its own rig/asset, capabilities and tests.
 - **Phases:** same-species reproduction + cross-species social (current) →
-  Gummy Meadow life parity → DNA/genome + custom rigidity → Bear × Gummy hybrid
-  model → Glass hybrid design → new MSN/Bear hybrid race model. Validate
-  genetics, save/load, roster labels and hybrid performance at each step.
+  Gummy Meadow life parity → DNA/genome + custom rigidity (current) → Bear ×
+  Gummy cross-species birth using existing rigs (current) → Glass life design →
+  authored custom hybrid models (after Blender MCP testing) → new MSN/Bear
+  hybrid race model. Validate genetics, save/load, roster labels and hybrid
+  performance at each step.
 - **New race model:** yes, a future authored MSN/Bear hybrid is a valid roadmap
   item, but it is a Blender asset + rig + animation + lifecycle scope, not a
   runtime mesh blend.

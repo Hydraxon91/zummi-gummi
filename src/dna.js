@@ -196,8 +196,9 @@ export function canSpeciesBreed(a, b, { current = true } = {}) {
   const defA = knownSpecies(typeof a === 'string' ? a : a?.id) || knownSpecies(a);
   const defB = knownSpecies(typeof b === 'string' ? b : b?.id) || knownSpecies(b);
   if (!defA || !defB) return { ok: false, reason: 'unknown species', hybridTarget: null };
-  if (current && (defA.id !== defB.id || !defA.canReproduce || !defB.canReproduce)) {
-    return { ok: false, reason: 'different species or reproduction disabled', hybridTarget: null };
+  if (current && (!defA.canReproduce || !defB.canReproduce ||
+      !defA.compatibility.includes(defB.id) || !defB.compatibility.includes(defA.id))) {
+    return { ok: false, reason: 'reproduction disabled or species incompatible', hybridTarget: null };
   }
   if (!current && (!defA.canBreed || !defB.canBreed ||
       !defA.compatibility.includes(defB.id) || !defB.compatibility.includes(defA.id))) {

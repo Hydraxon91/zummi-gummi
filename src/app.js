@@ -654,6 +654,18 @@ function applyBearStage(b, nextStage) {
   return true;
 }
 
+function birthSpecies(mother, father) {
+  const defs = [mother, father]
+    .filter(Boolean)
+    .map(speciesOf)
+    .filter(def => def && def.rig && def.canReproduce);
+  if (!defs.length) return speciesOf(mother);
+  const unique = [...new Map(defs.map(def => [def.id, def])).values()];
+  if (unique.length === 1) return unique[0];
+  // Cross-species offspring use an existing parent rig; species choice is random.
+  return unique[(Math.random() * unique.length) | 0];
+}
+
 function tryBirth(mother) {
   if (!mother || !mother.active || !mother.pregnant) return false;
   if (mother.grabs > 0 || mother.inPond || mother.airborne) return false;
@@ -677,8 +689,17 @@ function tryBirth(mother) {
     (father && father.genome) || mother.genome || defaultGenome(mother.species),
     { mutation: .04 },
   );
+  const childSpecies = birthSpecies(mother, father) || speciesOf(mother);
+  genome.species = { [childSpecies.id]: 1 };
+  genome.phenotype = childSpecies.genetics?.phenotype || null;
+  genome.hybridTarget = null;
+  if ([mother, father].some(parent => parent?.genome?.genes?.material === 'glass')) {
+    genome.genes.material = 'glass';
+  } else {
+    genome.genes.material = childSpecies.material === 'msn' ? 'msnGummy' : 'bearGummy';
+  }
   const baby = spawn(x, z, 0.004, flavor, {
-    rig: mother.rig,
+    rig: childSpecies.rig,
     genome,
     stage: 'baby',
     scale: scaleForStage('baby'),
