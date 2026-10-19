@@ -642,6 +642,10 @@ can proceed with the current runtime and assets.
 
 ### Open — no Blender required
 
+- **Unpin the CI runner image.** `smoke.yml` and `pages.yml` are temporarily pinned
+  to `ubuntu-24.04` because `ubuntu-latest` migration/provisioning left jobs queued
+  in October 2026. Restore `ubuntu-latest` after GitHub runner assignment is healthy
+  and the workflows have been rechecked.
 - **Old harness cleanup.** Port the older `.dev-shots` harnesses to the portable
   helper, and add a retention policy for their captures.
 - **Stale scratch expectations.** The old menu harness still expects 6 bears;

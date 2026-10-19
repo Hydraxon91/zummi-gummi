@@ -16,7 +16,8 @@ concurrency:
 jobs:
   serve-and-load:
     name: Serve the app and load the wasm
-    runs-on: ubuntu-latest
+    # TODO: restore ubuntu-latest after the Oct 2026 runner-image migration.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -57,7 +58,8 @@ jobs:
   browser-regression:
     name: Browser regression
     needs: serve-and-load
-    runs-on: ubuntu-latest
+    # TODO: restore ubuntu-latest after the Oct 2026 runner-image migration.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
