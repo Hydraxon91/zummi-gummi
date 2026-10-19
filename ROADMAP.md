@@ -80,6 +80,7 @@ src/ui.js / styles.css  Aero/MSN shell and HUD
 src/studio-room.js      authored Studio lounge/bar/TV interaction surface
 assets/studio/          exported glTF/GLB room kit, collision proxies, credits
 src/save.js             IndexedDB slots, save format/migration, New Game
+src/actorsave.js        actor save versions, validation and collection registry
 src/player.js           bear selection, directives, possession camera/input
 src/editor.js           placement editor: ghost preview, validation, undo
 src/village.js          village homes, naming, hub/plaza, roles and shops
@@ -632,16 +633,17 @@ can proceed with the current runtime and assets.
 - Committed species/DNA/save/actor-view tests and CI execution.
 - MSN asset manifest, GLB inventory check and source-backup decision.
 - `AGENTS.md` and project-skill updates for the species runtime.
-- Seeded portable browser regression (`scripts/browser-regression.mjs`).
+- Seeded portable browser regression (`scripts/browser-regression.mjs`) and its
+  blocking CI browser job.
 - Family tree/lineage UI and Glass/soft-body sibling playdates.
 - Manifest-driven GLB loader (`src/assets.js`) and `docs/species-template.md`.
+- Gene definition registry (`registerGene`) and actor save validation/collection
+  contracts (`src/actorsave.js`).
 
 ### Open — no Blender required
 
-- **Browser regression in CI.** The committed regression currently runs locally;
-  add a CI browser job where a Chromium binary is available, keeping the pure
-  tests blocking. Port the older `.dev-shots` harnesses to the portable helper,
-  and add a retention policy for their captures.
+- **Old harness cleanup.** Port the older `.dev-shots` harnesses to the portable
+  helper, and add a retention policy for their captures.
 - **Stale scratch expectations.** The old menu harness still expects 6 bears;
   update it to the current 8 soft-body actors after a starter-roster change.
 - **Deeper family life.** Family meals, parent teaching, recurring playdates,
@@ -673,13 +675,13 @@ can proceed with the current runtime and assets.
 
 ### Suggested order
 
-1. Browser regression in CI + old-harness cleanup.
+1. Old-harness cleanup.
 2. Deeper family life.
 3. Performance or 6b-1 presentation polish.
 4. Phase 9.
 5. Blender authoring wave when MCP is ready.
 
-## Content extensibility track (first slice implemented, Oct 2026)
+## Content extensibility track (implemented, Oct 2026)
 
 Extend the existing ES modules, not the engine stack. Stable definition IDs must
 remain separate from placed instance IDs and mutable save state. Preserve current
@@ -702,10 +704,11 @@ visuals, balance, authored layouts, batching and save compatibility during extra
    authored homes, trees, rocks, the Studio House, cannon home and starter
    populations. World state remains in `world.js`; a new map still needs a builder,
    map definition and save-validation decision before it is playable.
-5. **Genes + actor persistence contracts (later).** Centralize gene ranges,
-   inheritance and expression rules. Keep save-envelope validation separate from
-   actor serialization; specify version and unknown-content behavior before
-   generalizing bear/Glass persistence.
+5. **Genes + actor persistence contracts (done).** `dna.js` exposes a gene
+   definition registry; species opt in through `genetics.loci`. `actorsave.js`
+   owns actor validation, actor save versioning and registered collections, while
+   `save.js` keeps the envelope and storage. Unknown species/kind and future actor
+   versions are rejected; legacy records remain valid.
 6. **AI/directive extension points + UI ownership (later).** Add bounded behavior
    handlers only when new content needs them; preserve shared pair interruption,
    needs priorities and specialized physics. Extract UI by ownership, not a broad

@@ -167,7 +167,9 @@ existing stack and structure.
   day/night sky; `launcher.js` the cannon; `world.js` the map registry + per-map state;
   `navmesh.js` navigation; `trees.js`/`bushes.js`/`homes.js`/`studiohouse.js`/`backdrop.js`/
   `horizon.js`/`wind.js`/`fieldshape.js` their named systems. The species layer is split:
-  `species.js` is the capability/asset registry, `dna.js` is pure genetics, `assets.js`
+  `species.js` is the capability/asset registry, `dna.js` is pure genetics,
+  `actorsave.js` owns actor save validation/versioning and collection registration while
+  `save.js` owns the save envelope and storage, `assets.js`
   validates manifests and loads manifested GLBs, `npc.js` is the read-only soft-body/Glass
   actor view, `glass.js` owns the Glass Meadow adapter, `msn.js` owns the Studio prototype,
   and `msnrig.js`/`buddyrig.js` own rig data. `life.js`/`ai.js` own shared needs, social and
@@ -216,13 +218,14 @@ and plain assertions; stateful and visual behavior is verified by loading the se
 and driving it.
 
 - **Committed pure checks cover the species layer.** `node --test tests` runs the registry,
-  DNA, save-validation, actor-view, asset-manifest and loader checks. A change to species
-  capabilities, genomes, save shape, `npc.js` or the asset contract updates these tests in
-  the same scope.
+  gene definitions, DNA, actor save versions/collections, save-validation, actor-view,
+  asset-manifest and loader checks. A change to species capabilities, genes, save shape,
+  `npc.js` or the asset contract updates these tests in the same scope.
 - **The browser regression is the committed behavior check.** With a served build,
   `node scripts/browser-regression.mjs` checks the roster, species counts, lineage, sibling
   play start and save/load; `STUDIO=1` adds the Studio GLB inventory. It uses a temporary
-  browser profile and a configurable `BROWSER_BIN`/`CHROME_BIN`.
+  browser profile and a configurable `BROWSER_BIN`/`CHROME_BIN`. CI runs the same command in
+  a separate blocking job after the smoke test, with SwiftShader fallback enabled.
 - **The committed check is the smoke test.** `scripts/smoke.mjs` boots from a running
   `launch.py` server and asserts the page shell, source modules, licenses, the wasm MIME
   type/magic/exports and 404 handling. Run it as:

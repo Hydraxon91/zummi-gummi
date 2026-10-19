@@ -67,6 +67,7 @@ const modules = [
   "/src/effects.js",
   "/src/msn.js",
   "/src/glass.js",
+  "/src/actorsave.js",
   "/src/npc.js",
   "/src/species.js",
   "/src/assets.js",

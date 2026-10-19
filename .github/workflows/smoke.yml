@@ -53,3 +53,59 @@ jobs:
       - name: Show server log on failure
         if: failure()
         run: cat server.log
+
+  browser-regression:
+    name: Browser regression
+    needs: serve-and-load
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - name: Resolve a Chromium-family browser
+        run: |
+          set -euo pipefail
+          browser_bin=""
+          for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              browser_bin="$(command -v "$candidate")"
+              break
+            fi
+          done
+          if [ -z "$browser_bin" ]; then
+            echo "::error::No Chromium-family browser found on the runner"
+            exit 1
+          fi
+          echo "BROWSER_BIN=$browser_bin" >> "$GITHUB_ENV"
+          "$browser_bin" --version
+
+      - name: Start the launcher
+        run: |
+          set -euo pipefail
+          python3 launch.py --no-open --verbose --port 8000 > server.log 2>&1 &
+          for _ in $(seq 1 60); do
+            grep -q "This computer :" server.log && break
+            sleep 0.25
+          done
+          cat server.log
+          url="$(grep -o 'http://localhost:[0-9]*/' server.log | head -1)"
+          if [ -z "$url" ]; then
+            echo "::error::launch.py did not report a listening URL"
+            exit 1
+          fi
+          echo "GAME_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Run the seeded browser regression
+        run: STUDIO=1 node scripts/browser-regression.mjs
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat server.log
