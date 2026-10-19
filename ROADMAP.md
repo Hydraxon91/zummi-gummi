@@ -695,9 +695,14 @@ can proceed with the current runtime and assets.
   `sky.day`, and prunes stale uid references on load.
 - Bear/Gummy/Glass now share social, invite/decline, visit, follow, mate and playdate paths;
   mixed-species pairs use the same protocol.
-- Open C–F: delete the legacy fallback decision blocks now left in `ai.js`/`glass.js`;
-  add household meals/routines; add parent teaching/skills; add the lineage/history panel;
-  then re-profile and update `PERFORMANCE.md`.
+- Open C–F: finish removing the legacy Glass helper block; add household meals/routines;
+  add parent teaching/skills; add the lineage/history panel; then re-profile and update
+  `PERFORMANCE.md`.
+- **Profile-specific states migrated (C, in progress).** Bear hive raids, flee, conflict
+  and the shared branch of the directive system now live in `behavior.js`; Glass stargaze
+  and daytime shelter are also shared. `ai.js` is now a thin hop adapter plus directives.
+  The pre-unification helper functions left in `glass.js` are unreachable when the shared
+  engine is present and still need deletion.
 - **Perf profiling deferred to Phase 3.** A/B verification ran while the authoring machine
   was hosting an Android emulator/Studio workload, so frame-time numbers are not
   comparable to the recorded baselines. Do not publish A/B perf numbers; profile in the
@@ -705,10 +710,10 @@ can proceed with the current runtime and assets.
 
 **Known follow-ups from A/B:**
 
-- **Legacy fallback code remains.** `createBearAI`/`createGlassColony` still contain the
-  pre-unification decision functions for callers that do not pass `behavior`. The live app
-  always passes the shared engine, so those blocks are unused; remove them after a parity
-  pass rather than mixing two live paths.
+- **Legacy fallback code remains.** The old `glass.js` helper functions and state dispatch are
+  unreachable because the live app always passes the shared engine; `ai.js` no longer has a
+  fallback path. Remove the Glass block in a dedicated cleanup commit after the Phase C
+  behavior checks stay green.
 - **Glass balance is preserved by profile.** Food/water/social/mate values were mapped from
   the old Glass constants. Re-check them in Phase C alongside stargaze/shelter migration.
 - **Meal and lesson task effects exist but no trigger creates them yet.** Phase D/E adds

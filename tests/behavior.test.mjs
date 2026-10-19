@@ -13,6 +13,11 @@ function fakeField() {
     x: 2, z: 0, approachX: 2, approachZ: 0,
     ripe: true, satiation: .3, claim: null,
   };
+  const hive = {
+    id: 'hive-1', kind: 'hive', label: 'beehive',
+    x: 3, z: 1, approachX: 3, approachZ: 1,
+    ripe: true, satiation: .55, claim: null,
+  };
   return {
     homes: [{ name: 'Home 1', x: 0, z: 0, door: { x: 1, z: 0 } }],
     nav: {
@@ -22,16 +27,20 @@ function fakeField() {
     pond: { contains: () => false },
     waterSpots: [{ x: 4, z: 0, waterX: 4, waterZ: 0 }],
     food: {
-      sources: [source],
-      allRipe: () => [source],
-      nearestRipe: () => source,
+      sources: [source, hive],
+      allRipe: () => [source, hive],
+      nearestRipe: (x, z, opts = {}) => {
+        const pool = opts.kinds ? [source, hive].filter(item => opts.kinds.includes(item.kind)) : [source, hive];
+        return pool.find(item => !(opts.exclude && opts.exclude.has(item.id))) || null;
+      },
       claim: (s, a) => { s.claim = a; return true; },
-      release: (s) => { s.claim = null; },
+      release: (s, a) => { if (!a || s.claim === a) s.claim = null; },
       consume: () => true,
-      stats: () => ({ ripe: 1 }),
+      stats: () => ({ ripe: 2 }),
     },
     emote: () => {},
     splash: () => {},
+    sting: () => {},
   };
 }
 
@@ -203,6 +212,44 @@ test('grab cancels a shared pair and leaves both actors idle', () => {
   assert.equal(b.ai.state, 'wander');
   assert.equal(a.ai.partner, null);
   assert.equal(b.ai.partner, null);
+});
+
+test('hive raids are profile-gated and resolve sting or snack', () => {
+  const { actors, engine } = setup({ rng: () => 1 });
+  const a = actor(1, { hunger: .97, health: 100, bold: .5 });
+  actors.push(a);
+  engine.attach(a);
+  a.ai.nextThink = 0;
+  engine.tick(a, .01, { ready: true });
+  assert.equal(a.ai.state, 'seekHive');
+  assert.equal(a.ai.source.id, 'hive-1');
+
+  a.cx = 3; a.cz = 1; a.ai.nextThink = 0;
+  engine.tick(a, .01, { ready: true });
+  assert.equal(a.ai.state, 'raidHive');
+  const before = a.hunger;
+  engine.tick(a, 2, { ready: true });
+  assert.equal(a.ai.state, 'wander');
+  assert.ok(a.hunger < before);
+});
+
+test('conflict resolves a claimed food source without leaving both paired', () => {
+  const { actors, engine, field } = setup({ rng: () => 1 });
+  const a = actor(1, { hunger: .8, scale: 1.0 });
+  const b = actor(2, { hunger: .8, scale: .9, cx: .5 });
+  actors.push(a, b);
+  engine.attach(a); engine.attach(b);
+  const source = field.food.sources.find(item => item.id === 'food-1');
+  source.claim = b;
+  const result = engine.forceConflict(a, b, source);
+  assert.equal(result.ok, true);
+  assert.equal(a.ai.state, 'conflict');
+  assert.equal(b.ai.state, 'conflict');
+  engine.tick(a, 1, { ready: true });
+  assert.notEqual(a.ai.state, 'conflict');
+  assert.notEqual(b.ai.state, 'conflict');
+  assert.equal(source.claim, a);
+  assert.ok(b.ai.shove || b.ai.conflictCooldown > 0);
 });
 
 test('interaction primitives create and clear shared pair/task state', () => {

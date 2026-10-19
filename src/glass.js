@@ -223,41 +223,6 @@ export function createGlassColony({
       if (!a.inside) return true;
       return !isDay(hoursNow()) || (a.ai && (a.ai.insideT || 0) <= 0);
     },
-    preNeeds(a, api) {
-      if (!a || !a.ai) return false;
-      const hours = hoursNow();
-      const canShelter = isDay(hours) && hours >= SHELTER_START && hours < SHELTER_END &&
-        !a.shelteredToday && a.home && (a.shelterCheckT || 0) <= 0;
-      if (!canShelter) return false;
-      a.shelterCheckT = 24 + Math.random() * 24;
-      if (Math.random() < .34 && api && typeof api.startSeekHome === 'function') {
-        return api.startSeekHome(a, 'shelter');
-      }
-      return false;
-    },
-    idleOpportunity(a) {
-      if (!a || !a.ai) return false;
-      if (!isDay(hoursNow()) && Math.random() < .10) {
-        a.ai.state = 'stargaze';
-        a.ai.idleT = 3 + Math.random() * 5;
-        clearPath(a);
-        return true;
-      }
-      return false;
-    },
-    tickState(a, dt) {
-      if (!a || !a.ai) return false;
-      if (a.ai.state === 'stargaze') {
-        a.ai.idleT = Math.max(0, (a.ai.idleT || 0) - dt);
-        if (a.ai.idleT <= 0 || a.hunger > .85 || a.thirst > .88) {
-          a.ai.state = 'wander';
-          a.ai.idleT = 0;
-          a.ai.nextThink = 0;
-        }
-        return true;
-      }
-      return false;
-    },
   } : null;
   if (shared && typeof shared.registerAdapter === 'function') {
     shared.registerAdapter('skinned', glassAdapter);
@@ -1638,7 +1603,6 @@ export function createGlassColony({
       if (!a.active || a.disposed) continue;
       if (day) a.shelteredToday = a.shelteredToday || false;
       else a.shelteredToday = false;
-      a.shelterCheckT = Math.max(0, (a.shelterCheckT || 0) - dt);
       const nextStage = advanceAge(a, dt);
       // Glass ages continuously but only takes its next growth step at night.
       if (nextStage !== a.stage && !day) applyStage(a, nextStage);
@@ -2202,28 +2166,24 @@ export function createGlassColony({
   function forceFamilyPlay(index) {
     const a = actors[index];
     if (!a) return false;
-    const mate = findFamilyPlaymate(a);
+    const mate = shared.api.acquireFamilyPlaymate(a);
     if (!mate) return false;
-    if (shared) return shared.forcePlaydate(a, mate.actor, mate.kind).ok;
-    return startFamilyPlay(a, mate);
+    return shared.forcePlaydate(a, mate.actor, mate.kind).ok;
   }
 
   function forceVisit(indexA, indexB) {
-    if (shared) return { ok: shared.forceVisit(actors[indexA], actors[indexB]).ok, state: actors[indexA]?.ai?.state };
-    return startVisitPair(actors[indexA], actors[indexB]);
+    return { ok: shared.forceVisit(actors[indexA], actors[indexB]).ok, state: actors[indexA]?.ai?.state };
   }
 
   function forceVisitWithBear(index, bear) {
-    if (shared) return { ok: shared.forceVisit(actors[index], bear).ok, state: actors[index]?.ai?.state };
-    return startVisitPair(actors[index], bear);
+    return { ok: shared.forceVisit(actors[index], bear).ok, state: actors[index]?.ai?.state };
   }
 
   function forceShelter(index) {
     const a = actors[index];
     if (!a) return false;
     if (!isDay(hoursNow())) return false;
-    if (shared) return shared.api.startSeekHome(a, 'shelter');
-    return startSeekHome(a);
+    return shared.api.startSeekHome(a, 'shelter');
   }
 
   function forceMate(indexA, indexB) {
@@ -2235,12 +2195,8 @@ export function createGlassColony({
     if (a.pregnant || b.pregnant) return { ok: false, note: 'already pregnant' };
     if (a.ai.partner && a.ai.partner !== b) return { ok: false, note: 'partner busy' };
     if (b.ai.partner && b.ai.partner !== a) return { ok: false, note: 'partner busy' };
-    if (shared) {
-      const result = shared.forceMate(a, b);
-      return { ...result, partner: b.name };
-    }
-    startLocalMate(a, b);
-    return { ok: true, state: a.ai.state, partner: b.name };
+    const result = shared.forceMate(a, b);
+    return { ...result, partner: b.name };
   }
 
   function forceMateWithBear(index, bear) {

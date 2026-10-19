@@ -12,6 +12,7 @@ import {
 } from './life.js';
 import { profileFor } from './behaviorprofiles.js';
 import { canSpeciesBreed } from './dna.js';
+import { isSafeFood } from './foodtypes.js';
 import {
   familyRelation, addBond, pairBond, skillsFor, forageEatScale,
   socialAcceptBonus, pushHistory, playdateDue, schedulePlaydate,
@@ -121,6 +122,8 @@ export function createBehavior({
     if (!actor.bonds || typeof actor.bonds !== 'object') actor.bonds = {};
     if (!actor.skills || typeof actor.skills !== 'object') actor.skills = {};
     if (!actor.playdates || typeof actor.playdates !== 'object') actor.playdates = {};
+    actor.shelteredToday = !!actor.shelteredToday;
+    actor.shelterCheckT = finite(actor.shelterCheckT, 0);
     actor.sleeping = !!actor.sleeping;
     actor.ai = {
       state: actor.sleeping ? 'sleep' : 'wander',
@@ -406,6 +409,301 @@ export function createBehavior({
     setPath(actor, path || [{ x: best.x, z: best.z }]);
     face(actor, best.x, best.z);
     return best;
+  }
+
+  /* ------------------------------------------------------------ hive/conflict */
+
+  function hiveThreshold(actor) {
+    const hive = profile(actor).hive;
+    if (!hive) return Infinity;
+    const bold = finite(actor.bold, .5);
+    const desperation = finite(actor.hunger, 0) >= .92 ? 5 : 0;
+    return Math.max(hive.hardFloor,
+      hive.health + (.5 - bold) * 30 - desperation);
+  }
+
+  function canRaidHive(actor) {
+    const hive = profile(actor).hive;
+    return !!hive && !!actor && !actor.sleeping &&
+      finite(actor.health, 100) > hiveThreshold(actor) &&
+      finite(actor.hunger, 0) >= hive.hunger;
+  }
+
+  function acquireHive(actor) {
+    const hive = profile(actor).hive;
+    if (!hive || !field || !field.food || !actor.ai || !canRaidHive(actor)) return null;
+    const exclude = new Set();
+    for (let tries = 0; tries < 3; tries++) {
+      const source = field.food.nearestRipe(actor.cx, actor.cz, {
+        maxDistance: 52, bear: actor, exclude, kinds: ['hive'],
+      });
+      if (!source) break;
+      exclude.add(source.id);
+      if (!field.food.claim(source, actor)) continue;
+      const path = pathTo(actor, source.approachX, source.approachZ);
+      if (!path && Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz) > 1.25) {
+        field.food.release(source, actor);
+        continue;
+      }
+      actor.ai.source = source;
+      actor.ai.state = 'seekHive';
+      actor.ai.target = { x: source.approachX, z: source.approachZ };
+      setPath(actor, path || [{ x: source.approachX, z: source.approachZ }]);
+      face(actor, source.approachX, source.approachZ);
+      return source;
+    }
+    return null;
+  }
+
+  function thinkSeekHive(actor) {
+    const hive = profile(actor).hive;
+    if (!hive || !actor.ai) return;
+    let source = actor.ai.source;
+    if (!source || !source.ripe || (source.claim && source.claim !== actor) || !canRaidHive(actor)) {
+      releaseFood(actor);
+      actor.ai.state = 'seekFood';
+      actor.ai.nextThink = 0;
+      stop(actor);
+      return;
+    }
+    const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
+    if (d <= hive.dist) { startHiveRaid(actor); return; }
+    if (!actor.ai.path || !actor.ai.path.length) {
+      if (!setDestination(actor, source.approachX, source.approachZ)) {
+        releaseFood(actor);
+        actor.ai.state = 'seekFood';
+        actor.ai.idleT = .7;
+      }
+    }
+  }
+
+  function startHiveRaid(actor) {
+    const hive = profile(actor).hive;
+    if (!hive || !actor.ai || !actor.ai.source) return;
+    actor.ai.state = 'raidHive';
+    actor.ai.raidT = hive.raidTime;
+    actor.ai.moving = false;
+    actor.ai.path = null;
+    face(actor, actor.ai.source.x, actor.ai.source.z);
+  }
+
+  function finishHiveRaid(actor) {
+    const hive = profile(actor).hive;
+    if (!hive || !actor.ai) return;
+    const source = actor.ai.source;
+    if (!source) {
+      actor.ai.state = 'wander';
+      actor.ai.idleT = .5;
+      return;
+    }
+    if (rng() < hive.stingChance) {
+      actor.health = Math.max(1, actor.health - hive.damage);
+      actor.ai.stungT = 2.0;
+      releaseFood(actor);
+      if (field && field.sting) field.sting(source.x, source.z, source.y);
+      startFlee(actor, source);
+      return;
+    }
+    if (field.food.consume(source, actor)) {
+      actor.hunger = Math.max(0, actor.hunger - source.satiation);
+    }
+    actor.ai.source = null;
+    actor.ai.target = null;
+    actor.ai.faceYaw = null;
+    actor.ai.state = 'wander';
+    actor.ai.idleT = .9;
+    actor.ai.taskCooldown = 1.3;
+    stop(actor);
+  }
+
+  function startFlee(actor, source) {
+    if (!actor || !actor.ai) return;
+    const hive = profile(actor).hive;
+    cancelPair(actor);
+    releaseFood(actor);
+    actor.ai.follow = null;
+    actor.ai.target = null;
+    actor.ai.faceYaw = null;
+    actor.ai.state = 'flee';
+    actor.ai.fleeT = hive ? hive.fleeTime : 1.4;
+    actor.ai.fleeFrom = source ? { x: source.x, z: source.z } : null;
+    if (!field || !field.nav) return;
+    const dx = actor.cx - (source ? source.x : actor.cx);
+    const dz = actor.cz - (source ? source.z : actor.cz);
+    const len = Math.hypot(dx, dz) || 1;
+    const p = field.nav.nearestWalkable(actor.cx + dx / len * 4.5, actor.cz + dz / len * 4.5);
+    if (!p) return;
+    actor.ai.target = { x: p.x, z: p.z };
+    face(actor, p.x, p.z);
+    const path = pathTo(actor, p.x, p.z);
+    if (path) setPath(actor, path);
+    else actor.ai.moving = false;
+  }
+
+  function findContest(actor) {
+    const conflict = profile(actor).conflict;
+    if (!conflict || !actor || !actor.ai || !field || !field.food || !field.food.sources) return null;
+    if (actor.hunger < profile(actor).thresholds.seekHunger ||
+        actor.health < profile(actor).thresholds.healthWoozy ||
+        actor.ai.conflictCooldown > 0) return null;
+    let best = null;
+    let bestScore = -Infinity;
+    for (const source of field.food.sources) {
+      if (!source.ripe || !source.claim || source.claim === actor) continue;
+      if (!isSafeFood(source)) continue;
+      const other = source.claim;
+      if (!other || !other.active || other.sleeping ||
+          other.health < profile(other).thresholds.healthWoozy) continue;
+      if (!other.ai || !['wander', 'seekFood', 'eat', 'drink', 'seekWater', 'seekCompany'].includes(other.ai.state)) continue;
+      if (other.grabs > 0 || other.inPond) continue;
+      const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
+      if (d > conflict.radius) continue;
+      const dc = Math.hypot(other.cx - source.approachX, other.cz - source.approachZ);
+      if (dc > 3.5) continue;
+      if (actor.bold < .30 && other.scale > actor.scale * 1.06) continue;
+      const score = (1 - d / conflict.radius) * .6 + actor.hunger * .5 +
+        (actor.scale >= other.scale ? .08 : 0) - pairBond(actor, other) * .25;
+      if (score > bestScore) { bestScore = score; best = { source, actor: other }; }
+    }
+    return best;
+  }
+
+  function acquireContest(actor) {
+    if (!profile(actor).conflict) return null;
+    const contest = findContest(actor);
+    if (!contest) return null;
+    releaseFood(actor);
+    actor.ai.source = null;
+    actor.ai.contestSource = contest.source;
+    actor.ai.contestBear = contest.actor;
+    actor.ai.state = 'seekConflict';
+    actor.ai.target = { x: contest.source.approachX, z: contest.source.approachZ };
+    face(actor, contest.source.approachX, contest.source.approachZ);
+    setDestination(actor, contest.source.approachX, contest.source.approachZ);
+    return contest.source;
+  }
+
+  function thinkSeekConflict(actor) {
+    if (!actor || !actor.ai) return;
+    const source = actor.ai.contestSource;
+    const other = source ? source.claim : actor.ai.contestBear;
+    if (!source || !source.ripe || !other || !other.active || other.sleeping ||
+        other.grabs > 0 || other.inPond || !other.ai) {
+      actor.ai.contestSource = null;
+      actor.ai.contestBear = null;
+      actor.ai.state = 'wander';
+      actor.ai.idleT = .6;
+      actor.ai.conflictCooldown = Math.max(actor.ai.conflictCooldown, 2);
+      stop(actor);
+      return;
+    }
+    const d = Math.hypot(other.cx - actor.cx, other.cz - actor.cz);
+    if (d <= profile(actor).conflict.dist) {
+      startConflict(actor, other, source);
+      return;
+    }
+    actor.ai.target = { x: source.approachX, z: source.approachZ };
+    face(actor, source.approachX, source.approachZ);
+    if (!actor.ai.path || !actor.ai.path.length) {
+      if (!setDestination(actor, source.approachX, source.approachZ)) {
+        actor.ai.contestSource = null;
+        actor.ai.contestBear = null;
+        actor.ai.state = 'wander';
+        actor.ai.idleT = .6;
+        actor.ai.conflictCooldown = Math.max(actor.ai.conflictCooldown, 3);
+      }
+    }
+  }
+
+  function startConflict(actor, other, source) {
+    const conflict = profile(actor).conflict;
+    if (!conflict || !actor || !other || !actor.ai || !other.ai || actor === other) return false;
+    beginPair(actor, other, 'conflict', { stop, face });
+    actor.ai.conflictT = conflict.time;
+    other.ai.conflictT = conflict.time;
+    actor.ai.conflictSource = source;
+    other.ai.conflictSource = source;
+    actor.ai.target = { x: other.cx, z: other.cz };
+    other.ai.target = { x: actor.cx, z: actor.cz };
+    actor.ai.animT = 0;
+    other.ai.animT = 0;
+    emit(actor, 'exclaim', 1.14);
+    emit(other, 'exclaim', 1.14);
+    return true;
+  }
+
+  function finishConflict(actor) {
+    const conflict = profile(actor).conflict;
+    if (!conflict || !actor || !actor.ai || actor.ai.state !== 'conflict') return;
+    const other = actor.ai.partner;
+    const source = actor.ai.conflictSource || (other && other.ai ? other.ai.conflictSource : null);
+    if (!other || !other.ai) {
+      actor.ai.state = 'wander';
+      actor.ai.partner = null;
+      actor.ai.conflictSource = null;
+      actor.ai.conflictT = 0;
+      stop(actor);
+      return;
+    }
+    const weight = (bear) => (bear.scale || 1) * 1.05 + unit(bear.hunger) * .75 +
+      unit(bear.bold) * .35 + unit(bear.energy) * .15 + rng() * .20;
+    const winner = weight(actor) >= weight(other) ? actor : other;
+    const loser = winner === actor ? other : actor;
+    const claimant = source ? source.claim : null;
+    const claimOk = !!source && source.ripe;
+
+    actor.ai.partner = null;
+    other.ai.partner = null;
+    actor.ai.conflictSource = null;
+    other.ai.conflictSource = null;
+    actor.ai.contestSource = null;
+    other.ai.contestSource = null;
+    actor.ai.contestBear = null;
+    other.ai.contestBear = null;
+    actor.ai.conflictT = 0;
+    other.ai.conflictT = 0;
+
+    if (claimOk && winner !== claimant) {
+      field.food.release(source, claimant);
+      field.food.claim(source, winner);
+    }
+
+    const loserWasClaimant = loser === claimant;
+    if (loserWasClaimant && source) field.food.release(source, loser);
+    releaseFood(loser);
+    loser.ai.source = null;
+    loser.ai.state = 'wander';
+    loser.ai.idleT = .8;
+    loser.ai.taskCooldown = 2.4;
+    loser.ai.conflictCooldown = conflict.cooldown;
+    loser.ai.socialCooldown = Math.max(loser.ai.socialCooldown, 4.0);
+    stop(loser);
+    const dx = loser.cx - winner.cx;
+    const dz = loser.cz - winner.cz;
+    const len = Math.hypot(dx, dz) || 1;
+    loser.ai.shove = { x: dx / len * 1.15, z: dz / len * 1.15 };
+
+    winner.ai.taskCooldown = .35;
+    winner.ai.conflictCooldown = 5;
+    winner.ai.idleT = .2;
+    if (claimOk && source.claim === winner) {
+      winner.ai.source = source;
+      winner.ai.target = { x: source.approachX, z: source.approachZ };
+      const d = Math.hypot(source.approachX - winner.cx, source.approachZ - winner.cz);
+      if (d <= profile(winner).food.eatDist) {
+        startEat(winner);
+      } else {
+        winner.ai.state = 'seekFood';
+        setDestination(winner, source.approachX, source.approachZ);
+      }
+    } else {
+      winner.ai.source = null;
+      winner.ai.state = 'wander';
+      winner.ai.idleT = .5;
+      stop(winner);
+    }
+    addBond(actor, other, -.08);
+    emit(loser, 'no', 1.05);
   }
 
   /* ---------------------------------------------------------------- needs */
@@ -1160,11 +1458,11 @@ export function createBehavior({
     }
     if (actor.ai.taskCooldown > 0) return;
     if (actor.thirst >= p.thresholds.seekThirst && acquireWater(actor)) return;
-    const adapter = adapterOf(actor);
-    if (adapter && typeof adapter.hungerOpportunity === 'function' && adapter.hungerOpportunity(actor, api, false)) return;
+    if (p.hive && actor.hunger >= p.hive.hunger && acquireHive(actor)) return;
+    if (p.conflict && actor.hunger >= p.thresholds.criticalHunger && acquireContest(actor)) return;
     if (actor.hunger >= p.thresholds.seekHunger) {
       if (acquireFood(actor)) return;
-      if (adapter && typeof adapter.hungerOpportunity === 'function' && adapter.hungerOpportunity(actor, api, true)) return;
+      if (p.conflict && acquireContest(actor)) return;
     }
     const due = findDuePlaydate(actor);
     if (due && startPlaydate(actor, due.other, 'friend')) return;
@@ -1182,7 +1480,12 @@ export function createBehavior({
     if (actor.social >= p.thresholds.seekSocial || actor.affection >= p.thresholds.seekAffection) {
       if (acquireCompany(actor)) return;
     }
-    if (adapter && typeof adapter.idleOpportunity === 'function' && adapter.idleOpportunity(actor, api)) return;
+    if (p.stargaze && !isDayFor(actor) && rng() < p.stargaze.chance) {
+      actor.ai.state = 'stargaze';
+      actor.ai.idleT = p.stargaze.min + rng() * (p.stargaze.max - p.stargaze.min);
+      stop(actor);
+      return;
+    }
     if (actor.ai.arrived) {
       actor.ai.arrived = false;
       actor.ai.idleT = .9 + rng() * 1.9;
@@ -1191,16 +1494,32 @@ export function createBehavior({
     if (!pickWanderTarget(actor)) actor.ai.idleT = .7;
   }
 
+  function dayShelterCheck(actor) {
+    const p = profile(actor);
+    if (p.rest.mode !== 'dayShelter' || !actor.ai) return false;
+    const hours = hoursNow();
+    if (!isDayFor(actor) || hours < p.rest.start || hours >= p.rest.end) return false;
+    if (actor.shelteredToday || !actor.home || actor.shelterCheckT > 0) return false;
+    actor.shelterCheckT = 24 + rng() * 24;
+    if (rng() < p.rest.chance) {
+      return startSeekHome(actor, 'shelter');
+    }
+    return false;
+  }
+
   function think(actor) {
     if (!actor || !actor.ai) return;
     const state = actor.ai.state;
-    if (['sleep', 'invite', 'social', 'decline', 'conflict', 'mate', 'familyTask'].includes(state)) return;
+    if (['sleep', 'invite', 'social', 'decline', 'conflict', 'mate', 'familyTask', 'raidHive', 'flee'].includes(state)) return;
     if (needsRest(actor) && state !== 'seekHome') { startSeekHome(actor); return; }
+    if (dayShelterCheck(actor)) return;
     const adapter = adapterOf(actor);
     if (adapter && typeof adapter.preNeeds === 'function' && adapter.preNeeds(actor, api)) return;
     if (state === 'wander') thinkWander(actor);
     else if (state === 'seekFood') thinkSeekFood(actor);
     else if (state === 'seekWater') thinkSeekWater(actor);
+    else if (state === 'seekHive') thinkSeekHive(actor);
+    else if (state === 'seekConflict') thinkSeekConflict(actor);
     else if (state === 'seekHome') thinkSeekHome(actor);
     else if (state === 'seekCompany') thinkSeekCompany(actor);
     else if (state === 'seekMate') thinkSeekMate(actor);
@@ -1321,6 +1640,8 @@ export function createBehavior({
     if (ai.stungT > 0) ai.stungT = Math.max(0, ai.stungT - dt);
     if (ai.socialCooldown > 0) ai.socialCooldown = Math.max(0, ai.socialCooldown - dt);
     if (ai.conflictCooldown > 0) ai.conflictCooldown = Math.max(0, ai.conflictCooldown - dt);
+    if (actor.shelterCheckT > 0) actor.shelterCheckT = Math.max(0, actor.shelterCheckT - dt);
+    if (p.rest.mode === 'dayShelter' && !isDayFor(actor)) actor.shelteredToday = false;
 
     if (ai.state === 'invite') {
       ai.animT += dt;
@@ -1402,6 +1723,37 @@ export function createBehavior({
       if (task.phase === 'act') {
         task.t = Math.max(0, finite(task.t, 0) - dt);
         if (task.t <= 0) finishFamilyTask(actor);
+      }
+      return;
+    }
+    if (ai.state === 'flee') {
+      ai.fleeT -= dt;
+      if (ai.fleeT <= 0) {
+        ai.state = 'seekFood';
+        ai.nextThink = 0;
+        ai.moving = false;
+        stop(actor);
+      }
+      return;
+    }
+    if (ai.state === 'raidHive') {
+      ai.animT += dt;
+      ai.raidT -= dt;
+      if (ai.raidT <= 0) finishHiveRaid(actor);
+      return;
+    }
+    if (ai.state === 'conflict') {
+      ai.animT += dt;
+      ai.conflictT -= dt;
+      if (ai.conflictT <= 0) finishConflict(actor);
+      return;
+    }
+    if (ai.state === 'stargaze') {
+      ai.idleT = Math.max(0, ai.idleT - dt);
+      if (ai.idleT <= 0 || actor.hunger > .85 || actor.thirst > .88) {
+        ai.state = 'wander';
+        ai.idleT = 0;
+        ai.nextThink = 0;
       }
       return;
     }
@@ -1510,6 +1862,182 @@ export function createBehavior({
     return { enabled, ticks: stats.ticks, ms: +stats.ms.toFixed(3), actors: list };
   }
 
+  function resumeTask(actor) {
+    if (!actor || !actor.ai) return;
+    const p = profile(actor);
+    const ai = actor.ai;
+    if (ai.state === 'eat') {
+      const source = ai.source;
+      if (source && source.ripe && field.food.claim(source, actor)) {
+        ai.target = { x: source.approachX, z: source.approachZ };
+        const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
+        if (d <= p.food.eatDist) {
+          ai.eatT = p.food.eatTime * forageEatScale(actor);
+          ai.animT = 0;
+          ai.moving = false;
+          face(actor, source.x, source.z);
+        } else {
+          ai.state = 'seekFood';
+          setDestination(actor, source.approachX, source.approachZ);
+        }
+      } else {
+        ai.source = null;
+        ai.state = 'seekFood';
+        ai.nextThink = 0;
+      }
+      return;
+    }
+    if (ai.state === 'drink') {
+      const spot = ai.waterSpot;
+      const d = spot ? Math.hypot(spot.x - actor.cx, spot.z - actor.cz) : Infinity;
+      if (spot && d <= p.food.drinkDist) {
+        ai.drinkT = Math.max(.7, ai.drinkT);
+        ai.animT = 0;
+        ai.moving = false;
+        face(actor, spot.waterX, spot.waterZ);
+      } else {
+        ai.state = 'seekWater';
+        ai.moving = false;
+      }
+      return;
+    }
+    if (ai.state === 'seekFood') {
+      const source = ai.source;
+      if (source && source.ripe && field.food.claim(source, actor)) {
+        ai.target = { x: source.approachX, z: source.approachZ };
+        setDestination(actor, source.approachX, source.approachZ);
+      } else {
+        ai.source = null;
+        ai.nextThink = 0;
+      }
+      return;
+    }
+    if (ai.state === 'seekWater') {
+      const spot = ai.waterSpot;
+      if (spot) setDestination(actor, spot.x, spot.z);
+      return;
+    }
+    ai.target = null;
+    ai.faceYaw = null;
+    ai.idleT = .4;
+    stop(actor);
+  }
+
+  function debugState(actor, next) {
+    if (!actor) return { ok: false, note: 'no actor' };
+    if (!actor.ai) attach(actor);
+    if (!actor.ai) return { ok: false, note: 'no actor' };
+    if (!['wander', 'seekFood', 'seekWater', 'eat', 'drink', 'seekCompany',
+      'seekConflict', 'seekHome', 'seekHive', 'seekMate'].includes(next)) {
+      return { ok: false, note: 'unknown state' };
+    }
+    cancelPair(actor);
+    releaseFood(actor);
+    const ai = actor.ai;
+    ai.interrupted = false;
+    ai.moving = false;
+    ai.arrived = false;
+    ai.hopState = null;
+    ai.hopWait = 0;
+    ai.turnWait = 0;
+    ai.raidT = 0;
+    ai.fleeT = 0;
+    actor.sleeping = false;
+    ai.faceYaw = null;
+    ai.path = null;
+    ai.pathIndex = 0;
+    ai.target = null;
+    ai.source = null;
+    ai.waterSpot = null;
+    ai.eatT = 0;
+    ai.drinkT = 0;
+    ai.inviteT = 0;
+    ai.socialT = 0;
+    ai.declineT = 0;
+    ai.conflictT = 0;
+    ai.mateT = 0;
+    ai.follow = null;
+    ai.contestBear = null;
+    ai.contestSource = null;
+    ai.conflictSource = null;
+    ai.shove = null;
+    ai.animT = 0;
+    ai.taskCooldown = 0;
+    ai.nextThink = 0;
+
+    if (next === 'wander') {
+      ai.state = 'wander';
+      ai.idleT = 0;
+      return { ok: true, state: 'wander', note: 'wandering' };
+    }
+    if (next === 'seekFood') {
+      ai.state = 'seekFood';
+      return { ok: true, state: 'seekFood', note: 'looking for food' };
+    }
+    if (next === 'seekWater') {
+      ai.state = 'seekWater';
+      return { ok: true, state: 'seekWater', note: 'looking for water' };
+    }
+    if (next === 'seekCompany') {
+      const partner = acquireCompany(actor);
+      return { ok: !!partner, state: ai.state, note: partner ? 'seeking a friend' : 'no company target' };
+    }
+    if (next === 'seekConflict') {
+      const source = acquireContest(actor);
+      return { ok: !!source, state: ai.state, note: source ? 'looking for a contested snack' : 'no contested snack' };
+    }
+    if (next === 'seekMate') {
+      const partner = acquireMate(actor);
+      return { ok: !!partner, state: ai.state, note: partner ? 'seeking a mate' : 'no eligible mate' };
+    }
+    if (next === 'seekHome') {
+      startSeekHome(actor);
+      return { ok: true, state: ai.state, note: 'heading home' };
+    }
+    if (next === 'seekHive') {
+      const source = acquireHive(actor);
+      return { ok: !!source, state: ai.state, note: source ? 'looking for a hive' : 'no hive target' };
+    }
+    if (next === 'eat') {
+      const source = field.food.nearestRipe(actor.cx, actor.cz, {
+        maxDistance: 999, bear: actor, safe: true,
+      });
+      if (!source || !field.food.claim(source, actor)) {
+        ai.state = 'seekFood';
+        return { ok: false, state: 'seekFood', note: 'no food target; seeking' };
+      }
+      ai.source = source;
+      ai.target = { x: source.approachX, z: source.approachZ };
+      const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
+      if (d <= profile(actor).food.eatDist) {
+        startEat(actor);
+        return { ok: true, state: 'eat', note: 'eating' };
+      }
+      ai.state = 'seekFood';
+      setDestination(actor, source.approachX, source.approachZ);
+      return { ok: true, state: 'seekFood', note: 'seeking nearest food' };
+    }
+    let spot = null;
+    let bestD = Infinity;
+    for (const candidate of field.waterSpots || []) {
+      const d = Math.hypot(candidate.x - actor.cx, candidate.z - actor.cz);
+      if (d < bestD) { bestD = d; spot = candidate; }
+    }
+    if (!spot) {
+      ai.state = 'wander';
+      return { ok: false, state: 'wander', note: 'no water target' };
+    }
+    ai.waterSpot = spot;
+    ai.target = { x: spot.x, z: spot.z };
+    if (bestD <= profile(actor).food.drinkDist) {
+      startDrink(actor);
+      return { ok: true, state: 'drink', note: 'drinking' };
+    }
+    ai.state = 'seekWater';
+    setDestination(actor, spot.x, spot.z);
+    return { ok: true, state: 'seekWater', note: 'seeking nearest water' };
+  }
+
   function setNeed(actor, kind, value) {
     if (!actor || !['hunger', 'thirst', 'social', 'affection'].includes(kind)) return false;
     const n = clamp(Number(value), 0, 1);
@@ -1566,20 +2094,29 @@ export function createBehavior({
     return { ok: startPlaydate(actor, partner, kind), state: actor.ai.state };
   }
 
+  function forceConflict(actor, partner, source = null) {
+    if (!actor || !partner || actor === partner) return { ok: false, note: 'no pair' };
+    cancelPair(actor);
+    cancelPair(partner);
+    const claim = source || (partner.ai && partner.ai.source) || null;
+    return { ok: startConflict(actor, partner, claim), state: actor.ai.state };
+  }
+
   const api = {
     field, profile, actors, hoursNow, dayNow, rng,
     pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
     homeFor, assignHome, parentFor, safeFoodCount,
-    acquireFood, acquireWater, startSeekHome, startSleep, wake,
+    acquireFood, acquireWater, acquireHive, acquireContest, acquireFamilyPlaymate,
+    startSeekHome, startSleep, wake, cancelPair, startInvite,
     canMatePair, startMatePair, startSeekMate,
-    startVisit, startPlaydate,
+    startVisit, startPlaydate, startConflict,
     isDayFor, isNightFor, needsRest,
   };
 
   return {
     attach, tick, plan, stats: statsNow, registerAdapter,
-    setEnabled, onGrab, onRelease, detach,
-    setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate,
+    setEnabled, onGrab, onRelease, detach, resumeTask, debugState,
+    setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict,
     startSeekHome, startPlaydate,
     get enabled() { return enabled; },
     get actors() { return actors(); },
