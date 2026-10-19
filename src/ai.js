@@ -1055,6 +1055,9 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
   }
 
   function canMatePair(a, b) {
+    // Species isolation until the DNA/hybrid-model pass. Cross-species social
+    // bonds and visits stay enabled; only reproduction is same-species for now.
+    if (!a || !b || a.species !== b.species) return false;
     return canMate(a, b, {
       room: bears.length < populationCap(),
       food: safeFoodCount() >= MATE_FOOD_MIN,

@@ -458,8 +458,12 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     and shadow paths while bears keep their original rig. It is grabbable and
     visible in **Both** and **MSN** casts, hidden in **Bears**, and disabled by
     `?race=off`. Studio save/load preserves its species flag and 24-body rig.
-    It has no AI, needs, life stages, homes, Meadow integration or dedicated
-    locomotion yet.
+    It has no dedicated Studio idle/interaction behavior yet.
+  - **Gummy Meadow parity (in progress, Oct 2026):** one Gummy joins the new
+    Meadow colony and the buddy roster, using the shared AI navigation/needs,
+    food/water, home/sleep and grab/throw paths. Growth, pregnancy, life-stage
+    inheritance and full cross-species social/life depth remain bear-only; the
+    current `canMatePair` guard keeps reproduction same-species until DNA.
   - **Gummy Studio control (Oct 2026):** the Race Lab **Control Gummy** button
     enters the existing possession path for the 24-body actor. WASD/arrows or
     the on-screen stick move, Space hops, and V/Esc exits; the camera follows
@@ -474,6 +478,34 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   - Add a Race Lab **type** selector only once both paths have their final
     controls. Do not silently share one material, solver or animation set
     between them.
+
+**Species & DNA (design agreed 2026-10-19, deferred)** — recorded:
+
+- **Decision:** all three — bears, Glass MSN and Gummy MSN — may interbreed
+  later. Glass breeding is explicitly allowed; its offspring art/rig and
+  reproductive role are not designed yet.
+- **Current guard:** reproduction is same-species only until DNA and authored
+  hybrid models exist. Cross-species social bonds, visits and play remain
+  allowed. The guard lives in `canMatePair`; remove it only with the DNA pass.
+- **DNA:** a versioned genome will carry species weights, colour/material genes
+  (base colour, attenuation, transmission, opacity, clearcoat), size, softness/
+  rigidity, wobble/stretch, hop pace and personality. Save schema changes wait
+  for the DNA pass so they land once.
+- **Rigidity:** for soft bodies, DNA drives joint/shape stiffness, damping,
+  volume response and max stretch. Glass is a rigid proxy, so a Glass-parent
+  child needs an authored body/rig; it cannot inherit the skinned GLB directly.
+- **Hybrid models:** silhouette/rig inheritance cannot be interpolated at
+  runtime. Use authored hybrid models or modular assemblies; the first feasible
+  hybrid is Bear × Gummy because both use the 24-body metaball/Box3D path.
+  Glass × Bear/Gummy and Glass × Glass need a separate authored rigid/glassy
+  model design.
+- **Phases:** same-species reproduction + cross-species social (current) →
+  Gummy Meadow life parity → DNA/genome + custom rigidity → Bear × Gummy hybrid
+  model → Glass hybrid design → new MSN/Bear hybrid race model. Validate
+  genetics, save/load, roster labels and hybrid performance at each step.
+- **New race model:** yes, a future authored MSN/Bear hybrid is a valid roadmap
+  item, but it is a Blender asset + rig + animation + lifecycle scope, not a
+  runtime mesh blend.
 
 **Known follow-ups after 8c** — recorded, not blockers:
 - **Possession is session-only.** Reloading or changing maps returns the bear to

@@ -3458,8 +3458,8 @@ function focusMsn(){
 }
 function syncAeroUI(force){
   if (!isMeadow()) return;
-  const list = bears.filter(b => b.active && b.species === 'bear');
-  const sig = list.map(b=>`${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
+  const list = bears.filter(b => b.active);
+  const sig = list.map(b=>`${b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
   if (force || sig !== buddySig) refreshBuddyList();
   updateBuddyStatuses(force);
   for (const b of list) syncBuddyHealth(b);
@@ -4778,6 +4778,13 @@ function seedMeadowBears(){
         b.wakeTime = bears[0].wakeTime;
       }
     }
+  }
+  if (RACE_ENABLED && field && field.nav){
+    const spot = field.nav.nearestWalkable(0.5, 6.0) || { x: 0.5, z: 6.0 };
+    const gummy = spawn(spot.x, spot.z, 0.004, 3, {
+      rig: MSN_RIG, name: 'MSN Buddy', stage: 'adult', scale: 1, tilt: 0.02, lift: 0.004,
+    });
+    if (gummy) gummy.home = '';
   }
 }
 
