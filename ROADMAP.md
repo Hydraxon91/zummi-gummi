@@ -500,10 +500,13 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
 - **DNA engine — first layer (Oct 2026, done):** `src/dna.js` implements
   deterministic default genomes, parent combination, mutation, clamping, colour
   blending, genome normalisation, phenotype expression, current/future breeding
-  gates and Bear × Gummy/Glass hybrid-target metadata. It is pure data and not
-  yet wired into actor creation or saves; old saves and gameplay are unchanged.
-  Next is genome-on-actor integration and a versioned save field, then authored
-  hybrid models.
+  gates and Bear × Gummy/Glass hybrid-target metadata.
+- **Genome-on-actor + save integration (Oct 2026, done):** every Bear/Gummy actor
+  and the Glass prototype carries a normalized genome/phenotype. Births combine
+  both parents' genomes; stage growth preserves the size gene. Saves store an
+  optional versioned genome and old saves fall back to the species default.
+  Size and colour genes are applied; rigidity/material and authored hybrid
+  bodies remain deferred.
 
 - **Decision:** all three — bears, Glass MSN and Gummy MSN — may interbreed
   later. Glass breeding is explicitly allowed; its offspring art/rig and

@@ -14,6 +14,7 @@ import {
 import { createStudioReturnPortal } from './studiohouse.js';
 import { createMSNPrototype } from './msn.js';
 import { getSpecies, speciesForRig, listSpecies } from './species.js';
+import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
@@ -469,12 +470,20 @@ function spawn(x, z, y, flavor, opts={}){
   b.speciesDef = speciesForRig(rigCfg);
   b.np = rigCfg.NP;
   b.flavor = flavor;
+  b.genome = opts.genome ? normalizeGenome(opts.genome) : defaultGenome(b.species);
+  b.phenotype = expressGenome(b.genome);
   const speciesDef = b.speciesDef;
   const useMsnMaterial = speciesDef.material === 'msn';
   const baseMaterial = useMsnMaterial ? MSN_MAT : FLAVOR_MATS[flavor];
-  b.material = useMsnMaterial
-    ? baseMaterial
+  let material = useMsnMaterial
+    ? baseMaterial.clone()
     : (toonEnabled ? (toonMaterialFor(baseMaterial) || baseMaterial) : baseMaterial);
+  const dnaColor = b.phenotype.genes.color;
+  if (typeof dnaColor === 'string' && dnaColor.startsWith('#')) {
+    if (material === baseMaterial) material = material.clone();
+    material.color.set(dnaColor);
+  }
+  b.material = material;
   b.sprite = FLAVOR_SPRITES[useMsnMaterial ? speciesDef.spriteFlavor : flavor];
   b.spriteId = useMsnMaterial ? 'msn' : FLAVORS[flavor].id;
   b.mesh.material = b.material;
@@ -483,7 +492,8 @@ function spawn(x, z, y, flavor, opts={}){
   const sc = Number.isFinite(opts.scale)
     ? clamp(opts.scale, 0.42, 1.2)
     : scaleForStage(stage);
-  b.scale = sc;
+  const genomeSize = opts.applyGenomeSize === false ? 1 : b.phenotype.genes.size;
+  b.scale = clamp(sc * genomeSize, .35, 1.8);
   b.stage = stage;
   b.pendingStage = null;
   if (opts.quat){
@@ -582,7 +592,8 @@ function applyBearStage(b, nextStage) {
     return false;
   }
   const oldScale = b.scale || 1;
-  const nextScale = scaleForStage(nextStage);
+  const genomeSize = b.genome && Number.isFinite(b.genome.genes?.size) ? b.genome.genes.size : 1;
+  const nextScale = scaleForStage(nextStage) * genomeSize;
   const factor = nextScale / oldScale;
   for (let i = 0; i < b.np; i++) {
     b.px[i] = b.cx + (b.px[i] - b.cx) * factor;
@@ -641,8 +652,14 @@ function tryBirth(mother) {
   }
   const p = field && field.nav ? field.nav.nearestWalkable(x, z) : null;
   if (p) { x = p.x; z = p.z; }
+  const genome = combineGenomes(
+    mother.genome || defaultGenome(mother.species),
+    (father && father.genome) || mother.genome || defaultGenome(mother.species),
+    { mutation: .04 },
+  );
   const baby = spawn(x, z, 0.004, flavor, {
     rig: mother.rig,
+    genome,
     stage: 'baby',
     scale: scaleForStage('baby'),
     age: 0,
@@ -4968,6 +4985,7 @@ function snapshotBear(b){
     fatherUid: b.fatherUid || 0, bedtime: b.bedtime, wakeTime: b.wakeTime,
     hopSpeedMin: b.hopSpeedMin, hopSpeedMax: b.hopSpeedMax,
     name: b.name, home: b.home,
+    genome: b.genome || defaultGenome(b.species),
     directives: b.ai ? {
       active: snapshotDirective(b.ai.directive),
       queue: (b.ai.directives || []).map(snapshotDirective),
@@ -4990,8 +5008,11 @@ function spawnFromState(st){
   const speciesDef = getSpecies(st.species, 'bear');
   if (speciesDef.id === 'msn' && !RACE_ENABLED) return null;
   const rigCfg = speciesDef.rig || RIGCFG;
+  const genome = st.genome ? normalizeGenome(st.genome) : defaultGenome(speciesDef.id);
   const b = spawn(x, z, 0.004, st.flavor >= 0 ? st.flavor : 0, {
     rig: rigCfg,
+    genome,
+    applyGenomeSize: false,
     quat: q, lift: 0, name: st.name || takeBearName(), sex: st.sex || 'F', home: st.home || '',
     stage: st.stage || 'adult', scale: st.scale || scaleForStage(st.stage || 'adult'), uid: st.uid,
     age: Number.isFinite(st.age) ? st.age : ageForStage(st.stage || 'adult'),
@@ -6010,6 +6031,7 @@ window.__gummy = {
     ai: b.ai ? b.ai.state : null,
   } : null; },
   gummyReact(i, kind){ const b = bears[i]; return b && isGummyActor(b) ? gummyReact(b, kind) : false; },
+  genome(i){ const b = bears[i]; return b ? { genome: b.genome, phenotype: b.phenotype } : null; },
   species(){ return listSpecies().map(({ id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, genetics, hybrids }) => ({
     id, label, kind, castGroup, breedGroup, compatibility, studio, meadow, roster, countsAsBear, canPossess, canBreed, canReproduce, hasLife, hasEyes, hasTells, genetics, hybrids,
   })); },

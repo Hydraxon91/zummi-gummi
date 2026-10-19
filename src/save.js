@@ -32,6 +32,13 @@ function validateBear(b, where, errors) {
     errors.push(`${where}.parentUids is invalid`);
   }
   if (b.bonds !== undefined && !isObj(b.bonds)) errors.push(`${where}.bonds is invalid`);
+  // Genome is optional for v1 saves created before the DNA pass; spawn supplies
+  // the species default when it is absent.
+  if (b.genome !== undefined) {
+    if (!isObj(b.genome) || !isNum(b.genome.version) || !isObj(b.genome.species) || !isObj(b.genome.genes)) {
+      errors.push(`${where}.genome is invalid`);
+    }
+  }
 }
 
 function validateWorld(w, where, errors) {

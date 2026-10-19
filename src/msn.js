@@ -6,8 +6,11 @@
 
 import * as THREE from 'three';
 import { getSpecies } from './species.js';
+import { defaultGenome, expressGenome } from './dna.js';
 
 const GLASS_SPECIES = getSpecies('glass');
+const GLASS_GENOME = defaultGenome('glass');
+const GLASS_PHENOTYPE = expressGenome(GLASS_GENOME);
 const ASSET_URL = new URL('../' + GLASS_SPECIES.asset, import.meta.url).href;
 const DEFAULT_OPACITY = 0.55;
 const MIN_OPACITY = 0.25;
@@ -373,6 +376,8 @@ export function createMSNPrototype({ scene, camera, renderer, physics, enabled =
     return {
       enabled: !!enabled,
       species: GLASS_SPECIES.id,
+      genome: GLASS_GENOME,
+      phenotype: GLASS_PHENOTYPE,
       ready,
       loading: !!loading,
       error: error ? String(error.message || error) : null,
