@@ -342,11 +342,22 @@ spot reading, not a frame-rate claim.
 
 The three skinned meshes, 5,744 GLB triangles and one painted contact shadow are
 the added work; the authored material is double-sided, so visible triangle
-submission is higher than the raw GLB count. The material is alpha, not
-transmission, and the model only loads in the Studio. A separate FrontSide trial
-was inspected but not adopted: the authored double-sided material remains the
-fidelity baseline. The animate loop updates one `AnimationMixer` only while the
-prototype is visible.
+submission is higher than the raw GLB count. The model only loads in the Studio.
+A separate FrontSide trial was inspected but not adopted: the authored
+double-sided material remains the fidelity baseline. The animate loop updates one
+`AnimationMixer` only while the prototype is visible.
+
+### Glass reflection spot check
+
+The default Glass material uses transmission 1, roughness 0.05, clearcoat 1 and
+environment intensity 1.6. A live Studio run measured **0.83 ms visible / 0.46 ms
+hidden** with `renderProbe(20)`; the `?race=alpha` opacity path measured **0.85 /
+0.76 ms** in a separate run. These are single-run, GPU-asynchronous spot readings
+with overlapping variability, so they do not establish a glass cost or a
+regression. Transmission and clearcoat are additional rendering features, not
+free replacements; profile at the target quality tiers before making a
+tier/fallback decision. The reflective coat uses the studio environment map, not
+a planar reflection probe.
 
 ## Effects follow-up spot check
 

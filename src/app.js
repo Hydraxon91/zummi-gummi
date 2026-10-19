@@ -33,6 +33,7 @@ let effects = null;
 let studioReturnPortal = null;
 let msnPrototype = null;
 const RACE_ENABLED = new URLSearchParams(location.search).get('race') !== 'off';
+const RACE_LOOK = new URLSearchParams(location.search).get('race') === 'alpha' ? 'alpha' : 'glass';
 const STUDIO_CAST_KEY = 'gummy.studio.cast';
 function readStudioCast(){
   try {
@@ -5417,7 +5418,7 @@ async function bootGame(){
   studioReturnPortal.group.visible = false;
   scene.add(studioReturnPortal.group);
   layoutStudioReturnPortal();
-  msnPrototype = createMSNPrototype({ scene, camera, renderer, enabled: RACE_ENABLED, getTable: () => TABLE });
+  msnPrototype = createMSNPrototype({ scene, camera, renderer, enabled: RACE_ENABLED, getTable: () => TABLE, look: RACE_LOOK });
   activateMap(activeWorld.mapId, { initial: true });
   if (toonEnabled) applyToonMaterials();
   drawShadows();
@@ -6059,6 +6060,8 @@ window.__gummy = {
     state(){ return msnPrototype ? msnPrototype.state() : null; },
     play(name, once){ return msnPrototype ? msnPrototype.play(name, once) : null; },
     opacity(v){ return msnPrototype ? msnPrototype.setOpacity(v) : null; },
+    clarity(v){ return msnPrototype ? msnPrototype.setClarity(v) : null; },
+    roughness(v){ return msnPrototype ? msnPrototype.setRoughness(v) : null; },
     speed(v){ return msnPrototype ? msnPrototype.setSpeed(v) : null; },
     visible(v){ return msnPrototype ? msnPrototype.setVisible(v) : null; },
     reset(){ return msnPrototype ? msnPrototype.reset() : null; },

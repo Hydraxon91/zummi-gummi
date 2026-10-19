@@ -404,12 +404,14 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   the first Studio entry. It is independent of the bear pool, Box3D handles, AI,
   saves and poses. The Meadow never requests the GLB. `?race=off` disables the
   prototype and hides the Race Lab.
-- **Material and animation:** the GLB's transmission material is converted to
-  alpha (`transmission = 0`, `transparent`, default opacity 0.55) to avoid the
-  transmission pass and give a real see-through control. Idle loops; the panel
-  selects all 10 clips, loop/once, speed and opacity. One-shot clips return to
-  Idle. The buried arm surfaces remain visible at low opacity; the mesh is not
-  clipped.
+- **Material and animation:** the default **Glass** look keeps transmission
+  (`transmission = 1`), low roughness, IOR 1.45, thickness/attenuation, a
+  reflective clearcoat and stronger environment reflections. The panel controls
+  clarity and roughness; Idle loops and the other clips remain available. The
+  alpha prototype remains reachable with `?race=alpha` for A/B comparison
+  (`transmission = 0`, transparent opacity, no clearcoat). One-shot clips return
+  to Idle. The buried arm surfaces remain visible through the glass; the mesh is
+  not clipped.
 - **Studio cast filter:** **Bears / Both / MSN** is a view filter, not a physics
   or save change. **MSN** hides bear meshes/eyes/painted shadows, the bear card,
   the header and the cannon; bears keep their state and simulation. The choice
@@ -422,11 +424,17 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   and Idle clip. A teal floor ring marks selection. It does not add physics,
   save state or AI, and it yields to a closer bear when both are under the
   pointer in Both mode.
+- **Glass pass (Oct 2026):** default transmission 1, roughness 0.05, IOR 1.45,
+  thickness 0.32, attenuation distance 1.8, clearcoat 1 with roughness 0.04,
+  reflectivity 1 and environment intensity 1.6. Clarity and roughness are live
+  Race Lab controls; the reflective coat is intentionally stronger than the
+  authored GLB material. The alpha fallback uses the previous opacity path.
 - **Verification:** isolated GLB audit and live browser checks cover the lazy
-  load, mesh/bone/clip counts, mixer advance, one-shot return, opacity settings,
-  cast filters, cast persistence, `?race=off`, map isolation, hover/click
-  selection, click reaction clips, drag-to-turn, Shift-drag placement, Frame
-  focus, Reset and desktop/390×844 captures. Numbers are in `PERFORMANCE.md`.
+  load, mesh/bone/clip counts, mixer advance, one-shot return, Glass material
+  values, alpha fallback, cast filters, cast persistence, `?race=off`, map
+  isolation, hover/click selection, click reaction clips, drag-to-turn,
+  Shift-drag placement, Frame focus, Reset and desktop/390×844 captures.
+  Numbers are in `PERFORMANCE.md`.
 - **Known follow-ups:** the prototype has no physics, collision, AI, possession
   or soft-body deformation; a playable race is a separate scope. The cast filter
   intentionally leaves hidden bears simulating, so their arrangement survives a
@@ -434,12 +442,12 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   are deferred. The open Race Lab panel overlaps the prototype's base and selection
   ring at the default desktop camera; collapse or reposition the panel if that
   becomes distracting.
-- **Future — two MSN variants (requested 2026-10-19, deferred):**
-  - **Glass MSN:** the current GLB path with authored skeletal clips, a
-    transmission/refraction material and little or no soft-body stretch. It is
-    rigid by design and should not reuse the bears' soft-body solver.
-  - **Gummy MSN:** a bear-like soft body with real stretch/wobble and a
-    gummy/clarity material closer to the existing bears. This needs a separate
+- **MSN variants (requested 2026-10-19):**
+  - **Glass MSN — current:** the GLB path with authored skeletal clips, a
+    reflective transmission/refraction material and no soft-body stretch. It is
+    rigid by design and does not reuse the bears' soft-body solver.
+  - **Gummy MSN — deferred:** a bear-like soft body with real stretch/wobble and
+    a gummy/clarity material closer to the existing bears. This needs a separate
     metaball/Box3D rig path and its own surface, grab, AI, possession and save
     decisions; it is not a material swap on the GLB.
   - Add a Race Lab **type** selector only once both paths exist. Do not silently

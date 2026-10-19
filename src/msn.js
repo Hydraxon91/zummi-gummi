@@ -14,6 +14,20 @@ const MIN_SPEED = 0.25;
 const MAX_SPEED = 2.0;
 const RACE_SPOT = { x: 1.62, z: 1.02, yaw: 0 };
 const IDLE_CLIP = 'Idle';
+const GLASS = {
+  clarity: 1,
+  roughness: .05,
+  thickness: .32,
+  ior: 1.45,
+  attenuationDistance: 1.8,
+  attenuationColor: 0x5f9f55,
+  color: 0xa8e69e,
+  dispersion: .015,
+  envMapIntensity: 1.6,
+  clearcoat: 1,
+  clearcoatRoughness: .04,
+  reflectivity: 1,
+};
 
 function clamp(value, lo, hi) {
   return Math.min(hi, Math.max(lo, value));
@@ -44,7 +58,7 @@ function makeContactShadow() {
   return mesh;
 }
 
-export function createMSNPrototype({ scene, camera, renderer, enabled = true, getTable } = {}) {
+export function createMSNPrototype({ scene, camera, renderer, enabled = true, getTable, look = 'glass' } = {}) {
   const root = new THREE.Group();
   root.name = 'msnRacePrototype';
   root.visible = false;
@@ -90,6 +104,10 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     reset: document.getElementById('raceReset'),
     frame: document.getElementById('raceFrame'),
     status: document.getElementById('raceStatus'),
+    tag: document.getElementById('raceLookTag'),
+    opacityLabel: document.getElementById('raceOpacityLabel'),
+    roughness: document.getElementById('raceRoughness'),
+    roughnessValue: document.getElementById('raceRoughnessValue'),
   };
 
   let ready = false;
@@ -103,6 +121,9 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
   let activeAction = null;
   let activeName = '';
   let loop = true;
+  let materialLook = look === 'alpha' ? 'alpha' : 'glass';
+  let clarity = GLASS.clarity;
+  let roughness = GLASS.roughness;
   let opacity = DEFAULT_OPACITY;
   let speed = DEFAULT_SPEED;
   let meshes = 0;
@@ -228,11 +249,14 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
       selected,
       hovered,
       yaw: +root.rotation.y.toFixed(3),
+      look: materialLook,
       clips: clips.map(clip => clip.name),
       active: activeName,
       loop,
       time: mixer ? +mixer.time.toFixed(3) : 0,
       actionTime: activeAction ? +activeAction.time.toFixed(3) : 0,
+      clarity,
+      roughness,
       opacity,
       speed,
       meshes,
@@ -246,6 +270,16 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
         transmission: materials[0].transmission,
         transparent: materials[0].transparent,
         opacity: materials[0].opacity,
+        roughness: materials[0].roughness,
+        thickness: materials[0].thickness,
+        ior: materials[0].ior,
+        attenuationDistance: materials[0].attenuationDistance,
+        attenuationColor: '#' + materials[0].attenuationColor.getHexString(),
+        dispersion: materials[0].dispersion,
+        envMapIntensity: materials[0].envMapIntensity,
+        clearcoat: materials[0].clearcoat,
+        clearcoatRoughness: materials[0].clearcoatRoughness,
+        reflectivity: materials[0].reflectivity,
         depthWrite: materials[0].depthWrite,
         side: materials[0].side,
       } : null,
@@ -263,6 +297,7 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
 
   function syncUi() {
     const controlsOn = ready && root.visible;
+    const glass = materialLook === 'glass';
     if (ui.clip && clips.length) {
       ui.clip.value = activeName || IDLE_CLIP;
       ui.clip.disabled = !controlsOn;
@@ -270,14 +305,22 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     if (ui.mode) ui.mode.disabled = !controlsOn;
     if (ui.opacity) {
       ui.opacity.disabled = !controlsOn;
-      ui.opacity.value = String(opacity);
+      ui.opacity.min = glass ? '0' : String(MIN_OPACITY);
+      ui.opacity.value = String(glass ? clarity : opacity);
     }
-    if (ui.opacityValue) ui.opacityValue.textContent = opacity.toFixed(2);
+    if (ui.opacityLabel) ui.opacityLabel.textContent = glass ? 'Clarity' : 'Opacity';
+    if (ui.opacityValue) ui.opacityValue.textContent = (glass ? clarity : opacity).toFixed(2);
+    if (ui.roughness) {
+      ui.roughness.disabled = !controlsOn;
+      ui.roughness.value = String(roughness);
+    }
+    if (ui.roughnessValue) ui.roughnessValue.textContent = roughness.toFixed(2);
     if (ui.speed) {
       ui.speed.disabled = !controlsOn;
       ui.speed.value = String(speed);
     }
     if (ui.speedValue) ui.speedValue.textContent = speed.toFixed(2) + '×';
+    if (ui.tag) ui.tag.textContent = glass ? 'Glass · skinned' : 'Alpha · skinned';
     if (ui.reset) ui.reset.disabled = !controlsOn;
     if (ui.frame) ui.frame.disabled = !controlsOn;
   }
@@ -294,19 +337,48 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
   }
 
   function applyMaterial() {
+    const glass = materialLook === 'glass';
     for (const material of materials) {
-      material.transmission = 0;
-      material.thickness = 0;
-      material.transparent = opacity < .999;
-      material.opacity = opacity;
+      material.transmission = glass ? clarity : 0;
+      material.thickness = glass ? GLASS.thickness : 0;
+      material.ior = GLASS.ior;
+      material.transparent = glass ? false : opacity < .999;
+      material.opacity = glass ? 1 : opacity;
+      material.roughness = glass ? roughness : (material.userData.authoredRoughness ?? material.roughness);
+      material.metalness = 0;
+      material.attenuationDistance = glass ? GLASS.attenuationDistance : Infinity;
+      material.attenuationColor.setHex(glass ? GLASS.attenuationColor : 0xffffff);
+      material.envMapIntensity = glass ? GLASS.envMapIntensity : 1;
+      material.clearcoat = glass ? GLASS.clearcoat : 0;
+      material.clearcoatRoughness = glass ? GLASS.clearcoatRoughness : 0;
+      material.reflectivity = glass ? GLASS.reflectivity : .5;
+      if ('dispersion' in material) material.dispersion = glass ? GLASS.dispersion : 0;
+      if (glass) material.color.setHex(GLASS.color);
+      else if (material.userData.authoredColor) material.color.copy(material.userData.authoredColor);
       material.depthWrite = true;
       material.needsUpdate = true;
     }
   }
 
-  function setOpacity(value) {
+  function setClarity(value) {
     const next = Number(value);
-    opacity = clamp(Number.isFinite(next) ? next : DEFAULT_OPACITY, MIN_OPACITY, 1);
+    if (materialLook === 'glass') {
+      clarity = clamp(Number.isFinite(next) ? next : GLASS.clarity, 0, 1);
+    } else {
+      opacity = clamp(Number.isFinite(next) ? next : DEFAULT_OPACITY, MIN_OPACITY, 1);
+    }
+    applyMaterial();
+    syncUi();
+    return state();
+  }
+
+  function setOpacity(value) {
+    return setClarity(value);
+  }
+
+  function setRoughness(value) {
+    const next = Number(value);
+    roughness = clamp(Number.isFinite(next) ? next : GLASS.roughness, .01, .6);
     applyMaterial();
     syncUi();
     return state();
@@ -410,6 +482,8 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
           if (!materialMap.has(material)) {
             const copy = material.clone();
             copy.name = material.name + ' · prototype';
+            copy.userData.authoredColor = copy.color.clone();
+            copy.userData.authoredRoughness = copy.roughness;
             materialMap.set(material, copy);
           }
           return materialMap.get(material);
@@ -444,7 +518,7 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
       ready = true;
       placed = true;
       setStatus(`Ready · ${clips.length} clips · ${meshes} meshes · ${tris.toLocaleString()} tris · ${(performance.now() - started).toFixed(0)} ms`);
-      setOpacity(opacity);
+      applyMaterial();
       play(IDLE_CLIP, false);
       syncUi();
       return state();
@@ -473,7 +547,8 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     selected = false;
     hovered = false;
     selectionRing.visible = false;
-    setOpacity(DEFAULT_OPACITY);
+    setClarity(materialLook === 'glass' ? GLASS.clarity : DEFAULT_OPACITY);
+    setRoughness(GLASS.roughness);
     setSpeed(DEFAULT_SPEED);
     loop = true;
     if (ready) play(IDLE_CLIP, false);
@@ -522,6 +597,9 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
   if (ui.opacity) {
     ui.opacity.addEventListener('input', () => setOpacity(ui.opacity.value));
   }
+  if (ui.roughness) {
+    ui.roughness.addEventListener('input', () => setRoughness(ui.roughness.value));
+  }
   if (ui.speed) {
     ui.speed.addEventListener('input', () => setSpeed(ui.speed.value));
   }
@@ -536,7 +614,7 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     });
   }
 
-  setOpacity(opacity);
+  applyMaterial();
   setSpeed(speed);
   syncPanel();
   syncUi();
@@ -549,6 +627,8 @@ export function createMSNPrototype({ scene, camera, renderer, enabled = true, ge
     setVisible,
     setPanelVisible,
     setOpacity,
+    setClarity,
+    setRoughness,
     setSpeed,
     play,
     setLoop,
