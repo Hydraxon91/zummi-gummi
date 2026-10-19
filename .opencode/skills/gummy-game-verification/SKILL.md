@@ -75,8 +75,8 @@ clips, and `SHOTS=1` to write a capture. The harness uses a temporary browser
 profile and `BROWSER_BIN`/`CHROME_BIN` when the browser is not in a standard
 location. CI runs the same regression with SwiftShader fallback, 90-second
 startup waits, `LOW_QUALITY=1` and a 900×600 viewport, so slow software rendering
-does not read as an asset failure. The older `.dev-shots/race-test.mjs` and
-`glass-test.mjs` remain useful for deeper Studio/Glass lifecycle passes.
+does not read as an asset failure. Use the committed `scripts/race-test.mjs` and
+`scripts/glass-test.mjs` for deeper Studio/Glass lifecycle passes.
 
 `STUDIO=1` also returns to Meadow after the transition completes and asserts that
 `__gummy.assets()` still reports one GLB load with three live leases (one retained
@@ -109,44 +109,48 @@ on consume/restore and preserve source IDs, balance values and seeded respawn dr
 Captures and assertions are driven by a **Node harness that launches the browser and
 speaks CDP to it** — not by raw CLI flags. `--headless --screenshot`, `--dump-dom` and
 `--virtual-time-budget` against this app hang or return nothing, because the page keeps a
-rAF loop alive so virtual time never expires. The established shape is a `.mjs` script in
-the gitignored `.dev-shots/`; read an existing one before writing a new one
-(`race-test.mjs`, `glass-test.mjs`, `godrays-good-test.mjs`, `profile-ab.mjs`,
-`menu-test.mjs`, `tree-lod-shots.mjs`, `frame-breakdown.mjs`, ~100 lines each).
-`race-test.mjs` covers the Studio MSN/Gummy/Glass paths plus Meadow species and
-cross-species births; `glass-test.mjs` covers Glass hover, grab/throw/tumble, shelter,
-family/sibling play, visits, births and save/load.
+rAF loop alive so virtual time never expires.
 
-Required structure, taken from those examples:
+Use `scripts/browser-harness.mjs` for browser launch, CDP connection, page setup, waits,
+evaluation and screenshots. It uses a temporary profile, resolves Chrome/Chromium through
+`BROWSER_BIN`/`CHROME_BIN`, and tears the profile down in `finally`. The committed deep
+harnesses share it:
 
-1. `spawn` Brave at `/Applications/Brave Browser.app/Contents/MacOS/Brave Browser` with
-   `--headless=new --remote-debugging-port=$PORT --user-data-dir=$PROFILE
-   --no-first-run --no-default-browser-check --disable-background-timer-throttling
-   --disable-renderer-backgrounding --window-size=W,H about:blank`, `stdio:'ignore'`.
-   Delete `$PROFILE` first so IndexedDB/autosave state cannot leak between runs.
-2. Poll `http://127.0.0.1:$PORT/json/version` for `webSocketDebuggerUrl`, then open a
-   WebSocket and keep an `id -> {resolve,reject}` map with a per-call timeout.
-3. `Target.createTarget` -> `Target.attachToTarget {flatten:true}` -> keep `sessionId`;
-   then `Page.enable`, `Runtime.enable`, optionally `Emulation.setDeviceMetricsOverride`,
-   then `Page.navigate`.
-4. Poll `Runtime.evaluate` until the app signals readiness (e.g. `window.__gummy.booted`,
-   or your own `window.__X.ready`). An unready page looks like a valid result otherwise.
-5. Collect `Runtime.exceptionThrown` and `Runtime.consoleAPICalled` errors, and
-   `Page.captureScreenshot` -> write base64 PNG into `.dev-shots/`.
-6. Always tear down in `finally`: `Browser.close`, `ws.close()`, `browser.kill()`, and
-   write a JSON report next to the captures.
+- `scripts/race-test.mjs` — Meadow species/cross-species/birth checks, Studio MSN/Gummy/
+  Glass paths, cast filters, interaction, save/load and persistence. Supports `LOOK=alpha`
+  and `MOBILE=1`.
+- `scripts/glass-test.mjs` — Glass hover, grab/throw/tumble, shelter, family/sibling play,
+  visits, births and save/load.
 
-Conventions: read `PORT`/`TAG`/`GAME_URL` from `env`, print one tagged line per result
-(`STATE`/`PERF`/`INFO`/`TINT`/`ERRORS`/`STOP`) so a caller can `grep` them, for example:
+Other one-off harnesses belong in the gitignored `.dev-shots/`; import the same helper
+instead of duplicating `spawn`/WebSocket setup.
+
+Required structure:
+
+1. `launchBrowser({ port })` and `connectBrowser(launched)`.
+2. `openPage({ url, width, height, mobile, initScript })`; wait for `window.__gummy.booted`
+   or the harness-specific ready flag before asserting. An unready page looks valid.
+3. Use `page.evaluate`, `page.waitFor`, `page.screenshot`, and `browser.send` for CDP
+   methods not wrapped by the helper.
+4. Read `browser.pageErrors` instead of maintaining a second console listener.
+5. Write a JSON report next to the captures and call `await browser.close()` in `finally`.
+6. Print one tagged line per result (`STATE`/`PERF`/`INFO`/`TINT`/`ERRORS`/`STOP`) so a
+   caller can `grep` them, for example:
 
 ```sh
-env TAG=g1 PORT=10212 node .dev-shots/<name>.mjs 2>&1 | grep -E "INFO|STATE|ERRORS|STOP" | cut -c1-1600
+env TAG=g1 node scripts/race-test.mjs 2>&1 | grep -E "INFO|STATE|ERRORS|STOP" | cut -c1-1600
+env TAG=g1 LOOK=alpha node scripts/race-test.mjs
+env TAG=g1 MOBILE=1 node scripts/race-test.mjs
 ```
 
 Keep one check per section rather than printing the whole report. A page-under-test may
 expose a small `window.__X` API (ready flag, `set()`, material getters) purely so the
-harness can pose and probe it deterministically. Harnesses, their captures and the pages
-they load are all scratch: never commit them.
+harness can pose and probe it deterministically. The portable helper and the two deep
+harnesses are committed; scratch captures stay in `.dev-shots/`.
+
+Scratch retention: `node scripts/prune-dev-shots.mjs` is a dry run of `.png`/`.json`
+files older than `DAYS` (default 14). `node scripts/prune-dev-shots.mjs --apply` deletes
+those candidates. Curated files under `screenshots/` are never considered.
 
 ## Behaviour and regression checks
 
@@ -180,9 +184,9 @@ cover the applicable rows rather than only the happy path:
 | Studio | Glass/Gummy load, 3 meshes/9 bones/10 clips, cast filters, `?race=off` |
 | UI | roster rows and family status, save/continue, desktop and mobile |
 
-Use the committed `tests/` for the pure rows; use `race-test.mjs` and `glass-test.mjs` for
-the browser rows. Re-run both desktop and mobile harness passes when a roster, cast or
-layout path changes.
+Use the committed `tests/` for the pure rows; use `scripts/race-test.mjs` and
+`scripts/glass-test.mjs` for the browser rows. Re-run both desktop and mobile harness
+passes, plus `LOOK=alpha` when the Glass fallback path changes.
 
 ## Shared masks and coordinate parity
 

@@ -639,11 +639,10 @@ can proceed with the current runtime and assets.
 - Manifest-driven GLB loader (`src/assets.js`) and `docs/species-template.md`.
 - Gene definition registry (`registerGene`) and actor save validation/collection
   contracts (`src/actorsave.js`).
+- Deep race/Glass harnesses on the portable helper, plus scratch capture retention.
 
 ### Open — no Blender required
 
-- **Old harness cleanup.** Port the older `.dev-shots` harnesses to the portable
-  helper, and add a retention policy for their captures.
 - **Stale scratch expectations.** The old menu harness still expects 6 bears;
   update it to the current 8 soft-body actors after a starter-roster change.
 - **Deeper family life.** Family meals, parent teaching, recurring playdates,
@@ -675,11 +674,10 @@ can proceed with the current runtime and assets.
 
 ### Suggested order
 
-1. Old-harness cleanup.
-2. Deeper family life.
-3. Performance or 6b-1 presentation polish.
-4. Phase 9.
-5. Blender authoring wave when MCP is ready.
+1. Deeper family life.
+2. Performance or 6b-1 presentation polish.
+3. Phase 9.
+4. Blender authoring wave when MCP is ready.
 
 ## Content extensibility track (implemented, Oct 2026)
 

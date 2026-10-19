@@ -225,7 +225,9 @@ and driving it.
   `node scripts/browser-regression.mjs` checks the roster, species counts, lineage, sibling
   play start and save/load; `STUDIO=1` adds the Studio GLB inventory. It uses a temporary
   browser profile and a configurable `BROWSER_BIN`/`CHROME_BIN`. CI runs the same command in
-  a separate blocking job after the smoke test, with SwiftShader fallback enabled.
+  a separate blocking job after the smoke test, with SwiftShader fallback enabled. Deeper
+  passes use `scripts/race-test.mjs` (desktop, `MOBILE=1`, `LOOK=alpha`) and
+  `scripts/glass-test.mjs` through the same portable harness.
 - **The committed check is the smoke test.** `scripts/smoke.mjs` boots from a running
   `launch.py` server and asserts the page shell, source modules, licenses, the wasm MIME
   type/magic/exports and 404 handling. Run it as:
@@ -394,7 +396,9 @@ approved work chunk.
 - **Write scratch captures to the gitignored `.dev-shots/` directory** in the project root
   so the user can watch progress. It is never committed; `/tmp` is not a substitute. Only
   curated, intentional captures belong under `screenshots/`, matching the existing set and
-  `screenshots/README.md`.
+  `screenshots/README.md`. Review scratch retention with
+  `node scripts/prune-dev-shots.mjs`; it is a dry run unless `--apply` is passed, and it
+  never touches `screenshots/`.
 - `inspiration/` is gitignored third-party reference material. Never commit it or copy its
   assets into the app.
 
