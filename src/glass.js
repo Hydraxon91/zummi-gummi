@@ -185,6 +185,7 @@ export function createGlassColony({
   const actors = [];
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  const bodyRead = new Float32Array(7);
   let meadow = false;
   let nextLocalUid = 100000;
   let clock = 0;
@@ -479,7 +480,7 @@ export function createGlassColony({
 
   function startVisitPair(a, b) {
     if (!a || !b || !a.active || !b.active || a === b) return false;
-    if (a.inside || b.inside || a.sleeping || b.sleeping) return false;
+    if (a.inside || b.inside || a.sleeping || b.sleeping || a.freeBody || b.freeBody) return false;
     const field = fieldNow();
     if (!field || !Array.isArray(field.homes) || !field.nav) return false;
     if (!isDay(hoursNow())) return false;
@@ -630,7 +631,7 @@ export function createGlassColony({
   }
 
   function canMateWith(a, other) {
-    if (!a || !other || other === a || !other.active || other.inside) return false;
+    if (!a || !other || other === a || !other.active || other.inside || a.freeBody || other.freeBody) return false;
     if (other.sleeping || other.grabs > 0 || other.inPond) return false;
     if (!other.ai || other.ai.partner) return false;
     if (!['wander', 'seekMate', 'stargaze'].includes(other.ai.state)) return false;
@@ -638,7 +639,7 @@ export function createGlassColony({
   }
 
   function findMate(a) {
-    if (a.pregnant || a.stage !== 'adult' || a.mateCooldown > 0) return null;
+    if (a.freeBody || a.pregnant || a.stage !== 'adult' || a.mateCooldown > 0) return null;
     if (a.health < 70 || a.hunger > .40 || a.thirst > .60 || a.energy < .30) return null;
     if (safeFoodCount() < MATE_FOOD_MIN) return null;
     let best = null;
@@ -876,6 +877,7 @@ export function createGlassColony({
     const size = finite(a.genome?.genes?.size, 1);
     a.stage = stage;
     a.age = Number.isFinite(opts.age) ? opts.age : a.age;
+    if (a.freeBody) endFreeBody(a);
     a.scale = clamp(scaleForStage(stage) * size, .35, 1.8);
     a.root.scale.setScalar(a.scale);
     if (stage !== 'baby') {
@@ -897,7 +899,7 @@ export function createGlassColony({
     a.bodyRadius = radius;
     a.bodyHandle = physics.sphere(
       a.cx, a.cy, a.cz, radius, 1.2, -2000 - a.uid,
-      .55, .10, true, true,
+      .55, .52, true, true,
     );
     a.bodyY = a.cy;
   }
@@ -908,8 +910,8 @@ export function createGlassColony({
   }
 
   function syncBody(a) {
-    if (!physics || !a.active || a.inside || !meadow) {
-      destroyBody(a);
+    if (!physics || !a.active || a.inside || !meadow || a.freeBody) {
+      if (!a.freeBody) destroyBody(a);
       return;
     }
     if (a.bodyHandle < 0) ensureBody(a);
@@ -926,6 +928,18 @@ export function createGlassColony({
 
   function updateVisual(a) {
     const visualScale = a.scale * (a.pregnant ? 1.035 : 1);
+    if (a.freeBody) {
+      const rootY = Math.max(.01, a.cy - (a.height || 1.25) * visualScale * .5);
+      a.root.position.set(a.cx, rootY, a.cz);
+      a.root.rotation.y = a.yaw || 0;
+      a.root.scale.setScalar(visualScale);
+      a.shadow.position.y = (.004 - rootY) / Math.max(.001, visualScale);
+      a.shadow.scale.setScalar(1);
+      a.root.visible = meadow && !a.inside;
+      a.shadow.visible = a.root.visible;
+      a.root.updateMatrixWorld(true);
+      return;
+    }
     const bob = a.inside || a.grabbing ? 0 : Math.sin(clock * 2.2 + a.phase) * HOVER_BOB;
     const y = a.grabbing || a.coasting ? a.grabY : HOVER * a.scale + bob;
     a.root.position.set(a.cx, y, a.cz);
@@ -977,6 +991,8 @@ export function createGlassColony({
     if (!a || !a.active || a.inside || a.grabbing || !meadow || !camera || !renderer) return false;
     a.grabbing = true;
     a.grabs = 1;
+    a.freeBody = false;
+    a.freeT = 0;
     a.coasting = false;
     a.throwT = 0;
     a.grabVx = 0;
@@ -1041,18 +1057,25 @@ export function createGlassColony({
     a.ai.idleT = .35;
     a.ai.nextThink = 0;
     a.ai.faceYaw = null;
-    if (throwIt && (speed > .18 || Math.abs(a.grabVy) > .18)) {
-      a.coasting = true;
-      a.throwT = .48;
-      a.throwVx = clamp(a.grabVx, -4.5, 4.5);
-      a.throwVz = clamp(a.grabVz, -4.5, 4.5);
-      a.throwVy = clamp(a.grabVy, -2.2, 2.2);
+    if (throwIt && physics && (speed > .18 || Math.abs(a.grabVy) > .18)) {
+      ensureBody(a);
+      if (a.bodyHandle >= 0) {
+        a.freeBody = true;
+        a.freeT = 2.2;
+        a.coasting = false;
+        const vx = clamp(a.grabVx, -5, 5);
+        const vy = clamp(a.grabVy + .8, .2, 3.4);
+        const vz = clamp(a.grabVz, -5, 5);
+        physics.setPositions([a.bodyHandle], [a.cx, a.cy, a.cz], 1);
+        physics.setVelocities([a.bodyHandle], [vx, vy, vz], 1);
+      }
     } else {
+      a.freeBody = false;
       a.coasting = false;
       a.throwT = 0;
     }
     updateVisual(a);
-    syncBody(a);
+    if (!a.freeBody) syncBody(a);
     return true;
   }
 
@@ -1207,6 +1230,8 @@ export function createGlassColony({
       bodyRadius: 0,
       bodyY: 0,
       grabbing: false,
+      freeBody: false,
+      freeT: 0,
       grabY: 0,
       grabDepth: 6,
       grabStartY: 0,
@@ -1330,6 +1355,8 @@ export function createGlassColony({
       inside: !!a.inside,
       grabbing: !!a.grabbing,
       coasting: !!a.coasting,
+      freeBody: !!a.freeBody,
+      freeT: +(a.freeT || 0).toFixed(2),
       sleeping: !!a.sleeping,
       grabs: a.grabs,
       inPond: !!a.inPond,
@@ -1395,6 +1422,12 @@ export function createGlassColony({
       }
 
       if (a.grabbing) {
+        updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
+      }
+
+      if (a.freeBody) {
         updateVisual(a);
         if (a.mixer) a.mixer.update(dt);
         continue;
@@ -1684,11 +1717,41 @@ export function createGlassColony({
     for (const a of actors) if (a.active) syncBody(a);
   }
 
+  function endFreeBody(a) {
+    if (!a || !a.freeBody) return;
+    a.freeBody = false;
+    a.freeT = 0;
+    a.ai.state = 'wander';
+    a.ai.idleT = .35;
+    a.ai.nextThink = 0;
+    updateVisual(a);
+    syncBody(a);
+  }
+
+  function physicsRead(dt = 1 / 60) {
+    if (!physics || !meadow) return;
+    for (const a of actors) {
+      if (!a.active || !a.freeBody || a.bodyHandle < 0) continue;
+      physics.read([a.bodyHandle], bodyRead, 1);
+      a.cx = bodyRead[0];
+      a.cy = bodyRead[1];
+      a.cz = bodyRead[2];
+      const speed = Math.hypot(bodyRead[3], bodyRead[4], bodyRead[5]);
+      a.freeT = Math.max(0, (a.freeT || 0) - dt);
+      updateVisual(a);
+      if (a.freeT <= 0 || (speed < .3 && a.cy < .75)) endFreeBody(a);
+    }
+  }
+
   function setMeadow(value) {
     meadow = !!value;
     if (!meadow) cancelDrag();
     for (const a of actors) {
-      if (!meadow) destroyBody(a);
+      if (!meadow) {
+        a.freeBody = false;
+        a.freeT = 0;
+        destroyBody(a);
+      }
       if (a.root) a.root.visible = meadow && !a.inside;
       if (meadow) ensureBody(a);
     }
@@ -1813,6 +1876,8 @@ export function createGlassColony({
     stopGrabTasks(a);
     a.grabbing = false;
     a.grabs = 0;
+    a.freeBody = false;
+    a.freeT = 0;
     a.coasting = false;
     a.throwT = 0;
     a.ai.state = 'wander';
@@ -1887,6 +1952,7 @@ export function createGlassColony({
     state,
     update,
     physicsForces,
+    physicsRead,
     setMeadow,
     clear,
     pick,

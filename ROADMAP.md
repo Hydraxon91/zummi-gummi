@@ -481,7 +481,8 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     hover on nav paths, eat/drink at roughly half the bear need rate, sleep
     never at night, and may drift inside their villa during daylight. They are
     pointer-draggable in Grab-click mode: normal drag moves, Shift-drag lifts
-    or lowers, and release carries pointer velocity into a short hover coast.
+    or lowers, and release hands velocity to the rigid Box3D proxy so it
+    ricochets off world geometry before returning to hover.
     They use the shared roster/social/bonds/life fields, take their
     baby/teen/adult growth step only at night, follow a living parent as
     babies, inherit family homes/parent bonds, gain sibling bonds, can continue
@@ -578,9 +579,8 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   pass.
 - **Close (×) now deselects without cancelling**; queued commands keep running.
   Add an explicit “clear commands” affordance only if that surprises players.
-- **Glass throw is a kinematic hover coast.** Release velocity is damped and
-  returns to hover; it does not yet collide/bounce off world geometry like a
-  rigid body throw.
+- **Glass throw uses a locked-rotation sphere proxy.** It ricochets and settles
+  back to hover, but it does not spin or use a multi-sphere body yet.
 - **Glass daytime shelter is a hidden home-door state**, not an interior scene.
   A door sparkle marks enter/exit, needs and pregnancy persist, and the actor
   emerges at night; add interiors only with the home pass.

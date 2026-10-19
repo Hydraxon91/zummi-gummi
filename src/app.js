@@ -740,7 +740,7 @@ function addFamilyBond(parent, child, value = .62) {
 
 function birthChild(mother, father = null) {
   if (!mother || !mother.active || !mother.pregnant) return false;
-  if (mother.grabs > 0 || mother.inPond || mother.airborne) return false;
+  if (mother.grabs > 0 || mother.inPond || mother.airborne || mother.freeBody) return false;
   const safeFood = field && field.food ? field.food.allRipe({ kinds: ['flower', 'fruit'] }).length : 0;
   if (safeFood < MATE_FOOD_MIN) return false;
   father = father || actorView.byUid(mother.fatherUid) || null;
@@ -1467,6 +1467,7 @@ function physicsStep(dt){
   PHYS.applyForces(flatHandles, flatForces, false, n);
   PHYS.step(dt, 3);   // Box3D contact sub-solve at 180 Hz
   if (msnPrototype) msnPrototype.physicsRead();
+  if (glassColony) glassColony.physicsRead(dt);
 }
 
 /* ========================= SURFACE (METABALLS) ============================ */
