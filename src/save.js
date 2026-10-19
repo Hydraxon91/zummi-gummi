@@ -4,7 +4,7 @@
 // validates a payload before anything is applied and stores it. A corrupt or
 // future-version save must be rejected without touching the live session.
 
-import { listActorCollections, validateActorWorld } from './actorsave.js';
+import { listActorCollections, validateActorWorld, migrateActorWorld } from './actorsave.js';
 
 export const SAVE_FORMAT = 'gummy-save';
 export const SAVE_VERSION = 1;
@@ -57,6 +57,7 @@ export function validateSave(data) {
         typeof s.auto !== 'boolean' || !isNum(s.speed) || s.speed <= 0) {
       errors.push('sky is invalid');
     }
+    if (s && s.day !== undefined && (!isNum(s.day) || s.day < 0)) errors.push('sky.day is invalid');
   }
   return { ok: errors.length === 0, errors };
 }
@@ -70,10 +71,12 @@ export function normalizeSave(data) {
     version: SAVE_VERSION,
     savedAt: data.savedAt,
     mapId: data.mapId,
-    sky: data.sky ? { hours: data.sky.hours, auto: data.sky.auto, speed: data.sky.speed, look: typeof data.sky.look === 'string' ? data.sky.look : null } : null,
+    sky: data.sky ? { hours: data.sky.hours, auto: data.sky.auto, speed: data.sky.speed,
+      day: isNum(data.sky.day) ? Math.max(0, Math.floor(data.sky.day)) : 0,
+      look: typeof data.sky.look === 'string' ? data.sky.look : null } : null,
     worlds: {
-      field: cloneWorld(data.worlds.field),
-      studio: cloneWorld(data.worlds.studio),
+      field: cloneWorld(migrateActorWorld(data.worlds.field)),
+      studio: cloneWorld(migrateActorWorld(data.worlds.studio)),
     },
   };
 }

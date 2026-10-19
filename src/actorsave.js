@@ -5,10 +5,12 @@
 
 import { DNA_VERSION } from './dna.js';
 import { getSpecies } from './species.js';
+import { normalizeSkills, normalizeHistory, normalizePlaydates } from './family.js';
 
-export const ACTOR_SAVE_VERSION = 1;
+export const ACTOR_SAVE_VERSION = 2;
 
 const STAGES = new Set(['baby', 'teen', 'adult']);
+const SUPPORTED_VERSIONS = new Set([1, ACTOR_SAVE_VERSION]);
 const NUMERIC_FIELDS = [
   'scale', 'health', 'hunger', 'thirst', 'energy', 'age',
   'gestation', 'mateCooldown', 'social', 'affection', 'bold',
@@ -20,7 +22,7 @@ const isNum = v => Number.isFinite(v);
 
 function validateCommon(a, where, errors, { kind, requireFlavor }) {
   if (!isObj(a)) { errors.push(`${where} is not an object`); return; }
-  if (a.actorVersion !== undefined && a.actorVersion !== ACTOR_SAVE_VERSION) {
+  if (a.actorVersion !== undefined && !SUPPORTED_VERSIONS.has(a.actorVersion)) {
     errors.push(`${where}.actorVersion ${a.actorVersion} is unsupported`);
   }
   if (!isNum(a.uid) || a.uid <= 0) errors.push(`${where}.uid is invalid`);
@@ -37,6 +39,34 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
     errors.push(`${where}.parentUids is invalid`);
   }
   if (a.bonds !== undefined && !isObj(a.bonds)) errors.push(`${where}.bonds is invalid`);
+
+  if (a.skills !== undefined) {
+    if (!isObj(a.skills)) errors.push(`${where}.skills is invalid`);
+    else for (const [key, value] of Object.entries(a.skills)) {
+      if (!isNum(value) || value < 0 || value > 1) errors.push(`${where}.skills.${key} is invalid`);
+    }
+  }
+  if (a.history !== undefined) {
+    if (!Array.isArray(a.history)) errors.push(`${where}.history is invalid`);
+    else a.history.forEach((event, index) => {
+      if (!isObj(event) || typeof event.kind !== 'string') {
+        errors.push(`${where}.history[${index}] is invalid`);
+      } else {
+        if (event.uid !== undefined && !isNum(event.uid)) errors.push(`${where}.history[${index}].uid is invalid`);
+        if (event.day !== undefined && !isNum(event.day)) errors.push(`${where}.history[${index}].day is invalid`);
+        if (event.hour !== undefined && !isNum(event.hour)) errors.push(`${where}.history[${index}].hour is invalid`);
+      }
+    });
+  }
+  if (a.playdates !== undefined) {
+    if (!isObj(a.playdates)) errors.push(`${where}.playdates is invalid`);
+    else for (const [uid, record] of Object.entries(a.playdates)) {
+      if (!isNum(Number(uid)) || !isObj(record) ||
+          !isNum(record.day) || !isNum(record.hour)) {
+        errors.push(`${where}.playdates.${uid} is invalid`);
+      }
+    }
+  }
 
   if (a.kind !== undefined && a.kind !== kind &&
       !(kind === 'softbody' && a.kind === 'bear') &&
@@ -66,6 +96,30 @@ export function validateSoftBody(a, where, errors) {
 
 export function validateSkinned(a, where, errors) {
   validateCommon(a, where, errors, { kind: 'skinned', requireFlavor: false });
+}
+
+// Migrate a saved actor in place-safe form. Unknown fields survive; new family
+// fields are filled with defaults so a v1 save keeps loading.
+export function migrateActorRecord(record) {
+  if (!isObj(record)) return record;
+  const version = Number.isFinite(record.actorVersion) ? record.actorVersion : 1;
+  if (version > ACTOR_SAVE_VERSION) return record;
+  return {
+    ...record,
+    actorVersion: ACTOR_SAVE_VERSION,
+    skills: normalizeSkills(record.skills),
+    history: normalizeHistory(record.history),
+    playdates: normalizePlaydates(record.playdates),
+  };
+}
+
+export function migrateActorWorld(world) {
+  if (!isObj(world)) return world;
+  for (const collection of collections.values()) {
+    const value = world[collection.key];
+    if (Array.isArray(value)) world[collection.key] = value.map(migrateActorRecord);
+  }
+  return world;
 }
 
 export function registerActorCollection(def) {

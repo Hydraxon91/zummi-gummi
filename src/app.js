@@ -3,6 +3,7 @@ import { createLauncher } from './launcher.js';
 import { createSky } from './sky.js';
 import { buildField, POND_HOLE, POND } from './field.js';
 import { createBearAI } from './ai.js';
+import { createBehavior } from './behavior.js';
 import { createAIDebug } from './aidebug.js';
 import { createEffects } from './effects.js';
 import { GRAPHICS_GROUPS, GRAPHICS_DEFAULTS, normalizeGraphics, readGraphics, createGraphicsPanel } from './graphics.js';
@@ -21,7 +22,8 @@ import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from '.
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
-import { ACTOR_SAVE_VERSION } from './actorsave.js';
+import { snapshotActor, applyCommonActorState } from './actorrecord.js';
+import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
 
 const nativeRandom = Math.random;
@@ -29,6 +31,7 @@ let launcher = null;
 let field = null;
 let sky = null;
 let ai = null;
+let behavior = null;
 let aiDebug = null;
 let selectedBear = null;
 let directivePick = false;
@@ -68,27 +71,8 @@ function allActors(){ return actorView.all(); }
 function actorName(a){
   return a ? (a.name || (a.kind === 'glass' ? 'Glass' : a.species === 'msn' ? 'Gummy' : 'Bear')) : '';
 }
-function generationOf(a, seen = new Set()) {
-  if (!a || seen.has(a.uid)) return 1;
-  seen.add(a.uid);
-  const all = actorView.all();
-  const parents = (a.parentUids || [])
-    .map(uid => all.find(other => other.uid === uid))
-    .filter(Boolean);
-  if (!parents.length) return 1;
-  return 1 + Math.max(...parents.map(parent => generationOf(parent, new Set(seen))));
-}
 function familyFor(a) {
-  if (!a) return { parents: [], siblings: [], children: [], generation: 1 };
-  const all = actorView.all();
-  const byUid = new Map(all.map(other => [other.uid, other]));
-  const parents = (a.parentUids || []).map(uid => byUid.get(uid)).filter(Boolean);
-  const parentUids = new Set(parents.map(parent => parent.uid));
-  const siblings = all.filter(other => other !== a && other.active &&
-    (other.parentUids || []).some(uid => parentUids.has(uid)));
-  const children = all.filter(other => other !== a && other.active &&
-    (other.parentUids || []).includes(a.uid));
-  return { parents, siblings, children, generation: generationOf(a) };
+  return sharedFamilyFor(a, actorView.all());
 }
 function familyNames(list) {
   return (list || []).map(actorName).filter(Boolean).join(', ');
@@ -97,8 +81,10 @@ function familyLine(a) {
   const family = familyFor(a);
   const parts = [];
   if (family.parents.length) parts.push(`Parents: ${familyNames(family.parents)}`);
+  if (family.grandparents.length) parts.push(`Grandparents: ${familyNames(family.grandparents)}`);
   if (family.siblings.length) parts.push(`Siblings: ${familyNames(family.siblings)}`);
   if (family.children.length) parts.push(`Children: ${familyNames(family.children)}`);
+  if (family.grandchildren.length) parts.push(`Grandchildren: ${familyNames(family.grandchildren)}`);
   parts.push(`Generation ${family.generation}`);
   return parts.join(' · ');
 }
@@ -3454,12 +3440,29 @@ function buddyPartnerName(b){
   const p = b && b.ai ? b.ai.partner : null;
   return p ? (p.name || 'a friend') : 'a friend';
 }
+function familyTaskStatus(b){
+  const task = b && b.ai ? b.ai.familyTask : null;
+  if (!task) return null;
+  const who = buddyPartnerName(b);
+  if (task.id === 'familyPlaydate') {
+    return task.phase === 'travel' ? `heading to a playdate with ${who}` : `on a playdate with ${who}`;
+  }
+  if (task.id === 'familyLesson') {
+    return task.role === 'teacher' ? `teaching ${who}` : `learning from ${who}`;
+  }
+  if (task.id === 'familyMeal') {
+    return `sharing a meal${task.anchor && task.anchor.home ? ` at ${task.anchor.home}` : ''}`;
+  }
+  return null;
+}
 function buddyStatus(b){
   if (!field) return 'settling in';
   if (isGlassActor(b)) {
     if (b.inside) return `resting inside at ${b.home || 'home'}`;
     if (b.pregnant) return b.gestation > 0 ? 'expecting a little glassling' : 'ready to welcome a glassling';
     if (b.ai) {
+      const task = familyTaskStatus(b);
+      if (task) return task;
       if (b.ai.state === 'follow') return `following ${b.ai.follow ? (b.ai.follow.name || 'a parent') : 'a parent'}`;
       if (b.ai.state === 'visit') {
         const who = buddyPartnerName(b);
@@ -3490,6 +3493,8 @@ function buddyStatus(b){
   if (b.health < 15) return 'woozy — needs a quiet corner';
   if (b.pregnant) return b.gestation > 0 ? 'expecting a cub' : 'ready to welcome a cub';
   if (b.ai) {
+    const task = familyTaskStatus(b);
+    if (task) return task;
     if (b.ai.state === 'seekMate') return 'looking for a mate';
     if (b.ai.state === 'mate') return 'courting';
     if (b.ai.state === 'follow') return `following ${b.ai.follow ? (b.ai.follow.name || 'a parent') : 'a parent'}`;
@@ -5234,24 +5239,16 @@ function snapshotDirective(d){
   return d ? { kind: d.kind, target: d.target ? { x: d.target.x, z: d.target.z } : null, ttl: d.ttl } : null;
 }
 function snapshotBear(b){
-  return {
-    actorVersion: ACTOR_SAVE_VERSION,
-    species: b.species, flavor: b.flavor, sex: b.sex, stage: b.stage, scale: b.scale,
-    health: b.health, hunger: b.hunger, thirst: b.thirst,
-    energy: b.energy, bold: b.bold,
-    social: b.social, affection: b.affection, bonds: { ...(b.bonds || {}) },
-    uid: b.uid, age: b.age, pregnant: !!b.pregnant, gestation: b.gestation,
-    mateCooldown: b.mateCooldown || 0, parentUids: (b.parentUids || []).slice(),
-    fatherUid: b.fatherUid || 0, bedtime: b.bedtime, wakeTime: b.wakeTime,
+  return snapshotActor(b, {
+    flavor: b.flavor,
+    bedtime: b.bedtime, wakeTime: b.wakeTime,
     hopSpeedMin: b.hopSpeedMin, hopSpeedMax: b.hopSpeedMax,
-    name: b.name, home: b.home,
-    genome: b.genome || defaultGenome(b.species),
     directives: b.ai ? {
       active: snapshotDirective(b.ai.directive),
       queue: (b.ai.directives || []).map(snapshotDirective),
     } : null,
-    x: b.cx, z: b.cz, yaw: yawOfQuat(b.q),
-  };
+    yaw: yawOfQuat(b.q),
+  });
 }
 function spawnFromState(st){
   let x = st.x, z = st.z;
@@ -5284,14 +5281,7 @@ function spawnFromState(st){
     wakeTime: Number.isFinite(st.wakeTime) ? st.wakeTime : undefined,
   });
   if (!b) return null;
-  b.health = Number.isFinite(st.health) ? st.health : 100;
-  b.hunger = Number.isFinite(st.hunger) ? st.hunger : 0.3;
-  b.thirst = Number.isFinite(st.thirst) ? st.thirst : 0.3;
-  b.energy = Number.isFinite(st.energy) ? st.energy : 1;
-  b.bold = Number.isFinite(st.bold) ? st.bold : 0.5;
-  b.social = Number.isFinite(st.social) ? clamp(st.social, 0, 1) : b.social;
-  b.affection = Number.isFinite(st.affection) ? clamp(st.affection, 0, 1) : b.affection;
-  b.bonds = st.bonds && typeof st.bonds === 'object' ? { ...st.bonds } : {};
+  applyCommonActorState(b, st);
   b.hopSpeedMin = Number.isFinite(st.hopSpeedMin) ? st.hopSpeedMin : b.hopSpeedMin;
   b.hopSpeedMax = Number.isFinite(st.hopSpeedMax) ? st.hopSpeedMax : b.hopSpeedMax;
   b._directiveSave = st.directives && typeof st.directives === 'object' ? st.directives : null;
@@ -5522,7 +5512,7 @@ let loadingSave = false;
 function savedSkyState() {
   let look = null;
   try { look = localStorage.getItem(SKY_LOOK_KEY); } catch (err) {}
-  return sky ? { hours: sky.hours, auto: sky.auto, speed: sky.speed, look } : null;
+  return sky ? { hours: sky.hours, day: sky.day, auto: sky.auto, speed: sky.speed, look } : null;
 }
 
 function worldSaveState(id) {
@@ -5563,6 +5553,9 @@ function applySavePayload(raw) {
   try {
     for (const id of ['field', 'studio']) {
       const src = payload.worlds[id];
+      const all = [...(Array.isArray(src.bears) ? src.bears : []), ...(Array.isArray(src.glass) ? src.glass : [])];
+      const validUids = new Set(all.map(actor => actor.uid));
+      for (const actor of all) pruneActorRefs(actor, validUids);
       const w = worlds[id];
       w.bears = src.initialized || src.bears.length ? src.bears : null;
       w.glass = Array.isArray(src.glass) ? src.glass : null;
@@ -5596,6 +5589,7 @@ function applySavePayload(raw) {
         worlds.field.speed = sky.speed;
         renderer.toneMappingExposure = sky.exposure;
       }
+      if (Number.isFinite(payload.sky.day)) sky.setDay(payload.sky.day);
     }
     const l = payload.worlds[payload.mapId].launcher;
     if (launcher && l) {
@@ -5941,12 +5935,20 @@ async function bootGame(){
   PHYS = await initPhysics(24 * BEAR_HARD_MAX, { x: 0, y: GRAV, z: 0 });
   ensureMeadow();
   applyGraphics();
+  behavior = createBehavior({
+    field,
+    getActors: () => actorView.all(),
+    getHours: () => (sky ? sky.hours : 12),
+    getDay: () => (sky ? sky.day : 0),
+    getPopulationCap: () => bearCeiling,
+  });
   ai = createBearAI({
     field,
     getBears: () => bears,
     getCompanions: () => allActors(),
     getHours: () => (sky ? sky.hours : 12),
     getPopulationCap: () => bearCeiling,
+    behavior,
   });
   aiDebug = createAIDebug({
     getBears: () => bears,
@@ -6013,6 +6015,7 @@ async function bootGame(){
     takeName: () => 'Glass ' + takeBearName(),
     beginCrossMate: (glass, bear) => (ai ? ai.beginMatePair(glass, bear) : false),
     birthFromGlass: (mother) => birthChild(mother),
+    behavior,
   });
   activateMap(activeWorld.mapId, { initial: true });
   if (toonEnabled) applyToonMaterials();
@@ -6229,9 +6232,61 @@ window.__gummy = {
       uid: actor.uid, name: actorName(actor), home: actor.home || '',
       generation: family.generation,
       parents: family.parents.map(parent => ({ uid: parent.uid, name: actorName(parent) })),
+      grandparents: family.grandparents.map(parent => ({ uid: parent.uid, name: actorName(parent) })),
       siblings: family.siblings.map(sibling => ({ uid: sibling.uid, name: actorName(sibling) })),
       children: family.children.map(child => ({ uid: child.uid, name: actorName(child) })),
+      grandchildren: family.grandchildren.map(child => ({ uid: child.uid, name: actorName(child) })),
+      history: historyFor(actor).map(event => ({ ...event })),
     };
+  },
+  lineage(uid){
+    const actor = uid === undefined || uid === null
+      ? selectedBear
+      : actorView.all().find(item => String(item.uid) === String(uid));
+    if (!actor) return null;
+    const all = actorView.all();
+    const byUid = new Map(all.map(item => [item.uid, item]));
+    const family = familyFor(actor);
+    const node = (item) => item ? { uid: item.uid, name: actorName(item), generation: familyFor(item).generation } : null;
+    return {
+      self: node(actor),
+      parents: family.parents.map(node),
+      grandparents: family.grandparents.map(node),
+      siblings: family.siblings.map(node),
+      children: family.children.map(node),
+      grandchildren: family.grandchildren.map(node),
+      household: all.filter(item => item.active && item.home && item.home === actor.home)
+        .map(item => ({ uid: item.uid, name: actorName(item), species: item.species })),
+      history: historyFor(actor).map(event => ({
+        ...event,
+        name: event.uid ? actorName(byUid.get(event.uid)) || null : null,
+      })),
+    };
+  },
+  behavior(){ return behavior ? behavior.stats() : null; },
+  routines(uid){
+    const actor = uid === undefined || uid === null
+      ? selectedBear
+      : actorView.all().find(item => String(item.uid) === String(uid));
+    if (!actor) return null;
+    return { home: actor.home || '', hours: sky ? sky.hours : null, window: routineWindowFor(actor, sky ? sky.hours : 12) };
+  },
+  playdates(uid){
+    const actor = uid === undefined || uid === null
+      ? selectedBear
+      : actorView.all().find(item => String(item.uid) === String(uid));
+    return actor ? { ...(actor.playdates || {}) } : null;
+  },
+  familyTask(uid){
+    const actor = uid === undefined || uid === null
+      ? selectedBear
+      : actorView.all().find(item => String(item.uid) === String(uid));
+    return actor && actor.ai ? actor.ai.familyTask : null;
+  },
+  teach(parentUid, childUid, key = null){
+    const parent = actorView.byUid(parentUid) || bears[parentUid];
+    const child = actorView.byUid(childUid) || bears[childUid];
+    return teachSkill(child, parent, key);
   },
   roster(){
     return actorView.active()
@@ -6492,7 +6547,7 @@ window.__gummy = {
   launcherScreenOf(x, z){ return launcher ? launcher.screenOf(x, z) : null; },
   launcherMoveMode(on){ return launcher ? launcher.toggleMoveMode(on) : false; },
   world(){ return { map: activeWorld.mapId, wallHeight: getActiveMap().wallHeight, walls: worldWalls.walls.slice(), ground: worldWalls.ground, bounds: [worldWalls.hx, worldWalls.hz], launcher: launcher ? launcher.state() : null }; },
-  traits(){ return bears.map(b => ({ uid:b.uid, sex:b.sex, stage:b.stage, scale:b.scale, age:b.age, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, social:b.social, affection:b.affection, bonds:{ ...(b.bonds || {}) }, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, pregnant:!!b.pregnant, gestation:b.gestation, mateCooldown:b.mateCooldown, parentUids:(b.parentUids || []).slice(), fatherUid:b.fatherUid || 0, bedtime:b.bedtime, wakeTime:b.wakeTime, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null, partner:b.ai && b.ai.partner ? b.ai.partner.name : null })); },
+  traits(){ return bears.map(b => ({ uid:b.uid, sex:b.sex, stage:b.stage, scale:b.scale, age:b.age, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, social:b.social, affection:b.affection, bonds:{ ...(b.bonds || {}) }, skills:{ ...(b.skills || {}) }, history:(b.history || []).slice(-4), playdates:{ ...(b.playdates || {}) }, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, pregnant:!!b.pregnant, gestation:b.gestation, mateCooldown:b.mateCooldown, parentUids:(b.parentUids || []).slice(), fatherUid:b.fatherUid || 0, bedtime:b.bedtime, wakeTime:b.wakeTime, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null, familyTask:b.ai ? b.ai.familyTask : null, partner:b.ai && b.ai.partner ? b.ai.partner.name : null })); },
   ai(){ return ai ? ai.stats() : null; },
   setAI(v){ return ai ? ai.setEnabled(v) : false; },
   food(){ return field && field.food ? field.food.stats() : null; },

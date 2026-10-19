@@ -527,6 +527,8 @@ export function createSky(scene, renderer) {
   const api = {
     group, sunDir, moonDir,
     get hours() { return hours; },
+    get day() { return dayIndex; },
+    get totalHours() { return totalHours; },
     get auto() { return auto; },
     get speed() { return speed; },
     get exposure() { return expValue; },
@@ -579,6 +581,15 @@ export function createSky(scene, renderer) {
       const d = Math.floor(totalHours / 24);
       if (d !== dayIndex) { dayIndex = d; mistToday = dayHash(dayIndex) < 0.34; }
       apply(true);
+    },
+    setDay(d) {
+      const next = Math.max(0, Math.floor(Number(d) || 0));
+      if (next === dayIndex) return dayIndex;
+      dayIndex = next;
+      totalHours = dayIndex * 24 + hours;
+      mistToday = dayHash(dayIndex) < 0.34;
+      apply(true);
+      return dayIndex;
     },
     setAuto(v) {
       auto = !!v;

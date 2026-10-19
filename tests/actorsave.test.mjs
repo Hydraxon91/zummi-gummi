@@ -5,6 +5,8 @@ import {
   ACTOR_SAVE_VERSION,
   registerActorCollection,
   validateActorWorld,
+  migrateActorRecord,
+  migrateActorWorld,
 } from '../src/actorsave.js';
 
 function bear(overrides = {}) {
@@ -48,6 +50,45 @@ test('a future actor version is rejected instead of being silently downgraded', 
   const errors = [];
   validateActorWorld({ bears: [bear({ actorVersion: ACTOR_SAVE_VERSION + 1 })] }, 'world', errors);
   assert.match(errors.join('; '), /actorVersion .* unsupported/);
+});
+
+test('a v1 actor migrates to v2 with family defaults', () => {
+  const legacy = bear({ actorVersion: 1 });
+  const migrated = migrateActorRecord(legacy);
+  assert.equal(migrated.actorVersion, ACTOR_SAVE_VERSION);
+  assert.deepEqual(migrated.skills, { forage: 0, courage: 0, social: 0 });
+  assert.deepEqual(migrated.history, []);
+  assert.deepEqual(migrated.playdates, {});
+  assert.equal(legacy.actorVersion, 1, 'migration does not mutate the input record');
+
+  const world = migrateActorWorld({ bears: [legacy], glass: [glass({ actorVersion: 1 })] });
+  assert.equal(world.bears[0].actorVersion, ACTOR_SAVE_VERSION);
+  assert.equal(world.glass[0].actorVersion, ACTOR_SAVE_VERSION);
+});
+
+test('v2 family fields validate and malformed values are rejected', () => {
+  const good = bear({
+    actorVersion: ACTOR_SAVE_VERSION,
+    skills: { forage: .4, courage: 0, social: 1 },
+    history: [{ kind: 'meal', uid: 2, day: 1, hour: 8 }],
+    playdates: { 2: { day: 2, hour: 15 } },
+  });
+  const errors = [];
+  validateActorWorld({ bears: [good] }, 'world', errors);
+  assert.deepEqual(errors, []);
+
+  const bad = bear({
+    actorVersion: ACTOR_SAVE_VERSION,
+    skills: { forage: 2 },
+    history: [{ kind: 4 }],
+    playdates: { 2: { day: 'x', hour: 1 } },
+  });
+  const badErrors = [];
+  validateActorWorld({ bears: [bad] }, 'world', badErrors);
+  const text = badErrors.join('; ');
+  assert.match(text, /skills\.forage is invalid/);
+  assert.match(text, /history\[0\] is invalid/);
+  assert.match(text, /playdates\.2 is invalid/);
 });
 
 test('unknown or mismatched saved species are rejected', () => {
