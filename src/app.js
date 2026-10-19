@@ -14,6 +14,7 @@ import {
 import { createStudioReturnPortal } from './studiohouse.js';
 import { createMSNPrototype } from './msn.js';
 import { createGlassColony } from './glass.js';
+import { createActorView, isGlassActor } from './npc.js';
 import { getSpecies, speciesForRig, listSpecies } from './species.js';
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
@@ -55,10 +56,11 @@ function takeBearName(){ return BEAR_NAMES[(nextBearName++) % BEAR_NAMES.length]
 function isMeadow(){ return getActiveMap().kind === 'life'; }
 function speciesOf(b){ return b ? (b.speciesDef || getSpecies(b.species)) : null; }
 function isGummyActor(b){ const def = speciesOf(b); return !!(def && def.hasTells); }
-function isGlassActor(b){ return !!(b && b.kind === 'glass'); }
-function allActors(){
-  return glassColony ? [...bears, ...glassColony.actors] : bears;
-}
+const actorView = createActorView({
+  getSoft: () => bears,
+  getGlass: () => (glassColony ? glassColony.actors : []),
+});
+function allActors(){ return actorView.all(); }
 function reserveUid(){ return nextBearUid++; }
 function applyDnaTraits(b){
   const defaults = speciesOf(b)?.genetics?.defaults || {};
@@ -587,11 +589,7 @@ function removeBear(b){
 function despawnAll(){ while (bears.length) removeBear(bears[0]); }
 
 function homeResidents(name) {
-  if (!name) return 0;
-  let n = 0;
-  for (const b of bears) if (b.active && b.home === name) n++;
-  if (glassColony) for (const a of glassColony.actors) if (a.active && a.home === name) n++;
-  return n;
+  return actorView.homeResidents(name);
 }
 
 function chooseBirthHome(mother) {
@@ -723,12 +721,20 @@ function childGenomeFor(mother, father, childSpecies) {
   return genome;
 }
 
+function addFamilyBond(parent, child, value = .62) {
+  if (!parent || !child || parent === child) return;
+  if (!parent.bonds || typeof parent.bonds !== 'object') parent.bonds = {};
+  if (!child.bonds || typeof child.bonds !== 'object') child.bonds = {};
+  parent.bonds[String(child.uid)] = Math.max(value, Number(parent.bonds[String(child.uid)]) || 0);
+  child.bonds[String(parent.uid)] = Math.max(value, Number(child.bonds[String(parent.uid)]) || 0);
+}
+
 function birthChild(mother, father = null) {
   if (!mother || !mother.active || !mother.pregnant) return false;
   if (mother.grabs > 0 || mother.inPond || mother.airborne) return false;
   const safeFood = field && field.food ? field.food.allRipe({ kinds: ['flower', 'fruit'] }).length : 0;
   if (safeFood < MATE_FOOD_MIN) return false;
-  father = father || allActors().find(actor => actor.active && actor.uid === mother.fatherUid) || null;
+  father = father || actorView.byUid(mother.fatherUid) || null;
   const childSpecies = birthSpecies(mother, father) || speciesOf(mother);
   if (!childSpecies) return false;
   if (childSpecies.id !== 'glass' && bears.length >= bearCeiling) return false;
@@ -783,12 +789,17 @@ function birthChild(mother, father = null) {
   } else {
     baby.needsBuild = true;
   }
+  addFamilyBond(mother, baby);
+  if (father) addFamilyBond(father, baby);
   mother.pregnant = false;
   mother.gestation = 0;
   mother.birthRetryT = 0;
   mother.mateCooldown = MATE_COOLDOWN;
   lifeStats.births++;
-  if (field && field.emote) field.emote(mother.cx, (mother.cy || 0) + 1.05, mother.cz, 'heart');
+  if (field && field.emote) {
+    field.emote(mother.cx, (mother.cy || 0) + 1.05, mother.cz, 'heart');
+    field.emote(baby.cx, (baby.cy || 0) + .8, baby.cz, 'sparkle');
+  }
   return true;
 }
 
@@ -2874,6 +2885,10 @@ addEventListener('pointerdown', (e)=>{
     const glassHit = pickGlass(e.clientX, e.clientY);
     if (glassHit) {
       selectBear(glassHit.actor);
+      if (glassHit.actor.grabbing) {
+        p.mode = 'ignore';
+        return;
+      }
       if (clickMode === 'grab' && glassColony &&
           glassColony.beginDrag(glassHit.actor, e.clientX, e.clientY, camera, renderer)) {
         p.mode = 'glassGrab';
@@ -2956,7 +2971,7 @@ addEventListener('pointermove', (e)=>{
   }
   if (p.mode === 'glassGrab'){
     if (Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 4) p.moved = true;
-    if (glassColony && p.glass) glassColony.drag(p.glass, e.clientX, e.clientY, camera, renderer);
+    if (glassColony && p.glass) glassColony.drag(p.glass, e.clientX, e.clientY, camera, renderer, e.shiftKey);
   } else if (p.mode === 'grab'){
     if (p.grab) updateGrabTarget(p.grab, e.clientX, e.clientY);
   } else if (p.mode === 'pending'){
@@ -3388,6 +3403,7 @@ function buddyStatus(b){
     if (b.inside) return `resting inside at ${b.home || 'home'}`;
     if (b.pregnant) return b.gestation > 0 ? 'expecting a little glassling' : 'ready to welcome a glassling';
     if (b.ai) {
+      if (b.ai.state === 'follow') return `following ${b.ai.follow ? (b.ai.follow.name || 'a parent') : 'a parent'}`;
       if (b.ai.state === 'seekMate') return 'looking for a mate';
       if (b.ai.state === 'mate') return 'courting';
       if (b.ai.state === 'social') return `hovering with ${buddyPartnerName(b)}`;
@@ -3459,7 +3475,7 @@ function refreshBuddyList(){
   if (!buddyListEl) return;
   buddyListEl.innerHTML = '';
   if (!isMeadow()) return;
-  const list = allActors().filter(b => b.active && speciesOf(b)?.roster);
+  const list = actorView.active().filter(b => speciesOf(b)?.roster);
   for (const b of list){
     const row = document.createElement('button');
     row.type = 'button';
@@ -3523,7 +3539,7 @@ function updateBuddyStatuses(force = false){
   const now = performance.now();
   if (!force && now - lastBuddyStatusTick < 650) return;
   lastBuddyStatusTick = now;
-  for (const b of allActors()){
+  for (const b of actorView.active()){
     if (!b.active) continue;
     if (b._buddyStatusEl) b._buddyStatusEl.textContent = buddyStatus(b);
     syncBuddyHealth(b);
@@ -3813,7 +3829,7 @@ function focusMsn(){
 }
 function syncAeroUI(force){
   if (!isMeadow()) return;
-  const list = allActors().filter(b => b.active && speciesOf(b)?.roster);
+  const list = actorView.active().filter(b => speciesOf(b)?.roster);
   const sig = list.map(b=>`${b.kind || b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
   if (force || sig !== buddySig) refreshBuddyList();
   updateBuddyStatuses(force);
@@ -4248,12 +4264,7 @@ function launcherSpotClear(x, z, r, includeBears = true){
     }
   }
   if (!includeBears) return true;
-  for (const b of bears){
-    if (!b.active) continue;
-    if (Math.hypot(x - b.cx, z - b.cz) < 0.62 + r * .5) return false;
-  }
-  if (glassColony) for (const a of glassColony.actors){
-    if (!a.active) continue;
+  for (const a of actorView.active()){
     if (Math.hypot(x - a.cx, z - a.cz) < 0.62 + r * .5) return false;
   }
   return true;
@@ -4263,8 +4274,7 @@ function launcherSpotClear(x, z, r, includeBears = true){
 // Distance from (x,z) to the nearest active bear; used to scatter rapid drops.
 function bearClearanceAt(x, z) {
   let best = Infinity;
-  for (const b of allActors()){
-    if (!b.active) continue;
+  for (const b of actorView.active()){
     const d = Math.hypot(x - b.cx, z - b.cz);
     if (d < best) best = d;
   }
@@ -5229,7 +5239,7 @@ function spawnFromState(st){
 function saveCurrentWorld(){
   const id = activeWorld.mapId;
   const w = worlds[id];
-  w.bears = bears.filter(b => b.active).map(snapshotBear);
+  w.bears = actorView.soft().filter(b => b.active).map(snapshotBear);
   w.glass = id === 'field' && glassColony ? glassColony.snapshot() : [];
   w.camera = captureCamera();
   if (launcher){
@@ -6459,8 +6469,10 @@ window.__gummy = {
   glass(){ return glassColony ? glassColony.state() : null; },
   glassSetNeed(i, key, value){ return glassColony ? glassColony.setNeed(i, key, value) : false; },
   glassSetStage(i, stage){ return glassColony ? glassColony.setStage(i, stage) : false; },
+  glassSetPosition(i, x, z){ return glassColony ? glassColony.setPosition(i, x, z) : false; },
   glassSetCooldown(i, value){ return glassColony ? glassColony.setCooldown(i, value) : false; },
   glassSetAge(i, value){ return glassColony ? glassColony.setAge(i, value) : false; },
+  glassSetPregnant(i, on, gestation){ return glassColony ? glassColony.setPregnant(i, on, gestation) : false; },
   glassReset(i){ return glassColony ? glassColony.resetActor(i) : false; },
   glassShelter(i){ return glassColony ? glassColony.forceShelter(i) : false; },
   glassMate(i, j){ return glassColony ? glassColony.forceMate(i, j) : { ok:false, note:'meadow only' }; },

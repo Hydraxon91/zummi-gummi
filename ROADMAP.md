@@ -480,14 +480,17 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     Meadow as rigid skinned actors with their own Box3D sphere proxy. They
     hover on nav paths, eat/drink at roughly half the bear need rate, sleep
     never at night, and may drift inside their villa during daylight. They are
-    pointer-draggable in Grab-click mode and settle back to hover on release.
+    pointer-draggable in Grab-click mode: normal drag moves, Shift-drag lifts
+    or lowers, and release carries pointer velocity into a short hover coast.
     They use the shared roster/social/bonds/life fields, take their
-    baby/teen/adult growth step only at night, can become pregnant and give
+    baby/teen/adult growth step only at night, follow a living parent as
+    babies, inherit family homes/parent bonds, can become pregnant and give
     birth, and save/load in the world payload. Bear/Gummy AI scans the combined
     companion list for social and mating, so both directions can initiate
     cross-species pairs. Cross-species Glass × Bear/Gummy births use the
     existing Glass GLB or the other parent's rig; custom hybrid bodies remain
-    deferred.
+    deferred. `src/npc.js` supplies the shared actor view used by roster, save,
+    home and launcher iteration.
   - Add a Race Lab **type** selector only once both paths have their final
     controls. Do not silently share one material, solver or animation set
     between them.
@@ -573,9 +576,9 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   pass.
 - **Close (×) now deselects without cancelling**; queued commands keep running.
   Add an explicit “clear commands” affordance only if that surprises players.
-- **Glass grab release is positional, not a throw.** Dragging moves the rigid
-  hover near the pointer and release settles back to hover; add a launched
-  velocity/throw path if that interaction is wanted.
+- **Glass throw is a kinematic hover coast.** Release velocity is damped and
+  returns to hover; it does not yet collide/bounce off world geometry like a
+  rigid body throw.
 - **Glass daytime shelter is a hidden home-door state**, not an interior scene.
   It preserves needs and emerges at night; add interiors only with the home pass.
 - **Bear/Gummy social visits stay among soft-body actors.** A Glass pair can

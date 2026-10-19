@@ -289,6 +289,21 @@ export function createGlassColony({
     a.ai.faceYaw = a.yaw;
   }
 
+  function moveToward(a, x, z, dt, speed = MOVE_SPEED) {
+    const dx = x - a.cx;
+    const dz = z - a.cz;
+    const d = Math.hypot(dx, dz);
+    if (d < .01) return d;
+    const step = Math.min(d, speed * Math.max(0, dt));
+    const ux = dx / d;
+    const uz = dz / d;
+    a.cx += ux * step;
+    a.cz += uz * step;
+    a.yaw = Math.atan2(ux, uz);
+    a.ai.faceYaw = a.yaw;
+    return d;
+  }
+
   function releaseFood(a) {
     const field = fieldNow();
     if (field && field.food && a.ai.source) field.food.release(a.ai.source, a);
@@ -351,6 +366,39 @@ export function createGlassColony({
     a.ai.idleT = .5;
     a.ai.taskCooldown = 1.0;
     clearPath(a);
+  }
+
+  function parentFor(a) {
+    for (const uid of a.parentUids || []) {
+      const parent = [...actors, ...bearList()].find(actor => actor && actor.active && actor.uid === uid);
+      if (parent) return parent;
+    }
+    return null;
+  }
+
+  function parentTarget(parent) {
+    if (!parent) return null;
+    if (parent.inside || parent.sleeping) {
+      const field = fieldNow();
+      const home = field && Array.isArray(field.homes)
+        ? field.homes.find(h => h.name === parent.home)
+        : null;
+      if (home) return { x: home.door.x, z: home.door.z };
+    }
+    return { x: parent.cx, z: parent.cz };
+  }
+
+  function startFollow(a, parent) {
+    const target = parentTarget(parent);
+    if (!target) return false;
+    a.ai.follow = parent;
+    a.ai.state = 'follow';
+    a.ai.idleT = 0;
+    if (!setMoving(a, target.x, target.z)) {
+      a.ai.state = 'wander';
+      return false;
+    }
+    return true;
   }
 
   function pairBond(a, b) {
@@ -593,9 +641,15 @@ export function createGlassColony({
     clearPath(a);
     a.shelteredToday = true;
     destroyBody(a);
+    if (home && field && field.emote) field.emote(home.door.x, .85, home.door.z, 'sparkle');
   }
 
   function emerge(a) {
+    const field = fieldNow();
+    const home = field && Array.isArray(field.homes)
+      ? field.homes.find(h => h.name === a.home)
+      : null;
+    if (home && field.emote) field.emote(home.door.x, .85, home.door.z, 'sparkle');
     a.inside = false;
     a.ai.state = 'wander';
     a.ai.insideT = 0;
@@ -641,6 +695,23 @@ export function createGlassColony({
     }
     if (a.hunger > SEEK_HUNGER && acquireFood(a)) return;
     if (a.thirst > SEEK_THIRST && acquireWater(a)) return;
+    if (a.stage === 'baby') {
+      const parent = parentFor(a);
+      if (parent) {
+        const target = parentTarget(parent);
+        const d = target ? Math.hypot(target.x - a.cx, target.z - a.cz) : Infinity;
+        if (d > 2.2) {
+          if (startFollow(a, parent)) return;
+        } else {
+          a.ai.follow = parent;
+          a.ai.state = 'follow';
+          a.ai.idleT = .4;
+          a.ai.moving = false;
+          clearPath(a);
+          return;
+        }
+      }
+    }
     if ((a.social > SEEK_SOCIAL || a.affection > SEEK_AFFECTION) && a.ai.socialCooldown <= 0) {
       const friend = findSocial(a);
       if (friend && startSeekSocial(a, friend)) return;
@@ -664,6 +735,14 @@ export function createGlassColony({
     a.age = Number.isFinite(opts.age) ? opts.age : a.age;
     a.scale = clamp(scaleForStage(stage) * size, .35, 1.8);
     a.root.scale.setScalar(a.scale);
+    if (stage !== 'baby') {
+      a.ai.follow = null;
+      if (a.ai.state === 'follow') {
+        a.ai.state = 'wander';
+        a.ai.idleT = .4;
+        clearPath(a);
+      }
+    }
     destroyBody(a);
     ensureBody(a);
     return true;
@@ -703,13 +782,14 @@ export function createGlassColony({
   }
 
   function updateVisual(a) {
+    const visualScale = a.scale * (a.pregnant ? 1.035 : 1);
     const bob = a.inside || a.grabbing ? 0 : Math.sin(clock * 2.2 + a.phase) * HOVER_BOB;
-    const y = a.grabbing ? a.grabY : HOVER * a.scale + bob;
+    const y = a.grabbing || a.coasting ? a.grabY : HOVER * a.scale + bob;
     a.root.position.set(a.cx, y, a.cz);
     a.root.rotation.y = a.yaw || 0;
-    a.root.scale.setScalar(a.scale);
-    a.cy = y + (a.height || 1.25) * a.scale * .5;
-    a.shadow.position.y = (.004 - y) / Math.max(.001, a.scale);
+    a.root.scale.setScalar(visualScale);
+    a.cy = y + (a.height || 1.25) * visualScale * .5;
+    a.shadow.position.y = (.004 - y) / Math.max(.001, visualScale);
     a.shadow.scale.setScalar(1);
     const visible = meadow && !a.inside;
     a.root.visible = visible;
@@ -743,55 +823,83 @@ export function createGlassColony({
   }
 
   function beginDrag(a, clientX, clientY, camera, renderer) {
-    if (!a || !a.active || a.inside || !meadow || !camera || !renderer) return false;
+    if (!a || !a.active || a.inside || a.grabbing || !meadow || !camera || !renderer) return false;
     a.grabbing = true;
     a.grabs = 1;
+    a.coasting = false;
+    a.throwT = 0;
+    a.grabVx = 0;
+    a.grabVz = 0;
+    a.grabVy = 0;
     a.grabY = a.root.position.y;
     a.grabStartY = a.cy;
     a.grabStartClientY = clientY;
+    a.grabLastAt = performance.now();
     a.grabDepth = Math.max(2.5, camera.position.distanceTo(a.root.position));
     stopGrabTasks(a);
-    drag(a, clientX, clientY, camera, renderer);
+    drag(a, clientX, clientY, camera, renderer, false);
     return true;
   }
 
-  function drag(a, clientX, clientY, camera, renderer) {
+  function drag(a, clientX, clientY, camera, renderer, shift = false) {
     if (!a || !a.active || !a.grabbing || !camera || !renderer) return false;
-    const rect = renderer.domElement.getBoundingClientRect();
-    pointer.set(
-      ((clientX - rect.left) / rect.width) * 2 - 1,
-      -((clientY - rect.top) / rect.height) * 2 + 1,
-    );
-    raycaster.setFromCamera(pointer, camera);
-    const point = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, a.grabDepth);
-    const field = fieldNow();
-    const near = field && field.nav && field.nav.nearestWalkable
-      ? field.nav.nearestWalkable(point.x, point.z)
-      : point;
-    if (near) {
-      a.cx = near.x;
-      a.cz = near.z;
+    const now = performance.now();
+    const dt = Math.max(.001, (now - (a.grabLastAt || now)) / 1000);
+    const prevX = a.cx, prevZ = a.cz, prevY = a.grabY;
+    if (shift) {
+      a.grabY = clamp(
+        a.grabY + (a.grabStartClientY - clientY) * .006,
+        HOVER * a.scale + .02,
+        2.9,
+      );
+    } else {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(pointer, camera);
+      const point = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, a.grabDepth);
+      const field = fieldNow();
+      const near = field && field.nav && field.nav.nearestWalkable
+        ? field.nav.nearestWalkable(point.x, point.z)
+        : point;
+      if (near) {
+        a.cx = near.x;
+        a.cz = near.z;
+      }
+      a.ai.faceYaw = Math.atan2(point.x - a.cx, point.z - a.cz);
     }
-    a.grabY = clamp(
-      a.grabY + (a.grabStartClientY - clientY) * .005,
-      HOVER * a.scale + .02,
-      2.9,
-    );
+    const k = 1 - Math.exp(-12 * dt);
+    a.grabVx += ((a.cx - prevX) / dt - a.grabVx) * k;
+    a.grabVz += ((a.cz - prevZ) / dt - a.grabVz) * k;
+    a.grabVy += ((a.grabY - prevY) / dt - a.grabVy) * k;
     a.grabStartClientY = clientY;
-    a.ai.faceYaw = Math.atan2(point.x - a.cx, point.z - a.cz);
+    a.grabLastAt = now;
     updateVisual(a);
     syncBody(a);
     return true;
   }
 
-  function endDrag(a) {
+  function endDrag(a, throwIt = true) {
     if (!a || !a.grabbing) return false;
+    const speed = Math.hypot(a.grabVx, a.grabVz);
     a.grabbing = false;
     a.grabs = 0;
     a.ai.state = 'wander';
     a.ai.idleT = .35;
     a.ai.nextThink = 0;
     a.ai.faceYaw = null;
+    if (throwIt && (speed > .18 || Math.abs(a.grabVy) > .18)) {
+      a.coasting = true;
+      a.throwT = .48;
+      a.throwVx = clamp(a.grabVx, -4.5, 4.5);
+      a.throwVz = clamp(a.grabVz, -4.5, 4.5);
+      a.throwVy = clamp(a.grabVy, -2.2, 2.2);
+    } else {
+      a.coasting = false;
+      a.throwT = 0;
+    }
     updateVisual(a);
     syncBody(a);
     return true;
@@ -799,7 +907,7 @@ export function createGlassColony({
 
   function cancelDrag() {
     let count = 0;
-    for (const a of actors) if (endDrag(a)) count++;
+    for (const a of actors) if (endDrag(a, false)) count++;
     return count;
   }
 
@@ -952,6 +1060,14 @@ export function createGlassColony({
       grabDepth: 6,
       grabStartY: 0,
       grabStartClientY: 0,
+      grabVx: 0,
+      grabVz: 0,
+      grabVy: 0,
+      coasting: false,
+      throwT: 0,
+      throwVx: 0,
+      throwVz: 0,
+      throwVy: 0,
       ready: false,
       error: null,
       disposed: false,
@@ -1062,6 +1178,7 @@ export function createGlassColony({
       home: a.home,
       inside: !!a.inside,
       grabbing: !!a.grabbing,
+      coasting: !!a.coasting,
       sleeping: !!a.sleeping,
       grabs: a.grabs,
       inPond: !!a.inPond,
@@ -1071,6 +1188,8 @@ export function createGlassColony({
       error: a.error,
       state: a.ai ? a.ai.state : null,
       partner: a.ai && a.ai.partner ? a.ai.partner.name : null,
+      follow: a.ai && a.ai.follow ? (a.ai.follow.name || null) : null,
+      parentUids: (a.parentUids || []).slice(),
       position: [+a.cx.toFixed(2), +a.cy.toFixed(2), +a.cz.toFixed(2)],
       genome: a.genome,
       phenotype: a.phenotype,
@@ -1122,6 +1241,46 @@ export function createGlassColony({
 
       if (a.grabbing) {
         updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
+      }
+
+      if (a.coasting) {
+        a.throwT = Math.max(0, (a.throwT || 0) - dt);
+        if (a.throwT <= 0) {
+          a.coasting = false;
+          a.grabY = HOVER * a.scale;
+          a.ai.state = 'wander';
+          a.ai.idleT = .3;
+          a.ai.nextThink = 0;
+        } else {
+          const beforeX = a.cx;
+          const beforeZ = a.cz;
+          a.cx += a.throwVx * dt;
+          a.cz += a.throwVz * dt;
+          const field = fieldNow();
+          const near = field && field.nav && field.nav.nearestWalkable
+            ? field.nav.nearestWalkable(a.cx, a.cz)
+            : null;
+          if (near) {
+            a.cx = near.x;
+            a.cz = near.z;
+          }
+          if (Math.abs(a.cx - beforeX) < 1e-5 && Math.abs(a.cz - beforeZ) < 1e-5) {
+            a.throwVx = 0;
+            a.throwVz = 0;
+          }
+          const minY = HOVER * a.scale + .02;
+          a.grabY = clamp(a.grabY + a.throwVy * dt, minY, 2.9);
+          a.throwVy -= 4.5 * dt;
+          if (a.grabY <= minY) a.throwVy = 0;
+          const damp = Math.exp(-2.4 * dt);
+          a.throwVx *= damp;
+          a.throwVz *= damp;
+          a.throwVy *= Math.exp(-1.6 * dt);
+        }
+        updateVisual(a);
+        syncBody(a);
         if (a.mixer) a.mixer.update(dt);
         continue;
       }
@@ -1251,6 +1410,28 @@ export function createGlassColony({
       if (a.ai.state === 'seekMate') {
         finishSeekMate(a);
         move(a, dt);
+        updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
+      }
+      if (a.ai.state === 'follow') {
+        const parent = a.ai.follow || parentFor(a);
+        const target = parentTarget(parent);
+        if (!parent || !parent.active || !target) {
+          a.ai.follow = null;
+          a.ai.state = 'wander';
+          clearPath(a);
+        } else {
+          const d = Math.hypot(target.x - a.cx, target.z - a.cz);
+          if (d > 2.2) {
+            a.ai.moving = true;
+            moveToward(a, target.x, target.z, dt, 1.8);
+          } else {
+            a.ai.moving = false;
+            clearPath(a);
+            a.ai.faceYaw = Math.atan2(parent.cx - a.cx, parent.cz - a.cz);
+          }
+        }
         updateVisual(a);
         if (a.mixer) a.mixer.update(dt);
         continue;
@@ -1420,6 +1601,25 @@ export function createGlassColony({
     return applyStage(a, stage, { age: ageForStage(stage) });
   }
 
+  function setPosition(index, x, z) {
+    const a = actors[index];
+    if (!a || !Number.isFinite(Number(x)) || !Number.isFinite(Number(z))) return false;
+    const field = fieldNow();
+    const near = field && field.nav && field.nav.nearestWalkable
+      ? field.nav.nearestWalkable(Number(x), Number(z))
+      : { x: Number(x), z: Number(z) };
+    if (!near) return false;
+    a.cx = near.x;
+    a.cz = near.z;
+    a.ai.state = 'wander';
+    a.ai.moving = false;
+    a.ai.path = null;
+    a.ai.nextThink = 0;
+    updateVisual(a);
+    syncBody(a);
+    return true;
+  }
+
   function setCooldown(index, value) {
     const a = actors[index];
     if (!a) return false;
@@ -1437,12 +1637,23 @@ export function createGlassColony({
     return a.age;
   }
 
+  function setPregnant(index, on, gestation = GESTATION_TIME) {
+    const a = actors[index];
+    if (!a) return false;
+    a.pregnant = !!on;
+    a.gestation = a.pregnant ? Math.max(0, Number(gestation) || 0) : 0;
+    a.birthRetryT = 0;
+    return a.pregnant;
+  }
+
   function resetActor(index) {
     const a = actors[index];
     if (!a) return false;
     stopGrabTasks(a);
     a.grabbing = false;
     a.grabs = 0;
+    a.coasting = false;
+    a.throwT = 0;
     a.ai.state = 'wander';
     a.ai.idleT = 0;
     a.ai.nextThink = 0;
@@ -1518,8 +1729,10 @@ export function createGlassColony({
     spawnChild(opts = {}) { return makeActor({ ...opts, stage: opts.stage || 'baby' }); },
     setNeed,
     setStage,
+    setPosition,
     setCooldown,
     setAge,
+    setPregnant,
     resetActor,
     forceShelter,
     forceMate,
