@@ -132,12 +132,15 @@ export async function connectBrowser(launched) {
     });
   }
 
-  async function openPage({ url, width = 1440, height = 900, mobile = false } = {}) {
+  async function openPage({ url, width = 1440, height = 900, mobile = false, initScript = null } = {}) {
     const created = await send('Target.createTarget', { url: 'about:blank' });
     const attached = await send('Target.attachToTarget', { targetId: created.targetId, flatten: true });
     const sessionId = attached.sessionId;
     await send('Page.enable', {}, sessionId);
     await send('Runtime.enable', {}, sessionId);
+    if (initScript) {
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: initScript }, sessionId);
+    }
     if (width && height) {
       await send('Emulation.setDeviceMetricsOverride', {
         width, height, deviceScaleFactor: 1, mobile,

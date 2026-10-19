@@ -104,6 +104,10 @@ jobs:
           echo "GAME_URL=$url" >> "$GITHUB_ENV"
 
       - name: Run the seeded browser regression
+        env:
+          LOW_QUALITY: "1"
+          WIDTH: "900"
+          HEIGHT: "600"
         run: STUDIO=1 node scripts/browser-regression.mjs
 
       - name: Show server log on failure

@@ -13,6 +13,17 @@ const TAG = process.env.TAG || 'current';
 const base = process.env.GAME_URL || 'http://localhost:8000/';
 const target = new URL(base);
 target.searchParams.set('autostart', '1');
+const lowQuality = process.env.LOW_QUALITY === '1';
+const initScript = lowQuality ? `(() => {
+  try {
+    localStorage.setItem('gummy.qualityLevel', '3');
+    localStorage.setItem('gummy.qualityCap', '3');
+    localStorage.setItem('gummy.adaptive', '0');
+    localStorage.setItem('gummy.renderScale', '0.6');
+    localStorage.setItem('gummy.effects', 'off');
+    localStorage.setItem('gummy.profile', 'performance');
+  } catch (error) {}
+})()` : null;
 
 const launched = await launchBrowser();
 const browser = await connectBrowser(launched);
@@ -23,6 +34,7 @@ try {
     width: Number(process.env.WIDTH || 1440),
     height: Number(process.env.HEIGHT || 900),
     mobile: process.env.MOBILE === '1',
+    initScript,
   });
   await page.waitFor('!!window.__gummy?.booted', 90000);
   await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 90000);
