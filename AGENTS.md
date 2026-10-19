@@ -415,11 +415,14 @@ approved work chunk.
 - **Grass fill/geometry is the dominant GPU cost**, followed by draw-call submission; DPR
   and grass density are the largest levers. The Meadow-detail controls (canopy fullness,
   leaf size, grass coverage, draw distance) and quality tiers are the first response.
-- **Do not claim a 60 fps result from a headless run.** Headless uses forced-sync
-  `readPixels`, and the compositor caps rAF well below real refresh rates — state the
-  method and the frame time, not a frame rate.
+- **Do not claim a 60 fps result from a headless run.** Headless uses forced-sync probes
+  (`readPixels`, or the `renderProbe` `gl.finish` path) and the compositor caps rAF well
+  below real refresh rates — state the method and the frame time, not a frame rate.
 - **Re-profile before claiming a performance win**, and record meaningful changes in
   `PERFORMANCE.md` (method, before/after, the retention rule for older numbers).
+- **Use `scripts/perf-profile.mjs` for the unified Meadow.** Start `launch.py`, then run it;
+  `LOW_QUALITY=1` measures the CI graphics profile. Discard the first probe samples as GPU
+  ramp and compare rows from the same session, not across a contended machine.
 - Keep the scene's batching/instancing structure; measure, don't guess.
 
 ## 15. 3D Asset Authoring

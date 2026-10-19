@@ -645,15 +645,16 @@ can proceed with the current runtime and assets.
 
 - **Stale scratch expectations.** The old menu harness still expects 6 bears;
   update it to the current 8 soft-body actors after a starter-roster change.
-- **Deeper family life — foundation landed (A/B).** Shared `behavior.js`,
-  `behaviorprofiles.js`, `family.js`, `interactions.js` and `actorrecord.js` now drive
-  Bear/Gummy/Glass needs, pair interactions and playdates; actor save v2 migrates v1
-  records; lineage/history data is exposed through `__gummy`. Remaining: remove the
-  legacy fallback decision code, add meals/routines (D), teaching (E) and the history
-  panel (E).
-- **Performance.** Re-profile the current Meadow with Glass/family behavior,
-  tune grass/foliage and the quality tiers, and continue toward the open
-  ≤16.7 ms target.
+- **Deeper family life — A–F landed (Oct 2026).** Shared `behavior.js`,
+  `behaviorprofiles.js`, `family.js`, `interactions.js` and `actorrecord.js` drive
+  Bear/Gummy/Glass needs, pair interactions, playdates, hive/conflict, routines, meals,
+  teaching/skills and lineage/history. Actor save v2 migrates v1 records. The current
+  unified-family profile is recorded in `PERFORMANCE.md`; remaining work is presentation
+  polish and the larger Phase 9 village systems.
+- **Performance.** Phase F baseline recorded: **22.0–22.7 ms** at 1440×900 / DPR 1 /
+  quality 2 / effects off with 8 soft-body + 2 Glass; **~11 ms** on the low-quality CI
+  profile. Grass draw distance remains the largest lever (~3.5–3.7 ms for 56 → 28 m);
+  coverage shortening is not a geometry reduction. Continue toward ≤16.7 ms.
 - **6b-1 presentation polish.** HUD/status styling, nameplates, emote legibility,
   gear-sheet visuals, home occupancy glow and mobile layout.
 - **Phase 9.** Village placement editor, named homes, shared hub and light
@@ -678,12 +679,12 @@ can proceed with the current runtime and assets.
 
 ### Suggested order
 
-1. Deeper family life.
-2. Performance or 6b-1 presentation polish.
-3. Phase 9.
+1. 6b-1 presentation polish.
+2. Phase 9.
+3. Performance follow-up toward the ≤16.7 ms target.
 4. Blender authoring wave when MCP is ready.
 
-### Family behavior unification (A/B landed, C–F open)
+### Family behavior unification (A–F landed)
 
 - `behavior.js` is the single decision engine for needs, utilities, pair states and family
   tasks. `ai.js` and `glass.js` are representation adapters (hop/Box3D vs hover/GLB).
@@ -695,7 +696,12 @@ can proceed with the current runtime and assets.
   `sky.day`, and prunes stale uid references on load.
 - Bear/Gummy/Glass now share social, invite/decline, visit, follow, mate and playdate paths;
   mixed-species pairs use the same protocol.
-- Open F: re-profile and update `PERFORMANCE.md` on a quiet machine.
+- **Performance profile (F, landed).** `scripts/perf-profile.mjs` records the unified
+  8-soft-body + 2-Glass Meadow at 1440×900/DPR 1/quality 2/effects off: **22.0–22.7 ms**,
+  677–680 calls, 2.52 M triangles; 56 → 28 m grass draw distance saves **~3.5–3.7 ms**.
+  The low-quality CI profile (900×600/DPR 0.6) is **~11 ms** and already at the minimum
+  grass distance/coverage. AI is 0.017–0.085 ms. Details and the discarded contended run
+  are in `PERFORMANCE.md`.
 - **Profile-specific states migrated (C, done).** Bear hive raids, flee, conflict and the
   shared branch of the directive system live in `behavior.js`; Glass stargaze and daytime
   shelter are shared. `ai.js` and `glass.js` are now representation adapters; the old Glass
@@ -710,10 +716,9 @@ can proceed with the current runtime and assets.
   family door. `forage` shortens meals, `courage` lowers the safe hive threshold and
   `social` improves invitation acceptance. The selected-bear panel now lists recent family
   events (births, meals, lessons, playdates, stage-ups) below the lineage line.
-- **Perf profiling deferred to Phase 3.** A/B verification ran while the authoring machine
-  was hosting an Android emulator/Studio workload, so frame-time numbers are not
-  comparable to the recorded baselines. Do not publish A/B perf numbers; profile in the
-  dedicated Phase 3 pass on a quiet machine.
+- **F profiling was run after the Android/Blender/Xcode workloads stopped.** One
+  contended run measured 24.8–25.3 ms with `duetexpertd`/WindowServer active and was
+  discarded; the clean runs are 22.0–22.7 ms. Keep the same-session comparison rule.
 
 **Known follow-ups from A/B:**
 

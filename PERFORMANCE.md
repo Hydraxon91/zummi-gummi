@@ -7,6 +7,42 @@ Measured in the actual gameplay view: headless Chrome on Apple silicon,
 forced-sync `readPixels` median, not the headless rAF interval (the compositor
 caps rAF around 20–30 Hz).
 
+## Unified family/Glass profile — Phase F (Oct 2026)
+
+Method: `node scripts/perf-profile.mjs` (headless Chrome, 1440×900, **DPR 1**,
+quality 2, effects off, adaptive off, day look, the current 8 soft-body actors +
+2 Glass, six simulated seconds to settle family/Glass state, then frozen AI and
+camera). Seven 60-frame `renderProbe` samples; the first two are discarded for
+GPU ramp, and the median of the last five is reported. This is a forced-sync
+`gl.finish` frame time via `renderProbe`, not a refresh-rate claim. The low-quality row
+uses the CI profile:
+900×600, DPR 0.6, quality 3, effects off, performance nature (coverage .45,
+draw distance 28).
+
+| State | Median frame | Range | Draw calls | Triangles |
+|---|---:|---:|---:|---:|
+| Baseline | **22.0–22.7 ms** | 22.06–22.82 | 677–680 | 2.52 M |
+| Grass coverage 1.0 → 0.35 | 21.5–22.3 ms | 21.39–22.31 | 677 | 2.52 M |
+| Grass draw distance 56 → 28 m | **18.4–19.2 ms** | 18.40–19.24 | 653 | 2.34 M |
+| Baseline repeat | 22.0–22.7 ms | 21.88–22.82 | 671 | 2.52 M |
+| Low-quality CI baseline (900×600 / DPR 0.6) | **10.9–11.3 ms** | 10.77–12.03 | 653–655 | 2.32 M |
+
+- **Grass draw distance is still the largest single lever.** Dropping 56 → 28 m
+  saves **~3.5–3.7 ms** and removes ~0.18 M triangles / 24 draw calls.
+- **Shortening grass coverage is not a geometry reduction.** 1.0 → 0.35 saves
+  only **~0.4–0.6 ms**; draw calls and triangle count are essentially unchanged
+  because coverage shortens blades instead of rejecting instances. Use draw
+  distance, DPR or quality for relief, not coverage.
+- **The low-quality CI profile is ~11 ms** and already sits at the minimum
+  draw-distance and near-minimum coverage controls, so those sliders no longer
+  move it. Further relief there has to come from DPR, quality tier or other
+  scene costs.
+- **AI is not the bottleneck:** 0.017–0.085 ms per update across the 10 actors,
+  well under the 0.5 ms budget.
+- A separate run measured 24.8–25.3 ms while `duetexpertd` and WindowServer were
+  active; it was discarded. The same-run draw-distance delta stayed ~3.3 ms, so
+  only same-session comparisons are meaningful on a contended machine.
+
 ## Circular-meadow re-run — current data
 
 | State | Median frame | Draw calls | Triangles |
