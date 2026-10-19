@@ -10,3 +10,7 @@ inspiration/
 
 # Builder-agent progress captures; local only, superseded by curated screenshots/.
 .dev-shots/
+
+# Blender working files and autosave backups; not shipped assets.
+*.blend
+*.blend1
