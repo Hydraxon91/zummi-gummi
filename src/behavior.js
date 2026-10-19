@@ -1429,9 +1429,11 @@ export function createBehavior({
     return { window, key };
   }
 
-  function startFamilyMeal(actor, meal) {
+  function startFamilyMeal(actor, meal, immediate = false) {
     if (!actor || !actor.ai) return false;
-    const anchor = mealAnchor(actor);
+    const anchor = immediate
+      ? { x: actor.cx, z: actor.cz, home: (homeFor(actor) || {}).name || null }
+      : mealAnchor(actor);
     if (!anchor) return false;
     startTask(actor, INTERACTIONS.familyMeal, {
       role: 'host',
@@ -1440,7 +1442,8 @@ export function createBehavior({
       phase: 'travel',
     });
     actor.ai.lastMealWindow = meal.key;
-    if (actor.ai.familyTask.phase === 'act') {
+    if (immediate || actor.ai.familyTask.phase === 'act') {
+      actor.ai.familyTask.phase = 'act';
       stop(actor);
       return true;
     }
@@ -1493,9 +1496,11 @@ export function createBehavior({
     return best;
   }
 
-  function startLesson(teacher, student) {
+  function startLesson(teacher, student, immediate = false) {
     if (!teacher || !student || !teacher.ai || !student.ai) return false;
-    const anchor = lessonAnchor(teacher, student);
+    const anchor = immediate
+      ? { x: (teacher.cx + student.cx) * .5, z: (teacher.cz + student.cz) * .5 }
+      : lessonAnchor(teacher, student);
     startTask(teacher, INTERACTIONS.familyLesson, {
       role: 'teacher', partner: student, anchor,
       data: { skill: strongestSkill(teacher) }, phase: 'travel',
@@ -1504,6 +1509,13 @@ export function createBehavior({
       role: 'student', partner: teacher, anchor,
       data: { skill: strongestSkill(teacher) }, phase: 'travel',
     });
+    if (immediate) {
+      teacher.ai.familyTask.phase = 'act';
+      student.ai.familyTask.phase = 'act';
+      stop(teacher);
+      stop(student);
+      return true;
+    }
     if (teacher.ai.familyTask.phase === 'act') stop(teacher);
     else setDestination(teacher, anchor.x, anchor.z);
     if (student.ai.familyTask.phase === 'act') stop(student);
@@ -1515,7 +1527,7 @@ export function createBehavior({
     if (!teacher || !student || !teacher.ai || !student.ai) return { ok: false, note: 'no pair' };
     cancelPair(teacher);
     cancelPair(student);
-    return { ok: startLesson(teacher, student), state: teacher.ai.state };
+    return { ok: startLesson(teacher, student, true), state: teacher.ai.state };
   }
 
   /* ----------------------------------------------------------- family task */
@@ -2247,7 +2259,7 @@ export function createBehavior({
 
   function forceMeal(actor) {
     if (!actor || !actor.ai) return { ok: false, note: 'no actor' };
-    const ok = startFamilyMeal(actor, { window: { name: 'meal' }, key: `${dayNow()}:forced` });
+    const ok = startFamilyMeal(actor, { window: { name: 'meal' }, key: `${dayNow()}:forced` }, true);
     return { ok, state: actor.ai.state };
   }
 

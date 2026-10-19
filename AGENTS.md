@@ -227,9 +227,11 @@ and driving it.
   `npc.js` or the asset contract updates these tests in the same scope.
 - **The browser regression is the committed behavior check.** With a served build,
   `node scripts/browser-regression.mjs` checks the roster, species counts, lineage, sibling
-  play start and save/load; `STUDIO=1` adds the Studio GLB inventory. It uses a temporary
-  browser profile and a configurable `BROWSER_BIN`/`CHROME_BIN`. CI runs the same command in
-  a separate blocking job after the smoke test, with SwiftShader fallback enabled. Deeper
+  play start, parent/child lesson and skill gain, family meal and hunger/history, cross-
+  species social, history panel, save/load and the family map/save round trip; `STUDIO=1`
+  adds the Studio GLB inventory and the family restore check. It uses a temporary browser
+  profile and a configurable `BROWSER_BIN`/`CHROME_BIN`. CI runs the same command in a
+  separate blocking job after the smoke test, with SwiftShader fallback enabled. Deeper
   passes use `scripts/race-test.mjs` (desktop, `MOBILE=1`, `LOOK=alpha`) and
   `scripts/glass-test.mjs` through the same portable harness.
 - **The committed check is the smoke test.** `scripts/smoke.mjs` boots from a running
