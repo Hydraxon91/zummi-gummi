@@ -11,6 +11,18 @@ import { join } from 'node:path';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+async function removeProfile(profile) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rm(profile, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await sleep(150);
+    }
+  }
+}
+
 export function resolveBrowser() {
   const candidates = [
     process.env.BROWSER_BIN,
@@ -74,7 +86,7 @@ export async function launchBrowser({ browser = resolveBrowser(), port, profile,
   }
   if (!version?.webSocketDebuggerUrl) {
     child.kill();
-    await rm(profile, { recursive: true, force: true });
+    await removeProfile(profile).catch(() => {});
     throw new Error(`Browser CDP endpoint did not start on port ${port}`);
   }
   return { browser, child, port, profile, version };
@@ -167,7 +179,7 @@ export async function connectBrowser(launched) {
     try { await send('Browser.close', {}, null, 5000); } catch (error) {}
     try { ws.close(); } catch (error) {}
     try { launched.child.kill(); } catch (error) {}
-    await rm(launched.profile, { recursive: true, force: true });
+    await removeProfile(launched.profile).catch(() => {});
   }
 
   return { send, openPage, close, pageErrors };

@@ -24,8 +24,8 @@ try {
     height: Number(process.env.HEIGHT || 900),
     mobile: process.env.MOBILE === '1',
   });
-  await page.waitFor('!!window.__gummy?.booted', 45000);
-  await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 30000);
+  await page.waitFor('!!window.__gummy?.booted', 90000);
+  await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 90000);
 
   const result = await page.evaluate(`(async () => {
     const g = window.__gummy;
@@ -91,7 +91,7 @@ try {
   if (process.env.STUDIO === '1') {
     await page.evaluate("window.__gummy.setMap('studio')");
     await page.waitFor("window.__gummy.map().id === 'studio'", 15000);
-    await page.waitFor("window.__gummy.msn.state().ready", 30000);
+    await page.waitFor("window.__gummy.msn.state().ready", 90000);
     await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
     const studio = await page.evaluate(`(() => {
       const g = window.__gummy;
@@ -115,7 +115,7 @@ try {
       throw new Error(`Studio asset ownership failed: ${JSON.stringify(assets)}`);
     }
     await page.evaluate("window.__gummy.setMap('field')");
-    await page.waitFor("window.__gummy.map().id === 'field' && window.__gummy.glass().actors.every(a => a.ready)");
+    await page.waitFor("window.__gummy.map().id === 'field' && window.__gummy.glass().actors.every(a => a.ready)", 90000);
     await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
     const restoredAssets = await page.evaluate('window.__gummy.assets()');
     if (restoredAssets[0].loads !== 1 || restoredAssets[0].refs !== 3) {

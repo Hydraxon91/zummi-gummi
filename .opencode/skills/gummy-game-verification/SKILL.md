@@ -73,8 +73,10 @@ actors, 2 Glass actors, starter lineage, a sibling play start and save/load.
 Use `STUDIO=1` to load the Studio Glass prototype and verify 3 meshes/9 bones/10
 clips, and `SHOTS=1` to write a capture. The harness uses a temporary browser
 profile and `BROWSER_BIN`/`CHROME_BIN` when the browser is not in a standard
-location. The older `.dev-shots/race-test.mjs` and `glass-test.mjs` remain useful
-for deeper Studio/Glass lifecycle passes.
+location. CI runs the same regression with SwiftShader fallback and 90-second
+startup waits, so slow software rendering does not read as an asset failure. The
+older `.dev-shots/race-test.mjs` and `glass-test.mjs` remain useful for deeper
+Studio/Glass lifecycle passes.
 
 `STUDIO=1` also returns to Meadow after the transition completes and asserts that
 `__gummy.assets()` still reports one GLB load with three live leases (one retained
