@@ -63,6 +63,7 @@ const modules = [
   "/src/ai.js",
   "/src/effects.js",
   "/src/msn.js",
+  "/src/glass.js",
   "/src/species.js",
   "/src/dna.js",
   "/src/msnrig.js",

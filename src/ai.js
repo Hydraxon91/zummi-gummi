@@ -1057,9 +1057,8 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
 
   function canMatePair(a, b) {
     if (!a || !b) return false;
-    // Bear and Gummy are cross-compatible now; Glass remains blocked until its
-    // life/reproduction design exists. A Glass material gene can still pass to
-    // a Bear/Gummy child in the birth path.
+    // All three registered species are currently compatible. Glass has its own
+    // hover life adapter, so it can be the initiating or receiving partner.
     const gate = canSpeciesBreed(a.species, b.species, { current: true });
     if (!gate.ok) return false;
     return canMate(a, b, {
@@ -2075,6 +2074,52 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     return n;
   }
 
+  function matePairDebug(a, b) {
+    const gate = a && b ? canSpeciesBreed(a.species, b.species, { current: true }) : { ok: false, reason: 'missing actor' };
+    return {
+      gate,
+      active: !!(a && b && a.active && b.active),
+      adults: !!(a && b && a.stage === 'adult' && b.stage === 'adult'),
+      opposite: !!(a && b && a.sex !== b.sex),
+      pregnant: !!(a && b && (a.pregnant || b.pregnant)),
+      sleeping: !!(a && b && (a.sleeping || b.sleeping)),
+      grabbed: !!(a && b && (a.grabs > 0 || b.grabs > 0)),
+      pond: !!(a && b && (a.inPond || b.inPond)),
+      room: bears.length < populationCap(),
+      food: safeFoodCount(),
+      foodMin: MATE_FOOD_MIN,
+      cooldown: [a && a.mateCooldown, b && b.mateCooldown],
+      health: [a && a.health, b && b.health],
+      hunger: [a && a.hunger, b && b.hunger],
+      thirst: [a && a.thirst, b && b.thirst],
+      energy: [a && a.energy, b && b.energy],
+      canMate: canMate(a, b, { room: bears.length < populationCap(), food: safeFoodCount() >= MATE_FOOD_MIN }),
+      canMatePair: canMatePair(a, b),
+    };
+  }
+
+  function beginMatePair(a, b) {
+    if (!a || !b || a === b || !a.active || !b.active) return false;
+    if (!a.ai) attach(a);
+    if (!b.ai) attach(b);
+    if (!canMatePair(a, b)) return false;
+    breakPair(a);
+    breakPair(b);
+    releaseFood(a);
+    releaseFood(b);
+    a.ai.source = null;
+    b.ai.source = null;
+    a.ai.state = 'wander';
+    b.ai.state = 'wander';
+    a.ai.moving = false;
+    b.ai.moving = false;
+    a.ai.path = null;
+    b.ai.path = null;
+    a.ai.faceYaw = Math.atan2(b.cx - a.cx, b.cz - a.cz);
+    b.ai.faceYaw = Math.atan2(a.cx - b.cx, a.cz - b.cz);
+    return startMatePair(a, b);
+  }
+
   function debugMate(a, b) {
     if (!a || !b || a === b || !a.active || !b.active) return { ok: false, note: 'need two active bears' };
     if (!a.ai) attach(a);
@@ -2469,6 +2514,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
   return {
     update, onGrab, onRelease, detach, setEnabled,
     setNeed, setBond, debugState, debugSocial, debugInvite, debugVisit, debugConflict, debugMate,
+    beginMatePair, canMatePair, matePairDebug,
     plan, stats: statsNow,
     issueDirective, cancelDirectives, directiveState, setPossessed,
     get enabled() { return enabled; },

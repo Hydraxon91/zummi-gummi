@@ -13,6 +13,7 @@ import {
 } from './life.js';
 import { createStudioReturnPortal } from './studiohouse.js';
 import { createMSNPrototype } from './msn.js';
+import { createGlassColony } from './glass.js';
 import { getSpecies, speciesForRig, listSpecies } from './species.js';
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
@@ -34,6 +35,7 @@ const possessInput = { x: 0, y: 0 };
 let effects = null;
 let studioReturnPortal = null;
 let msnPrototype = null;
+let glassColony = null;
 const RACE_ENABLED = new URLSearchParams(location.search).get('race') !== 'off';
 const RACE_LOOK = new URLSearchParams(location.search).get('race') === 'alpha' ? 'alpha' : 'glass';
 const STUDIO_CAST_KEY = 'gummy.studio.cast';
@@ -53,6 +55,11 @@ function takeBearName(){ return BEAR_NAMES[(nextBearName++) % BEAR_NAMES.length]
 function isMeadow(){ return getActiveMap().kind === 'life'; }
 function speciesOf(b){ return b ? (b.speciesDef || getSpecies(b.species)) : null; }
 function isGummyActor(b){ const def = speciesOf(b); return !!(def && def.hasTells); }
+function isGlassActor(b){ return !!(b && b.kind === 'glass'); }
+function allActors(){
+  return glassColony ? [...bears, ...glassColony.actors] : bears;
+}
+function reserveUid(){ return nextBearUid++; }
 function applyDnaTraits(b){
   const defaults = speciesOf(b)?.genetics?.defaults || {};
   const genes = b.genome?.genes || {};
@@ -583,6 +590,7 @@ function homeResidents(name) {
   if (!name) return 0;
   let n = 0;
   for (const b of bears) if (b.active && b.home === name) n++;
+  if (glassColony) for (const a of glassColony.actors) if (a.active && a.home === name) n++;
   return n;
 }
 
@@ -658,70 +666,135 @@ function birthSpecies(mother, father) {
   const defs = [mother, father]
     .filter(Boolean)
     .map(speciesOf)
-    .filter(def => def && def.rig && def.canReproduce);
+    .filter(def => def && def.canReproduce);
   if (!defs.length) return speciesOf(mother);
   const unique = [...new Map(defs.map(def => [def.id, def])).values()];
   if (unique.length === 1) return unique[0];
-  // Cross-species offspring use an existing parent rig; species choice is random.
+  // Cross-species offspring use one of the parents' existing forms. Glass has
+  // no metaball rig, but its meadow adapter can create a child directly.
   return unique[(Math.random() * unique.length) | 0];
 }
 
-function tryBirth(mother) {
-  if (!mother || !mother.active || !mother.pregnant) return false;
-  if (mother.grabs > 0 || mother.inPond || mother.airborne) return false;
-  if (bears.length >= bearCeiling) return false;
-  const safeFood = field && field.food ? field.food.allRipe({ kinds: ['flower', 'fruit'] }).length : 0;
-  if (safeFood < MATE_FOOD_MIN) return false;
-  const father = bears.find(b => b.active && b.uid === mother.fatherUid) || null;
-  const flavor = inheritedFlavor(mother.flavor, FLAVORS.length, Math.random);
-  const pace = blendPace(mother, father || mother, Math.random);
-  const home = chooseBirthHome(mother);
-  let x = mother.cx;
-  let z = mother.cz;
-  if (mother.sleeping && home) {
-    const h = field && field.homes ? field.homes.find(item => item.name === home) : null;
-    if (h) { x = h.door.x; z = h.door.z; }
-  }
-  const p = field && field.nav ? field.nav.nearestWalkable(x, z) : null;
-  if (p) { x = p.x; z = p.z; }
+function isHexColor(value) {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function blendGlassColor(mother, father) {
+  const colorOf = (actor) => {
+    const candidate = actor?.phenotype?.genes?.color || actor?.genome?.genes?.color;
+    if (isHexColor(candidate)) return candidate;
+    if (actor && !isGlassActor(actor) && Number.isFinite(actor.flavor) && FLAVORS[actor.flavor]) {
+      return '#' + FLAVORS[actor.flavor].hex.toString(16).padStart(6, '0');
+    }
+    return '#a8e5ff';
+  };
+  const a = colorOf(mother).slice(1);
+  const b = colorOf(father).slice(1);
+  const mix = [0, 2, 4].map(i => {
+    const va = parseInt(a.slice(i, i + 2), 16);
+    const vb = parseInt(b.slice(i, i + 2), 16);
+    return clamp(Math.round(va + (vb - va) * (.35 + Math.random() * .3)), 0, 255);
+  });
+  return '#' + mix.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function childGenomeFor(mother, father, childSpecies) {
   const genome = combineGenomes(
     mother.genome || defaultGenome(mother.species),
     (father && father.genome) || mother.genome || defaultGenome(mother.species),
     { mutation: .04 },
   );
-  const childSpecies = birthSpecies(mother, father) || speciesOf(mother);
   genome.species = { [childSpecies.id]: 1 };
   genome.phenotype = childSpecies.genetics?.phenotype || null;
   genome.hybridTarget = null;
-  if ([mother, father].some(parent => parent?.genome?.genes?.material === 'glass')) {
+  const glassParent = [mother, father].some(parent => parent && (
+    parent.species === 'glass' ||
+    parent.phenotype?.genes?.material === 'glass' ||
+    parent.genome?.genes?.material === 'glass'
+  ));
+  if (childSpecies.id === 'glass') {
+    genome.genes.material = 'glass';
+    genome.genes.color = blendGlassColor(mother, father);
+  } else if (glassParent) {
     genome.genes.material = 'glass';
   } else {
     genome.genes.material = childSpecies.material === 'msn' ? 'msnGummy' : 'bearGummy';
   }
-  const baby = spawn(x, z, 0.004, flavor, {
-    rig: childSpecies.rig,
-    genome,
-    stage: 'baby',
-    scale: scaleForStage('baby'),
-    age: 0,
-    sex: Math.random() < 0.5 ? 'F' : 'M',
-    home,
-    parentUids: [mother.uid, father ? father.uid : 0].filter(Boolean),
-    fatherUid: father ? father.uid : 0,
-    bedtime: mother.bedtime,
-    wakeTime: mother.wakeTime,
-    hopSpeedMin: pace.min,
-    hopSpeedMax: pace.max,
-  });
+  return genome;
+}
+
+function birthChild(mother, father = null) {
+  if (!mother || !mother.active || !mother.pregnant) return false;
+  if (mother.grabs > 0 || mother.inPond || mother.airborne) return false;
+  const safeFood = field && field.food ? field.food.allRipe({ kinds: ['flower', 'fruit'] }).length : 0;
+  if (safeFood < MATE_FOOD_MIN) return false;
+  father = father || allActors().find(actor => actor.active && actor.uid === mother.fatherUid) || null;
+  const childSpecies = birthSpecies(mother, father) || speciesOf(mother);
+  if (!childSpecies) return false;
+  if (childSpecies.id !== 'glass' && bears.length >= bearCeiling) return false;
+  const flavor = inheritedFlavor(Number.isFinite(mother.flavor) ? mother.flavor : 3, FLAVORS.length, Math.random);
+  const pace = blendPace(mother, father || mother, Math.random);
+  const home = chooseBirthHome(mother);
+  let x = mother.cx;
+  let z = mother.cz;
+  if ((mother.sleeping || mother.inside) && home) {
+    const h = field && field.homes ? field.homes.find(item => item.name === home) : null;
+    if (h) { x = h.door.x; z = h.door.z; }
+  }
+  const p = field && field.nav ? field.nav.nearestWalkable(x, z) : null;
+  if (p) { x = p.x; z = p.z; }
+  const genome = childGenomeFor(mother, father, childSpecies);
+  const sex = Math.random() < 0.5 ? 'F' : 'M';
+  const parentUids = [mother.uid, father ? father.uid : 0].filter(Boolean);
+  let baby = null;
+  if (childSpecies.id === 'glass') {
+    baby = glassColony ? glassColony.spawnChild({
+      x, z, genome, home,
+      stage: 'baby', age: 0, sex,
+      name: 'Glass ' + takeBearName(),
+      parentUids,
+      fatherUid: father ? father.uid : 0,
+      color: genome.genes.color,
+      bedtime: mother.bedtime,
+      wakeTime: mother.wakeTime,
+    }) : null;
+  } else {
+    baby = spawn(x, z, 0.004, flavor, {
+      rig: childSpecies.rig,
+      genome,
+      stage: 'baby',
+      scale: scaleForStage('baby'),
+      age: 0,
+      sex,
+      name: takeBearName(),
+      home,
+      parentUids,
+      fatherUid: father ? father.uid : 0,
+      bedtime: mother.bedtime,
+      wakeTime: mother.wakeTime,
+      hopSpeedMin: pace.min,
+      hopSpeedMax: pace.max,
+    });
+  }
   if (!baby) return false;
-  baby.needsBuild = true;
+  if (baby.kind === 'glass') {
+    baby.genome = genome;
+    baby.phenotype = expressGenome(genome);
+  } else {
+    baby.needsBuild = true;
+  }
   mother.pregnant = false;
   mother.gestation = 0;
   mother.birthRetryT = 0;
   mother.mateCooldown = MATE_COOLDOWN;
   lifeStats.births++;
-  if (field && field.emote) field.emote(mother.cx, mother.cy + 1.05, mother.cz, 'heart');
+  if (field && field.emote) field.emote(mother.cx, (mother.cy || 0) + 1.05, mother.cz, 'heart');
   return true;
+}
+
+function tryBirth(mother) {
+  if (!mother || !mother.active || !mother.pregnant) return false;
+  return birthChild(mother);
 }
 
 function stepLife(dt) {
@@ -1369,6 +1442,7 @@ function physicsStep(dt){
     for (let i=0;i<b.np;i++){ flatForces[k*3]=b.fx[i]; flatForces[k*3+1]=b.fy[i]; flatForces[k*3+2]=b.fz[i]; k++; }
   }
   if (msnPrototype) msnPrototype.physicsForces(dt);
+  if (glassColony) glassColony.physicsForces();
   PHYS.applyForces(flatHandles, flatForces, false, n);
   PHYS.step(dt, 3);   // Box3D contact sub-solve at 180 Hz
   if (msnPrototype) msnPrototype.physicsRead();
@@ -2581,6 +2655,10 @@ function pickMsn(cx, cy){
   return msnPrototype ? msnPrototype.hitTest(cx, cy) : null;
 }
 
+function pickGlass(cx, cy){
+  return glassColony && isMeadow() ? glassColony.pick(cx, cy, camera, renderer) : null;
+}
+
 function pickMsnUnderPointer(cx, cy){
   const race = pickMsn(cx, cy);
   if (!race) return null;
@@ -2760,9 +2838,11 @@ addEventListener('pointerdown', (e)=>{
       rayFromClient(e.clientX, e.clientY);
       const raceHit = pickMsn(e.clientX, e.clientY);
       const bearHit = pickBear();
+      const glassHit = pickGlass(e.clientX, e.clientY);
       const actorDist = Math.min(
         raceHit ? raceHit.distance : Infinity,
         bearHit ? bearHit.depth : Infinity,
+        glassHit ? glassHit.distance : Infinity,
       );
       if (portalDist <= actorDist){
         p.mode = 'ignore';
@@ -2786,6 +2866,21 @@ addEventListener('pointerdown', (e)=>{
     }
   }
   if (msnPrototype) msnPrototype.select(false);
+
+  // Meadow Glass is rigid, so a primary click selects and frames it instead of
+  // starting a soft-body grab.
+  if ((e.pointerType !== 'mouse' || e.button === 0) && isMeadow()) {
+    const glassHit = pickGlass(e.clientX, e.clientY);
+    if (glassHit) {
+      selectBear(glassHit.actor);
+      p.mode = 'orbit';
+      if (hintEl) {
+        hintEl.textContent = `${glassHit.actor.name || 'Glass'} selected — hovers through the meadow`;
+        showCamHint();
+      }
+      return;
+    }
+  }
 
   // Select-click mode: pick the bear under the pointer without grabbing it, so
   // left-click can select while a drag still orbits. Grab mode is unchanged.
@@ -3258,6 +3353,10 @@ function formatClock(hours){
   return `${hh}:${String(m).padStart(2,'0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 function flavorHex(b){
+  if (isGlassActor(b)) {
+    const color = b.phenotype?.genes?.color;
+    return isHexColor(color) ? color : '#a8e5ff';
+  }
   if (b.flavor < 0) return '#ff4fa3';
   return '#' + (FLAVORS[b.flavor] ? FLAVORS[b.flavor].hex.toString(16).padStart(6,'0') : 'd51f3c');
 }
@@ -3267,6 +3366,26 @@ function buddyPartnerName(b){
 }
 function buddyStatus(b){
   if (!field) return 'settling in';
+  if (isGlassActor(b)) {
+    if (b.inside) return `resting inside at ${b.home || 'home'}`;
+    if (b.pregnant) return b.gestation > 0 ? 'expecting a little glassling' : 'ready to welcome a glassling';
+    if (b.ai) {
+      if (b.ai.state === 'seekMate') return 'looking for a mate';
+      if (b.ai.state === 'mate') return 'courting';
+      if (b.ai.state === 'social') return `hovering with ${buddyPartnerName(b)}`;
+      if (b.ai.state === 'seekSocial') return 'drifting toward a friend';
+      if (b.ai.state === 'seekHome') return 'drifting inside for the day';
+      if (b.ai.state === 'eat') return 'sipping nectar';
+      if (b.ai.state === 'drink') return 'skimming the pond';
+      if (b.ai.state === 'seekWater') return 'drifting to the pond';
+      if (b.ai.state === 'seekFood') return 'looking for a sweet flower';
+      if (b.ai.state === 'stargaze') return 'counting stars';
+      if (b.thirst >= .82) return 'getting thirsty';
+      if (b.hunger >= .82) return 'getting hungry';
+    }
+    if (sky && sky.night > .5) return 'hovering under the stars';
+    return 'drifting through the meadow';
+  }
   if (b.ai && b.ai.state === 'sleep') return `sleeping at ${b.home || 'home'}`;
   if (b.health < 15) return 'woozy — needs a quiet corner';
   if (b.pregnant) return b.gestation > 0 ? 'expecting a cub' : 'ready to welcome a cub';
@@ -3322,7 +3441,7 @@ function refreshBuddyList(){
   if (!buddyListEl) return;
   buddyListEl.innerHTML = '';
   if (!isMeadow()) return;
-  const list = bears.filter(b => b.active && speciesOf(b).roster);
+  const list = allActors().filter(b => b.active && speciesOf(b)?.roster);
   for (const b of list){
     const row = document.createElement('button');
     row.type = 'button';
@@ -3378,7 +3497,7 @@ function refreshBuddyList(){
     syncBuddyHealth(b);
   }
   if (onlineCountEl) onlineCountEl.textContent = `${list.length} online`;
-  buddySig = list.map(b=>`${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
+  buddySig = list.map(b=>`${b.kind || b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
   lastBuddyStatusTick = 0;
 }
 function updateBuddyStatuses(force = false){
@@ -3386,7 +3505,7 @@ function updateBuddyStatuses(force = false){
   const now = performance.now();
   if (!force && now - lastBuddyStatusTick < 650) return;
   lastBuddyStatusTick = now;
-  for (const b of bears){
+  for (const b of allActors()){
     if (!b.active) continue;
     if (b._buddyStatusEl) b._buddyStatusEl.textContent = buddyStatus(b);
     syncBuddyHealth(b);
@@ -3403,16 +3522,20 @@ function syncDirectivePanel(){
   const show = !!b && b.active && isMeadow() && !helpOpen;
   directivePanelEl.hidden = !show;
   if (!show) return;
-  if (directiveNameEl) directiveNameEl.textContent = b.name || 'Gummy';
+  if (directiveNameEl) directiveNameEl.textContent = b.name || (isGlassActor(b) ? 'Glass' : 'Gummy');
   const controlling = possessedBear === b;
-  if (directiveActionsEl) directiveActionsEl.hidden = controlling;
+  const glass = isGlassActor(b);
+  if (directiveActionsEl) directiveActionsEl.hidden = controlling || glass;
   if (possessBtnEl) {
     possessBtnEl.textContent = controlling ? 'Exit control' : 'Control';
     possessBtnEl.classList.toggle('on', controlling);
+    possessBtnEl.hidden = glass;
   }
-  let text = 'Pick a command.';
+  let text = glass ? 'Glass drifts on its own · watch its hover life' : 'Pick a command.';
   if (controlling) {
     text = 'WASD / stick to move · Space hop · V exit';
+  } else if (glass) {
+    text = b.inside ? 'Resting inside for the day.' : 'Glass hovers, feeds and socialises autonomously.';
   } else if (b.ai && b.ai.directiveStatus && b.ai.directiveStatus.t > 0) {
     text = b.ai.directiveStatus.text;
   } else if (b.ai && b.ai.directive) {
@@ -3458,7 +3581,7 @@ function toggleClickMode(){
 clickModeEl?.addEventListener('click', toggleClickMode);
 syncClickMode();
 function issueSelectedDirective(kind){
-  if (!selectedBear || !selectedBear.active || !ai || !isMeadow()) return;
+  if (!selectedBear || !selectedBear.active || isGlassActor(selectedBear) || !ai || !isMeadow()) return;
   if (kind === 'go') {
     directivePick = true;
     if (directiveStatusEl) directiveStatusEl.textContent = 'Tap the meadow to send this bear there.';
@@ -3672,8 +3795,8 @@ function focusMsn(){
 }
 function syncAeroUI(force){
   if (!isMeadow()) return;
-  const list = bears.filter(b => b.active && speciesOf(b).roster);
-  const sig = list.map(b=>`${b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
+  const list = allActors().filter(b => b.active && speciesOf(b)?.roster);
+  const sig = list.map(b=>`${b.kind || b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
   if (force || sig !== buddySig) refreshBuddyList();
   updateBuddyStatuses(force);
   for (const b of list) syncBuddyHealth(b);
@@ -4111,6 +4234,10 @@ function launcherSpotClear(x, z, r, includeBears = true){
     if (!b.active) continue;
     if (Math.hypot(x - b.cx, z - b.cz) < 0.62 + r * .5) return false;
   }
+  if (glassColony) for (const a of glassColony.actors){
+    if (!a.active) continue;
+    if (Math.hypot(x - a.cx, z - a.cz) < 0.62 + r * .5) return false;
+  }
   return true;
 }
 
@@ -4118,7 +4245,7 @@ function launcherSpotClear(x, z, r, includeBears = true){
 // Distance from (x,z) to the nearest active bear; used to scatter rapid drops.
 function bearClearanceAt(x, z) {
   let best = Infinity;
-  for (const b of bears){
+  for (const b of allActors()){
     if (!b.active) continue;
     const d = Math.hypot(x - b.cx, z - b.cz);
     if (d < best) best = d;
@@ -4290,6 +4417,7 @@ function stepMeadowAI(dt) {
   if (!ai || !ai.enabled) return;
   ai.update(dt);
   stepLife(dt);
+  if (glassColony) glassColony.update(dt);
   // Social conflicts queue a small shove; app.js owns body impulses.
   for (const b of bears) {
     if (!b.active || !b.ai || !b.ai.shove) continue;
@@ -5084,6 +5212,7 @@ function saveCurrentWorld(){
   const id = activeWorld.mapId;
   const w = worlds[id];
   w.bears = bears.filter(b => b.active).map(snapshotBear);
+  w.glass = id === 'field' && glassColony ? glassColony.snapshot() : [];
   w.camera = captureCamera();
   if (launcher){
     const p = launcher.getPosition();
@@ -5241,6 +5370,7 @@ function activateMap(id, opts = {}){
     pointers.clear();
     dropQueue.length = 0;
     despawnAll();
+    if (glassColony) glassColony.clear();
   }
   setActiveMap(id);
   const map = getActiveMap();
@@ -5269,6 +5399,16 @@ function activateMap(id, opts = {}){
     seedMeadowBears();
   } else {
     seedStudioBears();
+  }
+  if (glassColony) {
+    if (map.kind === 'life' && RACE_ENABLED) {
+      glassColony.setMeadow(true);
+      if (Array.isArray(w.glass)) glassColony.restore(w.glass);
+      else glassColony.seedMeadow();
+    } else {
+      glassColony.clear();
+      glassColony.setMeadow(false);
+    }
   }
   syncStudioCastPhysics();
   syncRaceControlUI();
@@ -5300,6 +5440,7 @@ function worldSaveState(id) {
   const l = w.launcher;
   const out = {
     bears: Array.isArray(w.bears) ? w.bears : [],
+    glass: Array.isArray(w.glass) ? w.glass : [],
     camera: w.camera || null,
     launcher: l && Number.isFinite(l.x) && Number.isFinite(l.z) ? { x: l.x, z: l.z } : null,
     time: Number.isFinite(w.time) ? w.time : null,
@@ -5334,6 +5475,7 @@ function applySavePayload(raw) {
       const src = payload.worlds[id];
       const w = worlds[id];
       w.bears = src.initialized || src.bears.length ? src.bears : null;
+      w.glass = Array.isArray(src.glass) ? src.glass : null;
       w.camera = src.camera;
       if (src.launcher) w.launcher = { ...src.launcher };
       if (id === 'field') {
@@ -5382,10 +5524,12 @@ function applySavePayload(raw) {
 function resetNewGame() {
   if (!window.__gummy || !window.__gummy.booted) throw new Error('Game is still loading');
   despawnAll();
+  if (glassColony) glassColony.clear();
   if (field && field.food) field.food.reset();
   for (const id of ['field', 'studio']) {
     const w = worlds[id];
     w.bears = null;
+    w.glass = null;
     w.camera = null;
     w.initialized = false;
   }
@@ -5768,6 +5912,17 @@ async function bootGame(){
   scene.add(studioReturnPortal.group);
   layoutStudioReturnPortal();
   msnPrototype = createMSNPrototype({ scene, camera, renderer, physics: PHYS, enabled: RACE_ENABLED, getTable: () => TABLE, look: RACE_LOOK });
+  glassColony = createGlassColony({
+    scene,
+    physics: PHYS,
+    getField: () => field,
+    getHours: () => (sky ? sky.hours : 12),
+    getBears: () => bears,
+    nextUid: reserveUid,
+    takeName: () => 'Glass ' + takeBearName(),
+    beginCrossMate: (glass, bear) => (ai ? ai.beginMatePair(glass, bear) : false),
+    birthFromGlass: (mother) => birthChild(mother),
+  });
   activateMap(activeWorld.mapId, { initial: true });
   if (toonEnabled) applyToonMaterials();
   drawShadows();
@@ -5973,7 +6128,7 @@ window.__gummy = {
         maxXZ=Math.max(maxXZ, Math.abs(b.px[i]), Math.abs(b.pz[i]));
       }
     }
-    return { nan, bears:bears.length, bounces, activeGrabs:grabs.size, stretchShown:+stretchShown.toFixed(2), minY, maxY, maxXZ, verts, stretch, sy:[+syMin.toFixed(2),+syMax.toFixed(2)], sx:[+sxMin.toFixed(2),+sxMax.toFixed(2)],
+    return { nan, bears:bears.length, glass:glassColony ? glassColony.count : 0, bounces, activeGrabs:grabs.size, stretchShown:+stretchShown.toFixed(2), minY, maxY, maxXZ, verts, stretch, sy:[+syMin.toFixed(2),+syMax.toFixed(2)], sx:[+sxMin.toFixed(2),+sxMax.toFixed(2)],
              builtThisFrame:built, fps:Math.round(fpsEma), frameMs:+frameMsEma.toFixed(2),
              table:{hx:+TABLE.hx.toFixed(2),hz:+TABLE.hz.toFixed(2)}, dpr:renderer.getPixelRatio(), quality:quality.level,
              calls:fx ? fx.calls : renderer.info.render.calls,
@@ -6198,7 +6353,7 @@ window.__gummy = {
     sky.setCloudsVisible(!v);
     return 1;
   },
-  map(){ return { id:activeWorld.mapId, sky: sky ? { hours:sky.hours, auto:sky.auto, speed:sky.speed } : null, bears:bears.length, launcher:launcher ? launcher.state() : null }; },
+  map(){ return { id:activeWorld.mapId, sky: sky ? { hours:sky.hours, auto:sky.auto, speed:sky.speed } : null, bears:bears.length, glass:glassColony ? glassColony.count : 0, launcher:launcher ? launcher.state() : null }; },
   launcherToggle(on){ return launcher ? launcher.toggleAiming(on) : false; },
   launcherAim(x, z){ if (!launcher) return null; launcher.aimAt(x, z); return launcher.state(); },
   launcherFire(){ return launcher ? launcher.fire() : false; },
@@ -6282,6 +6437,18 @@ window.__gummy = {
     b.birthRetryT = 0;
     return tryBirth(b);
   },
+  glass(){ return glassColony ? glassColony.state() : null; },
+  glassSetNeed(i, key, value){ return glassColony ? glassColony.setNeed(i, key, value) : false; },
+  glassSetStage(i, stage){ return glassColony ? glassColony.setStage(i, stage) : false; },
+  glassSetCooldown(i, value){ return glassColony ? glassColony.setCooldown(i, value) : false; },
+  glassShelter(i){ return glassColony ? glassColony.forceShelter(i) : false; },
+  glassMate(i, j){ return glassColony ? glassColony.forceMate(i, j) : { ok:false, note:'meadow only' }; },
+  glassMateBear(i, j){
+    return glassColony ? glassColony.forceMateWithBear(i, bears[j]) : { ok:false, note:'meadow only' };
+  },
+  glassBirth(i){ return glassColony ? glassColony.forceBirth(i) : false; },
+  glassCanMate(i, j){ return glassColony && ai ? ai.canMatePair(glassColony.actors[i], bears[j]) : false; },
+  glassMateDebug(i, j){ return glassColony && ai ? ai.matePairDebug(glassColony.actors[i], bears[j]) : null; },
   setAge(i, v){
     const b = bears[i];
     const n = Number(v);
@@ -6357,7 +6524,7 @@ window.__gummy = {
     }
     return { frames:n, msPerFrame:+((performance.now() - t0) / n).toFixed(2) };
   },
-  life(){ return { ...lifeStats, bears: bears.length }; },
+  life(){ return { ...lifeStats, bears: bears.length, glass: glassColony ? glassColony.count : 0 }; },
   setBearState(i, state){
     const b = bears[i];
     if (!b || !ai || !isMeadow()) return { ok:false, note:'meadow only or no bear' };

@@ -148,18 +148,18 @@ install({
   material: 'glass',
   spriteFlavor: 3,
   studio: true,
-  meadow: false,
-  roster: false,
+  meadow: true,
+  roster: true,
   countsAsBear: false,
   canGrab: true,
   canPossess: false,
   canBreed: true,
-  canReproduce: false,
-  behavior: 'glassClips',
+  canReproduce: true,
+  behavior: 'glassHover',
   hasEyes: false,
   hasTells: false,
-  hasLife: false,
-  growth: null,
+  hasLife: true,
+  growth: 'bearStages',
   genetics: {
     version: 1,
     phenotype: 'skinned-glass',
@@ -173,7 +173,7 @@ install({
     { with: 'bear', target: 'bear-glass', status: 'deferred' },
     { with: 'msn', target: 'msn-glass', status: 'deferred' },
   ],
-  tags: ['msn', 'skinned', 'studio'],
+  tags: ['msn', 'skinned', 'meadow', 'hover'],
 });
 
 export function getSpecies(id, fallback = 'bear') {

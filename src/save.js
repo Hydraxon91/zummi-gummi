@@ -41,10 +41,36 @@ function validateBear(b, where, errors) {
   }
 }
 
+function validateGlass(a, where, errors) {
+  if (!isObj(a)) { errors.push(`${where} is not an object`); return; }
+  if (a.kind !== undefined && a.kind !== 'glass') errors.push(`${where}.kind is invalid`);
+  if (a.species !== undefined && a.species !== 'glass') errors.push(`${where}.species is invalid`);
+  if (!isNum(a.uid) || a.uid <= 0) errors.push(`${where}.uid is invalid`);
+  if (!isNum(a.x) || !isNum(a.z)) errors.push(`${where} position is invalid`);
+  if (a.stage !== undefined && !STAGES.has(a.stage)) errors.push(`${where}.stage is invalid`);
+  for (const key of ['scale', 'health', 'hunger', 'thirst', 'energy', 'age', 'gestation', 'mateCooldown', 'social', 'affection', 'bold']) {
+    if (a[key] !== undefined && !isNum(a[key])) errors.push(`${where}.${key} is invalid`);
+  }
+  if (a.pregnant !== undefined && typeof a.pregnant !== 'boolean') errors.push(`${where}.pregnant is invalid`);
+  if (a.parentUids !== undefined && (!Array.isArray(a.parentUids) || a.parentUids.some(u => !isNum(u)))) {
+    errors.push(`${where}.parentUids is invalid`);
+  }
+  if (a.bonds !== undefined && !isObj(a.bonds)) errors.push(`${where}.bonds is invalid`);
+  if (a.genome !== undefined) {
+    if (!isObj(a.genome) || !isNum(a.genome.version) || !isObj(a.genome.species) || !isObj(a.genome.genes)) {
+      errors.push(`${where}.genome is invalid`);
+    }
+  }
+}
+
 function validateWorld(w, where, errors) {
   if (!isObj(w)) { errors.push(`${where} is not an object`); return; }
   if (!Array.isArray(w.bears)) errors.push(`${where}.bears is not an array`);
   else w.bears.forEach((b, i) => validateBear(b, `${where}.bears[${i}]`, errors));
+  if (w.glass !== undefined) {
+    if (!Array.isArray(w.glass)) errors.push(`${where}.glass is not an array`);
+    else w.glass.forEach((a, i) => validateGlass(a, `${where}.glass[${i}]`, errors));
+  }
   if (w.camera != null) {
     const c = w.camera;
     if (!isObj(c) || !isNum(c.yaw) || !isNum(c.pitch) || !isNum(c.dist) ||
@@ -104,6 +130,7 @@ export function normalizeSave(data) {
 function cloneWorld(w) {
   return JSON.parse(JSON.stringify({
     bears: w.bears || [],
+    glass: Array.isArray(w.glass) ? w.glass : undefined,
     camera: w.camera || null,
     launcher: w.launcher || null,
     time: isNum(w.time) ? w.time : null,
