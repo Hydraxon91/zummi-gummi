@@ -645,8 +645,12 @@ can proceed with the current runtime and assets.
 
 - **Stale scratch expectations.** The old menu harness still expects 6 bears;
   update it to the current 8 soft-body actors after a starter-roster change.
-- **Deeper family life.** Family meals, parent teaching, recurring playdates,
-  household routines and a longer lineage/history view.
+- **Deeper family life — foundation landed (A/B).** Shared `behavior.js`,
+  `behaviorprofiles.js`, `family.js`, `interactions.js` and `actorrecord.js` now drive
+  Bear/Gummy/Glass needs, pair interactions and playdates; actor save v2 migrates v1
+  records; lineage/history data is exposed through `__gummy`. Remaining: remove the
+  legacy fallback decision code, add meals/routines (D), teaching (E) and the history
+  panel (E).
 - **Performance.** Re-profile the current Meadow with Glass/family behavior,
   tune grass/foliage and the quality tiers, and continue toward the open
   ≤16.7 ms target.
@@ -678,6 +682,42 @@ can proceed with the current runtime and assets.
 2. Performance or 6b-1 presentation polish.
 3. Phase 9.
 4. Blender authoring wave when MCP is ready.
+
+### Family behavior unification (A/B landed, C–F open)
+
+- `behavior.js` is the single decision engine for needs, utilities, pair states and family
+  tasks. `ai.js` and `glass.js` are representation adapters (hop/Box3D vs hover/GLB).
+- `behaviorprofiles.js` preserves Bear/Gummy and Glass balance: needs rates, thresholds,
+  schedules, allowed states and social/mate/visit values stay per species.
+- `family.js` owns relations, households, generations, bonds, skills, history and playdate
+  schedules. `interactions.js` owns the pair/task protocol.
+- Actor save v2 migrates v1 records, adds `skills`/`history`/`playdates`, persists
+  `sky.day`, and prunes stale uid references on load.
+- Bear/Gummy/Glass now share social, invite/decline, visit, follow, mate and playdate paths;
+  mixed-species pairs use the same protocol.
+- Open C–F: delete the legacy fallback decision blocks now left in `ai.js`/`glass.js`;
+  add household meals/routines; add parent teaching/skills; add the lineage/history panel;
+  then re-profile and update `PERFORMANCE.md`.
+- **Perf profiling deferred to Phase 3.** A/B verification ran while the authoring machine
+  was hosting an Android emulator/Studio workload, so frame-time numbers are not
+  comparable to the recorded baselines. Do not publish A/B perf numbers; profile in the
+  dedicated Phase 3 pass on a quiet machine.
+
+**Known follow-ups from A/B:**
+
+- **Legacy fallback code remains.** `createBearAI`/`createGlassColony` still contain the
+  pre-unification decision functions for callers that do not pass `behavior`. The live app
+  always passes the shared engine, so those blocks are unused; remove them after a parity
+  pass rather than mixing two live paths.
+- **Glass balance is preserved by profile.** Food/water/social/mate values were mapped from
+  the old Glass constants. Re-check them in Phase C alongside stargaze/shelter migration.
+- **Meal and lesson task effects exist but no trigger creates them yet.** Phase D/E adds
+  the household meal and parent-teaching triggers.
+- **`__gummy.familyPlay(i,j)` now starts a playdate task** with a shared meeting point,
+  not the old in-place social pair. Existing harnesses that expected immediate `social`
+  should assert `familyTask` first.
+- **Playdates are daytime-only.** Family acquisition and due playdates check the actor's
+  day/night profile; forced debug hooks can still start one at night.
 
 ## Content extensibility track (implemented, Oct 2026)
 
@@ -1126,11 +1166,17 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
 - Newborns are scale-0.58 babies with a random sex, 8%-mutation mother flavor,
   averaged parent pace ranges (±0.04 min / ±0.06 max), parent uids and a family
   home. They follow a parent and return to the family home at night.
+- Family play is a paired **playdate** task: siblings or a parent/child meet at a
+  family door, play for 10 s, raise the pair bond, write a history event and
+  schedule the next one for the next in-game day's play window. Playdates are
+  daytime-only and work across Bear/Gummy/Glass.
 - Villas have a capacity of four residents. A newborn prefers the mother’s home,
   then the least-occupied home; with 8 authored villas this covers 32 residents,
   so a full 40-bear field uses shared overflow homes.
 - Interiors/a modelled nursery remain later work; family life currently uses the
   existing villa door/sleep path and the buddy status list.
+- Family meals, household routines, parent teaching/skills and the lineage/history
+  panel remain Phase D/E; `family.js` already owns their data helpers.
 
 ## Effects & post stack
 

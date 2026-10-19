@@ -57,6 +57,13 @@ into them by listing IDs in `genetics.loci` and supplying defaults. New numeric,
 colour, choice or range genes therefore need a definition and fixture test, not
 another branch in `normalizeGenome()` or `combineGenomes()`.
 
+Life behavior is shared through `src/behavior.js`; a species that needs different
+needs rates, thresholds, allowed states or schedules adds a profile in
+`src/behaviorprofiles.js` with the same `id` as its species. Do not add a second
+decision path in `ai.js` or `glass.js`. Family relations, households, skills,
+history and playdate schedules are shared in `src/family.js`; pair/task protocol
+is in `src/interactions.js`.
+
 The save envelope lives in `src/save.js`; per-actor shape and version checks live
 in `src/actorsave.js`. Current collections are soft-body `bears` and skinned
 `glass`. Every new actor snapshot carries `ACTOR_SAVE_VERSION`; legacy records

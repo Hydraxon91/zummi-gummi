@@ -169,12 +169,16 @@ existing stack and structure.
   `horizon.js`/`wind.js`/`fieldshape.js` their named systems. The species layer is split:
   `species.js` is the capability/asset registry, `dna.js` is pure genetics,
   `actorsave.js` owns actor save validation/versioning and collection registration while
-  `save.js` owns the save envelope and storage, `assets.js`
+  `save.js` owns the save envelope and storage, `actorrecord.js` owns the shared saved-actor
+  shape, `assets.js`
   validates manifests and loads manifested GLBs, `npc.js` is the read-only soft-body/Glass
   actor view, `glass.js` owns the Glass Meadow adapter, `msn.js` owns the Studio prototype,
-  and `msnrig.js`/`buddyrig.js` own rig data. `life.js`/`ai.js` own shared needs, social and
-  cross-species behavior. Put new logic in the matching module rather than growing
-  `app.js`. See the target split in `ROADMAP.md`.
+  and `msnrig.js`/`buddyrig.js` own rig data. `behavior.js` owns the shared life decisions,
+  `behaviorprofiles.js` owns per-species balance/schedule data, `family.js` owns relations,
+  households, lineage, skills, history and schedules, and `interactions.js` owns the shared
+  interaction/pair/task protocol. `life.js` remains the age/mating rules; the soft-body host
+  is `ai.js`. Put new logic in the matching module rather than growing `app.js`. See the
+  target split in `ROADMAP.md`.
   `foodtypes.js` owns food defaults/safety; `food.js` owns placed-source state.
   `floratypes.js` owns tree/bush/rock/home-style definitions; `mapcontent.js` owns
   authored lots and starter populations; `field.js` composes them. `assetstore.js`
