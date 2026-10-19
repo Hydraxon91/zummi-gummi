@@ -284,7 +284,8 @@ export function createBushCollection({ lots }) {
   // leave the frustum. Three whole-meadow batches could never be culled.
   const SECTORS = 8;
   const lobeMat = foliageMaterial(THREE.FrontSide);
-  const bushLeafMat = foliageMaterial(THREE.DoubleSide, true, bushLeafTexture());
+  const bushLeafTex = bushLeafTexture();
+  const bushLeafMat = foliageMaterial(THREE.DoubleSide, true, bushLeafTex);
   function addSectored({ name, geo, mat, rows, attrs }) {
     const buckets = Array.from({ length: SECTORS }, () => []);
     for (const row of rows) {
@@ -324,6 +325,22 @@ export function createBushCollection({ lots }) {
     segments: segments.length,
     lobes: lobes.length,
     setSun(v) { if (v) foliageUniforms.uSunDir.value.copy(v).normalize(); },
+    setShadows(on) {
+      const flag = !!on;
+      group.traverse(mesh => {
+        if (!mesh.isMesh) return;
+        mesh.castShadow = flag;
+        if (flag && mesh.name.startsWith('bushLeaves') && !mesh.customDepthMaterial) {
+          mesh.customDepthMaterial = new THREE.MeshDepthMaterial({
+            depthPacking: THREE.RGBADepthPacking,
+            map: bushLeafTex,
+            alphaTest: .35,
+            side: THREE.DoubleSide,
+          });
+        }
+      });
+      return flag;
+    },
     dispose() {
       group.traverse(o => {
         if (o.geometry) o.geometry.dispose();

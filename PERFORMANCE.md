@@ -97,6 +97,19 @@ cull-on/cull-off pair is the evidence; the table is not a refresh-rate claim.
 - Hero leaves still cost ~2.3 ms at this camera: the LOD reduces far-field fill,
   not the near canopy.
 
+### God-ray prototype — `?godrays=good` (Oct 2026)
+
+- **Flag-gated and off by default.** `?godrays=good` (or `setGodrays('good')`) swaps in a raymarched pass on the Full tier only. No dependency or three.js change; the technique is reimplemented on `three/addons` `ShaderPass`/`FullScreenQuad` from `three-good-godrays` (Casey Primozic, zlib licence, adapted from n8python/goodGodRays).
+- **How it works:** quarter-resolution screen-space raymarch against the sun/moon shadow-map depth and the composer's scene depth. On r186 the PCF shadow map uses a comparison depth texture, so the pass blits it to a comparison-free depth texture each frame before sampling raw depth.
+- **Cost:** 1440×900 / DPR 1.5, Full tier, 40 spread bears, three alternating rounds of five 60-frame probes with the first sample of each discarded (n=12 median):
+  - default camera, foliage shadows off: **45.79 → 47.72 ms (+1.93 ms)**;
+  - tree view, foliage shadows off: **46.38 → 48.82 ms (+2.44 ms)**;
+  - tree view, `?foliageShadows=1`: **44.39 → 47.04 ms (+2.65 ms)**, with one 55.25 ms outlier.
+  The foliage-shadow caster cost was not isolated; the off baselines differ by ~2 ms between runs, which is machine variance.
+- **Foliage shadows:** `?foliageShadows=1` gives hero leaf cards and bushes alpha-tested depth materials so canopies occlude the raymarch instead of casting card rectangles. Experimental only; it makes the whole meadow shadow-casting.
+- **Look:** beams radiate from the sun through canopy and hill silhouettes; the default camera gets soft shafts from behind the hill. This is a stylised screen-space effect, not a participating medium: edges are soft at quarter res, and the canopy centre can show a bloom/glow artifact.
+- **Status:** prototype only; nothing is enabled without the flag, and the legacy radial pass remains off.
+
 Pond camera probe (1440×900, DPR 1, quality 2, effects off, five 60-frame runs,
 first sample discarded): **17.4–18.5 ms** before the 6b-2 water tuning and
 **17.9–18.1 ms** after, so the night tint, softer foam and matte lily pads cost

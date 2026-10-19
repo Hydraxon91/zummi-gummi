@@ -14,6 +14,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 const GradeShader = {
   uniforms: {
@@ -110,6 +111,225 @@ const GodRaysShader = {
   `,
 };
 
+// Prototype raymarch pass, flag-gated with ?godrays=good and Full tier only.
+// Technique ported from three-good-godrays by Casey Primozic (zlib licence),
+// itself adapted from n8python/goodGodRays. This is a three/addons ShaderPass
+// reimplementation, not the upstream pmndrs pass; see the attribution note in
+// ROADMAP.md. It reads a copy of the sun/moon shadow-map depth texture and the
+// composer's scene depth, so no extra scene pass is rendered.
+/*
+Copyright © 2022 Casey Primozic
+
+Adapted from original code (https://github.com/N8python/goodGodRays)
+by https://github.com/n8python
+
+This software is provided 'as-is', without any express or implied warranty. In
+no event will the authors be held liable for any damages arising from the use of
+this software.
+
+Permission is granted to anyone to use this software for any purpose, including
+commercial applications, and to alter it and redistribute it freely, subject to
+the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not claim
+   that you wrote the original software. If you use this software in a product,
+   an acknowledgment in the product documentation would be appreciated but is
+   not required.
+
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+
+3. This notice may not be removed or altered from any source distribution.
+*/
+const GoodGodRaysShader = {
+  uniforms: {
+    tDepth: { value: null },
+    tShadow: { value: null },
+    uProjInv: { value: new THREE.Matrix4() },
+    uCamWorld: { value: new THREE.Matrix4() },
+    uLightViewProj: { value: new THREE.Matrix4() },
+    uCamPos: { value: new THREE.Vector3() },
+    uLightDir: { value: new THREE.Vector3(0, 1, 0) },
+    uSunUv: { value: new THREE.Vector2(.5, .5) },
+    uSunOn: { value: 0 },
+    uColor: { value: new THREE.Color(0xffd9a4) },
+    uSteps: { value: 24 },
+    uDensity: { value: 1 / 85 },
+    uMaxDensity: { value: .6 },
+    uAttenuation: { value: .03 },
+    uStrength: { value: 1.4 },
+    uBias: { value: .0018 },
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDepth;
+    uniform sampler2D tShadow;
+    uniform mat4 uProjInv;
+    uniform mat4 uCamWorld;
+    uniform mat4 uLightViewProj;
+    uniform vec3 uCamPos;
+    uniform vec3 uLightDir;
+    uniform vec2 uSunUv;
+    uniform float uSunOn;
+    uniform vec3 uColor;
+    uniform float uSteps;
+    uniform float uDensity;
+    uniform float uMaxDensity;
+    uniform float uAttenuation;
+    uniform float uStrength;
+    uniform float uBias;
+    varying vec2 vUv;
+
+    void main() {
+      float d = texture2D(tDepth, vUv).x;
+      vec4 clip = vec4(vUv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+      vec4 view = uProjInv * clip;
+      view /= max(view.w, 1e-5);
+      vec3 world = (uCamWorld * vec4(view.xyz, 1.0)).xyz;
+
+      vec3 delta = world - uCamPos;
+      float dist = length(delta);
+      vec3 dir = delta / max(dist, 1e-4);
+      float maxT = min(dist, 90.0);
+      float stepLen = maxT / max(uSteps, 1.0);
+      float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+      float illum = 0.0;
+
+      for (int i = 0; i < 64; i++) {
+        if (float(i) >= uSteps) break;
+        float t = (float(i) + jitter) * stepLen;
+        if (t > maxT) break;
+        vec3 p = uCamPos + dir * t;
+        vec4 lp = uLightViewProj * vec4(p, 1.0);
+        lp.xyz /= max(lp.w, 1e-5);
+        vec3 suv = lp.xyz * 0.5 + 0.5;
+        if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0 || suv.z < 0.0 || suv.z > 1.0) {
+          continue;
+        }
+        float shadowDepth = texture2D(tShadow, suv.xy).x;
+        float shadowed = step(shadowDepth + uBias, suv.z);
+        illum += (1.0 - shadowed) * stepLen * exp(-t * uAttenuation);
+      }
+
+      float rays = clamp(1.0 - exp(-illum * uDensity), 0.0, uMaxDensity);
+      float toward = smoothstep(0.15, 0.95, dot(dir, uLightDir));
+      vec2 sunDelta = vUv - uSunUv;
+      float sunMask = exp(-dot(sunDelta, sunDelta) * 22.0);
+      gl_FragColor = vec4(uColor * rays * uStrength * toward * sunMask * uSunOn, 1.0);
+    }
+  `,
+};
+
+const GoodRaysCompositeShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    tRays: { value: null },
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tRays;
+    varying vec2 vUv;
+    void main() {
+      vec3 scene = texture2D(tDiffuse, vUv).rgb;
+      vec3 rays = texture2D(tRays, vUv).rgb;
+      float l = dot(scene, vec3(.2126, .7152, .0722));
+      float mask = 1.0 - 0.65 * smoothstep(.35, 1.0, l);
+      gl_FragColor = vec4(scene + rays * mask, 1.0);
+    }
+  `,
+};
+
+class GoodRaysPass {
+  constructor() {
+    this.enabled = false;
+    this.needsSwap = true;
+    this.renderToScreen = false;
+    this.clear = false;
+    this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
+    this.rayMaterial = new THREE.ShaderMaterial({
+      ...GoodGodRaysShader, depthTest: false, depthWrite: false,
+    });
+    this.compositeMaterial = new THREE.ShaderMaterial({
+      ...GoodRaysCompositeShader, depthTest: false, depthWrite: false,
+    });
+    this.quad = new FullScreenQuad(this.rayMaterial);
+    this.rayUniforms = this.rayMaterial.uniforms;
+    this.light = null;
+    this.depthCopy = null;
+    this.depthCopyReady = false;
+  }
+  copyDepth(renderer) {
+    const shadow = this.light && this.light.shadow;
+    if (!shadow || !shadow.map || !shadow.map.depthTexture) return null;
+    const width = shadow.map.width, height = shadow.map.height;
+    if (!this.depthCopy || this.depthCopy.width !== width || this.depthCopy.height !== height) {
+      if (this.depthCopy) this.depthCopy.dispose();
+      this.depthCopy = new THREE.WebGLRenderTarget(width, height);
+      const depth = new THREE.DepthTexture(width, height, THREE.UnsignedIntType);
+      depth.format = THREE.DepthFormat;
+      depth.compareFunction = null;
+      depth.minFilter = THREE.NearestFilter;
+      depth.magFilter = THREE.NearestFilter;
+      this.depthCopy.depthTexture = depth;
+      this.depthCopyReady = false;
+    }
+    const gl = renderer.getContext();
+    if (!this.depthCopyReady) {
+      renderer.setRenderTarget(this.depthCopy);
+      renderer.clear();
+      renderer.setRenderTarget(null);
+      this.depthCopyReady = true;
+    }
+    const src = renderer.properties.get(shadow.map).__webglFramebuffer;
+    const dst = renderer.properties.get(this.depthCopy).__webglFramebuffer;
+    if (!src || !dst) return null;
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dst);
+    gl.blitFramebuffer(0, 0, width, height, 0, 0, width, height, gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    return this.depthCopy.depthTexture;
+  }
+  setSize(w, h) {
+    // Beams are low-frequency; quarter-res keeps the raymarch off the fill budget.
+    this.target.setSize(Math.max(1, Math.round(w * 0.25)), Math.max(1, Math.round(h * 0.25)));
+  }
+  render(renderer, writeBuffer, readBuffer) {
+    if (!readBuffer.depthTexture) return;
+    this.rayUniforms.tDepth.value = readBuffer.depthTexture;
+    const shadowTexture = this.copyDepth(renderer);
+    if (!shadowTexture) return;
+    this.rayUniforms.tShadow.value = shadowTexture;
+    this.quad.material = this.rayMaterial;
+    renderer.setRenderTarget(this.target);
+    this.quad.render(renderer);
+    this.quad.material = this.compositeMaterial;
+    this.compositeMaterial.uniforms.tDiffuse.value = readBuffer.texture;
+    this.compositeMaterial.uniforms.tRays.value = this.target.texture;
+    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+    this.quad.render(renderer);
+  }
+  dispose() {
+    this.target.dispose();
+    this.rayMaterial.dispose();
+    this.compositeMaterial.dispose();
+    if (this.quad.dispose) this.quad.dispose();
+  }
+}
+
 function clamp01(n) {
   return n < 0 ? 0 : (n > 1 ? 1 : n);
 }
@@ -149,6 +369,8 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
   let focusActive = false;
   let focusStrength = 1;
   let raysActive = false;
+  let goodRequested = false;
+  try { goodRequested = new URLSearchParams(location.search).get('godrays') === 'good'; } catch (err) {}
   const BOKEH_APERTURE = .0012;
   const BOKEH_MAXBLUR = .007;
   const tint = new THREE.Color();
@@ -157,6 +379,8 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
   const rayWorld = new THREE.Vector3();
   const rayNdc = new THREE.Vector3();
   const rayUv = new THREE.Vector2();
+  const sunNdc = new THREE.Vector3();
+  const camForward = new THREE.Vector3();
   const clearColor = new THREE.Color();
 
   // Multisampled AO targets were unreliable in the headless driver; SMAA
@@ -186,6 +410,17 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     depthPacking: THREE.BasicDepthPacking,
   });
   const godRaysPass = new ShaderPass(GodRaysShader);
+  const goodPass = new GoodRaysPass();
+  // The composer targets get real depth textures, so the raymarch can read the
+  // scene depth without the extra half-res depth prepass the old pass needed.
+  function rayDepthTexture(){
+    const t = new THREE.DepthTexture(1, 1);
+    t.type = THREE.UnsignedIntType;
+    t.format = THREE.DepthFormat;
+    return t;
+  }
+  composer.renderTarget1.depthTexture = rayDepthTexture();
+  composer.renderTarget2.depthTexture = rayDepthTexture();
 
   const aoPass = new GTAOPass(scene, camera, 1, 1);
   aoPass.output = GTAOPass.OUTPUT.Default;
@@ -231,6 +466,7 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
   const outputPass = new OutputPass();
 
   composer.addPass(renderPass);
+  composer.addPass(goodPass);
   composer.addPass(godRaysPass);
   composer.addPass(bokehPass);
   composer.addPass(aoPass);
@@ -350,6 +586,48 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     return mapEnabled;
   }
 
+  function goodLightSource() {
+    const sk = getSky ? getSky() : null;
+    if (!sk) return null;
+    const st = sk.shadowState;
+    if (st.sun && sk.sunLight && sk.sunLight.shadow.map) {
+      return { light: sk.sunLight, dir: sk.sunDir, color: 0xffd9a4 };
+    }
+    if (st.moon && sk.moonLight && sk.moonLight.shadow.map) {
+      return { light: sk.moonLight, dir: sk.moonDir, color: 0xbfd5ff };
+    }
+    return null;
+  }
+
+  function updateGoodGodRays() {
+    const entry = goodLightSource();
+    if (!entry) return false;
+    const { light, dir, color } = entry;
+    light.updateMatrixWorld();
+    light.target.updateMatrixWorld();
+    const shadowCamera = light.shadow.camera;
+    shadowCamera.updateMatrixWorld();
+    const u = goodPass.rayUniforms;
+    goodPass.light = light;
+    u.uCamPos.value.copy(camera.position);
+    u.uProjInv.value.copy(camera.projectionMatrixInverse);
+    u.uCamWorld.value.copy(camera.matrixWorld);
+    u.uLightViewProj.value.multiplyMatrices(shadowCamera.projectionMatrix, shadowCamera.matrixWorldInverse);
+    u.uLightDir.value.copy(dir);
+    u.uColor.value.set(color);
+    sunNdc.copy(camera.position).addScaledVector(dir, 100).project(camera);
+    u.uSunUv.value.set(sunNdc.x * .5 + .5, sunNdc.y * .5 + .5);
+    camera.getWorldDirection(camForward);
+    u.uSunOn.value = camForward.dot(dir) > 0.02 && sunNdc.z > -1 && sunNdc.z < 1 ? 1 : 0;
+    return true;
+  }
+
+  function setGodrays(mode) {
+    goodRequested = mode === 'good';
+    goodPass.enabled = false;
+    return goodRequested ? 'good' : 'off';
+  }
+
   function resize(w, h) {
     const cw = Math.max(1, Math.floor(w));
     const ch = Math.max(1, Math.floor(h));
@@ -372,11 +650,13 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
 
   function render(dt) {
     if (activeMode === 'off' || !mapEnabled) return false;
-    // God rays are disabled: the current half-res depth prepass plus radial
-    // blur reads poorly and costs a full extra scene depth pass. A better
-    // implementation is a recorded roadmap follow-up; do not re-enable this one.
+    // The legacy radial pass stays off. The prototype raymarch only runs when
+    // ?godrays=good (or setGodrays('good')) selects it on the Full tier and a
+    // shadow-casting sun/moon exists.
     godRaysPass.enabled = false;
-    raysActive = false;
+    goodPass.enabled = false;
+    if (goodRequested && activeMode === 'full') goodPass.enabled = updateGoodGodRays();
+    raysActive = goodPass.enabled;
     if (bokehPass.enabled) {
       bokehPass.uniforms.focus.value = focusDistance;
       bokehPass.uniforms.aperture.value = BOKEH_APERTURE * focusStrength;
@@ -411,6 +691,7 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
       focusDistance,
       focusStrength,
       rays: raysActive,
+      godrays: { requested: goodRequested ? 'good' : 'off', enabled: goodPass.enabled, steps: goodPass.rayUniforms.uSteps.value },
       scene: { calls: sceneCalls, tris: sceneTris },
       composer: { w: composer._width, h: composer._height, ratio: composer._pixelRatio },
       target: { w: composer.renderTarget1.width, h: composer.renderTarget1.height },
@@ -453,7 +734,7 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
 
   return {
     render, resize, setMode, setQuality, setEnabled, setTimeOfDay, setBloomScale, setExposureScale,
-    setDof, setFocus, stats, state,
+    setDof, setFocus, setGodrays, stats, state,
     get active() { return activeMode; },
     get enabled() { return activeMode !== 'off'; },
     get dof() { return dofEnabled; },

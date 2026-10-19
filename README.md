@@ -195,6 +195,7 @@ Phase 3a/3b debug checks drive `__gummy.ai()` / `__gummy.food()` / `__gummy.food
 
 - The field is the default playable map; the Studio remains the sandbox. Food, water, hive/health, home/sleep, social/bonds, growth/family and inherited hop pace are in place. Remaining AI/life edge cases (mid-interaction re-aim, ungrounded interaction timers, Studio `fieldInfo`, door-only visits/interiors, home-capacity overflow above 32 residents) are recorded under **Known follow-ups** in [ROADMAP.md](ROADMAP.md).
 - Dense grass is GPU-heavy at high DPR in the headless profile; use the Meadow-detail controls or quality tiers on slower devices. No 60 fps guarantee is made from the headless run. WebGL2 is the only renderer: the WebGPU port was investigated and dropped (see the Phase 7 findings in `ROADMAP.md`).
+- **God rays are experimental:** `?godrays=good` enables a flag-gated raymarched prototype on the Full effects tier, and `?foliageShadows=1` lets canopies occlude it. Neither is on by default; the effect costs about **+1.9–2.7 ms** at 40 bears / 1440×900 and is documented in `PERFORMANCE.md`.
 - **Full effects is deliberately opt-in:** GTAO, the depth prepass for god rays, real shadow maps and optional DOF are the expensive pieces, so Soft is the desktop default and Off is the low-width default; the quality governor can fall back automatically. High tiers use 2048/1024 sun/moon shadow maps, while quality 3 keeps the cheap blob shadows. The graphics presets are convenience bundles, not a 40-bear performance guarantee; the 6b-3 profile is still the authority. The post stack tone-maps sky/cloud materials that bypass ACES in the direct path, so Soft/Full have a slightly softer sky.
 - The existing metaball surface remains CPU-bound; very large crowds deliberately drop resolution.
 - Aero villa interiors are implied (door/light) rather than modeled walk-in rooms. The Studio lounge (interactive bar + huge Frutiger Aero TV) is the next required modelled-room pass; the reference moodboard used for it is kept locally and is not part of the repo.
@@ -210,5 +211,6 @@ Bundled third-party work:
 
 - **[three.js](https://github.com/mrdoob/three.js)** — MIT. Loaded at runtime from the jsDelivr CDN (`three@0.186.1`), not vendored.
 - **[Box3D](https://github.com/erincatto/box3d)** by Erin Catto — MIT. The prebuilt `vendor/box3d/box3d.js` / `box3d.wasm` ship with their license in [`vendor/box3d/LICENSE`](vendor/box3d/LICENSE).
+- **[three-good-godrays](https://github.com/Ameobea/three-good-godrays)** by Casey Primozic — zlib licence, adapted from [n8python/goodGodRays](https://github.com/N8python/goodGodRays). The flag-gated god-ray prototype in `src/effects.js` is an altered, three/addons reimplementation of its raymarch technique, not the upstream pmndrs pass.
 
 The `inspiration/` moodboard used during development is third-party reference material and is intentionally excluded from this repository.

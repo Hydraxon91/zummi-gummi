@@ -4441,6 +4441,11 @@ function ensureMeadow(){
   sky = createSky(scene, renderer);
   sky.setVisible(false);
   field = buildField({ scene, camera, renderer, sky });
+  // Prototype only: ?foliageShadows=1 lets the raymarch see canopy occlusion.
+  if (new URLSearchParams(location.search).get('foliageShadows') === '1' && field){
+    if (field.trees && field.trees.setShadows) field.trees.setShadows(true);
+    if (field.bushes && field.bushes.setShadows) field.bushes.setShadows(true);
+  }
   field.setVisible(false);
   field.setNature(natureState);
   configureMeadowShadows();
@@ -5727,6 +5732,8 @@ window.__gummy = {
     return effects ? effects.state() : null;
   },
   effectsState(){ return effects ? effects.state() : null; },
+  setGodrays(mode){ return effects ? effects.setGodrays(mode) : null; },
+  godrays(){ return effects ? effects.state().godrays : null; },
   dofInfo(){ return { hit:dofLastHit, active:dofFocusHas, distance:dofFocusDistance, amount:dofFocusAmount }; },
   setEffectsDof(on){
     setDofFromUI(!!on);

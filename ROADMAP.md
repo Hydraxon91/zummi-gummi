@@ -344,8 +344,24 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   across runs by design; verification should assert the reason/outcome pair, not
   a fixed roll.
 
-**Known follow-ups after 8c** — recorded, not blockers:
+**God-ray prototype (Oct 2026, flag-gated)** — recorded:
 
+- `?godrays=good` (or `setGodrays('good')`) runs a quarter-resolution raymarch
+  against the sun/moon shadow-map depth plus composer scene depth, Full tier
+  only. Off by default; no npm package or three.js bump. Technique adapted from
+  `three-good-godrays` (Casey Primozic, zlib) / n8python/goodGodRays, and marked
+  as such in `src/effects.js`.
+- `?foliageShadows=1` gives hero leaf cards and bushes alpha-tested depth
+  materials so canopies occlude the raymarch instead of casting card rectangles.
+  Prototype only; it makes the meadow shadow-casting.
+- Measured **+1.9–2.7 ms** at 1440×900/DPR 1.5 with 40 bears (Full tier,
+  default and tree views, three alternating probe rounds); captures show sun
+  shafts through the tree line. The default camera gets a soft fan from behind
+  the hill.
+- Follow-ups: half-res/sharper option, the canopy-centre glow artifact, mobile
+  cost, and the decision whether foliage shadows (and the effect) ship at all.
+
+**Known follow-ups after 8c** — recorded, not blockers:
 - **Possession is session-only.** Reloading or changing maps returns the bear to
   AI in place; decide whether a save should restore control.
 - **Follow still needs a target model.** Possession provides a natural target,

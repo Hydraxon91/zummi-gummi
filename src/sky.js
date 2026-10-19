@@ -534,8 +534,10 @@ export function createSky(scene, renderer) {
     get fogColor() { return fogCol; },
     get sunVisible() { return Math.max(0, sunDir.y) > 0.005; },
     get sunDir() { return sunDir.clone(); },
+    get sunLight() { return sunLight; },
     get moonVisible() { return Math.max(0, moonDir.y) > 0.005; },
     get moonDir() { return moonDir.clone(); },
+    get moonLight() { return moonLight; },
     setShadows,
     get shadowState() {
       return {

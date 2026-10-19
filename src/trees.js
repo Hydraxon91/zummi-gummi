@@ -1098,6 +1098,26 @@ export function createTreeCollection({ lots, wind, sun = null }) {
     hives,
     controls: leafControls,
     sun,
+    setShadows(on) {
+      const flag = !!on;
+      for (const mesh of barkMeshes) {
+        mesh.castShadow = flag;
+        if (flag) mesh.receiveShadow = true;
+      }
+      for (const mesh of fruitMeshes) mesh.castShadow = flag;
+      for (const mesh of leafMeshes) {
+        mesh.castShadow = flag;
+        if (flag && !mesh.customDepthMaterial) {
+          mesh.customDepthMaterial = new THREE.MeshDepthMaterial({
+            depthPacking: THREE.RGBADepthPacking,
+            map: leafTex,
+            alphaTest: .42,
+            side: THREE.DoubleSide,
+          });
+        }
+      }
+      return flag;
+    },
     setControls(v = {}) {
       if (!v) return;
       if (v.fullness !== undefined) leafControls.fullness.value = clamp(Number(v.fullness) || 0, .25, 1);
