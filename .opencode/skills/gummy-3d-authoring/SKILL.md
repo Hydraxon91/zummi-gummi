@@ -210,6 +210,17 @@ do not authorize edits; do not add wear or rework accepted geometry without appr
 
 ## Build protocol
 
+Work in stages: **blockout → construction → detail → UVs → materials**. Verify proportions,
+openings and assembly in neutral solid views before adding bevel detail, paint or lighting.
+Do not use polish to conceal weak construction. Plan major paintable panels, trim, glass,
+material boundaries and seams for the intended delivery before multiplying components.
+
+Prove one representative difficult part, including its interfaces, evaluated topology, UVs
+and requested export, before replicating it. Inspect modifier-generated bevel corners,
+Boolean walls, coincident/split surfaces, sliver triangles and generated UVs: a healthy base
+mesh does not establish healthy evaluated geometry. Preserve good existing parts; a rebuild
+is a proposed design choice, not an automatic response to a diagnostic failure.
+
 1. One system or part per step (chassis, wheels, suspension, cage, body). Report and wait
    for the user's go before the next one, unless an approved chunk says otherwise.
 2. Prefer primitives and modifiers (Mirror, Bevel, Solidify, Array, Subdivision Surface,
@@ -285,18 +296,39 @@ do not authorize edits; do not add wear or rework accepted geometry without appr
 
 ## Regression stop
 
-If a fix introduces a new defect class, or the same step fails twice, restore the last
-checkpoint, report the evidence and propose an alternative (often a rebuild with the Build
-protocol). Preserve unrelated live changes during restoration; reopening a whole `.blend`
-requires approval if it would discard them. If safe restoration is blocked, stop and report
-instead of discarding work. Clean topology metrics do not justify further attempts after
-the two-failure limit; a fit or visual verification failure counts even when mesh health
-is green. Do not keep patching on top of a failing generator. When the same symptom survives
-two edits, suspect the observation rather than the model: re-establish which object, slot and
-render path you are judging before a third attempt. A wrong observation makes every later edit
-irrelevant. Do not apply
-a tool the agent itself has judged unsuitable (e.g. voxel remesh on a thin open panel) just to be able
-to report progress.
+Follow `AGENTS.md` section 5: up to seven evidence-driven attempts, with a progress review at
+six. After two unchanged failures, validate the target and diagnostic before editing again.
+A new defect class stops the current edit chain: restore the last good scoped checkpoint and
+explain the alternative before proceeding within approved scope. Do not reset the attempt
+count by changing strategy names. Preserve unrelated work; reopening a whole `.blend` needs
+approval if it discards changes. If restoration is unsafe, stop and report.
+
+The budget permits investigation, not moving goalposts. Threshold changes, overlap/collapse
+exceptions and geometry exclusions require explicit approval. Never convert uncertainty to
+a confident semantic label to obtain zero unknowns, or apply a tool already judged unsuitable.
+
+## Painting-guide and verification contract
+
+- Preserve recognisable, contiguous main-panel charts. Thousands of fragments are not a
+  substitute for the requested painting template. Keep small mechanical detail on separate
+  sheets where approved, and distinguish artist outlines from triangulation diagnostics.
+- Every island needs a stable ID and evidence-backed part name, or an explicitly unresolved
+  tag. Put readable names inside major islands and use numbered leader-line callouts for tiny
+  islands. No silently skipped tags; verify correspondence with the manifest, maps and masks.
+  A populated name field or a rule-coverage score does not establish semantic correctness.
+- Validate helper units, coordinate mapping, selection isolation and failure detection on
+  known-good and deliberately failing fixtures before using results to accept or alter assets.
+  One-off scripts remain experimental until their assumptions and limitations are tested.
+- Use asymmetric test patterns, per-object and area-weighted errors, and matched before/after
+  views. Report thin/sliver geometry separately without silently excluding it. Check both tail
+  errors and coverage; a good median or a distant checker render cannot establish a pass.
+- A gradient bake tests mapping only. It does not prove original albedo, roughness, metallic,
+  tangent-space normals, transparency or coat survived. Verify required channels and material
+  behaviour separately; classification as inherited degeneracy is explanation, not acceptance.
+- Record actual saved image dimensions: declaring a 4096 atlas in metadata does not deliver a
+  4096 image. Inspect saved guides against the user's readability reference before completion.
+- When the user pauses Blender for headroom, do documentation/CPU-only work within scope;
+  do not restart Blender or rendering without permission.
 
 ## Inspect the result
 

@@ -71,7 +71,7 @@ working in this repo.
 - **Avoid over-deliberation:** plan once, then act. Do not re-plan or second-guess a chosen
   approach more than once before executing unless new information genuinely changes the
   picture. Reserve deep reasoning for genuinely ambiguous or destructive decisions. This
-  never overrides the two-attempt limit in Approved Work Chunks or the regression stop in 3D
+  never overrides the 6–7 attempt limit in Approved Work Chunks or the regression stop in 3D
   Asset Authoring.
 
 ## 4. Destructive Actions, Commits and Pushes
@@ -101,9 +101,11 @@ While executing an approved chunk:
 2. After each step, verify it works (load the app / run the smoke test / run the
    applicable self-test check) before moving on.
 3. **If a step fails, diagnose the root cause and try to fix it.** If the fix is in scope,
-   apply it and re-verify. Make at most **two fix attempts per failing step**; a fix that
-   introduces a new failure counts as a failed attempt. If you are stuck, the second attempt
-   fails, or the fix needs something outside the chunk, stop and report with evidence — do
+   apply it and re-verify. Allow up to **seven evidence-driven fix attempts per failing step**;
+   six attempts trigger a progress review, not an obligation to exhaust the budget. After two
+   unchanged failures, re-establish the target and validate the diagnostic before another edit.
+   A fix that introduces a new failure counts as a failed attempt. If you are stuck, the seventh
+   attempt fails, or the fix needs something outside the chunk, stop and report with evidence — do
    not commit failing work unless asked.
 4. Do not expand scope, refactor unrelated code, or touch anything not enumerated.
 5. Follow the approved-chunk row in Commit Discipline for commits, and report at the
@@ -422,6 +424,18 @@ approved work chunk.
 
 ## 15. 3D Asset Authoring
 
+- **Respect resource pauses.** If the user closes Blender for GPU/CPU headroom, do not
+  launch live or background Blender, baking or rendering until they authorize resuming.
+- **Keep acceptance fixed.** Extra attempts do not authorize looser thresholds, overlap or
+  collapsed-UV exceptions, geometry exclusions, or confident names for unresolved regions.
+  Propose any acceptance change and obtain approval before using it to publish a delivery.
+- **Coverage is not correctness.** Object counts, populated names and successful exports
+  establish inventory only. Report structural, visual, semantic and transfer verification
+  separately; diagnostic or exception-bearing output is not automatically accepted delivery.
+- **Validate diagnostics before repairing assets.** Establish units, coordinate spaces,
+  tolerances and expected results on known-good and deliberately failing fixtures. A failed
+  helper may indicate a tool defect, not a mesh defect. Reusing the same core calculation is
+  not independent verification. Keep experimental helpers distinct from supported tooling.
 - **The same scope and approval rules apply to Blender.** Inspect the live file path,
   unsaved state, scene inventory and target objects before editing. Establish a
   recoverable checkpoint before destructive work (a new, incrementally named `.blend`,
@@ -470,11 +484,11 @@ approved work chunk.
   geometry separately; unexpected non-manifold edges, loose vertices and flipped faces
   must still be 0. Check consistent winding and component orientation with Face Orientation
   captures; positive signed volume alone does not prove correct normals.
-- **Regression stop.** If a fix introduces a new defect class, or the same step fails twice,
-  restore the last checkpoint, report the evidence and propose an alternative (often a
-  rebuild). Preserve unrelated live changes during restoration; reopening a whole `.blend`
-  requires approval if it would discard them. If safe restoration is blocked, stop and
-  report. Do not keep patching on top of a failing generator.
+- **Regression recovery.** A new defect class requires stopping the current edit chain and
+  safely restoring the last good scoped checkpoint before an evidence-based alternative.
+  Preserve unrelated live changes; reopening a whole `.blend` requires approval if it would
+  discard them. If safe restoration is blocked, stop and report. Attempts follow section 5;
+  do not keep patching a failing generator or reset the count by renaming the approach.
 - **Locate the target before editing it.** When a change is aimed at something visible,
   confirm the object/component using picking or a raycast tied to the actual capture camera,
   then inspect an isolation capture. Record the object, face/component and world position;
@@ -496,9 +510,10 @@ approved work chunk.
 - **Locked dimensions are asserts.** After every geometry step, print the locked values
   (roof, nose, tail, wheel size and position, track, overall bounding box) and compare them
   with the locked baseline. A transient pass during editing is still a failure.
-- **The two-failure stop counts symptoms, not edits.** If the observed defect is unchanged
-  after two edits, stop editing and return to locating the target. A third edit to the same
-  control is forbidden even when the fix looks right; report the evidence and the attempts.
+- **Two unchanged failures trigger diagnosis, not blind retries.** Reconfirm the visible
+  target, material/UV path and measuring tool before a third edit. Continue within section 5's
+  seven-attempt ceiling only with new evidence and a stated hypothesis; report attempts and
+  remaining uncertainty. More attempts never relax acceptance or authorize unsuitable tools.
 - **Report on a call budget.** At twenty tool calls in one turn, post one line: done,
   blocked, next. Do not keep working past it silently.
 - **Scripts are not transactions.** After an exception, inspect which edits already ran
