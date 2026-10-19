@@ -12,14 +12,32 @@ authorize implementation, installation, commits or pushes. For Blender asset che
 in-game result once integration is approved.
 Paths below are relative to the project root, not this skill directory.
 
+Last reviewed: 2026-10-19. Update this line when the commands, harnesses or coverage below
+materially change; `AGENTS.md` remains the policy source.
+
 ## Pick checks from the approved change
 
 1. Inspect `git status --short` and the intended diff. Preserve unrelated user work.
 2. State the expected outcome and choose observable assertions. Read the current
    `window.__gummy` implementation in `src/app.js` before calling hooks: names,
    parameters and returned fields can change. Do not invent debug methods.
-3. Use the existing workflow: HTTP server, smoke test, debug assertions and browser
-   captures. There is no package.json, bundler or general unit-test runner to install.
+3. Use the existing workflow: committed Node tests, HTTP server, smoke test, debug
+   assertions and browser captures. There is no package.json or bundler; use Node's
+   built-in test runner, not a new dependency.
+
+## Pure checks
+
+Run the committed species/DNA/save/actor-view/asset checks before touching the browser:
+
+```sh
+node --test tests
+```
+
+These are deterministic and run in CI. They cover the registry capabilities and
+compatibility matrix, genome defaults/combination/clamping, all three reproduction gates,
+save validation (including unsupported top-level and genome versions), mixed soft-body/Glass
+actor-view queries, and the `assets/MSN_Figure/asset.json` GLB manifest. Add a test in the
+same approved scope when the underlying rule changes.
 
 ## HTTP smoke check
 
@@ -65,8 +83,11 @@ speaks CDP to it** — not by raw CLI flags. `--headless --screenshot`, `--dump-
 `--virtual-time-budget` against this app hang or return nothing, because the page keeps a
 rAF loop alive so virtual time never expires. The established shape is a `.mjs` script in
 the gitignored `.dev-shots/`; read an existing one before writing a new one
-(`godrays-good-test.mjs`, `profile-ab.mjs`, `menu-test.mjs`, `tree-lod-shots.mjs`,
-`frame-breakdown.mjs`, ~100 lines each).
+(`race-test.mjs`, `glass-test.mjs`, `godrays-good-test.mjs`, `profile-ab.mjs`,
+`menu-test.mjs`, `tree-lod-shots.mjs`, `frame-breakdown.mjs`, ~100 lines each).
+`race-test.mjs` covers the Studio MSN/Gummy/Glass paths plus Meadow species and
+cross-species births; `glass-test.mjs` covers Glass hover, grab/throw/tumble, shelter,
+family/sibling play, visits, births and save/load.
 
 Required structure, taken from those examples:
 
@@ -113,6 +134,26 @@ they load are all scratch: never commit them.
 - Test only approved scope; discovery of a separate defect is not authorization to
   fix it. Record it under Known follow-ups in `ROADMAP.md`, as the Agent Behavioral Rules in
   `AGENTS.md` require.
+
+## Species / DNA / Glass regression matrix
+
+When the change touches a species definition, genome, save payload or shared actor view,
+cover the applicable rows rather than only the happy path:
+
+| Area | Checks |
+| --- | --- |
+| Registry | bear/Gummy/Glass definitions, capabilities, reciprocal compatibility, fixture registration |
+| DNA | defaults, all pair combinations, mutation/clamping, phenotype, material/colour inheritance |
+| Reproduction | current gate for every pair, child species/rig/phenotype, deferred hybrid target |
+| Save | old save without genome, genome round-trip, future save/genome rejection, Glass optional fields |
+| Actor view | mixed soft-body/Glass `all`/`active`/`byUid`/`homeResidents` |
+| Meadow | cross-species birth, parent/sibling bonds and play, visits, shelter/door fade |
+| Studio | Glass/Gummy load, 3 meshes/9 bones/10 clips, cast filters, `?race=off` |
+| UI | roster rows and family status, save/continue, desktop and mobile |
+
+Use the committed `tests/` for the pure rows; use `race-test.mjs` and `glass-test.mjs` for
+the browser rows. Re-run both desktop and mobile harness passes when a roster, cast or
+layout path changes.
 
 ## Shared masks and coordinate parity
 
