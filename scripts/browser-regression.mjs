@@ -38,7 +38,16 @@ try {
     initScript,
   });
   await page.waitFor('!!window.__gummy?.booted', 90000);
-  await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 90000);
+  console.log('STEP glass ready');
+  try {
+    await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 150000);
+  } catch (error) {
+    console.log('STEP glass reload');
+    await page.evaluate('location.reload()').catch(() => {});
+    await page.waitFor('!!window.__gummy?.booted', 120000);
+    await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 150000);
+  }
+  console.log('STEP glass done');
 
   console.log('STEP base');
   const result = await page.evaluate(`(async () => {
