@@ -3276,6 +3276,11 @@ function syncPossessHud(){
 function enterPossession(b){
   if (!b || !b.active || !ai || !isMeadow()) return false;
   if (possessedBear && possessedBear !== b) exitPossession();
+  // Sleeping is not a refusal: possession wakes the bear and hands control over.
+  if (b.sleeping){
+    b.sleeping = false;
+    b.needsBuild = true;
+  }
   if (!ai.setPossessed(b, true)) return false;
   possessedBear = b;
   selectedBear = b;

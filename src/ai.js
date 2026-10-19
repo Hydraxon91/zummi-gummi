@@ -1872,12 +1872,14 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     if (refusal) {
       directiveStatus(b, `${DIRECTIVE_LABELS[d.kind]} — ${refusal}`, d.kind);
       if (field && field.emote) field.emote(b.cx, b.cy + 1.08, b.cz, 'no');
+      if (field && field.emoteHouse) field.emoteHouse(homeFor(b), 'refuse');
       b.ai.nextThink = 0.5;
       return false;
     }
     if (!applyDirective(b, d)) {
       directiveStatus(b, `${DIRECTIVE_LABELS[d.kind]} — cannot do that here`, d.kind);
       if (field && field.emote) field.emote(b.cx, b.cy + 1.08, b.cz, 'no');
+      if (field && field.emoteHouse) field.emoteHouse(homeFor(b), 'refuse');
       b.ai.nextThink = 0.6;
       return false;
     }

@@ -206,6 +206,7 @@ const EMOTE_STYLES = {
   heart:    { glyph: '♥', color: '#ff6f9f' },
   question: { glyph: '?', color: '#79e9ff' },
   no:       { glyph: '×', color: '#ff7d88' },
+  refuse:   { glyph: 'refuse', color: '#ff4f63' },
   yes:      { glyph: '✓', color: '#8ef0b6' },
   exclaim:  { glyph: '!', color: '#ffd86b' },
   sparkle:  { glyph: '✦', color: '#d9b6ff' },
@@ -217,13 +218,27 @@ function emoteTexture(kind) {
   if (emoteTextureCache.has(key)) return emoteTextureCache.get(key);
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const ctx = c.getContext('2d');
-  ctx.font = '700 46px "Trebuchet MS", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  // No pale stroke: the old semi-transparent white outline read as a
-  // see-through border around the heart.
-  ctx.fillStyle = style.color;
-  ctx.fillText(style.glyph, 32, 35);
+  if (kind === 'refuse') {
+    ctx.strokeStyle = style.color;
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.arc(32, 32, 24, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(19, 19); ctx.lineTo(45, 45);
+    ctx.moveTo(45, 19); ctx.lineTo(19, 45);
+    ctx.stroke();
+  } else {
+    ctx.font = '700 46px "Trebuchet MS", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // No pale stroke: the old semi-transparent white outline read as a
+    // see-through border around the heart.
+    ctx.fillStyle = style.color;
+    ctx.fillText(style.glyph, 32, 35);
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   emoteTextureCache.set(key, tex);
@@ -2446,12 +2461,18 @@ export function buildField({ scene, camera, renderer, sky }) {
     e.material.needsUpdate = true;
     e.visible = true;
     e.position.set(x, y, z);
-    e.scale.set(.34, .34, 1);
+    const refuse = kind === 'refuse';
+    e.scale.set(refuse ? .82 : .34, refuse ? .82 : .34, 1);
     e.userData.t = 0;
-    e.userData.dur = kind === 'heart' ? 1.15 : .95;
-    e.userData.baseScale = kind === 'heart' ? .34 : .38;
+    e.userData.dur = refuse ? 1.7 : (kind === 'heart' ? 1.15 : .95);
+    e.userData.baseScale = refuse ? .82 : (kind === 'heart' ? .34 : .38);
     e.userData.kind = style.glyph;
     return true;
+  }
+
+  function emoteHouse(home, kind = 'refuse') {
+    if (!home) return false;
+    return emote(home.x, 2.85, home.z, kind);
   }
 
   function updateEmotes(dt) {
@@ -2777,6 +2798,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     splash,
     sting,
     emote,
+    emoteHouse,
     get emoteCount() { return emotes.filter(e => e.visible).length; },
     setCannon,
     isCannonSpot,

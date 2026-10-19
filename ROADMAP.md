@@ -466,7 +466,8 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
 
 **Known follow-ups after 8c** — recorded, not blockers:
 - **Possession is session-only.** Reloading or changing maps returns the bear to
-  AI in place; decide whether a save should restore control.
+  AI in place; decide whether a save should restore control. Sleeping possession
+  now wakes the bear before control; it does not preserve the slept-in pose.
 - **Follow still needs a target model.** Possession provides a natural target,
   but the Follow command is not implemented yet.
 - **The follow camera keeps the player's manual orbit** and only follows
