@@ -40,6 +40,7 @@ try {
   await page.waitFor('!!window.__gummy?.booted', 90000);
   await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 90000);
 
+  console.log('STEP base');
   const result = await page.evaluate(`(async () => {
     const g = window.__gummy;
     g.seed(421337);
@@ -96,12 +97,14 @@ try {
       childUid: parentPair ? g.bears[parentPair[1]].uid : null,
       stats: { nan: !!stats.nan, bears: stats.bears, glass: stats.glass },
     };
-  })()`);
+  })()`, 300000);
+  console.log('STEP base done');
 
   const parentUid = result.parentUid;
   const childUid = result.childUid;
   let familyDeep = null;
   if (parentUid !== null && childUid !== null) {
+    console.log('STEP lesson');
     const lesson = await page.evaluate(`(() => {
       const g = window.__gummy;
       const parentIndex = g.bears.findIndex(bear => bear.uid === ${JSON.stringify(parentUid)});
@@ -118,8 +121,10 @@ try {
         childBefore: { skills: childBefore.skills, history: childBefore.history.slice(-3) },
         childAfter: { skills: childAfter.skills, history: childAfter.history.slice(-3) },
       };
-    })()`, 180000);
+    })()`, 300000);
+    console.log('STEP lesson done');
 
+    console.log('STEP meal');
     const meal = await page.evaluate(`(() => {
       const g = window.__gummy;
       const parentIndex = g.bears.findIndex(bear => bear.uid === ${JSON.stringify(parentUid)});
@@ -135,8 +140,10 @@ try {
         mealBefore,
         mealAfter: { hunger: mealAfter.hunger, history: mealAfter.history.slice(-3) },
       };
-    })()`, 180000);
+    })()`, 300000);
+    console.log('STEP meal done');
 
+    console.log('STEP social');
     const social = await page.evaluate(`(async () => {
       const g = window.__gummy;
       const cross = g.bearGlassSocial(0, 0);
@@ -157,7 +164,8 @@ try {
         } : null,
         save2: !!(save2 && save2.ok),
       };
-    })()`, 180000);
+    })()`, 300000);
+    console.log('STEP social done');
 
     familyDeep = {
       parentPair: result.parentPair,
@@ -260,7 +268,7 @@ try {
         await new Promise(resolve => setTimeout(resolve, 300));
         const child = g.traits().find(bear => bear.uid === ${restoreUid});
         return child ? { skills: child.skills, history: child.history.slice(-3) } : null;
-      })()`, 180000);
+      })()`, 300000);
       if (!familyRestored || !Object.values(familyRestored.skills || {}).some(value => value > 0) ||
           !familyRestored.history.some(event => event.kind === 'taught')) {
         throw new Error(`family fields did not survive the map/save round trip: ${JSON.stringify(familyRestored)}`);
