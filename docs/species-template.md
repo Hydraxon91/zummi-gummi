@@ -50,6 +50,21 @@ registerSpecies({
 });
 ```
 
+## Genes and saved actors
+
+Genes are defined once in `src/dna.js` with `registerGene(...)`. A species opts
+into them by listing IDs in `genetics.loci` and supplying defaults. New numeric,
+colour, choice or range genes therefore need a definition and fixture test, not
+another branch in `normalizeGenome()` or `combineGenomes()`.
+
+The save envelope lives in `src/save.js`; per-actor shape and version checks live
+in `src/actorsave.js`. Current collections are soft-body `bears` and skinned
+`glass`. Every new actor snapshot carries `ACTOR_SAVE_VERSION`; legacy records
+without it remain valid. Unknown or mismatched species are rejected rather than
+falling back to Bear, and a future actor version is rejected. Register a new actor
+collection with `registerActorCollection()` and add its capture/restore path in
+the owning runtime module; registering a validator alone does not serialize it.
+
 ## Checklist
 
 - [ ] Species id is stable and is not reused by an existing definition.
@@ -61,6 +76,10 @@ registerSpecies({
 - [ ] `canBreed` and `canReproduce` are intentionally separate.
 - [ ] Capabilities match the runtime (grab, possession, life, eyes, tells).
 - [ ] Genetics loci/defaults produce a neutral 1.0 scale for default actors.
+- [ ] Any new gene has a `registerGene` definition, a fixture test and a deliberate
+      save/expression path.
+- [ ] Saved actors use the current `ACTOR_SAVE_VERSION`; unknown species/kind and
+      future actor versions are rejected.
 - [ ] Hybrid targets are named and remain `deferred` until an authored asset exists.
 - [ ] Asset manifest and GLB inventory match; `node --test tests` passes.
 - [ ] Studio/meadow/roster flags are verified in-game.

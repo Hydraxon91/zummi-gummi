@@ -8,7 +8,10 @@ import {
   expressGenome,
   hybridTargetFor,
   canSpeciesBreed,
+  registerGene,
+  listGenes,
 } from '../src/dna.js';
+import { registerSpecies } from '../src/species.js';
 
 function seeded(seed = 123456789) {
   return () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32);
@@ -97,4 +100,30 @@ test('Glass expression keeps the skinned capabilities and cannot be possessed', 
   assert.equal(phenotype.capabilities.canReproduce, true);
   assert.equal(phenotype.capabilities.canPossess, false);
   assert.equal(phenotype.capabilities.hasLife, true);
+});
+
+test('a registered gene flows through a fixture species without editing DNA internals', () => {
+  registerGene({ id: 'fixtureTone', type: 'number', min: 0, max: 1, fallback: .4, mutate: .2 });
+  assert.ok(listGenes().some(gene => gene.id === 'fixtureTone'));
+  assert.throws(() => registerGene({ id: 'fixtureTone', type: 'number', min: 0, max: 1 }), /already registered/);
+
+  registerSpecies({
+    id: 'fixture-gene',
+    label: 'Fixture Gene',
+    kind: 'softbody',
+    genetics: {
+      version: 1,
+      phenotype: 'fixture-gene',
+      loci: ['size', 'fixtureTone'],
+      defaults: { size: 1, fixtureTone: .25 },
+    },
+  });
+
+  const genome = defaultGenome('fixture-gene');
+  assert.equal(genome.genes.fixtureTone, .25);
+  assert.equal(normalizeGenome({ species: { 'fixture-gene': 1 }, genes: { fixtureTone: 9 } }).genes.fixtureTone, 1);
+
+  const child = combineGenomes(genome, genome, { rng: seeded(17), mutation: .04 });
+  assert.ok(child.genes.fixtureTone >= 0 && child.genes.fixtureTone <= 1);
+  assert.equal(expressGenome(child).genes.fixtureTone, child.genes.fixtureTone);
 });

@@ -6,9 +6,6 @@ import { getSpecies } from './species.js';
 
 export const DNA_VERSION = 1;
 
-const NUMERIC_LOCI = ['size', 'rigidity', 'softness', 'stretch'];
-const CHOICE_LOCI = ['material'];
-
 function clamp(v, lo, hi) {
   return v < lo ? lo : (v > hi ? hi : v);
 }
@@ -81,6 +78,84 @@ function mutateNumber(value, amount, rng) {
   return value + (rng() * 2 - 1) * amount;
 }
 
+// Gene definitions own bounds, fallbacks, mutation and inheritance. A species
+// opts into genes through genetics.loci, so a new trait does not need another
+// branch in normalizeGenome() or combineGenomes().
+export const GENE_DEFS = Object.create(null);
+
+export function registerGene(def) {
+  if (!def || typeof def.id !== 'string' || !def.id) throw new Error('gene id required');
+  if (GENE_DEFS[def.id]) throw new Error(`gene already registered: ${def.id}`);
+  const type = def.type;
+  if (type !== 'number' && type !== 'color' && type !== 'choice' && type !== 'range') {
+    throw new Error(`gene ${def.id} type is invalid`);
+  }
+  const gene = {
+    id: def.id,
+    type,
+    min: Number.isFinite(def.min) ? def.min : undefined,
+    max: Number.isFinite(def.max) ? def.max : undefined,
+    mutation: Number.isFinite(def.mutate) ? Math.max(0, def.mutate) : 0,
+    fallback: Array.isArray(def.fallback) ? def.fallback.slice(0, 2) : def.fallback,
+  };
+
+  if (type === 'number') {
+    if (!Number.isFinite(gene.min) || !Number.isFinite(gene.max) || gene.min > gene.max) {
+      throw new Error(`gene ${def.id} bounds are invalid`);
+    }
+    gene.normalize = (value, fallback) => clamp(
+      Number.isFinite(Number(value)) ? Number(value) : fallback, gene.min, gene.max,
+    );
+    gene.inherit = ({ a, b, rng, mutation }) => clamp(
+      mutateNumber((a + b) * .5, mutation * gene.mutation, rng), gene.min, gene.max,
+    );
+  } else if (type === 'color') {
+    gene.normalize = (value, fallback) => normalizeColor(value, fallback);
+    gene.inherit = ({ a, b, rng }) => blendColor(a, b, rng);
+  } else if (type === 'choice') {
+    gene.normalize = (value, fallback) => typeof value === 'string' ? value : fallback;
+    gene.inherit = ({ high, low, rng }) => rng() < .5 ? high : low;
+  } else {
+    gene.normalize = (value, fallback) => normalizeHopPace(value, fallback);
+    gene.inherit = ({ a, b, rng, mutation }) => {
+      const lo = clamp((a[0] + b[0]) * .5 + (rng() * 2 - 1) * mutation, gene.min, gene.max);
+      const hi = clamp((a[1] + b[1]) * .5 + (rng() * 2 - 1) * mutation, gene.min, gene.max);
+      return lo <= hi ? [lo, hi] : [hi, lo];
+    };
+  }
+  GENE_DEFS[gene.id] = Object.freeze(gene);
+  return gene;
+}
+
+export function listGenes() {
+  return Object.values(GENE_DEFS);
+}
+
+registerGene({ id: 'color', type: 'color', fallback: null });
+registerGene({ id: 'size', type: 'number', min: .35, max: 1.6, fallback: 1, mutate: .08 });
+registerGene({ id: 'rigidity', type: 'number', min: 0, max: 1, fallback: 0, mutate: .12 });
+registerGene({ id: 'softness', type: 'number', min: 0, max: 1, fallback: 0, mutate: .12 });
+registerGene({ id: 'stretch', type: 'number', min: 0, max: 2, fallback: 0, mutate: .18 });
+registerGene({ id: 'material', type: 'choice', fallback: null });
+registerGene({ id: 'hopPace', type: 'range', min: .2, max: 3, fallback: [.7, 1.8], mutate: 1 });
+
+function geneDefinitionsFor(def) {
+  const loci = Array.isArray(def?.genetics?.loci) ? def.genetics.loci : [];
+  const defs = loci.map(id => GENE_DEFS[id]).filter(Boolean);
+  return defs.length ? defs : listGenes();
+}
+
+function defaultForGene(gene, defaults, def) {
+  if (gene.id === 'color') return normalizeColor(defaults.color, gene.fallback);
+  if (gene.id === 'material') {
+    return defaults.material || def.material || gene.fallback;
+  }
+  if (gene.type === 'range') {
+    return Array.isArray(defaults[gene.id]) ? defaults[gene.id] : gene.fallback;
+  }
+  return defaults[gene.id] !== undefined ? defaults[gene.id] : gene.fallback;
+}
+
 export function defaultGenome(speciesId = 'bear', overrides = {}) {
   const def = knownSpecies(speciesId) || knownSpecies('bear');
   const defaults = def.genetics?.defaults || {};
@@ -99,16 +174,10 @@ export function normalizeGenome(input = {}) {
   const def = dominantSpecies(weights);
   const defaults = def.genetics?.defaults || {};
   const genes = { ...clone(defaults), ...(input.genes && typeof input.genes === 'object' ? clone(input.genes) : {}) };
-  const num = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-  const outGenes = {
-    color: normalizeColor(genes.color, normalizeColor(defaults.color, null)),
-    size: clamp(num(genes.size, num(defaults.size, 1)), .35, 1.6),
-    rigidity: clamp(num(genes.rigidity, num(defaults.rigidity, 0)), 0, 1),
-    softness: clamp(num(genes.softness, num(defaults.softness, 0)), 0, 1),
-    stretch: clamp(num(genes.stretch, num(defaults.stretch, 0)), 0, 2),
-    material: typeof genes.material === 'string' ? genes.material : (defaults.material || def.material),
-    hopPace: normalizeHopPace(genes.hopPace, defaults.hopPace || [.7, 1.8]),
-  };
+  const outGenes = {};
+  for (const gene of geneDefinitionsFor(def)) {
+    outGenes[gene.id] = gene.normalize(genes[gene.id], defaultForGene(gene, defaults, def));
+  }
   return {
     version: DNA_VERSION,
     species: weights,
@@ -145,17 +214,13 @@ export function combineGenomes(parentA, parentB, options = {}) {
   const high = aTop === def.id ? a : b;
   const low = high === a ? b : a;
   const genes = { ...clone(high.genes) };
-  genes.color = blendColor(a.genes.color, b.genes.color, rng);
-  genes.size = clamp(mutateNumber((a.genes.size + b.genes.size) * .5, mutation * .08, rng), .35, 1.6);
-  genes.rigidity = clamp(mutateNumber((a.genes.rigidity + b.genes.rigidity) * .5, mutation * .12, rng), 0, 1);
-  genes.softness = clamp(mutateNumber((a.genes.softness + b.genes.softness) * .5, mutation * .12, rng), 0, 1);
-  genes.stretch = clamp(mutateNumber((a.genes.stretch + b.genes.stretch) * .5, mutation * .18, rng), 0, 2);
-  genes.material = rng() < .5 ? high.genes.material : low.genes.material;
-  genes.hopPace = [
-    clamp((a.genes.hopPace[0] + b.genes.hopPace[0]) * .5 + (rng() * 2 - 1) * mutation, .2, 3),
-    clamp((a.genes.hopPace[1] + b.genes.hopPace[1]) * .5 + (rng() * 2 - 1) * mutation, .2, 3),
-  ];
-  if (genes.hopPace[0] > genes.hopPace[1]) genes.hopPace.reverse();
+  for (const gene of geneDefinitionsFor(def)) {
+    genes[gene.id] = gene.inherit({
+      a: a.genes[gene.id], b: b.genes[gene.id],
+      high: high.genes[gene.id], low: low.genes[gene.id],
+      rng, mutation,
+    });
+  }
   const hybridTarget = hybridTargetFor(aTop, bTop);
   return normalizeGenome({
     version: DNA_VERSION,

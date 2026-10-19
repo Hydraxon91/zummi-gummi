@@ -4,7 +4,7 @@
 // validates a payload before anything is applied and stores it. A corrupt or
 // future-version save must be rejected without touching the live session.
 
-import { DNA_VERSION } from './dna.js';
+import { listActorCollections, validateActorWorld } from './actorsave.js';
 
 export const SAVE_FORMAT = 'gummy-save';
 export const SAVE_VERSION = 1;
@@ -14,67 +14,14 @@ export const AUTOSAVE_ID = 'autosave';
 const DB_NAME = 'gummy-saves';
 const DB_VERSION = 1;
 const STORE = 'slots';
-const STAGES = new Set(['baby', 'teen', 'adult']);
 
 const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNum = v => Number.isFinite(v);
 const isVec3 = v => Array.isArray(v) && v.length === 3 && v.every(isNum);
 
-function validateBear(b, where, errors) {
-  if (!isObj(b)) { errors.push(`${where} is not an object`); return; }
-  if (!isNum(b.uid) || b.uid <= 0) errors.push(`${where}.uid is invalid`);
-  if (!isNum(b.x) || !isNum(b.z)) errors.push(`${where} position is invalid`);
-  if (!isNum(b.flavor) || b.flavor < 0) errors.push(`${where}.flavor is invalid`);
-  if (!STAGES.has(b.stage)) errors.push(`${where}.stage is invalid`);
-  for (const key of ['scale', 'health', 'hunger', 'thirst', 'energy', 'age', 'gestation', 'mateCooldown', 'social', 'affection', 'bold']) {
-    if (b[key] !== undefined && !isNum(b[key])) errors.push(`${where}.${key} is invalid`);
-  }
-  if (b.pregnant !== undefined && typeof b.pregnant !== 'boolean') errors.push(`${where}.pregnant is invalid`);
-  if (b.parentUids !== undefined && (!Array.isArray(b.parentUids) || b.parentUids.some(u => !isNum(u)))) {
-    errors.push(`${where}.parentUids is invalid`);
-  }
-  if (b.bonds !== undefined && !isObj(b.bonds)) errors.push(`${where}.bonds is invalid`);
-  // Genome is optional for v1 saves created before the DNA pass; spawn supplies
-  // the species default when it is absent.
-  if (b.genome !== undefined) {
-    if (!isObj(b.genome) || !isNum(b.genome.version) || !isObj(b.genome.species) || !isObj(b.genome.genes)) {
-      errors.push(`${where}.genome is invalid`);
-    } else if (b.genome.version !== DNA_VERSION) {
-      errors.push(`${where}.genome version ${b.genome.version} is unsupported`);
-    }
-  }
-}
-
-function validateGlass(a, where, errors) {
-  if (!isObj(a)) { errors.push(`${where} is not an object`); return; }
-  if (a.kind !== undefined && a.kind !== 'glass') errors.push(`${where}.kind is invalid`);
-  if (a.species !== undefined && a.species !== 'glass') errors.push(`${where}.species is invalid`);
-  if (!isNum(a.uid) || a.uid <= 0) errors.push(`${where}.uid is invalid`);
-  if (!isNum(a.x) || !isNum(a.z)) errors.push(`${where} position is invalid`);
-  if (a.stage !== undefined && !STAGES.has(a.stage)) errors.push(`${where}.stage is invalid`);
-  for (const key of ['scale', 'health', 'hunger', 'thirst', 'energy', 'age', 'gestation', 'mateCooldown', 'social', 'affection', 'bold']) {
-    if (a[key] !== undefined && !isNum(a[key])) errors.push(`${where}.${key} is invalid`);
-  }
-  if (a.pregnant !== undefined && typeof a.pregnant !== 'boolean') errors.push(`${where}.pregnant is invalid`);
-  if (a.parentUids !== undefined && (!Array.isArray(a.parentUids) || a.parentUids.some(u => !isNum(u)))) {
-    errors.push(`${where}.parentUids is invalid`);
-  }
-  if (a.bonds !== undefined && !isObj(a.bonds)) errors.push(`${where}.bonds is invalid`);
-  if (a.genome !== undefined) {
-    if (!isObj(a.genome) || !isNum(a.genome.version) || !isObj(a.genome.species) || !isObj(a.genome.genes)) {
-      errors.push(`${where}.genome is invalid`);
-    }
-  }
-}
-
 function validateWorld(w, where, errors) {
   if (!isObj(w)) { errors.push(`${where} is not an object`); return; }
-  if (!Array.isArray(w.bears)) errors.push(`${where}.bears is not an array`);
-  else w.bears.forEach((b, i) => validateBear(b, `${where}.bears[${i}]`, errors));
-  if (w.glass !== undefined) {
-    if (!Array.isArray(w.glass)) errors.push(`${where}.glass is not an array`);
-    else w.glass.forEach((a, i) => validateGlass(a, `${where}.glass[${i}]`, errors));
-  }
+  validateActorWorld(w, where, errors);
   if (w.camera != null) {
     const c = w.camera;
     if (!isObj(c) || !isNum(c.yaw) || !isNum(c.pitch) || !isNum(c.dist) ||
@@ -132,17 +79,19 @@ export function normalizeSave(data) {
 }
 
 function cloneWorld(w) {
-  return JSON.parse(JSON.stringify({
-    bears: w.bears || [],
-    glass: Array.isArray(w.glass) ? w.glass : undefined,
-    camera: w.camera || null,
-    launcher: w.launcher || null,
-    time: isNum(w.time) ? w.time : null,
-    auto: !!w.auto,
-    speed: isNum(w.speed) ? w.speed : 1,
-    initialized: !!w.initialized,
-    food: Array.isArray(w.food) ? w.food : undefined,
-  }));
+  const out = {};
+  for (const collection of listActorCollections()) {
+    if (Array.isArray(w[collection.key])) out[collection.key] = w[collection.key];
+    else if (collection.required) out[collection.key] = [];
+  }
+  out.camera = w.camera || null;
+  out.launcher = w.launcher || null;
+  out.time = isNum(w.time) ? w.time : null;
+  out.auto = !!w.auto;
+  out.speed = isNum(w.speed) ? w.speed : 1;
+  out.initialized = !!w.initialized;
+  if (Array.isArray(w.food)) out.food = w.food;
+  return JSON.parse(JSON.stringify(out));
 }
 
 /* ------------------------------------------------------------------ storage */

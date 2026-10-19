@@ -21,6 +21,7 @@ import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from '.
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
+import { ACTOR_SAVE_VERSION } from './actorsave.js';
 import { MAP_CONTENT } from './mapcontent.js';
 
 const nativeRandom = Math.random;
@@ -5234,6 +5235,7 @@ function snapshotDirective(d){
 }
 function snapshotBear(b){
   return {
+    actorVersion: ACTOR_SAVE_VERSION,
     species: b.species, flavor: b.flavor, sex: b.sex, stage: b.stage, scale: b.scale,
     health: b.health, hunger: b.hunger, thirst: b.thirst,
     energy: b.energy, bold: b.bold,

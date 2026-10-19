@@ -9,6 +9,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getSpecies } from './species.js';
 import { defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { assetStore, disposeInstanceSkeletons } from './assetstore.js';
+import { ACTOR_SAVE_VERSION } from './actorsave.js';
 import {
   advanceAge, advanceGestation, ageForStage, scaleForStage,
   canMate, HOME_CAPACITY, MATE_TIME, MATE_COOLDOWN,
@@ -1484,6 +1485,7 @@ export function createGlassColony({
 
   function snapshot() {
     return actors.filter(a => a.active).map(a => ({
+      actorVersion: ACTOR_SAVE_VERSION,
       kind: 'glass',
       species: 'glass',
       uid: a.uid,
