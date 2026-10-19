@@ -496,8 +496,14 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   breed group, all-three compatibility list, genome loci/defaults, phenotype
   id, deferred hybrid target ids and separate `canBreed` / `canReproduce`
   flags. Bear and Gummy currently reproduce; Glass is compatible in the roadmap
-  but not yet reproductive. The actual crossover/mutation/expression engine
-  lives in the next `src/dna.js` pass; no save-schema change yet.
+  but not yet reproductive.
+- **DNA engine — first layer (Oct 2026, done):** `src/dna.js` implements
+  deterministic default genomes, parent combination, mutation, clamping, colour
+  blending, genome normalisation, phenotype expression, current/future breeding
+  gates and Bear × Gummy/Glass hybrid-target metadata. It is pure data and not
+  yet wired into actor creation or saves; old saves and gameplay are unchanged.
+  Next is genome-on-actor integration and a versioned save field, then authored
+  hybrid models.
 
 - **Decision:** all three — bears, Glass MSN and Gummy MSN — may interbreed
   later. Glass breeding is explicitly allowed; its offspring art/rig and
