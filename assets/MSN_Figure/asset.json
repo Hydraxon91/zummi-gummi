@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "file": "msn.glb",
+  "sha256": "5a111700482b1dd2ec60775c187873a049223dd734ff9d4334a7a45dc79a7158",
+  "bytes": 228852,
+  "assetVersion": "2.0",
+  "generator": "Khronos glTF Blender I/O v5.2.40",
+  "meshCount": 3,
+  "meshNames": [
+    "armL.003",
+    "armR.003",
+    "torso_mesh.001"
+  ],
+  "vertices": 2878,
+  "triangles": 5744,
+  "skinCount": 1,
+  "skins": [
+    {
+      "name": "MSN_Anim",
+      "joints": 9
+    }
+  ],
+  "boneCount": 9,
+  "animationCount": 10,
+  "animationNames": [
+    "BigWave",
+    "Cheer",
+    "Handshake",
+    "Hop",
+    "Idle",
+    "Lean",
+    "Nod",
+    "Squash",
+    "Wave",
+    "Wiggle"
+  ],
+  "materialCount": 1,
+  "materialNames": [
+    "MSN Buddy"
+  ],
+  "imageCount": 0,
+  "extensionsUsed": [
+    "KHR_materials_transmission",
+    "KHR_materials_ior"
+  ],
+  "extensionsRequired": [],
+  "bounds": {
+    "min": [
+      -0.6014928221702576,
+      0,
+      -0.44940000772476196
+    ],
+    "max": [
+      0.6014928221702576,
+      1.5729998350143433,
+      0.4494000154495239
+    ],
+    "space": "local POSITION accessors; node transforms not applied"
+  },
+  "source": {
+    "tracked": false,
+    "latestLocalCheckpoint": "msn_008.blend",
+    "note": "Blender working files are intentionally ignored by git. Back up the editable source outside the repository; the tracked delivery is msn.glb plus this manifest."
+  },
+  "provenance": "Authored in Blender for this project. Record the final rights statement here before public redistribution if any third-party reference, character or livery was used."
+}
