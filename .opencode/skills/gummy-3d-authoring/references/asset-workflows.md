@@ -96,6 +96,24 @@ Face Orientation remain separate inspections; the helper does not certify them.
 - Choose pixel padding for the expected mip chain and texture size. Packing success does
   not establish adequate padding or absence of overlap. Deliberately mirrored/stacked UVs
   need separate treatment for unique AO/normal bakes; preserve their baseline before edits.
+- `pack_islands(margin_method='SCALED')` scales the margin by island size, so small islands end up
+  below the target gap. Use `'ADD'` with `margin = required_px / texture_size` and measure the
+  resulting padding instead of trusting the operator's success.
+- Record the acceptance numbers before unwrapping: island count, per-triangle density spread
+  (p5/p95), zero-UV faces, non-mirror overlaps, padding in pixels, UV bounds and atlas
+  utilisation. `uv_report.py` reports density, zero-UV and outside-0-1 only; overlap, padding
+  and utilisation still need a separate check and remain manual.
+- Degenerate and sliver UV islands usually come from sliver geometry — bevels, near-coincident
+  edges, tiny n-gons — not from the unwrap. Remove or fix the sliver source before re-unwrapping
+  and re-check the island count; an unwrap that keeps producing them is reporting a modelling
+  defect.
+- After joining objects into one textured mesh, re-unwrap the merged object as a unit. Per-part UVs,
+  seams and density seldom survive a join that adds topology, and duplicate material slots must be
+  consolidated deliberately.
+- Livery and pattern rules must be positional — symmetric about an axis, bands by height — not
+  driven by face normals. Normal-based masks produce per-face patches on curved surfaces and break
+  across a seam. Verify by sampling the baked texture at face centres against the intended rule
+  (for example "0 of 747 up-facing faces sample the dark paint"), not by eye.
 - Automatic retopology/remesh can erase UVs and reshape silhouettes. Work on a separate
   copy, obtain approval, and recheck all reference silhouettes. Do not voxel-remesh thin
   open panels as a generic cleanup. Deforming assets need edge-flow/deformation checks.

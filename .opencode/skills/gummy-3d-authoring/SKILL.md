@@ -10,8 +10,12 @@ Pushes, Tool-Call Discipline, Visual Verification and 3D Asset Authoring. Follow
 gates. No game integration unless separately in scope. Repository paths below are relative to
 the project root, not this skill directory.
 
-This procedure applies to any Blender asset in the project, not only bears. Bear-specific
-rig/export notes are in "Deformation and export".
+This procedure applies to any Blender asset in the project, not only bears. Character and
+species-variant rig/export notes are in "Character and variant authoring" and
+"Deformation and export".
+
+Last reviewed: 2026-10-19. Update this line when the commands, scripts or delivery
+contract below materially change; `AGENTS.md` remains the policy source.
 
 ## Supporting workflows and tools
 
@@ -26,6 +30,9 @@ Load the focused references when the task needs them:
   spaces, ORM, normals, alpha, view transforms and glTF material export.
 - [references/texture-baking.md](references/texture-baking.md): high-to-low and
   procedural-to-texture baking, cages, map setup and the 5.2.2 bake API split.
+- [references/openings-and-glazing.md](references/openings-and-glazing.md): finding an opening's
+  rim in a shelled body, building panes from it, sealing and occlusion checks, and the glass
+  material choice. Load for windows, windscreens, lenses and grilles.
 - [references/geometry-nodes.md](references/geometry-nodes.md): editable parametric
   sources, fields/domains, modifier inputs, instancing and evaluated export.
 
@@ -40,6 +47,10 @@ run its installer, or import its web compression defaults automatically.
   outward/cavity orientation, attachment fit or reference fidelity.
 - `scripts/uv_report.py`: read-only world-space texel-density/UV-area report. Does not
   unwrap, pack, modify UVs or certify overlap/padding.
+- `scripts/render_state_audit.py`: read-only visibility and material-slot audit — objects
+  hidden in the viewport but still rendered, meshes without slots, object-linked slots, and
+  shared mesh/material users. Reports state; it does not decide whether a hidden object is
+  intentional.
 - `scripts/glb_report.py`: standalone standard-library GLB inventory, exported vertex
   and triangle counts, materials and extension requirements. Not a glTF validator.
 - `scripts/test_helpers.py`: isolated synthetic regression checks; run only in a
@@ -67,8 +78,12 @@ remote code in Blender. Report limitations alongside results, not just a pass fl
    them for the whole session. Put parts in collections per system and name objects
    clearly (`Wheel_FL`, `Tire_FL`).
 5. Inventory shared mesh/material/image users, parents, constraints and modifier dependencies
-   before changing data. Preserve linked users outside the scope; create an approved independent
-   copy when needed rather than silently altering another part or its placement.
+   before changing data. Print `obj.data.users` and the sharing objects
+   (`[o.name for o in bpy.data.objects if o.data is target.data]`) plus each material's users:
+   spares and duplicates commonly share a road-wheel or prop mesh, so a transform edit is safe
+   while a geometry edit silently reshapes both. Preserve linked users outside the scope; create an
+   approved independent copy when needed rather than silently altering another part or its
+   placement.
 
 ## Locating geometry before you touch it
 
@@ -94,6 +109,28 @@ Vertex sampling can detect some defects and measure vertex displacement, but can
 complete surface clearance. Long tube faces can cross a host while both endpoint rings clear
 it. Inspect evaluated triangles with BVH/ray or surface tests and captures; interpret intended
 joints and containment separately rather than treating an overlap count as the verdict.
+
+## Diagnosing appearance discrepancies
+
+Rendered and viewport appearances can disagree for reasons unrelated to the material. Before
+editing shader values, establish what a capture is actually showing.
+
+1. Separate the visibility switches. `hide_set()` is viewport-only; `hide_viewport` (the monitor
+   icon) is also viewport-only in 5.2.2 and does not prevent rendering. `hide_render` is the render
+   switch. Reference planes, datum markers and superseded sources are routinely hidden in the
+   viewport and still appear in every render and `look` capture. Reference and construction
+   collections must set `hide_render = True`, and a render-only appearance problem starts with an
+   audit of objects that are viewport-hidden but renderable.
+2. Confirm the object and its slots, not just the material datablock: slot count, each slot's
+   material, and `slot.link`. Object-linked slots override the mesh and can differ between users
+   of the same mesh.
+3. Map visible faces to slots with a probe: distinct flat colours on slots 0/1/2, a close-up
+   render, then one colour on every slot. Geometry that keeps its old colour does not belong to
+   that object at all. Restore the original materials in `finally`.
+4. Judge fully metallic surfaces only under a neutral studio world: they have no diffuse albedo,
+   so the colour on screen is the environment.
+5. If an edit changes nothing, treat that as evidence you are not editing what you are looking at.
+   Re-establish object, slot and render path before the next attempt (see Regression stop).
 
 ## Capturing views
 
@@ -169,6 +206,8 @@ joints and containment separately rather than treating an overlap count as the v
    collections. Inspect existing collection-boolean consumers before adding operands; never
    put a new cutter into a shared collection merely because it is named `Cutters`. Apply only
    when approved. Build flares and trim separately so their edits do not reshape the shell.
+   Glazed openings follow [references/openings-and-glazing.md](references/openings-and-glazing.md):
+   the pane is built from the opening's rim loop, not floated over it.
 5. When salvaging a model, keep the parts that match the references. Hide, do not delete,
    a replaced shape and use it as a size guide.
 6. Match the silhouette in solid shading before polishing glass or lighting. Keep
@@ -204,7 +243,9 @@ joints and containment separately rather than treating an overlap count as the v
   panels, reference planes and construction geometry, report expected boundary edges
   separately; unexpected non-manifold edges, loose vertices and flipped faces must be 0.
   A single object may contain disconnected shells, and Boolean success does not prove a
-  single watertight volume.
+  single watertight volume. A closed shell can still contain openings: window rims are
+  interior loops between outer skin, inner skin and cut wall, so `boundary_edges: 0` is not
+  evidence that the body has no windows.
 - Verify consistent face winding numerically and inspect each closed component's intended
   orientation with Face Orientation captures. Blue marks front faces and red back faces;
   interpret them relative to the intended material volume, including cavity walls.
@@ -233,7 +274,10 @@ protocol). Preserve unrelated live changes during restoration; reopening a whole
 requires approval if it would discard them. If safe restoration is blocked, stop and report
 instead of discarding work. Clean topology metrics do not justify further attempts after
 the two-failure limit; a fit or visual verification failure counts even when mesh health
-is green. Do not keep patching on top of a failing generator. Do not apply
+is green. Do not keep patching on top of a failing generator. When the same symptom survives
+two edits, suspect the observation rather than the model: re-establish which object, slot and
+render path you are judging before a third attempt. A wrong observation makes every later edit
+irrelevant. Do not apply
 a tool the agent itself has judged unsuitable (e.g. voxel remesh on a thin open panel) just to be able
 to report progress.
 
@@ -302,6 +346,29 @@ library asset as untrusted until checked:
   caches are never committed.
 - Report the import as a separate delivery state: present in the scene is not integrated,
   textured, or verified in-game.
+- `generate_3d` is a paid, single-object generator, not a scene builder. Confirm the target,
+  provider and credit cost before using it; generated output still needs reference, topology,
+  material, export and in-game checks.
+
+## Character and variant authoring
+
+Treat a new species/variant as a rig and delivery contract, not only a new silhouette.
+
+1. Decide whether the variant shares an existing rig or needs its own. Reuse the source
+   skeleton and clip names when the proportions and deformation allow it; duplicate only
+   with an explicit reason.
+2. Keep one authoritative editable source. Name the `.blend` checkpoint and record it in
+   the asset manifest; local ignored checkpoints are not backups.
+3. Preserve the rest pose and root motion contract before export. Check unweighted vertices
+   and test representative bends, twists, squash and stretch from several views.
+4. Keep variant materials parameterized (colour, transmission, roughness, coat) rather
+   than duplicating the rig for each look. Export only the intended meshes and slots.
+5. Write the asset manifest beside the delivery: tracked file, hash, scale/axis, bounds,
+   mesh/skin/clip/material inventory, extensions, source and rights. Run
+   `node scripts/glb-inventory.mjs <asset>.glb` and `node --test tests`; a matching
+   game-side loader check is separate evidence.
+6. For Glass/Gummy/Bear, record which runtime path the asset uses: skinned GLB, 24-body
+   metaball, or a future authored hybrid. Do not promise runtime mesh blending.
 
 ## Deformation and export (only when requested)
 
@@ -316,9 +383,11 @@ library asset as untrusted until checked:
   origin, normals, material support and required extensions. Blender is Z-up;
   glTF is Y-up: verify conversion rather than adding an untested extra rotation.
 - Check rendered material coverage; missing material slots must be intentional, not unnoticed
-  default grey. Require valid UVs where textures/bakes or the destination need them, not on
-  every untextured mesh. Inspect islands, checker distortion, overlap and padding at the intended
-  resolution; a UV layer or successful automatic unwrap alone does not establish suitability.
+  default grey. Rebuilt or replaced objects start with zero slots, so check the object's slot
+  list after every rebuild, not the material datablock. Require valid UVs where textures/bakes
+  or the destination need them, not on every untextured mesh. Inspect islands, checker
+  distortion, overlap and padding at the intended resolution; a UV layer or successful
+  automatic unwrap alone does not establish suitability.
 - Blender procedural graphs generally do not transfer faithfully to glTF/FBX. Preserve original
   graphs and bake required channels where unsupported. Newly generated noise is a replacement,
   not a transfer of the original appearance. Compare source and baked materials under matching

@@ -36,6 +36,23 @@ Verified inputs include: `Base Color`, `Metallic`, `Roughness`, `IOR`, `Alpha`, 
 - `Thin Wall` is useful for leaves, paper and thin fabric; verify how the target exporter
   handles it before relying on it.
 
+## Glass and transmission
+
+Two approaches; pick one with the user and record which was used:
+
+- **Alpha tint** (default for game assets): near-neutral base colour with a slight tint,
+  Roughness 0.02–0.10, IOR 1.45, Alpha 0.4–0.6, `surface_render_method = 'BLENDED'`. Cheap and
+  exports as glTF `BLEND`, but sorts badly where panes overlap and costs per-pixel blending.
+- **Transmission**: `Transmission Weight` 1.0, Roughness 0.0–0.05, IOR 1.45. EEVEE needs
+  raytracing enabled to refract; otherwise the pane reads as clear film. glTF needs
+  `KHR_materials_transmission`, which the project loader may not support.
+
+Alpha and transmission are not interchangeable: alpha also affects shadows and draw sorting,
+while transmission keeps the surface in the depth buffer. Verify from outside and inside, and
+check the exported `alphaMode`/extensions rather than inferring them from the Blender viewport.
+A glass material datablock existing is not evidence that it is assigned — rebuilt panes start
+with zero slots, so assert the slot list on the pane object.
+
 ## Color spaces
 
 | Data | Color space |
@@ -91,6 +108,9 @@ only evaluates inside Blender and claim it is game-ready.
   material view. Do not conceal a shape or material defect with colored lighting.
 - `material.diffuse_color` affects only viewport solid/workbench display; rendered color comes
   from shader inputs.
+- A fully metallic surface has no diffuse albedo: its colour is the environment's. Judge metallic
+  paint, rims and black-coated parts under a neutral studio world, and do not edit Base Color to
+  "fix" a cast before ruling out the world, an HDRI or a coloured backdrop.
 
 ## Verification
 

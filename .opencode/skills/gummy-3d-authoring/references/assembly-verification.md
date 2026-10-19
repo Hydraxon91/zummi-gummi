@@ -68,6 +68,11 @@ clearly labeled diagnostic checkpoints are permitted.
   displacement where valid or sampled bidirectional surface distances; report sampling
   coverage, uncertainty and local maxima, not only averages. Do not claim exact preservation
   from sparse samples.
+- An accepted arrangement is data, not a defect. When the user places or approves a part — a spare
+  leaning in a bed, a bracket rotated for clearance — record it as accepted and do not re-pose or
+  re-fit it because a metric disagrees. Report measured interference as information: classify
+  intended contact (a tyre resting on a carrier, fastener engagement) against panel penetration,
+  and ask before changing an accepted pose.
 - Restore temporary visibility, selection, active object, shading and capture settings in
   `finally`, including failed captures. Retained comparison setups must be disclosed.
 

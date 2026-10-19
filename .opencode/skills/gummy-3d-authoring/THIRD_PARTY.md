@@ -18,6 +18,9 @@ copies of the upstream scripts. No upstream installer, dependencies, repair scri
 review camera or compressed-export presets are installed. Upstream claims about test
 coverage do not establish validation of these local adaptations.
 
+`references/openings-and-glazing.md` and `scripts/render_state_audit.py` are project-authored from
+the Raptor RC glazing round, not adapted from the upstream suite.
+
 ## MIT License
 
 Copyright (c) 2026 EL4CTEO

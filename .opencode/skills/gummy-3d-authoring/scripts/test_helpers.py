@@ -19,7 +19,8 @@ def load(name):
 def main():
     if not bpy.app.background or bpy.data.filepath:
         raise RuntimeError('Tests require an unsaved disposable background Blender')
-    qa, uv, glb = [load(name) for name in ('asset_qa', 'uv_report', 'glb_report')]
+    qa, uv, glb, state = [load(name) for name in
+                          ('asset_qa', 'uv_report', 'glb_report', 'render_state_audit')]
     created = []
 
     def mesh(name, vertices, faces):
@@ -89,6 +90,52 @@ def main():
         loose = mesh('QA_FixtureLoose', [(0, 0, 0)], [])
         assert not report(loose)['health_pass']
 
+        def cube(name):
+            ob = mesh(name, [], [])
+            bm = bmesh.new()
+            bmesh.ops.create_cube(bm, size=0.2)
+            bm.to_mesh(ob.data)
+            bm.free()
+            return ob
+
+        slotless = cube('QA_FixtureSlotless')
+        viewport_hidden = cube('QA_FixtureViewportHidden')
+        render_hidden = cube('QA_FixtureRenderHidden')
+        empty_slot = cube('QA_FixtureEmptySlot')
+        fixture_material = bpy.data.materials.new('QA_FixtureMaterial')
+        viewport_hidden.data.materials.append(fixture_material)
+        viewport_hidden.hide_set(True)
+        render_hidden.data.materials.append(fixture_material)
+        render_hidden.hide_render = True
+        empty_slot.data.materials.append(None)
+        shared_data = bpy.data.meshes.new('QA_FixtureSharedMesh')
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=0.2)
+        bm.to_mesh(shared_data)
+        bm.free()
+        for name in ('QA_FixtureSharedA', 'QA_FixtureSharedB'):
+            ob = bpy.data.objects.new(name, shared_data)
+            bpy.context.scene.collection.objects.link(ob)
+            created.append(ob)
+        bpy.context.view_layer.update()
+        audit = state.run(['QA_FixtureSlotless', 'QA_FixtureViewportHidden',
+                           'QA_FixtureRenderHidden', 'QA_FixtureEmptySlot',
+                           'QA_FixtureSharedA', 'QA_FixtureSharedB'])
+        assert 'QA_FixtureSlotless' in audit['mesh_without_material_slots']
+        assert 'QA_FixtureViewportHidden' in audit['renderable_but_viewport_hidden']
+        assert 'QA_FixtureRenderHidden' in audit['viewport_visible_but_render_hidden']
+        assert audit['slots_without_material'] == [
+            {'object': 'QA_FixtureEmptySlot', 'slot': 0, 'link': 'DATA'}]
+        shared_mesh = [item for item in audit['shared_meshes']
+                       if item['mesh'] == 'QA_FixtureSharedMesh']
+        assert shared_mesh and shared_mesh[0]['objects'] == [
+            'QA_FixtureSharedA', 'QA_FixtureSharedB']
+        shared_material = [item for item in audit['materials_used_by_multiple_objects']
+                           if item['material'] == 'QA_FixtureMaterial']
+        assert shared_material and shared_material[0]['objects'] == [
+            'QA_FixtureRenderHidden', 'QA_FixtureViewportHidden']
+        assert audit['objects_checked'] == 6
+
         def pack(doc):
             payload = json.dumps(doc).encode()
             payload += b' ' * (-len(payload) % 4)
@@ -114,12 +161,19 @@ def main():
         doc['meshes'][0]['primitives'][0]['mode'] = 1
         assert glb.inspect_bytes(pack(doc))['unique_mesh_primitive_triangles'] is None
         print('GUMMY_HELPERS_PASS: closed/open/loose meshes, evaluated modifier, reflected winding, '
-              'UV density/scale/missing UV, no object/mesh leaks, GLB counts/instances/extensions/malformed input/non-triangles')
+              'UV density/scale/missing UV, viewport-vs-render visibility, slotless/empty/object '
+              'slots, shared mesh/material users, no object/mesh leaks, GLB '
+              'counts/instances/extensions/malformed input/non-triangles')
     finally:
+        datas = []
         for ob in created:
-            data = ob.data
+            if ob.data is not None and ob.data not in datas:
+                datas.append(ob.data)
+        for ob in created:
             bpy.data.objects.remove(ob, do_unlink=True)
-            bpy.data.meshes.remove(data)
+        for data in datas:
+            if data.users == 0:
+                bpy.data.meshes.remove(data)
 
 
 if __name__ == '__main__':
