@@ -99,6 +99,39 @@ cull-on/cull-off pair is the evidence; the table is not a refresh-rate claim.
 
 ### God-ray prototype — `?godrays=good` (Oct 2026)
 
+The prototype can now also be enabled and configured in Settings; defaults remain
+off. Individual sample/resolution/density/colour controls intentionally permit
+quality/cost tradeoffs, but those manual changes are not claimed as lossless
+optimizations.
+
+**Lossless-work audit (settings follow-up, Oct 2026):**
+
+- The renderer skips raymarch, shadow-depth blit and composite when the existing
+  shader's sun-visibility multiplier is zero (or ray strength is zero).
+  `rayDepthAllocated` reports lazy allocation of the two ping-pong depth textures;
+  they are absent when rays are disabled, tier-ineligible or invisible, and
+  allocated again for visible rays. At 2160×1350 their nominal 32-bit payload is
+  ~22.2 MiB combined (an estimate, not a GPU memory measurement).
+- Live-render-path hidden-rays vs rays-off comparison: **0 changed pixels** at
+  2160×1350; no GL errors. Stabilized forced-sync samples were ~33.7–34.8 ms
+  in both states. This confirms no hidden-ray surcharge in that test, not a
+  measured speedup over the old implementation. A separate two-composer A/B
+  failed pixel parity and produced inconsistent first timings; those results
+  are rejected, not used as performance evidence.
+- Grass experiment: moved root-constant colour-patch trigonometry from fragment
+  to vertex shader in a temporary material. The trial changed 84 pixels (maximum
+  channel delta 119) and timings overlapped (~44.5–45.2 ms vs ~43.1–45.1 ms,
+  excluding initial warm-up). **Rejected:** neither fidelity parity nor a
+  repeatable improvement was established; production grass math/cards unchanged.
+- Bear profile, 40 bears, three forced 20-frame runs: physics ~1.2–1.3 ms/frame;
+  surface work ~6.8–8.1 ms/frame; field scatter ~0.23–0.26 ms/build versus nets
+  ~1.44–1.98 ms/build. Forced rebuilds remain budget-limited (3.3–4/frame).
+  A scratch capsule-row invariant-hoisting experiment matched all 120 field
+  cases exactly, but seven alternating Node rounds measured 34.34 vs 34.39 ms
+  for the batch. **Rejected as no win.** No bear mesh output, rebuilding schedule,
+  grid quality or solver changes were made. This microbenchmark is not a browser
+  frame-time result.
+
 - **Flag-gated and off by default.** `?godrays=good` (or `setGodrays('good')`) swaps in a raymarched pass on the Full tier only. No dependency or three.js change; the technique is reimplemented on `three/addons` `ShaderPass`/`FullScreenQuad` from `three-good-godrays` (Casey Primozic, zlib licence, adapted from n8python/goodGodRays).
 - **How it works:** quarter-resolution screen-space raymarch against the sun/moon shadow-map depth and the composer's scene depth. On r186 the PCF shadow map uses a comparison depth texture, so the pass blits it to a comparison-free depth texture each frame before sampling raw depth.
 - **Cost:** 1440×900 / DPR 1.5, Full tier, 40 spread bears, three alternating rounds of five 60-frame probes with the first sample of each discarded (n=12 median):
@@ -109,6 +142,23 @@ cull-on/cull-off pair is the evidence; the table is not a refresh-rate claim.
 - **Foliage shadows:** `?foliageShadows=1` gives hero leaf cards and bushes alpha-tested depth materials so canopies occlude the raymarch instead of casting card rectangles. Experimental only; it makes the whole meadow shadow-casting.
 - **Look:** beams radiate from the sun through canopy and hill silhouettes; the default camera gets soft shafts from behind the hill. This is a stylised screen-space effect, not a participating medium: edges are soft at quarter res, and the canopy centre can show a bloom/glow artifact.
 - **Status:** prototype only; nothing is enabled without the flag, and the legacy radial pass remains off.
+
+**Canopy-edge tuning follow-up:** the ray buffer now carries
+endpoint view depth in alpha. The full-resolution composite reconstructs scene
+depth and blends four neighboring ray samples only when their depths match.
+This rejects bright background samples across foreground leaf edges, sharpening
+the quarter-resolution upsample without increasing raymarch resolution/steps.
+Matched-camera rays-off and bloom-off captures also show that broad sky shafts
+already exist without this pass; bloom contributes to the central canopy glow.
+The edge correction does not establish that all remaining glow is eliminated.
+
+Recheck: 40 bears, 1440×900/DPR 1.5, Full/quality 1, experimental foliage
+shadows, three alternating rounds of five 60-frame probes, first discarded:
+**46.15 → 47.82 ms (+1.67 ms)** (off range 45.90–46.69; on 47.20–48.37,
+n=12 each). This is a fresh on/off cost measurement, not evidence of a speedup
+over the earlier run. Inspected desktop dawn, tree close-up at 08:00 and
+390×844 emulated-mobile captures; Soft disables the prototype. Browser errors
+and reported shader diagnostics were empty.
 
 Pond camera probe (1440×900, DPR 1, quality 2, effects off, five 60-frame runs,
 first sample discarded): **17.4–18.5 ms** before the 6b-2 water tuning and

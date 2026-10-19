@@ -346,6 +346,25 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
 
 **God-ray prototype (Oct 2026, flag-gated)** — recorded:
 
+- **Individual settings follow-up:** 24 advanced graphics controls plus the
+  existing controls now expose shadows, foliage LOD, post-processing detail,
+  experimental god rays and wind; clock controls also appear in Settings.
+  Local persistence, Custom labeling, section resets and preset reset behavior
+  verified at desktop and 390×844. Default ray/shadow/LOD settings are unchanged.
+- **Invisible-ray work removed:** hidden rays skip raymarch/blit/composite and
+  composer depth attachments are allocated only while needed. Hidden-ray/off
+  output matched exactly in a live-pipeline pixel comparison. Grass and capsule
+  optimizations were investigated but rejected (parity failure/no measurable
+  gain); production math and surface scheduling remain unchanged. See
+  `PERFORMANCE.md` for measurements and rejected-test limitations.
+- **Known follow-ups — settings data (fixed):** malformed primitive/array JSON
+  and null selector values could crash flag overrides or coerce to tier zero;
+  advanced settings now validate object shape and finite numeric enum values.
+- **Known follow-ups — prototype resources (deferred):** the pass's existing
+  dispose method does not dispose its shadow-depth copy target, and the effects
+  owner has no teardown API. This is not exercised by current map switching,
+  which keeps the composer; address before adding composer recreation.
+
 - `?godrays=good` (or `setGodrays('good')`) runs a quarter-resolution raymarch
   against the sun/moon shadow-map depth plus composer scene depth, Full tier
   only. Off by default; no npm package or three.js bump. Technique adapted from
@@ -360,6 +379,20 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   the hill.
 - Follow-ups: half-res/sharper option, the canopy-centre glow artifact, mobile
   cost, and the decision whether foliage shadows (and the effect) ship at all.
+- **Canopy-edge tuning:** depth-guided four-tap upsampling rejects background
+  ray samples at foreground foliage edges while retaining quarter-resolution,
+  24-step raymarching. Desktop/tree/mobile captures and Soft-tier exclusion
+  checked; fresh 40-bear on/off cost +1.67 ms (not a cross-run speedup claim).
+- **Known follow-ups — canopy glow (partly addressed):** rays-off and bloom-off
+  comparisons show existing sky shafts and a bloom contribution to the bright
+  canopy centre. Depth-guided upsampling addresses silhouette leakage, but a
+  complete bloom/sky-glow fix is not established; deferred rather than masked
+  by disabling bloom globally.
+- **Known follow-ups — experimental foliage shadows (deferred):** custom leaf
+  depth materials do not reproduce the visible shader's wind, scale and density
+  changes. Moving-canopy shadow parity remains unverified; alpha testing alone
+  does not prove matching occlusion. The flag affects hero trees/bushes, not
+  every meadow object.
 
 **Known follow-ups after 8c** — recorded, not blockers:
 - **Possession is session-only.** Reloading or changing maps returns the bear to

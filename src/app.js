@@ -5,6 +5,7 @@ import { buildField, POND_HOLE, POND } from './field.js';
 import { createBearAI } from './ai.js';
 import { createAIDebug } from './aidebug.js';
 import { createEffects } from './effects.js';
+import { GRAPHICS_GROUPS, GRAPHICS_DEFAULTS, normalizeGraphics, readGraphics, createGraphicsPanel } from './graphics.js';
 import {
   HOME_CAPACITY, MATE_COOLDOWN, GESTATION_TIME, MATE_FOOD_MIN, STAGE_ORDER,
   advanceAge, advanceGestation, ageForStage, scaleForStage, stageForAge,
@@ -1677,6 +1678,8 @@ let effectsMode = DEFAULT_EFFECTS;
 let effectsDof = false;
 let natureState = { ...DEFAULT_NATURE };
 let settingsProfile = 'auto';
+let graphicsState = readGraphics();
+let graphicsPanel = null;
 let toonEnabled = false;
 try {
   const saved = localStorage.getItem('gummy.effects');
@@ -1712,7 +1715,7 @@ try {
   toonEnabled = localStorage.getItem('gummy.toon') === '1';
 } catch (err) {}
 function applyRealShadows(){
-  const size = quality.shadowMap | 0;
+  const size = graphicsState.shadows < 0 ? quality.shadowMap | 0 : graphicsState.shadows;
   const on = size > 0;
   renderer.shadowMap.enabled = on;
   if (sky && sky.setShadows) sky.setShadows(on, size || 1024);
@@ -1770,6 +1773,7 @@ function saveSettings() {
     localStorage.setItem('gummy.toon', toonEnabled ? '1' : '0');
     localStorage.setItem('gummy.effects', effectsMode);
     localStorage.setItem('gummy.effectsDof', effectsDof ? 'on' : 'off');
+    localStorage.setItem('gummy.graphics', JSON.stringify(graphicsState));
   } catch (err) {}
 }
 
@@ -1791,6 +1795,7 @@ function settingsSummary() {
     dof: effectsDof,
     toon: toonEnabled,
     nature: { ...natureState },
+    graphics: { ...graphicsState },
     shadows: sky && sky.shadowState ? sky.shadowState : null,
   };
 }
@@ -1799,6 +1804,7 @@ function applyProfile(name) {
   const p = PROFILES[name];
   if (!p) return null;
   settingsProfile = name;
+  graphicsState = { ...GRAPHICS_DEFAULTS };
   quality.level = p.tier;
   quality.cap = p.tier;
   quality.adaptive = p.adaptive;
@@ -1808,6 +1814,7 @@ function applyProfile(name) {
   natureState = normalizeNature(p.nature);
   if (field) field.setNature(natureState);
   applyQuality();
+  applyGraphics();
   applyEffectsUI();
   if (isMeadow()) syncAeroUI(true);
   syncSettingsUI();
@@ -3419,6 +3426,9 @@ if (timeSpeedEl) timeSpeedEl.addEventListener('click', ()=>{
 if (windStrengthEl) windStrengthEl.addEventListener('input', ()=>{
   if (!field || !field.wind) return;
   field.wind.setStrength(+windStrengthEl.value);
+  graphicsState.wind = +windStrengthEl.value;
+  markSettingsCustom();
+  saveSettings();
   syncAeroUI(false);
 });
 function syncEffectsUI(){
@@ -3467,11 +3477,81 @@ function syncSettingsUI(){
   if (settingsTierEl){
     const q = LEVELS[quality.level];
     settingsTierEl.textContent = `Tier ${quality.level + 1} · ${renderer.getPixelRatio().toFixed(2)}×`;
-    if (settingsShadowEl) settingsShadowEl.textContent = q.shadowMap
-      ? `Directional · ${q.shadowMap}px`
+    const shadowSize = graphicsState.shadows < 0 ? q.shadowMap : graphicsState.shadows;
+    if (settingsShadowEl) settingsShadowEl.textContent = shadowSize
+      ? `Directional · ${shadowSize}px`
       : 'Blob fallback';
   }
   syncNatureUI();
+  if (graphicsPanel) graphicsPanel.sync('⚠ Higher sample counts, shadow sizes and ray resolution increase GPU cost. AO and god rays require Full effects and tier 1 or 2; god rays also require directional shadows. Existing time controls remain in Meadow.');
+  const hourEl = document.getElementById('settingsHour');
+  if (sky && hourEl && document.activeElement !== hourEl) hourEl.value = sky.hours;
+  if (sky) {
+    document.getElementById('settingsHourVal').textContent = formatClock(sky.hours);
+    document.getElementById('settingsTimeAuto').checked = sky.auto;
+  }
+}
+
+function applyGraphics(){
+  if (effects) effects.setControls(graphicsState);
+  if (field) {
+    field.setGrassControls({ lodNear: graphicsState.grassNear, lodFar: graphicsState.grassFar });
+    field.trees.setControls({ lodNear: graphicsState.leafNear, lodFar: graphicsState.leafFar, farKeep: graphicsState.leafKeep });
+    field.trees.setShadows(graphicsState.foliageShadows);
+    field.bushes.setShadows(graphicsState.foliageShadows);
+    field.wind.setStrength(graphicsState.wind);
+  }
+  applyRealShadows();
+}
+function changeGraphics(values){
+  graphicsState = normalizeGraphics({ ...graphicsState, ...values });
+  if (values.tier !== undefined && graphicsState.tier >= 0) {
+    quality.level = graphicsState.tier;
+    quality.cap = quality.level;
+    quality.adaptive = false;
+    applyQuality();
+  }
+  markSettingsCustom();
+  applyGraphics();
+  saveSettings();
+  syncSettingsUI();
+  return settingsSummary();
+}
+graphicsPanel = createGraphicsPanel(document.getElementById('graphicsAdvanced'), {
+  get: () => graphicsState,
+  change: changeGraphics,
+  reset: id => {
+    const group = GRAPHICS_GROUPS.find(g => g[0] === id);
+    changeGraphics(Object.fromEntries(group[2].map(row => [row[0], row[3]])));
+  },
+});
+syncSettingsUI();
+
+document.getElementById('settingsHour').addEventListener('input', e => {
+  setMeadowTime(+e.target.value);
+  syncSettingsUI();
+});
+document.getElementById('settingsTimeAuto').addEventListener('change', e => {
+  if (sky && sky.auto !== e.target.checked) toggleMeadowAuto();
+});
+for (const button of document.querySelectorAll('[data-settings-reset]')) {
+  button.addEventListener('click', () => {
+    const section = button.dataset.settingsReset;
+    if (section === 'display') {
+      quality.level = 0; quality.cap = 0; quality.adaptive = true; quality.renderScale = 1;
+      changeGraphics({ tier: -1, shadows: -1, foliageShadows: false });
+      applyQuality();
+    } else if (section === 'effects') {
+      effectsMode = DEFAULT_EFFECTS; effectsDof = false; setToonMode(false);
+      changeGraphics(Object.fromEntries(GRAPHICS_GROUPS.find(g => g[0] === 'effects')[2].map(row => [row[0], row[3]])));
+      applyEffectsUI();
+    } else {
+      natureState = { ...DEFAULT_NATURE };
+      if (field) field.setNature(natureState);
+      changeGraphics(Object.fromEntries(GRAPHICS_GROUPS.find(g => g[0] === 'foliage')[2].map(row => [row[0], row[3]])));
+    }
+    saveSettings(); syncSettingsUI();
+  });
 }
 
 function setEffectsModeFromUI(mode){
@@ -5145,6 +5225,7 @@ async function bootGame(){
 
   PHYS = await initPhysics(24 * BEAR_HARD_MAX, { x: 0, y: GRAV, z: 0 });
   ensureMeadow();
+  applyGraphics();
   ai = createBearAI({
     field,
     getBears: () => bears,
@@ -5740,6 +5821,7 @@ window.__gummy = {
     return effects ? effects.state() : null;
   },
   settings(){ return settingsSummary(); },
+  setGraphics(values){ return changeGraphics(values); },
   setProfile(name){ return applyProfile(name); },
   setAdaptive(on){
     quality.adaptive = !!on;

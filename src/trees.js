@@ -323,7 +323,7 @@ function mergeAttachedGeometries(geoms) {
 
 function windPrefix(attrs, mode) {
   return WIND_GLSL + `
-    ${mode === 'leaf' ? 'uniform float uLeafFullness;\nuniform float uLeafScale;' : ''}
+    ${mode === 'leaf' ? 'uniform float uLeafFullness;\nuniform float uLeafScale;\nuniform vec3 uLeafLod;' : ''}
     attribute float aWindFlex;
     attribute float aTreePhase;
     attribute float aBranchPhase;
@@ -345,6 +345,7 @@ function makeWindMaterial(material, wind, mode, controls, sun = null) {
     if (mode === 'leaf' && controls) {
       shader.uniforms.uLeafFullness = controls.fullness;
       shader.uniforms.uLeafScale = controls.scale;
+      shader.uniforms.uLeafLod = controls.lod;
       if (sun) {
         shader.uniforms.uSunDir = sun.uniforms.uSunDir;
         shader.uniforms.uSunColor = sun.uniforms.uSunColor;
@@ -371,8 +372,8 @@ function makeWindMaterial(material, wind, mode, controls, sun = null) {
           // Distance LOD: thin the card budget beyond the near meadow instead
           // of drawing every leaf into a few far-field pixels. The hash is the
           // same one the Canopy control uses, so the two cuts compose.
-          float leafFar = smoothstep(42.0, 68.0, distance(cameraPosition, aAnchor));
-          float leafKeep = uLeafFullness * mix(1.0, 0.60, leafFar);
+          float leafFar = smoothstep(uLeafLod.x, uLeafLod.y, distance(cameraPosition, aAnchor));
+          float leafKeep = uLeafFullness * mix(1.0, uLeafLod.z, leafFar);
           keep = step(fract(sin(dot(aAnchor.xz + aFlutterPhase, vec2(12.9898, 78.233))) * 43758.5453), leafKeep);
           transformed *= uLeafScale;
           ` : ''}
@@ -584,6 +585,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
   const leafControls = {
     fullness: { value: 1 },
     scale: { value: 1 },
+    lod: { value: new THREE.Vector3(42, 68, .6) },
   };
   const leafMat = makeWindMaterial(new THREE.MeshPhysicalMaterial({
     color: 0xc3d4ad, map: leafTex, alphaTest: .42, transparent: false, depthWrite: true,
@@ -1102,7 +1104,7 @@ export function createTreeCollection({ lots, wind, sun = null }) {
       const flag = !!on;
       for (const mesh of barkMeshes) {
         mesh.castShadow = flag;
-        if (flag) mesh.receiveShadow = true;
+        mesh.receiveShadow = flag;
       }
       for (const mesh of fruitMeshes) mesh.castShadow = flag;
       for (const mesh of leafMeshes) {
@@ -1122,6 +1124,10 @@ export function createTreeCollection({ lots, wind, sun = null }) {
       if (!v) return;
       if (v.fullness !== undefined) leafControls.fullness.value = clamp(Number(v.fullness) || 0, .25, 1);
       if (v.leafSize !== undefined) leafControls.scale.value = clamp(Number(v.leafSize) || .7, .65, 1.45);
+      if (v.lodNear !== undefined) leafControls.lod.value.x = v.lodNear;
+      if (v.lodFar !== undefined) leafControls.lod.value.y = v.lodFar;
+      if (v.farKeep !== undefined) leafControls.lod.value.z = v.farKeep;
+      stats.lod = { start: leafControls.lod.value.x, end: leafControls.lod.value.y, farKeep: leafControls.lod.value.z };
     },
     dispose() {
       group.traverse(o => {

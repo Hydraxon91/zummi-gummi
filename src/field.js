@@ -642,6 +642,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   const grassBearCount = { value: 0 };
   const grassCoverage = { value: 1 };
   const grassDrawDistance = { value: 56 };
+  let grassLodNear = 30, grassLodFar = 36;
   const grassHeight = { value: grassCards ? 1.05 : .62 };
   const grassMat = new THREE.MeshLambertMaterial({
     color: 0xffffff, side: THREE.DoubleSide, vertexColors: true,
@@ -2593,8 +2594,8 @@ export function buildField({ scene, camera, renderer, sky }) {
         c.farMesh.visible = false;
         continue;
       }
-      if (d > 36) c.lodFar = true;
-      else if (d < 30) c.lodFar = false;
+      if (d > grassLodFar) c.lodFar = true;
+      else if (d < grassLodNear) c.lodFar = false;
       c.mesh.visible = !c.lodFar;
       c.farMesh.visible = c.lodFar;
     }
@@ -2604,6 +2605,8 @@ export function buildField({ scene, camera, renderer, sky }) {
     updateGrassCull();
   }
   function setGrassControls(v = {}) {
+    if (v.lodNear !== undefined) grassLodNear = v.lodNear;
+    if (v.lodFar !== undefined) grassLodFar = v.lodFar;
     if (v.coverage !== undefined) grassCoverage.value = THREE.MathUtils.clamp(Number(v.coverage) || 0, .25, 1);
     if (v.drawDistance !== undefined) grassDrawDistance.value = THREE.MathUtils.clamp(Number(v.drawDistance) || 0, 24, 76);
     updateGrassCull();

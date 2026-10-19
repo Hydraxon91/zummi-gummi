@@ -797,6 +797,13 @@
     .menuTitle{font-size:clamp(2.2rem,12vw,3.2rem)}
     .menuSub{font-size:12px;margin-bottom:18px}
   }
+  .graphicsAdvanced{grid-column:1/-1;display:grid;gap:12px}
+  .advancedGraphics summary{cursor:pointer;font-weight:650;color:#0b4351;padding:4px 0 10px}
+  .advancedGraphics .settingsRow{grid-template-columns:minmax(130px,1fr) minmax(70px,1fr) 44px}
+  .advancedGraphics input[type=color]{width:100%;height:28px;border:0;background:none}
+  @media(max-width:640px){
+    .advancedGraphics .settingsRow{grid-template-columns:minmax(100px,1fr) minmax(65px,1fr) 32px;gap:6px}
+  }
 </style>
 <script type="importmap">
 { "imports": {
@@ -1001,7 +1008,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <dt>V / Space</dt><dd><b>V</b> takes control of the selected bear (or exits). While in control, WASD/arrows or the on-screen stick move, <b>Space</b> hops, and <b>V</b> or <b>Esc</b> exits. The camera follows and stays above the ground and inside the meadow.</dd>
             <dt>U</dt><dd>Hide or show the interface.</dd>
             <dt>P</dt><dd>Performance overlay; it stays visible when the rest of the UI is hidden.</dd>
-            <dt>Settings</dt><dd>The gear opens graphics profiles, resolution, effects, depth of field, toon shading and meadow detail. Profiles are starting points; tweaking a control switches to Custom.</dd>
+            <dt>Settings</dt><dd>The gear opens profiles plus individual shadow, foliage/grass LOD, bloom, exposure, AO, antialiasing, depth of field, experimental god-ray, wind and clock controls. Advanced sections expand individually and have reset buttons. Values persist in this browser; tweaking a preset switches to Custom. God rays need Full effects, tier 1 or 2 and directional shadows; ⚠ options can be expensive.</dd>
             <dt>Directives</dt><dd>Click a bear in the roster (or switch to <b>Select</b> click with <b>C</b> and click it in the meadow), then use <b>Go here</b> (then tap the meadow), <b>Eat</b>, <b>Drink</b>, <b>Home</b> or <b>Social</b>. A directive is a request, not a command: a hungry, thirsty, tired or courting bear may refuse, and a starving bear will abandon it to eat. The panel shows the reason. Up to three requests queue and expire after 45 seconds; <b>×</b> closes the panel and leaves the requests running.</dd>
             <dt>Saves</dt><dd>The Saves section in Settings holds five named slots plus an autosave (every two minutes). Save, Load, Delete and Rename work per slot; Export JSON downloads a file and Import JSON restores one. Saves live in this browser. New Game resets to the authored starter colony, 07:00 and a full meadow.</dd>
             <dt>Menu &amp; pause</dt><dd>The game opens on the main menu: Continue resumes the autosave, Load game picks a slot, New game starts fresh, How to play opens this guide. Escape pauses the meadow and offers Resume, Settings or Return to menu (which autosaves first).</dd>
@@ -1033,6 +1040,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
             <button class="profileBtn" type="button" data-profile="ultra"><b>Ultra</b><small>shadows + full effects</small></button>
           </div>
           <p class="settingsNote" id="settingsProfileNote">Preset: Auto</p>
+          <button class="settingsAction" type="button" data-settings-reset="display">Reset display</button>
           <label class="settingsRow"><span>Adaptive</span><input id="settingsAdaptive" type="checkbox" aria-label="Adaptive quality"><b id="settingsAdaptiveVal">On</b></label>
           <label class="settingsRow"><span>Resolution</span><input id="settingsScale" type="range" min="0.6" max="1" step="0.01" value="1" aria-label="Render resolution"><b id="settingsScaleVal">100%</b></label>
           <div class="settingsReadout">
@@ -1045,12 +1053,17 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
           <label class="settingsRow"><span>Post</span><select id="settingsEffects" aria-label="Post-processing effects"><option value="off">Off</option><option value="soft">Soft</option><option value="full">Full</option></select></label>
           <label class="settingsRow"><span>Depth of field</span><select id="settingsDof" aria-label="Depth of field"><option value="off">Off</option><option value="on">On</option></select></label>
           <label class="settingsRow"><span>Toon shading</span><input id="settingsToon" type="checkbox" aria-label="Toon shading"><b id="settingsToonVal">Off</b></label>
+          <button class="settingsAction" type="button" data-settings-reset="effects">Reset effects</button>
           <h3 class="settingsSubhead">Meadow</h3>
           <label class="settingsRow"><span>Canopy</span><input id="settingsCanopy" type="range" min="0.35" max="1" step="0.01" value="1" aria-label="Canopy fullness"><b id="settingsCanopyVal">1.00</b></label>
           <label class="settingsRow"><span>Leaf size</span><input id="settingsLeafSize" type="range" min="0.65" max="1.4" step="0.01" value="1" aria-label="Leaf size"><b id="settingsLeafSizeVal">1.00</b></label>
           <label class="settingsRow"><span>Grass</span><input id="settingsGrassCoverage" type="range" min="0.35" max="1" step="0.01" value="1" aria-label="Grass coverage"><b id="settingsGrassCoverageVal">1.00</b></label>
           <label class="settingsRow"><span>Distance</span><input id="settingsGrassDistance" type="range" min="28" max="76" step="1" value="56" aria-label="Grass draw distance"><b id="settingsGrassDistanceVal">56</b></label>
+          <button class="settingsAction" type="button" data-settings-reset="meadow">Reset meadow</button>
+          <label class="settingsRow"><span>Time of day</span><input id="settingsHour" type="range" min="0" max="24" step="0.05" value="7"><b id="settingsHourVal">07:00</b></label>
+          <label class="settingsRow"><span>Automatic time</span><input id="settingsTimeAuto" type="checkbox" checked></label>
         </section>
+        <div id="graphicsAdvanced" class="graphicsAdvanced"></div>
         <section class="settingsSection savesSection">
           <h3>Saves</h3>
           <div class="savesList" id="savesList" aria-live="polite"></div>

@@ -15,6 +15,7 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+import { GRAPHICS_DEFAULTS } from './graphics.js';
 
 const GradeShader = {
   uniforms: {
@@ -154,6 +155,7 @@ const GoodGodRaysShader = {
     uSunOn: { value: 0 },
     uColor: { value: new THREE.Color(0xffd9a4) },
     uSteps: { value: 24 },
+    uDistance: { value: 90 },
     uDensity: { value: 1 / 85 },
     uMaxDensity: { value: .6 },
     uAttenuation: { value: .03 },
@@ -179,6 +181,7 @@ const GoodGodRaysShader = {
     uniform float uSunOn;
     uniform vec3 uColor;
     uniform float uSteps;
+    uniform float uDistance;
     uniform float uDensity;
     uniform float uMaxDensity;
     uniform float uAttenuation;
@@ -196,7 +199,7 @@ const GoodGodRaysShader = {
       vec3 delta = world - uCamPos;
       float dist = length(delta);
       vec3 dir = delta / max(dist, 1e-4);
-      float maxT = min(dist, 90.0);
+      float maxT = min(dist, uDistance);
       float stepLen = maxT / max(uSteps, 1.0);
       float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
       float illum = 0.0;
@@ -221,7 +224,9 @@ const GoodGodRaysShader = {
       float toward = smoothstep(0.15, 0.95, dot(dir, uLightDir));
       vec2 sunDelta = vUv - uSunUv;
       float sunMask = exp(-dot(sunDelta, sunDelta) * 22.0);
-      gl_FragColor = vec4(uColor * rays * uStrength * toward * sunMask * uSunOn, 1.0);
+      // Carry endpoint depth to the full-resolution composite. A sky ray must
+      // not be interpolated across a nearby leaf/card silhouette.
+      gl_FragColor = vec4(uColor * rays * uStrength * toward * sunMask * uSunOn, -view.z);
     }
   `,
 };
@@ -230,6 +235,10 @@ const GoodRaysCompositeShader = {
   uniforms: {
     tDiffuse: { value: null },
     tRays: { value: null },
+    tDepth: { value: null },
+    uProjInv: { value: new THREE.Matrix4() },
+    uRaySize: { value: new THREE.Vector2(1, 1) },
+    uDepthAware: { value: true },
   },
   vertexShader: /* glsl */`
     varying vec2 vUv;
@@ -241,10 +250,33 @@ const GoodRaysCompositeShader = {
   fragmentShader: /* glsl */`
     uniform sampler2D tDiffuse;
     uniform sampler2D tRays;
+    uniform sampler2D tDepth;
+    uniform mat4 uProjInv;
+    uniform vec2 uRaySize;
+    uniform bool uDepthAware;
     varying vec2 vUv;
     void main() {
       vec3 scene = texture2D(tDiffuse, vUv).rgb;
-      vec3 rays = texture2D(tRays, vUv).rgb;
+      float d = texture2D(tDepth, vUv).x;
+      vec4 view = uProjInv * vec4(vUv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+      float endpoint = -view.z / max(view.w, 1e-5);
+      vec2 grid = vUv * uRaySize - 0.5;
+      vec2 base = floor(grid);
+      vec2 blend = fract(grid);
+      vec3 rays = vec3(0.0);
+      float weight = 0.0;
+      for (int y = 0; y < 2; y++) {
+        for (int x = 0; x < 2; x++) {
+          vec2 offset = vec2(float(x), float(y));
+          vec4 sampleRay = texture2D(tRays, (base + offset + 0.5) / uRaySize);
+          vec2 bilinear = mix(vec2(1.0) - blend, blend, offset);
+          float depthWeight = uDepthAware ? exp(-abs(sampleRay.a - endpoint) / max(0.05, endpoint * 0.02)) : 1.0;
+          float w = bilinear.x * bilinear.y * depthWeight;
+          rays += sampleRay.rgb * w;
+          weight += w;
+        }
+      }
+      rays /= max(weight, 1e-5);
       float l = dot(scene, vec3(.2126, .7152, .0722));
       float mask = 1.0 - 0.65 * smoothstep(.35, 1.0, l);
       gl_FragColor = vec4(scene + rays * mask, 1.0);
@@ -258,18 +290,22 @@ class GoodRaysPass {
     this.needsSwap = true;
     this.renderToScreen = false;
     this.clear = false;
-    this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
+    this.target = new THREE.WebGLRenderTarget(1, 1, {
+      type: THREE.HalfFloatType, depthBuffer: false,
+      minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+    });
     this.rayMaterial = new THREE.ShaderMaterial({
-      ...GoodGodRaysShader, depthTest: false, depthWrite: false,
+      ...GoodGodRaysShader, uniforms: THREE.UniformsUtils.clone(GoodGodRaysShader.uniforms), depthTest: false, depthWrite: false,
     });
     this.compositeMaterial = new THREE.ShaderMaterial({
-      ...GoodRaysCompositeShader, depthTest: false, depthWrite: false,
+      ...GoodRaysCompositeShader, uniforms: THREE.UniformsUtils.clone(GoodRaysCompositeShader.uniforms), depthTest: false, depthWrite: false,
     });
     this.quad = new FullScreenQuad(this.rayMaterial);
     this.rayUniforms = this.rayMaterial.uniforms;
     this.light = null;
     this.depthCopy = null;
     this.depthCopyReady = false;
+    this.resolution = .25;
   }
   copyDepth(renderer) {
     const shadow = this.light && this.light.shadow;
@@ -305,7 +341,8 @@ class GoodRaysPass {
   }
   setSize(w, h) {
     // Beams are low-frequency; quarter-res keeps the raymarch off the fill budget.
-    this.target.setSize(Math.max(1, Math.round(w * 0.25)), Math.max(1, Math.round(h * 0.25)));
+    this.target.setSize(Math.max(1, Math.round(w * this.resolution)), Math.max(1, Math.round(h * this.resolution)));
+    this.compositeMaterial.uniforms.uRaySize.value.set(this.target.width, this.target.height);
   }
   render(renderer, writeBuffer, readBuffer) {
     if (!readBuffer.depthTexture) return;
@@ -319,6 +356,8 @@ class GoodRaysPass {
     this.quad.material = this.compositeMaterial;
     this.compositeMaterial.uniforms.tDiffuse.value = readBuffer.texture;
     this.compositeMaterial.uniforms.tRays.value = this.target.texture;
+    this.compositeMaterial.uniforms.tDepth.value = readBuffer.depthTexture;
+    this.compositeMaterial.uniforms.uProjInv.value.copy(this.rayUniforms.uProjInv.value);
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     this.quad.render(renderer);
   }
@@ -370,6 +409,8 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
   let focusStrength = 1;
   let raysActive = false;
   let goodRequested = false;
+  let controls = { ...GRAPHICS_DEFAULTS };
+  const rayTint = new THREE.Color();
   try { goodRequested = new URLSearchParams(location.search).get('godrays') === 'good'; } catch (err) {}
   const BOKEH_APERTURE = .0012;
   const BOKEH_MAXBLUR = .007;
@@ -419,8 +460,16 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     t.format = THREE.DepthFormat;
     return t;
   }
-  composer.renderTarget1.depthTexture = rayDepthTexture();
-  composer.renderTarget2.depthTexture = rayDepthTexture();
+  function syncRayDepth(on) {
+    // RenderPass writes to the current read buffer; composer ping-pong means
+    // either target can own scene depth on the next frame.
+    for (const target of [composer.renderTarget1, composer.renderTarget2]) {
+      if (on === !!target.depthTexture) continue;
+      if (target.depthTexture) target.depthTexture.dispose();
+      target.depthTexture = on ? rayDepthTexture() : null;
+      target.dispose(); // rebuild framebuffer attachments on next use
+    }
+  }
 
   const aoPass = new GTAOPass(scene, camera, 1, 1);
   aoPass.output = GTAOPass.OUTPUT.Default;
@@ -497,8 +546,8 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     const ao = a.ao + (b.ao - a.ao) * t;
     moodExposure = a.exp + (b.exp - a.exp) * t;
     bloomPass.strength = bloom * bloomScale;
-    bloomPass.threshold = threshold;
-    aoPass.blendIntensity = .12 + ao * .25;
+    bloomPass.threshold = Math.max(0, threshold + controls.threshold);
+    aoPass.blendIntensity = (.12 + ao * .25) * controls.ao;
   }
 
   function computeRay() {
@@ -559,6 +608,11 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     if (mode === 'full' && qualityLevel > 1) mode = 'soft';
     if (mode === 'soft' && qualityLevel >= 3) mode = 'off';
     activeMode = mapEnabled ? mode : 'off';
+    if (activeMode !== 'full' || !goodRequested) {
+      goodPass.enabled = false;
+      raysActive = false;
+      syncRayDepth(false);
+    }
     aoPass.enabled = activeMode === 'full';
     bokehPass.enabled = dofEnabled && focusActive && activeMode !== 'off';
     godRaysPass.enabled = false;
@@ -614,18 +668,37 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     u.uCamWorld.value.copy(camera.matrixWorld);
     u.uLightViewProj.value.multiplyMatrices(shadowCamera.projectionMatrix, shadowCamera.matrixWorldInverse);
     u.uLightDir.value.copy(dir);
-    u.uColor.value.set(color);
+    u.uColor.value.set(color).multiply(rayTint.set(controls.rayTint));
     sunNdc.copy(camera.position).addScaledVector(dir, 100).project(camera);
     u.uSunUv.value.set(sunNdc.x * .5 + .5, sunNdc.y * .5 + .5);
     camera.getWorldDirection(camForward);
     u.uSunOn.value = camForward.dot(dir) > 0.02 && sunNdc.z > -1 && sunNdc.z < 1 ? 1 : 0;
-    return true;
+    return u.uSunOn.value > 0 && u.uStrength.value > 0;
   }
 
   function setGodrays(mode) {
     goodRequested = mode === 'good';
     goodPass.enabled = false;
+    if (!goodRequested) syncRayDepth(false);
     return goodRequested ? 'good' : 'off';
+  }
+
+  function setControls(v) {
+    controls = { ...controls, ...v };
+    goodRequested = controls.rays;
+    bloomScale = controls.bloom;
+    exposureScale = controls.exposure;
+    const u = goodPass.rayUniforms;
+    u.uStrength.value = controls.rayStrength;
+    u.uDensity.value = controls.rayDensity;
+    u.uMaxDensity.value = controls.rayMaxDensity;
+    u.uDistance.value = controls.rayDistance;
+    u.uSteps.value = controls.raySteps;
+    goodPass.resolution = controls.rayResolution;
+    goodPass.compositeMaterial.uniforms.uDepthAware.value = controls.rayDepthAware;
+    goodPass.setSize(composer.renderTarget1.width, composer.renderTarget1.height);
+    setTimeOfDay(lastHour);
+    resolveMode();
   }
 
   function resize(w, h) {
@@ -657,9 +730,11 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
     goodPass.enabled = false;
     if (goodRequested && activeMode === 'full') goodPass.enabled = updateGoodGodRays();
     raysActive = goodPass.enabled;
+    syncRayDepth(raysActive);
+    smaaPass.enabled = controls.aa;
     if (bokehPass.enabled) {
       bokehPass.uniforms.focus.value = focusDistance;
-      bokehPass.uniforms.aperture.value = BOKEH_APERTURE * focusStrength;
+      bokehPass.uniforms.aperture.value = BOKEH_APERTURE * focusStrength * controls.aperture;
       bokehPass.uniforms.maxblur.value = BOKEH_MAXBLUR * focusStrength;
     }
     const exposure = renderer.toneMappingExposure;
@@ -692,6 +767,8 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
       focusStrength,
       rays: raysActive,
       godrays: { requested: goodRequested ? 'good' : 'off', enabled: goodPass.enabled, steps: goodPass.rayUniforms.uSteps.value },
+      rayDepthAllocated: !!composer.renderTarget1.depthTexture,
+      controls: { ...controls },
       scene: { calls: sceneCalls, tris: sceneTris },
       composer: { w: composer._width, h: composer._height, ratio: composer._pixelRatio },
       target: { w: composer.renderTarget1.width, h: composer.renderTarget1.height },
@@ -734,7 +811,7 @@ export function createEffects({ renderer, scene, camera, width = 1, height = 1, 
 
   return {
     render, resize, setMode, setQuality, setEnabled, setTimeOfDay, setBloomScale, setExposureScale,
-    setDof, setFocus, setGodrays, stats, state,
+    setDof, setFocus, setGodrays, setControls, stats, state,
     get active() { return activeMode; },
     get enabled() { return activeMode !== 'off'; },
     get dof() { return dofEnabled; },
