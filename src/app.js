@@ -2748,6 +2748,7 @@ function endGrab(g, throwIt){
 }
 function releaseAllGrabs(){
   for (const g of Array.from(grabs.values())) endGrab(g, false);
+  if (glassColony) glassColony.cancelDrag();
   pointers.clear();
   cursorEl.classList.remove('grab');
 }
@@ -2873,9 +2874,20 @@ addEventListener('pointerdown', (e)=>{
     const glassHit = pickGlass(e.clientX, e.clientY);
     if (glassHit) {
       selectBear(glassHit.actor);
+      if (clickMode === 'grab' && glassColony &&
+          glassColony.beginDrag(glassHit.actor, e.clientX, e.clientY, camera, renderer)) {
+        p.mode = 'glassGrab';
+        p.glass = glassHit.actor;
+        p.moved = false;
+        if (hintEl) {
+          hintEl.textContent = `${glassHit.actor.name || 'Glass'} — drag to move the hovering Glass`;
+          showCamHint();
+        }
+        return;
+      }
       p.mode = 'orbit';
       if (hintEl) {
-        hintEl.textContent = `${glassHit.actor.name || 'Glass'} selected — hovers through the meadow`;
+        hintEl.textContent = `${glassHit.actor.name || 'Glass'} selected — Switch to Grab click to drag it`;
         showCamHint();
       }
       return;
@@ -2942,7 +2954,10 @@ addEventListener('pointermove', (e)=>{
     p.lx = e.clientX; p.ly = e.clientY;
     return;
   }
-  if (p.mode === 'grab'){
+  if (p.mode === 'glassGrab'){
+    if (Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 4) p.moved = true;
+    if (glassColony && p.glass) glassColony.drag(p.glass, e.clientX, e.clientY, camera, renderer);
+  } else if (p.mode === 'grab'){
     if (p.grab) updateGrabTarget(p.grab, e.clientX, e.clientY);
   } else if (p.mode === 'pending'){
     if (Math.hypot(e.clientX-p.sx, e.clientY-p.sy) > 5){
@@ -2990,6 +3005,9 @@ function pointerUp(e){
           }
         }
       }
+    } else if (p.mode === 'glassGrab' && p.glass){
+      if (glassColony) glassColony.endDrag(p.glass);
+      if (e.type === 'pointerup' && !p.moved) selectBear(p.glass);
     } else if (p.mode === 'grab' && p.grab){
       const clicked = e.type === 'pointerup' && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < 4;
       if (clicked && isGummyActor(p.grab.bear)){
@@ -5854,6 +5872,7 @@ async function bootGame(){
   ai = createBearAI({
     field,
     getBears: () => bears,
+    getCompanions: () => allActors(),
     getHours: () => (sky ? sky.hours : 12),
     getPopulationCap: () => bearCeiling,
   });
@@ -6441,12 +6460,30 @@ window.__gummy = {
   glassSetNeed(i, key, value){ return glassColony ? glassColony.setNeed(i, key, value) : false; },
   glassSetStage(i, stage){ return glassColony ? glassColony.setStage(i, stage) : false; },
   glassSetCooldown(i, value){ return glassColony ? glassColony.setCooldown(i, value) : false; },
+  glassSetAge(i, value){ return glassColony ? glassColony.setAge(i, value) : false; },
+  glassReset(i){ return glassColony ? glassColony.resetActor(i) : false; },
   glassShelter(i){ return glassColony ? glassColony.forceShelter(i) : false; },
   glassMate(i, j){ return glassColony ? glassColony.forceMate(i, j) : { ok:false, note:'meadow only' }; },
   glassMateBear(i, j){
     return glassColony ? glassColony.forceMateWithBear(i, bears[j]) : { ok:false, note:'meadow only' };
   },
+  bearGlassSocial(i, j){
+    return ai && glassColony ? ai.debugSocial(bears[i], glassColony.actors[j], true) : { ok:false, note:'meadow only' };
+  },
+  bearGlassMate(i, j){
+    return ai && glassColony ? ai.beginMatePair(bears[i], glassColony.actors[j]) : false;
+  },
   glassBirth(i){ return glassColony ? glassColony.forceBirth(i) : false; },
+  glassScreen(i){
+    const a = glassColony ? glassColony.actors[i] : null;
+    if (!a) return null;
+    const v = new THREE.Vector3(a.cx, a.cy, a.cz).project(camera);
+    const rect = renderer.domElement.getBoundingClientRect();
+    return {
+      x: (v.x * .5 + .5) * rect.width + rect.left,
+      y: (-v.y * .5 + .5) * rect.height + rect.top,
+    };
+  },
   glassCanMate(i, j){ return glassColony && ai ? ai.canMatePair(glassColony.actors[i], bears[j]) : false; },
   glassMateDebug(i, j){ return glassColony && ai ? ai.matePairDebug(glassColony.actors[i], bears[j]) : null; },
   setAge(i, v){

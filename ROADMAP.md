@@ -479,11 +479,15 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   - **Glass Meadow life adapter (Oct 2026, done):** two Glass MSNs live in the
     Meadow as rigid skinned actors with their own Box3D sphere proxy. They
     hover on nav paths, eat/drink at roughly half the bear need rate, sleep
-    never at night, and may drift inside their villa during daylight. They use
-    the shared roster/social/bonds/life fields, grow through baby/teen/adult,
-    can become pregnant and give birth, and save/load in the world payload.
-    Cross-species Glass × Bear/Gummy births use the existing Glass GLB or the
-    other parent's rig; custom hybrid bodies remain deferred.
+    never at night, and may drift inside their villa during daylight. They are
+    pointer-draggable in Grab-click mode and settle back to hover on release.
+    They use the shared roster/social/bonds/life fields, take their
+    baby/teen/adult growth step only at night, can become pregnant and give
+    birth, and save/load in the world payload. Bear/Gummy AI scans the combined
+    companion list for social and mating, so both directions can initiate
+    cross-species pairs. Cross-species Glass × Bear/Gummy births use the
+    existing Glass GLB or the other parent's rig; custom hybrid bodies remain
+    deferred.
   - Add a Race Lab **type** selector only once both paths have their final
     controls. Do not silently share one material, solver or animation set
     between them.
@@ -569,14 +573,13 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   pass.
 - **Close (×) now deselects without cancelling**; queued commands keep running.
   Add an explicit “clear commands” affordance only if that surprises players.
-- **Meadow Glass is selectable but not pointer-grabbable.** Only the Studio
-  prototype has drag/grab; add a hover-aware Meadow grab if the rigid actor
-  needs the same interaction.
-- **Bear/Gummy AI does not initiate with Glass yet.** Glass starts cross-species
-  social/courtship through its adapter; extend the bear companion scan if the
-  reverse direction is wanted.
+- **Glass grab release is positional, not a throw.** Dragging moves the rigid
+  hover near the pointer and release settles back to hover; add a launched
+  velocity/throw path if that interaction is wanted.
 - **Glass daytime shelter is a hidden home-door state**, not an interior scene.
   It preserves needs and emerges at night; add interiors only with the home pass.
+- **Bear/Gummy social visits stay among soft-body actors.** A Glass pair can
+  socialize/court in place, but the door-visit stage is skipped for Glass.
 
 Each phase ends playable, with screenshots and headless checks, so the direction
 can be adjusted without losing the working app.

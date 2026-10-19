@@ -99,8 +99,12 @@ function finite(n, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export function createBearAI({ field, getBears, getHours, getPopulationCap, rng = Math.random } = {}) {
+export function createBearAI({ field, getBears, getCompanions, getHours, getPopulationCap, rng = Math.random } = {}) {
   const bears = getBears ? getBears() : [];
+  const companions = () => {
+    const list = typeof getCompanions === 'function' ? getCompanions() : bears;
+    return Array.isArray(list) ? list : bears;
+  };
   let enabled = true;
   const stats = { ticks: 0, ms: 0 };
   const hoursNow = typeof getHours === 'function' ? getHours : () => 12;
@@ -698,7 +702,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     if (b.social < SEEK_SOCIAL && b.affection < SEEK_AFFECTION) return null;
     let best = null;
     let bestScore = -Infinity;
-    for (const other of bears) {
+    for (const other of companions()) {
       if (!canCompany(b, other)) continue;
       const d = Math.hypot(other.cx - b.cx, other.cz - b.cz);
       if (d > SOCIAL_RADIUS) continue;
@@ -727,6 +731,14 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     b.ai.target = { x: partner.cx, z: partner.cz };
     b.ai.faceYaw = Math.atan2(partner.cx - b.cx, partner.cz - b.cz);
     b.ai.moving = false;
+    if (partner.kind === 'glass' && partner.ai) {
+      partner.ai.partner = b;
+      partner.ai.state = 'seekCompany';
+      partner.ai.target = { x: b.cx, z: b.cz };
+      partner.ai.faceYaw = Math.atan2(b.cx - partner.cx, b.cz - partner.cz);
+      partner.ai.moving = false;
+      partner.ai.path = null;
+    }
     setPath(b, pathTo(b, partner.cx, partner.cz) || [{ x: partner.cx, z: partner.cz }]);
     return true;
   }
@@ -860,8 +872,8 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
       b.ai.partner = null;
       clearPath(b);
     }
-    const canVisit = b && b.ai && !isNight() && pairBond(a, b) >= VISIT_BOND &&
-      rng() < VISIT_CHANCE;
+    const canVisit = b && b.ai && a.kind !== 'glass' && b.kind !== 'glass' &&
+      !isNight() && pairBond(a, b) >= VISIT_BOND && rng() < VISIT_CHANCE;
     if (canVisit) startVisit(a, b);
   }
 
@@ -1071,7 +1083,7 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     if (!b || !b.ai || b.stage !== 'adult' || b.mateCooldown > 0) return null;
     let best = null;
     let bestScore = -Infinity;
-    for (const other of bears) {
+    for (const other of companions()) {
       if (!canMatePair(b, other) || !other.ai) continue;
       if (!['wander', 'seekMate'].includes(other.ai.state)) continue;
       if (other.ai.partner && other.ai.partner !== b) continue;
@@ -1095,6 +1107,14 @@ export function createBearAI({ field, getBears, getHours, getPopulationCap, rng 
     b.ai.target = { x: partner.cx, z: partner.cz };
     b.ai.faceYaw = Math.atan2(partner.cx - b.cx, partner.cz - b.cz);
     b.ai.moving = false;
+    if (partner.kind === 'glass' && partner.ai) {
+      partner.ai.partner = b;
+      partner.ai.state = 'seekMate';
+      partner.ai.target = { x: b.cx, z: b.cz };
+      partner.ai.faceYaw = Math.atan2(b.cx - partner.cx, b.cz - partner.cz);
+      partner.ai.moving = false;
+      partner.ai.path = null;
+    }
     setPath(b, pathTo(b, partner.cx, partner.cz) || [{ x: partner.cx, z: partner.cz }]);
     return true;
   }

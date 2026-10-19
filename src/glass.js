@@ -703,8 +703,8 @@ export function createGlassColony({
   }
 
   function updateVisual(a) {
-    const bob = a.inside ? 0 : Math.sin(clock * 2.2 + a.phase) * HOVER_BOB;
-    const y = HOVER * a.scale + bob;
+    const bob = a.inside || a.grabbing ? 0 : Math.sin(clock * 2.2 + a.phase) * HOVER_BOB;
+    const y = a.grabbing ? a.grabY : HOVER * a.scale + bob;
     a.root.position.set(a.cx, y, a.cz);
     a.root.rotation.y = a.yaw || 0;
     a.root.scale.setScalar(a.scale);
@@ -715,6 +715,92 @@ export function createGlassColony({
     a.root.visible = visible;
     a.shadow.visible = visible;
     a.root.updateMatrixWorld(true);
+  }
+
+  function stopGrabTasks(a) {
+    releaseFood(a);
+    if (a.ai.partner) {
+      const partner = a.ai.partner;
+      if (partner.ai && partner.ai.partner === a) {
+        partner.ai.partner = null;
+        partner.ai.moving = false;
+        partner.ai.path = null;
+        if (['social', 'invite', 'decline', 'mate', 'seekCompany', 'seekMate', 'seekSocial'].includes(partner.ai.state)) {
+          partner.ai.state = 'wander';
+          partner.ai.idleT = .4;
+        }
+      }
+      a.ai.partner = null;
+    }
+    a.ai.state = 'wander';
+    a.ai.moving = false;
+    a.ai.path = null;
+    a.ai.pathIndex = 0;
+    a.ai.waitForPartner = false;
+    a.ai.mateT = 0;
+    a.ai.socialT = 0;
+    a.ai.inviteT = 0;
+  }
+
+  function beginDrag(a, clientX, clientY, camera, renderer) {
+    if (!a || !a.active || a.inside || !meadow || !camera || !renderer) return false;
+    a.grabbing = true;
+    a.grabs = 1;
+    a.grabY = a.root.position.y;
+    a.grabStartY = a.cy;
+    a.grabStartClientY = clientY;
+    a.grabDepth = Math.max(2.5, camera.position.distanceTo(a.root.position));
+    stopGrabTasks(a);
+    drag(a, clientX, clientY, camera, renderer);
+    return true;
+  }
+
+  function drag(a, clientX, clientY, camera, renderer) {
+    if (!a || !a.active || !a.grabbing || !camera || !renderer) return false;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    raycaster.setFromCamera(pointer, camera);
+    const point = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, a.grabDepth);
+    const field = fieldNow();
+    const near = field && field.nav && field.nav.nearestWalkable
+      ? field.nav.nearestWalkable(point.x, point.z)
+      : point;
+    if (near) {
+      a.cx = near.x;
+      a.cz = near.z;
+    }
+    a.grabY = clamp(
+      a.grabY + (a.grabStartClientY - clientY) * .005,
+      HOVER * a.scale + .02,
+      2.9,
+    );
+    a.grabStartClientY = clientY;
+    a.ai.faceYaw = Math.atan2(point.x - a.cx, point.z - a.cz);
+    updateVisual(a);
+    syncBody(a);
+    return true;
+  }
+
+  function endDrag(a) {
+    if (!a || !a.grabbing) return false;
+    a.grabbing = false;
+    a.grabs = 0;
+    a.ai.state = 'wander';
+    a.ai.idleT = .35;
+    a.ai.nextThink = 0;
+    a.ai.faceYaw = null;
+    updateVisual(a);
+    syncBody(a);
+    return true;
+  }
+
+  function cancelDrag() {
+    let count = 0;
+    for (const a of actors) if (endDrag(a)) count++;
+    return count;
   }
 
   function loadModel(a) {
@@ -861,6 +947,11 @@ export function createGlassColony({
       bodyHandle: -1,
       bodyRadius: 0,
       bodyY: 0,
+      grabbing: false,
+      grabY: 0,
+      grabDepth: 6,
+      grabStartY: 0,
+      grabStartClientY: 0,
       ready: false,
       error: null,
       disposed: false,
@@ -967,8 +1058,10 @@ export function createGlassColony({
       energy: +a.energy.toFixed(3),
       social: +a.social.toFixed(3),
       affection: +a.affection.toFixed(3),
+      bonds: { ...(a.bonds || {}) },
       home: a.home,
       inside: !!a.inside,
+      grabbing: !!a.grabbing,
       sleeping: !!a.sleeping,
       grabs: a.grabs,
       inPond: !!a.inPond,
@@ -1009,7 +1102,8 @@ export function createGlassColony({
       else a.shelteredToday = false;
       a.shelterCheckT = Math.max(0, (a.shelterCheckT || 0) - dt);
       const nextStage = advanceAge(a, dt);
-      if (nextStage !== a.stage) applyStage(a, nextStage);
+      // Glass ages continuously but only takes its next growth step at night.
+      if (nextStage !== a.stage && !day) applyStage(a, nextStage);
       if (a.mateCooldown > 0) a.mateCooldown = Math.max(0, a.mateCooldown - dt);
       if (a.birthRetryT > 0) a.birthRetryT = Math.max(0, a.birthRetryT - dt);
 
@@ -1024,6 +1118,12 @@ export function createGlassColony({
         if (typeof birthFromGlass !== 'function' || !birthFromGlass(a)) {
           a.birthRetryT = 3;
         }
+      }
+
+      if (a.grabbing) {
+        updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
       }
 
       if (a.inside) {
@@ -1045,7 +1145,7 @@ export function createGlassColony({
           a.ai.partner = null;
           a.ai.waitForPartner = false;
           a.ai.mateT = 0;
-        } else if (!a.ai.waitForPartner) {
+        } else if (partner.kind === 'glass' && !a.ai.waitForPartner) {
           a.ai.mateT = Math.max(0, (a.ai.mateT || 0) - dt);
           if (a.ai.mateT <= 0) finishLocalMate(a);
         }
@@ -1090,9 +1190,85 @@ export function createGlassColony({
         if (a.mixer) a.mixer.update(dt);
         continue;
       }
+      if (a.ai.state === 'invite') {
+        a.ai.inviteT = Math.max(0, (a.ai.inviteT || 0) - dt);
+        if (a.ai.inviteT <= 0) {
+          const partner = a.ai.partner;
+          if (a.ai.inviteAccepted && partner && partner.active) {
+            a.ai.state = 'social';
+            a.ai.socialT = SOCIAL_TIME;
+            a.ai.moving = false;
+            clearPath(a);
+            if (partner.ai) {
+              partner.ai.state = 'social';
+              partner.ai.partner = a;
+              partner.ai.socialT = SOCIAL_TIME;
+              partner.ai.moving = false;
+              partner.ai.path = null;
+              partner.ai.faceYaw = Math.atan2(a.cx - partner.cx, a.cz - partner.cz);
+            }
+            const field = fieldNow();
+            if (field && field.emote) field.emote(a.cx, a.cy + .95, a.cz, 'heart');
+          } else {
+            a.ai.state = 'wander';
+            a.ai.partner = null;
+            a.ai.idleT = .45;
+            a.ai.socialCooldown = Math.max(a.ai.socialCooldown, 4);
+            clearPath(a);
+            if (partner && partner.ai && partner.ai.partner === a) {
+              partner.ai.partner = null;
+              partner.ai.state = 'wander';
+              partner.ai.idleT = .45;
+              partner.ai.moving = false;
+              partner.ai.path = null;
+            }
+          }
+        }
+        updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
+      }
+      if (a.ai.state === 'decline') {
+        a.ai.declineT = Math.max(0, (a.ai.declineT || 0) - dt);
+        if (a.ai.declineT <= 0) {
+          const partner = a.ai.partner;
+          a.ai.state = 'wander';
+          a.ai.partner = null;
+          a.ai.idleT = .45;
+          clearPath(a);
+          if (partner && partner.ai && partner.ai.partner === a) {
+            partner.ai.partner = null;
+            partner.ai.state = 'wander';
+            partner.ai.idleT = .45;
+            partner.ai.moving = false;
+            partner.ai.path = null;
+          }
+        }
+        updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
+      }
       if (a.ai.state === 'seekMate') {
         finishSeekMate(a);
         move(a, dt);
+        updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
+      }
+      if (a.ai.state === 'seekCompany') {
+        const partner = a.ai.partner;
+        if (!partner || !partner.active) {
+          a.ai.partner = null;
+          a.ai.state = 'wander';
+          clearPath(a);
+        } else if (Math.hypot(partner.cx - a.cx, partner.cz - a.cz) <= 1.35) {
+          a.ai.moving = false;
+          clearPath(a);
+          a.ai.faceYaw = Math.atan2(partner.cx - a.cx, partner.cz - a.cz);
+        } else {
+          setMoving(a, partner.cx, partner.cz);
+          move(a, dt);
+        }
         updateVisual(a);
         if (a.mixer) a.mixer.update(dt);
         continue;
@@ -1168,6 +1344,7 @@ export function createGlassColony({
 
   function setMeadow(value) {
     meadow = !!value;
+    if (!meadow) cancelDrag();
     for (const a of actors) {
       if (!meadow) destroyBody(a);
       if (a.root) a.root.visible = meadow && !a.inside;
@@ -1252,6 +1429,27 @@ export function createGlassColony({
     return a.mateCooldown;
   }
 
+  function setAge(index, value) {
+    const a = actors[index];
+    const n = Number(value);
+    if (!a || !Number.isFinite(n)) return false;
+    a.age = Math.max(0, n);
+    return a.age;
+  }
+
+  function resetActor(index) {
+    const a = actors[index];
+    if (!a) return false;
+    stopGrabTasks(a);
+    a.grabbing = false;
+    a.grabs = 0;
+    a.ai.state = 'wander';
+    a.ai.idleT = 0;
+    a.ai.nextThink = 0;
+    a.ai.socialCooldown = 0;
+    return true;
+  }
+
   function forceShelter(index) {
     const a = actors[index];
     if (!a) return false;
@@ -1313,10 +1511,16 @@ export function createGlassColony({
     clear,
     pick,
     findActor,
+    beginDrag,
+    drag,
+    endDrag,
+    cancelDrag,
     spawnChild(opts = {}) { return makeActor({ ...opts, stage: opts.stage || 'baby' }); },
     setNeed,
     setStage,
     setCooldown,
+    setAge,
+    resetActor,
     forceShelter,
     forceMate,
     forceMateWithBear,
