@@ -10,48 +10,28 @@ import { createNavMesh } from './navmesh.js';
 import { REFLECT_LAYER } from './sky.js';
 import { createWind, WIND_GLSL } from './wind.js';
 import { createSunState, updateSunState } from './sunlight.js';
-import { createTreeCollection, TREE_KINDS, TREE_KIND_ORDER } from './trees.js';
+import { createTreeCollection } from './trees.js';
 import { createHorizon } from './horizon.js';
 import { createAeroHomes } from './homes.js';
 import { createBackdrop } from './backdrop.js';
 import { createStudioHouse } from './studiohouse.js';
 import { createBushCollection } from './bushes.js';
 import { createFoodRegistry } from './food.js';
+import { BUSH_SPECIES, ROCK_SPECIES, getTreeSpecies } from './floratypes.js';
+import { MAP_CONTENT } from './mapcontent.js';
 import { FIELD_BOUNDS, FIELD_RADIUS, fieldInside, fieldRadiusAt } from './fieldshape.js';
 
 export { FIELD_BOUNDS };
 export const POND = { x: -17, z: 2, rx: 6.6, rz: 4.3, waterY: 0.022 };
 export const POND_HOLE = { hx: POND.rx * 0.78, hz: POND.rz * 0.78, floorY: -1.6 };
 
-const HOUSE_LOTS = [
-  { x: -7, z: -7,  name: 'Thimble Cottage',  wall: 0xf6ead0, roof: 0xd04a61, door: 0x6b3d2c },
-  { x: -8, z: 7,   name: 'Mossy Nook',       wall: 0xf2e6c8, roof: 0x6fae5a, door: 0x7c4b33 },
-  { x: 3, z: -11,  name: 'Sugarplum House',  wall: 0xf8e6da, roof: 0xd9779c, door: 0x753f34 },
-  { x: 11, z: -6,  name: 'Pebblewick',       wall: 0xf1e8d6, roof: 0x729bc9, door: 0x664334 },
-  { x: 12, z: 4,   name: 'Honeydew Cottage', wall: 0xf7eed3, roof: 0xe8b94e, door: 0x7b4b2c },
-  { x: 18, z: 12,   name: 'Moonberry Lodge',  wall: 0xf5e7d8, roof: 0x8e74c8, door: 0x6c3d32 },
-  { x: 24, z: -2,  name: 'Clover Croft',     wall: 0xefe9cf, roof: 0x5fa7a0, door: 0x765036 },
-  { x: -26, z: -13, name: 'Butterscotch Barn', wall: 0xf6e5c3, roof: 0xc9864f, door: 0x6a3f2d },
-];
-
-const TREE_LOTS = [
-  { x: -28, z: -2, s: 1.05 }, { x: -20, z: 14, s: 0.95 }, { x: -12, z: -19, s: 1.08 },
-  { x: -26, z: 24, s: 1.0 }, { x: 26, z: 18, s: 0.92 }, { x: 28, z: -11, s: 1.1 },
-  { x: 20, z: -22, s: 0.9 }, { x: -4, z: -25, s: 1.04 }, { x: 31, z: 8, s: 0.97 },
-  { x: -31, z: 20, s: 1.02 },
-];
-
-const ROCK_LOTS = [
-  { x: -3, z: 5, s: 0.55 }, { x: 14, z: 1, s: 0.42 },
-  { x: -22, z: 9, s: 0.5 }, { x: 22, z: 15, s: 0.46 },
-];
-
-const CANNON_HOME = { x: -18, z: 22 };
-const STUDIO_HOUSE = {
-  x: 0, z: -18, yaw: 0, r: 3.35,
-  door: { x: 0, z: -13.8 },
-  name: 'Studio House',
-};
+const {
+  homes: HOUSE_LOTS,
+  trees: TREE_LOTS,
+  rocks: ROCK_LOTS,
+  cannonHome: CANNON_HOME,
+  studioHouse: STUDIO_HOUSE,
+} = MAP_CONTENT.field;
 
 // The bears stay at 100% scale. The environment grows around them, while grass
 // and flowers are shortened so they no longer compete with the villas.
@@ -346,7 +326,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     // Grow-form trunks flare at the base. The chest-height sphere keeps nav and
     // walking unchanged; baseR adds a low sphere so a bear cannot slide into the
     // visible flare. 1.14 is the maximum per-tree girth jitter in trees.js.
-    const kind = TREE_KINDS[TREE_KIND_ORDER[index % TREE_KIND_ORDER.length]];
+    const kind = getTreeSpecies(lot.speciesId) || getTreeSpecies('mature');
     const baseR = Math.max(r, s * 0.34 * (1 + kind.flare) * kind.trunkR * 1.14);
     colliders.push({ kind: 'tree', x: lot.x, z: lot.z, r, baseR, baseY: baseR, y: 1.1 * WORLD_SCALE.tree, canopy: 2.5 * s, scale: s });
     nav.addSolid({ kind: 'tree', x: lot.x, z: lot.z, r });
@@ -1099,11 +1079,13 @@ export function buildField({ scene, camera, renderer, sky }) {
   // ---------------------------------------------------------------- rocks
   {
     const geo = new THREE.IcosahedronGeometry(0.55, 1);
+    const rockSpecies = ROCK_SPECIES.meadow;
     const parts = ROCK_LOTS.map(r => {
       const s = r.s * WORLD_SCALE.prop;
       return {
         m: localMatrix({ x: r.x, y: 0.26 * s, z: r.z, ry: Math.random()*6.283, sx: s, sy: s*0.7, sz: s*0.9 }),
-        c: new THREE.Color().setHSL(0.30, 0.14, 0.48 + Math.random()*0.1),
+        c: new THREE.Color().setHSL(rockSpecies.hue, rockSpecies.saturation,
+          rockSpecies.lightMin + Math.random() * (rockSpecies.lightMax - rockSpecies.lightMin)),
       };
     });
     instanced(geo, pebbleMat, parts, false, group);
@@ -1161,7 +1143,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       bushLots.push({ x, z, y, scale: .64 + br() * .82 });
     }
   }
-  const bushes = createBushCollection({ lots: bushLots });
+  const bushes = createBushCollection({ lots: bushLots, species: BUSH_SPECIES.meadow });
   group.add(bushes.group);
   group.userData.bushes = bushes.count;
 

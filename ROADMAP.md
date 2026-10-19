@@ -694,13 +694,14 @@ visuals, balance, authored layouts, batching and save compatibility during extra
    Share immutable source geometry/textures, never skeletons, actor materials or
    mixer state. Release actor-owned state independently; evict cached sources only
    when unused. Unknown/missing assets report errors, never silent replacements.
-3. **Flora/home-style definitions (later).** Give tree species, bushes, rocks and
-   villa styles stable IDs with builder, palette, LOD, footprint and attachment
-   metadata. Preserve current tree assignment and hive hosts before replacing
-   index-based selection. Share definitions, not per-frame per-leaf CPU work.
-4. **Map content definitions (later).** Separate authored lots, starter colony,
-   bounds, portals and content groups from world state. Add maps through explicit
-   builders and validated map IDs; migrate saves deliberately.
+3. **Flora/home-style definitions (done).** `floratypes.js` defines tree/bush/rock
+   and villa-style IDs. `field.js` and `mapcontent.js` assign species/style IDs;
+   the authored tree order, first two hive hosts and villa sequence are preserved.
+   Builders remain in `trees.js`, `bushes.js` and `homes.js`.
+4. **Map content definitions (done for the current maps).** `mapcontent.js` owns
+   authored homes, trees, rocks, the Studio House, cannon home and starter
+   populations. World state remains in `world.js`; a new map still needs a builder,
+   map definition and save-validation decision before it is playable.
 5. **Genes + actor persistence contracts (later).** Centralize gene ranges,
    inheritance and expression rules. Keep save-envelope validation separate from
    actor serialization; specify version and unknown-content behavior before

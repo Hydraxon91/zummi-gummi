@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { REFLECT_LAYER } from './sky.js';
+import { BUSH_SPECIES } from './floratypes.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -174,12 +175,12 @@ function addInstanceAttributes(mesh, parts) {
   }
 }
 
-export function createBushCollection({ lots }) {
+export function createBushCollection({ lots, species = BUSH_SPECIES.meadow }) {
   const group = new THREE.Group();
   group.name = 'meadowBushes';
   const segments = [], lobes = [], leaves = [];
-  const branchColors = [0x60452f, 0x725137, 0x513a29];
-  const greens = [0x4f963b, 0x68ac4c, 0x3d8434, 0x7fbe5b];
+  const branchColors = species.branchColors;
+  const greens = species.greens;
 
   for (let bi = 0; bi < lots.length; bi++) {
     const lot = lots[bi];

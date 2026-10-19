@@ -58,6 +58,8 @@ const modules = [
   "/src/world.js",
   "/src/launcher.js",
   "/src/field.js",
+  "/src/floratypes.js",
+  "/src/mapcontent.js",
   "/src/food.js",
   "/src/foodtypes.js",
   "/src/life.js",

@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { REFLECT_LAYER } from './sky.js';
 import { WIND_GLSL } from './wind.js';
+import { TREE_SPECIES, TREE_SPECIES_ORDER, getTreeSpecies } from './floratypes.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TWO_PI = Math.PI * 2;
@@ -540,20 +541,9 @@ function hiveGeometryAt(center, anchor, flex, treePhase, branchPhase) {
   return merged;
 }
 
-/**
- * Grow-form archetypes. Each lot picks one so the meadow reads as a varied
- * stand instead of ten copies of the same tree. Multipliers apply on top of the
- * lot scale; trunk colliders and nav stay untouched.
- */
-export const TREE_KINDS = [
-  { name: 'mature', trunk: 1.00, trunkR: 1.00, flare: .38, crownY: 1.00, crownR: 1.00, crownH: 1.00, primary: 4, fill: 1.00, leaf: 1.00, droop: .00, tint: 1.00 },
-  { name: 'old',    trunk: 0.92, trunkR: 1.22, flare: .52, crownY: 0.96, crownR: 1.08, crownH: 0.94, primary: 5, fill: 1.10, leaf: 1.06, droop: .35, tint: 0.94 },
-  { name: 'slim',   trunk: 1.14, trunkR: 0.58, flare: .16, crownY: 1.08, crownR: 0.76, crownH: 1.16, primary: 3, fill: 0.82, leaf: 0.94, droop: .00, tint: 1.02 },
-  { name: 'young',  trunk: 0.62, trunkR: 0.56, flare: .22, crownY: 0.66, crownR: 0.66, crownH: 0.74, primary: 3, fill: 0.56, leaf: 0.84, droop: .00, tint: 1.07 },
-  { name: 'mature', trunk: 1.04, trunkR: 1.02, flare: .40, crownY: 1.02, crownR: 1.02, crownH: 1.03, primary: 4, fill: 1.02, leaf: 1.00, droop: .05, tint: 1.00 },
-];
-// Fixed assignment keeps tree 0/1 (the hive hosts) large and stable.
-export const TREE_KIND_ORDER = [0, 1, 2, 3, 4, 2, 1, 0, 3, 2];
+// Compatibility aliases for callers that still read the old table names.
+export const TREE_KINDS = TREE_SPECIES;
+export const TREE_KIND_ORDER = TREE_SPECIES_ORDER;
 
 /**
  * Build the complete visual tree collection.
@@ -605,7 +595,8 @@ export function createTreeCollection({ lots, wind, sun = null }) {
     const leafStart = leafRows.length;
     const fruitStart = fruitRows.length;
     const s = lot.s;
-    const kind = TREE_KINDS[TREE_KIND_ORDER[index % TREE_KIND_ORDER.length]];
+    const kind = lot.species || getTreeSpecies(lot.speciesId) ||
+      getTreeSpecies(TREE_SPECIES_ORDER[index % TREE_SPECIES_ORDER.length]);
     kindCounts[kind.name] = (kindCounts[kind.name] || 0) + 1;
     const rand = makeRand((index + 1) * 2654435761 ^ Math.round(lot.x * 137 + lot.z * 311));
     const treePhase = rand() * TWO_PI;
@@ -1007,8 +998,8 @@ export function createTreeCollection({ lots, wind, sun = null }) {
       });
     }
 
-    // one beehive hanging beneath a suitable clump on the first two trees
-    if (index < 2 && treeAnchors.length) {
+    // one beehive hanging beneath a suitable clump on the authored hosts
+    if (lot.hiveHost && treeAnchors.length) {
       const branchAnchors = treeAnchors.filter(a => !a.fill);
       const anchor = branchAnchors[(index * 3 + 1) % branchAnchors.length] || branchAnchors[0];
       const center = anchor.pos.clone().add(new THREE.Vector3(0, -.66 * s, 0));

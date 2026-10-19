@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { REFLECT_LAYER } from './sky.js';
+import { HOME_STYLE_ORDER } from './floratypes.js';
 
 function makeMatrix(x, y, z, ry = 0, sx = 1, sy = 1, sz = 1) {
   const o = new THREE.Object3D();
@@ -106,7 +107,7 @@ export function createAeroHomes({ homes, scale = 1 }) {
   const mailGeo = new THREE.CapsuleGeometry(.065, .16, 4, 8);
   const flagGeo = new THREE.BoxGeometry(.022, .10, .045);
 
-  const styles = ['pavilion', 'dome', 'saucer', 'tower', 'pavilion', 'saucer', 'dome', 'tower'];
+  const styles = homes.map((home, index) => home.style || HOME_STYLE_ORDER[index % HOME_STYLE_ORDER.length]);
   const postParts = [], mailParts = [], flagParts = [], lampParts = [], bubbleParts = [];
   const stepParts = [], trimParts = [], doorClearance = [], occupancyParts = [];
 
@@ -163,7 +164,7 @@ export function createAeroHomes({ homes, scale = 1 }) {
   for (let i = 0; i < homes.length; i++) {
     const h = homes[i];
     const hm = houseMats[i];
-    const style = styles[i % styles.length];
+    const style = styles[i];
     const villa = new THREE.Group();
     villa.name = `aeroVilla-${i}`;
     villa.position.set(h.x, 0, h.z);

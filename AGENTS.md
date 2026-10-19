@@ -174,9 +174,11 @@ existing stack and structure.
   cross-species behavior. Put new logic in the matching module rather than growing
   `app.js`. See the target split in `ROADMAP.md`.
   `foodtypes.js` owns food defaults/safety; `food.js` owns placed-source state.
-  `assetstore.js` owns catalog source caching/leases; `assets.js` remains the
-  manifest validator/loader. Consumers clone skeletons/materials and must not
-  dispose shared geometry/textures. Use `assets/catalog.json` IDs, not new loader caches.
+  `floratypes.js` owns tree/bush/rock/home-style definitions; `mapcontent.js` owns
+  authored lots and starter populations; `field.js` composes them. `assetstore.js`
+  owns catalog source caching/leases; `assets.js` remains the manifest validator/loader.
+  Consumers clone skeletons/materials and must not dispose shared geometry/textures.
+  Use `assets/catalog.json` IDs, not new loader caches.
 
   | Actor | Representation | Hot-path owner |
   | --- | --- | --- |

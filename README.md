@@ -77,6 +77,8 @@ src/ai.js                  hunger/thirst needs, hop tasks and interruption hooks
 src/effects.js             optional meadow post stack (grade, bloom, GTAO, SMAA, screen-space god rays, DOF)
 src/aidebug.js             field-only AI inspector + selected-bear plan overlay
 src/fieldshape.js          shared wobbled-disc boundary, camera/nav/wall clamp
+src/floratypes.js          tree/bush/rock and villa-style definitions
+src/mapcontent.js          authored homes, trees, rocks and starter populations
 src/wind.js                shared world-space wind uniforms + GLSL
 src/trees.js               procedural merged trees, foliage/fruit/hive batches
 src/bushes.js              branched meadow shrubs + canopy-centre foliage shading
@@ -206,9 +208,15 @@ Phase 3a/3b debug checks drive `__gummy.ai()` / `__gummy.food()` / `__gummy.food
   state and retains a source lease. `__gummy.assets()` reports cache state and
   counts; explicit zero-lease eviction cannot dispose live actor resources.
   See [assets/README.md](assets/README.md) for catalog and ownership rules.
+- Flora and villa content now use stable IDs in `src/floratypes.js`; authored
+  placements and starter populations live in `src/mapcontent.js`. The current
+  tree order, first two hive hosts, villa style sequence, home names and starter
+  colony are preserved. Builders consume the definitions; this is not a map or
+  renderer rewrite.
 - Pure tests cover food fixtures, claims/respawn/save state, flavor baselines,
-  catalog validation, coalesced loads, error/retry, leases and disposal. The
-  `STUDIO=1` browser regression also checks source reuse over a map round trip.
+  flora/home/map content IDs and counts, catalog validation, coalesced loads,
+  error/retry, leases and disposal. The `STUDIO=1` browser regression also checks
+  source reuse over a map round trip.
 
 
 - **Phase 0 ✅** — snapshot, module split (`world.js`, `launcher.js`), per-map state, static-wall handles, per-bear life fields, tests green.

@@ -21,6 +21,7 @@ import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from '.
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
+import { MAP_CONTENT } from './mapcontent.js';
 
 const nativeRandom = Math.random;
 let launcher = null;
@@ -5161,7 +5162,7 @@ function setCeilingForMap(map){
 }
 
 function seedStudioBears(){
-  const flavors = [0,1,2,3,4,0];
+  const flavors = MAP_CONTENT.studio.starter.flavors;
   const N = START_BEARS;
   const rx = Math.max(0.55, TABLE.hx*0.62);
   const rz = Math.max(0.50, TABLE.hz*0.60);
@@ -5189,16 +5190,7 @@ function seedStudioBears(){
 }
 
 function seedMeadowBears(){
-  const spots = [[-2.2,4.0],[2.4,3.4],[-3.6,0.4],[4.2,0.2],[-0.8,-3.0],[2.2,-5.2]];
-  const colony = [
-    { sex:'F', stage:'adult', scale:1.00, age:600 },
-    { sex:'F', stage:'adult', scale:1.00, age:600 },
-    { sex:'M', stage:'adult', scale:1.00, age:600 },
-    { sex:'M', stage:'adult', scale:1.00, age:600 },
-    { sex:'F', stage:'teen',  scale:0.78, age:240 },
-    { sex:'M', stage:'baby',  scale:0.58, age:30 },
-  ];
-  const flavors = [0,1,2,3,4,3];
+  const { spots, colony, flavors } = MAP_CONTENT.field.starter;
   for (let i=0;i<spots.length;i++){
     let [x,z] = spots[i];
     if (field && !field.nav.isWalkable(x,z)){
@@ -5223,10 +5215,7 @@ function seedMeadowBears(){
     }
   }
   if (RACE_ENABLED && field && field.nav && getSpecies('msn').meadow){
-    const gummies = [
-      { x: 0.5, z: 6.0, sex: 'F', name: 'MSN Buddy' },
-      { x: 2.8, z: 6.4, sex: 'M', name: 'MSN Buddy 2' },
-    ];
+    const gummies = MAP_CONTENT.field.starter.gummies;
     for (const item of gummies){
       const spot = field.nav.nearestWalkable(item.x, item.z) || { x: item.x, z: item.z };
       const gummy = spawn(spot.x, spot.z, 0.004, 3, {
