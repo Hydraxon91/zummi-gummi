@@ -12,6 +12,7 @@ import {
   blendPace, inheritedFlavor,
 } from './life.js';
 import { createStudioReturnPortal } from './studiohouse.js';
+import { createMSNPrototype } from './msn.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
@@ -30,12 +31,25 @@ let possessHopCd = 0;
 const possessInput = { x: 0, y: 0 };
 let effects = null;
 let studioReturnPortal = null;
+let msnPrototype = null;
+const RACE_ENABLED = new URLSearchParams(location.search).get('race') !== 'off';
+const STUDIO_CAST_KEY = 'gummy.studio.cast';
+function readStudioCast(){
+  try {
+    const value = localStorage.getItem(STUDIO_CAST_KEY);
+    if (value === 'bears' || value === 'both' || value === 'msn') return value;
+  } catch (err) {}
+  return 'both';
+}
+let studioCast = readStudioCast();
 const fieldColliderHandles = [];
 const cannonColliderHandles = { studio: -1, field: -1 };
 const BEAR_NAMES = ['Mochi','Boba','Gumdrop','Taffy','Pip','Pebble','Juniper','Mallow','Biscuit','Clover','Poppy','Sundae','Nougat','Sprout','Marbles','Pudding','Fizz','Waffles'];
 let nextBearName = 0;
 function takeBearName(){ return BEAR_NAMES[(nextBearName++) % BEAR_NAMES.length]; }
 function isMeadow(){ return getActiveMap().kind === 'life'; }
+function studioBearsHidden(){ return !isMeadow() && studioCast === 'msn'; }
+function studioCannonHidden(){ return !isMeadow() && studioCast === 'msn'; }
 try { document.body.dataset.map = activeWorld.mapId; } catch (err) {}
 
 /* ============================================================================
@@ -1548,9 +1562,10 @@ function writeEyeInstance(b, vanish){
 // at the display rate while polygonisation stays sparse.
 const _mDelta = new THREE.Matrix4(), _mSnapInv = new THREE.Matrix4(), _mTr = new THREE.Matrix4(), _mEye = new THREE.Matrix4();
 function updateMeshTransforms(){
+  const hideBears = studioBearsHidden();
   for (const b of bears){
     if (!b.active) continue;
-    if (b.sleeping){
+    if (b.sleeping || hideBears){
       b.mesh.visible = false;
       writeEyeInstance(b, true);
       continue;
@@ -1607,17 +1622,18 @@ function drawShadows(){
   }
   drawStudioShadows();
 }
-function drawStudioShadows(){
+function drawStudioShadows(force = false){
   shadowTick++;
   const every = fwRings.length ? 1 : Math.max(quality.shadowEvery, bears.length > 64 ? 2 : 1);
-  if (shadowTick % every !== 0 && shadowTick !== 1) return;
+  if (!force && shadowTick % every !== 0 && shadowTick !== 1) return;
   const px = SHADOW_SIZE / SHADOW_WORLD;
+  const hideBears = studioBearsHidden();
   sctx.globalCompositeOperation='source-over';
   sctx.globalAlpha=1;
   sctx.drawImage(baseCanvas,0,0);
   sctx.globalCompositeOperation='multiply';
   for (const b of bears){
-    if (!b.active || b.sleeping) continue;
+    if (hideBears || !b.active || b.sleeping) continue;
     const h = Math.max(0, b.cy - REST_COM_Y);
     const scale = 1 + h*0.52;
     const wx = b.cx - KEY_DIR.x*h*0.34;
@@ -1633,7 +1649,7 @@ function drawStudioShadows(){
     sctx.globalAlpha = 1.15/(1 + h*2.2);
     sctx.drawImage(b.sprite, cxpx-sz/2, cypx-sz*0.41, sz, sz*0.82);
   }
-  const ls = launcher ? launcher.getShadow() : null;
+  const ls = hideBears ? null : (launcher ? launcher.getShadow() : null);
   if (ls && ls.canvas){
     const lx = (ls.x + SHADOW_WORLD/2)*px;
     const lz = (ls.z + SHADOW_WORLD/2)*px;
@@ -1996,6 +2012,7 @@ function fitView(){
   clampCamGoal();
   fitWallsToTable();
   layoutStudioReturnPortal();
+  if (msnPrototype) msnPrototype.layout();
   if (launcher) launcher.layout();
   applyCamera(0);
 }
@@ -2319,6 +2336,7 @@ function pickPortal(cx, cy){
 }
 
 function pickBear(){
+  if (studioBearsHidden()) return null;
   let bestB=null, bestI=-1, bestT=Infinity;
   for (const b of bears){
     for (let i=0;i<NP;i++){
@@ -2475,7 +2493,7 @@ addEventListener('pointerdown', (e)=>{
     syncDirectivePanel();
     return;
   }
-  if (launcher && launcher.pointerDown(e)){
+  if (!studioCannonHidden() && launcher && launcher.pointerDown(e)){
     p.mode = 'launcher';
     return;
   }
@@ -2529,7 +2547,7 @@ addEventListener('pointermove', (e)=>{
   } else cursorEl.classList.remove('on');
   const p = pointers.get(e.pointerId);
   if (!p){
-    if (launcher) launcher.pointerHover(e);
+    if (!studioCannonHidden() && launcher) launcher.pointerHover(e);
     return;
   }
   const dx = e.clientX - p.lx, dy = e.clientY - p.ly;
@@ -2617,7 +2635,7 @@ addEventListener('keydown', (e)=>{
     }
     return;
   }
-  if (k === 'l'){ if (!e.repeat && launcher) launcher.toggleAiming(); return; }
+  if (k === 'l'){ if (!e.repeat && launcher && !studioCannonHidden()) launcher.toggleAiming(); return; }
   if (k === 'n'){ if (field && field.navDebug) field.navDebug.visible = !field.navDebug.visible; return; }
   if (k === 'r'){ resetCamera(); return; }
   if (k === 'w' || k === 'a' || k === 's' || k === 'd' || k === 'q' || k === 'e' ||
@@ -4410,6 +4428,7 @@ function animate(now){
     if (scene.fog) scene.fog.color.copy(sky.fogColor);
   }
   if (aiDebug) aiDebug.update(dt);
+  if (msnPrototype) msnPrototype.update(dt);
 
   const tPhys0 = performance.now();
   acc += dt;
@@ -4729,6 +4748,7 @@ function applyMapVisuals(id){
     renderer.toneMappingExposure = 1.0;
     document.body.dataset.map = 'studio';
   }
+  applyStudioCast(studioCast, false);
   updateMapButtons();
   updateAeroVisibility();
   if (effects) effects.setEnabled(!!meadow);
@@ -4738,6 +4758,49 @@ function applyMapVisuals(id){
     directivePick = false;
     syncDirectivePanel();
   }
+}
+
+function syncStudioCastUI(){
+  for (const btn of document.querySelectorAll('#raceCast [data-cast]')){
+    const on = btn.dataset.cast === studioCast;
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('on', on);
+  }
+}
+
+function applyStudioCast(value = studioCast, persist = true){
+  if (value !== 'bears' && value !== 'both' && value !== 'msn') value = 'both';
+  studioCast = value;
+  if (persist){
+    try { localStorage.setItem(STUDIO_CAST_KEY, studioCast); } catch (err) {}
+  }
+  const meadow = isMeadow();
+  const msnOn = !meadow && studioCast !== 'bears';
+  if (msnPrototype){
+    msnPrototype.setPanelVisible(!meadow);
+    msnPrototype.setVisible(msnOn);
+  }
+  const cannonOn = !(!meadow && studioCast === 'msn');
+  if (launcher && launcher.group) launcher.group.visible = cannonOn;
+  if (!cannonOn && launcher){
+    launcher.setAiming(false);
+    launcher.cancelMove();
+  }
+  if (!meadow && studioCast === 'msn'){
+    releaseAllGrabs();
+    selectedBear = null;
+    directivePick = false;
+    syncDirectivePanel();
+  }
+  document.body.classList.toggle('msn-only', !meadow && studioCast === 'msn');
+  syncStudioCastUI();
+  if (!meadow) drawStudioShadows(true);
+  return {
+    cast: studioCast,
+    msnVisible: !!(msnPrototype && msnPrototype.state().visible),
+    bearsVisible: !studioBearsHidden(),
+    cannonVisible: cannonOn,
+  };
 }
 
 function syncCannonCollider(){
@@ -4775,6 +4838,7 @@ function activateMap(id, opts = {}){
     TABLE.hx = clamp(1.95*camera.aspect, 1.55, 6.50);
   }
   layoutStudioReturnPortal();
+  if (msnPrototype) msnPrototype.layout();
   setCeilingForMap(map);
   buildWorldBounds();
   if (launcher){
@@ -5286,6 +5350,7 @@ async function bootGame(){
   studioReturnPortal.group.visible = false;
   scene.add(studioReturnPortal.group);
   layoutStudioReturnPortal();
+  msnPrototype = createMSNPrototype({ scene, enabled: RACE_ENABLED, getTable: () => TABLE });
   activateMap(activeWorld.mapId, { initial: true });
   if (toonEnabled) applyToonMaterials();
   drawShadows();
@@ -5922,12 +5987,27 @@ window.__gummy = {
   },
   render(){ renderer.render(scene,camera); },
   three(){ return { THREE, scene, camera, renderer }; },
+  msn: {
+    load(){ return msnPrototype ? msnPrototype.load() : null; },
+    state(){ return msnPrototype ? msnPrototype.state() : null; },
+    play(name, once){ return msnPrototype ? msnPrototype.play(name, once) : null; },
+    opacity(v){ return msnPrototype ? msnPrototype.setOpacity(v) : null; },
+    speed(v){ return msnPrototype ? msnPrototype.setSpeed(v) : null; },
+    visible(v){ return msnPrototype ? msnPrototype.setVisible(v) : null; },
+    reset(){ return msnPrototype ? msnPrototype.reset() : null; },
+    cast(mode){ return applyStudioCast(mode); },
+  },
   start(){ return startGame(); },
   menu(open){ setMenu(open); return menuOpen; },
   pause(v){ setPaused(v === undefined ? !paused : !!v); return paused; },
   paused(){ return paused; },
   returnToMenu(){ return returnToMenu(); },
 };
+
+for (const btn of document.querySelectorAll('#raceCast [data-cast]')){
+  btn.addEventListener('click', () => applyStudioCast(btn.dataset.cast));
+}
+syncStudioCastUI();
 
 initMenu();
 if (new URLSearchParams(location.search).get('autostart') === '1') {

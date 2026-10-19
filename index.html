@@ -298,6 +298,7 @@
   #aeroHud,.hud,.mapSwitch{transition:opacity .26s ease,visibility .26s ease}
   body.ui-hidden #aeroHud,
   body.ui-hidden .hud,
+  body.ui-hidden .raceLab,
   body.ui-hidden .mapSwitch{opacity:0;visibility:hidden;pointer-events:none}
   body.ui-hidden .uiToggle{opacity:1;visibility:visible;pointer-events:auto}
 
@@ -664,6 +665,66 @@
   .aeroHintBubble{position:absolute;left:calc(100% + 12px);top:14px;padding:8px 11px;border-radius:12px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.8);backdrop-filter:blur(12px);font-size:9px;color:#477e88;white-space:nowrap;pointer-events:none;box-shadow:0 12px 30px -20px rgba(10,70,85,.5)}
   .aeroHintBubble::before{content:"";position:absolute;left:-5px;top:12px;width:9px;height:9px;background:inherit;border-left:1px solid rgba(255,255,255,.8);border-bottom:1px solid rgba(255,255,255,.8);transform:rotate(45deg)}
 
+  /* ---------- studio race prototype ---------- */
+  .raceLab{
+    position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:38;
+    width:min(620px,calc(100vw - 24px));padding:10px 13px 11px;border-radius:18px;
+    background:linear-gradient(160deg,rgba(255,255,255,.96),rgba(248,246,239,.91));
+    border:1px solid rgba(255,255,255,.96);
+    box-shadow:0 26px 64px -36px rgba(40,32,22,.58),inset 0 1px #fff;
+    -webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);
+    font-family:var(--sans);color:var(--ink-2);pointer-events:auto;
+    transition:opacity .24s ease,visibility .24s ease;
+  }
+  .raceLab[hidden]{display:none}
+  .raceHead{display:flex;align-items:baseline;gap:8px;padding-bottom:7px;border-bottom:1px solid rgba(25,24,23,.08)}
+  .raceKicker{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:#8a6a2f}
+  .raceHead b{font-family:var(--serif);font-size:17px;font-weight:500;color:var(--ink);line-height:1}
+  .raceTag{margin-left:auto;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+  .raceFold{
+    appearance:none;border:1px solid rgba(25,24,23,.12);background:rgba(255,255,255,.7);
+    width:22px;height:22px;border-radius:50%;color:var(--ink-2);font:600 13px/1 var(--sans);
+    cursor:pointer;padding:0;
+  }
+  .raceFold:hover{background:#fff;border-color:rgba(25,24,23,.28)}
+  .raceBody{display:grid;grid-template-columns:1.05fr .78fr 1.2fr 1fr auto;gap:9px;align-items:center;margin-top:8px}
+  .raceCast{grid-column:1/-1;display:flex;align-items:center;gap:4px;margin-bottom:1px}
+  .raceCast>span{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-right:3px}
+  .raceCastBtn{
+    appearance:none;border:1px solid rgba(25,24,23,.12);border-radius:999px;background:rgba(255,255,255,.68);
+    color:var(--ink-2);font:600 8.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;cursor:pointer;
+    transition:background .16s,border-color .16s,color .16s;
+  }
+  .raceCastBtn:hover{background:#fff;border-color:rgba(25,24,23,.3)}
+  .raceCastBtn.on{background:#191817;border-color:#191817;color:#fff}
+  .raceField{display:flex;align-items:center;gap:6px;min-width:0;font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .raceField>span{flex:none}
+  .raceField select{
+    appearance:none;min-width:0;flex:1;border:1px solid rgba(25,24,23,.12);border-radius:8px;
+    background:rgba(255,255,255,.72);color:var(--ink);font:600 10px var(--sans);padding:5px 7px;cursor:pointer;
+  }
+  .raceField input[type=range]{flex:1;min-width:0;height:18px}
+  .raceField b{width:34px;text-align:right;font-size:9px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;letter-spacing:.02em;text-transform:none}
+  .raceReset{
+    appearance:none;border:1px solid rgba(25,24,23,.14);border-radius:999px;background:rgba(255,255,255,.72);
+    color:var(--ink-2);font:600 8.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;padding:6px 9px;cursor:pointer;
+  }
+  .raceReset:hover{background:#fff;border-color:rgba(25,24,23,.3)}
+  .raceReset:disabled,.raceField select:disabled,.raceField input:disabled{opacity:.45;cursor:default}
+  .raceStatus{grid-column:1/-1;margin-top:1px;font-size:9px;line-height:1.35;color:var(--ink-3);letter-spacing:.02em}
+  .raceStatus.err{color:#b3233f}
+  .raceLab.collapsed .raceBody{display:none}
+  body.msn-only .card,
+  body.msn-only .studioHeader,
+  body.msn-only .studioFooter{opacity:0;visibility:hidden;pointer-events:none}
+  @media (max-width:760px){
+    .raceLab{left:10px;right:10px;bottom:10px;transform:none;width:auto;padding:9px 11px 10px}
+    .raceBody{grid-template-columns:1fr 1fr;gap:6px 8px}
+    .raceField:first-child,.raceField:nth-child(2){grid-column:auto}
+    .raceStatus{grid-column:1/-1}
+    .raceReset{justify-self:start}
+  }
+
   #mapWipe{
     position:fixed;inset:0;z-index:70;pointer-events:none;opacity:0;
     background:radial-gradient(circle at 50% 45%,#fbffff 0%,#d8f6ff 34%,#8ed9e9 72%,#59b7cc 100%);
@@ -877,6 +938,29 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
 </aside>
 
 <div id="mapWipe"></div>
+
+<div class="raceLab" id="raceLab" hidden aria-label="MSN Buddy race prototype">
+  <div class="raceHead">
+    <span class="raceKicker">Race prototype · Studio</span>
+    <b>MSN Buddy</b>
+    <span class="raceTag">GLB · skinned</span>
+    <button class="raceFold" id="raceLabToggle" type="button" aria-expanded="true" aria-label="Collapse race prototype">–</button>
+  </div>
+  <div class="raceBody" id="raceLabBody">
+    <div class="raceCast" id="raceCast" role="group" aria-label="Studio characters">
+      <span>Show</span>
+      <button class="raceCastBtn" type="button" data-cast="bears" aria-pressed="false">Bears</button>
+      <button class="raceCastBtn on" type="button" data-cast="both" aria-pressed="true">Both</button>
+      <button class="raceCastBtn" type="button" data-cast="msn" aria-pressed="false">MSN</button>
+    </div>
+    <label class="raceField"><span>Clip</span><select id="raceClip" aria-label="Animation clip"></select></label>
+    <label class="raceField"><span>Mode</span><select id="raceMode" aria-label="Playback mode"><option value="loop">Loop</option><option value="once">Once</option></select></label>
+    <label class="raceField"><span>Opacity</span><input id="raceOpacity" type="range" min="0.25" max="1" step="0.01" value="0.55" aria-label="Opacity"><b id="raceOpacityValue">0.55</b></label>
+    <label class="raceField"><span>Speed</span><input id="raceSpeed" type="range" min="0.25" max="2" step="0.05" value="1" aria-label="Animation speed"><b id="raceSpeedValue">1.00×</b></label>
+    <button class="raceReset" id="raceReset" type="button">Reset</button>
+    <div class="raceStatus" id="raceStatus">Loading MSN Buddy…</div>
+  </div>
+</div>
 
 <button class="uiToggle" id="uiToggle" type="button" aria-pressed="false" aria-label="Hide interface" title="Hide interface (U)">
   <span class="uiToggleMark" aria-hidden="true">◉</span><span class="uiToggleLabel">Hide UI</span>

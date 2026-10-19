@@ -1,0 +1,415 @@
+// Studio-only MSN Buddy race prototype.
+//
+// The GLB is a skinned, authored-animation character, not a Box3D soft body.
+// It is deliberately independent of the bear pool, AI and save schema: this
+// module owns one display model, its material and its animation mixer.
+
+import * as THREE from 'three';
+
+const ASSET_URL = new URL('../assets/MSN_Figure/msn.glb', import.meta.url).href;
+const DEFAULT_OPACITY = 0.55;
+const MIN_OPACITY = 0.25;
+const DEFAULT_SPEED = 1.0;
+const MIN_SPEED = 0.25;
+const MAX_SPEED = 2.0;
+const RACE_SPOT = { x: 1.62, z: 1.02, yaw: 0 };
+const IDLE_CLIP = 'Idle';
+
+function clamp(value, lo, hi) {
+  return Math.min(hi, Math.max(lo, value));
+}
+
+function makeContactShadow() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(64, 64, 5, 64, 64, 62);
+  gradient.addColorStop(0, 'rgba(22,18,12,.46)');
+  gradient.addColorStop(.42, 'rgba(22,18,12,.28)');
+  gradient.addColorStop(1, 'rgba(22,18,12,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 128, 128);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.42, .92),
+    new THREE.MeshBasicMaterial({
+      map: texture, transparent: true, depthWrite: false, toneMapped: false, opacity: .9,
+    }),
+  );
+  mesh.name = 'msnContactShadow';
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = .004;
+  mesh.renderOrder = 1;
+  return mesh;
+}
+
+export function createMSNPrototype({ scene, enabled = true, getTable } = {}) {
+  const root = new THREE.Group();
+  root.name = 'msnRacePrototype';
+  root.visible = false;
+  root.position.set(RACE_SPOT.x, 0, RACE_SPOT.z);
+  root.rotation.y = RACE_SPOT.yaw;
+  scene.add(root);
+
+  const holder = new THREE.Group();
+  holder.name = 'msnRaceHolder';
+  root.add(holder);
+  const contactShadow = makeContactShadow();
+  root.add(contactShadow);
+
+  const ui = {
+    panel: document.getElementById('raceLab'),
+    toggle: document.getElementById('raceLabToggle'),
+    clip: document.getElementById('raceClip'),
+    mode: document.getElementById('raceMode'),
+    opacity: document.getElementById('raceOpacity'),
+    opacityValue: document.getElementById('raceOpacityValue'),
+    speed: document.getElementById('raceSpeed'),
+    speedValue: document.getElementById('raceSpeedValue'),
+    reset: document.getElementById('raceReset'),
+    status: document.getElementById('raceStatus'),
+  };
+
+  let ready = false;
+  let loading = null;
+  let error = null;
+  let model = null;
+  let mixer = null;
+  let clips = [];
+  let actions = new Map();
+  let materials = [];
+  let activeAction = null;
+  let activeName = '';
+  let loop = true;
+  let opacity = DEFAULT_OPACITY;
+  let speed = DEFAULT_SPEED;
+  let meshes = 0;
+  let bones = 0;
+  let tris = 0;
+  let height = 0;
+  let width = 0;
+  let depth = 0;
+  let placed = false;
+  let panelVisible = false;
+
+  function layout() {
+    const table = getTable ? getTable() : null;
+    const hx = table && Number.isFinite(table.hx) ? table.hx : 3.4;
+    const hz = table && Number.isFinite(table.hz) ? table.hz : 2.4;
+    root.position.set(
+      clamp(RACE_SPOT.x, -hx + .72, hx - .72),
+      0,
+      clamp(RACE_SPOT.z, -hz + .55, hz - .55),
+    );
+    return state();
+  }
+
+  function state() {
+    return {
+      enabled: !!enabled,
+      ready,
+      loading: !!loading,
+      error: error ? String(error.message || error) : null,
+      visible: root.visible,
+      panelVisible,
+      clips: clips.map(clip => clip.name),
+      active: activeName,
+      loop,
+      time: mixer ? +mixer.time.toFixed(3) : 0,
+      actionTime: activeAction ? +activeAction.time.toFixed(3) : 0,
+      opacity,
+      speed,
+      meshes,
+      bones,
+      tris,
+      height: +height.toFixed(3),
+      width: +width.toFixed(3),
+      depth: +depth.toFixed(3),
+      position: [+root.position.x.toFixed(2), +root.position.y.toFixed(2), +root.position.z.toFixed(2)],
+      material: materials[0] ? {
+        transmission: materials[0].transmission,
+        transparent: materials[0].transparent,
+        opacity: materials[0].opacity,
+        depthWrite: materials[0].depthWrite,
+        side: materials[0].side,
+      } : null,
+    };
+  }
+
+  function setStatus(text) {
+    if (ui.status) ui.status.textContent = text;
+  }
+
+  function syncPanel() {
+    if (!ui.panel) return;
+    ui.panel.hidden = !(enabled && panelVisible);
+  }
+
+  function syncUi() {
+    const controlsOn = ready && root.visible;
+    if (ui.clip && clips.length) {
+      ui.clip.value = activeName || IDLE_CLIP;
+      ui.clip.disabled = !controlsOn;
+    }
+    if (ui.mode) ui.mode.disabled = !controlsOn;
+    if (ui.opacity) {
+      ui.opacity.disabled = !controlsOn;
+      ui.opacity.value = String(opacity);
+    }
+    if (ui.opacityValue) ui.opacityValue.textContent = opacity.toFixed(2);
+    if (ui.speed) {
+      ui.speed.disabled = !controlsOn;
+      ui.speed.value = String(speed);
+    }
+    if (ui.speedValue) ui.speedValue.textContent = speed.toFixed(2) + '×';
+    if (ui.reset) ui.reset.disabled = !controlsOn;
+  }
+
+  function fillClipOptions() {
+    if (!ui.clip) return;
+    ui.clip.textContent = '';
+    for (const clip of clips) {
+      const option = document.createElement('option');
+      option.value = clip.name;
+      option.textContent = clip.name;
+      ui.clip.appendChild(option);
+    }
+  }
+
+  function applyMaterial() {
+    for (const material of materials) {
+      material.transmission = 0;
+      material.thickness = 0;
+      material.transparent = opacity < .999;
+      material.opacity = opacity;
+      material.depthWrite = true;
+      material.needsUpdate = true;
+    }
+  }
+
+  function setOpacity(value) {
+    const next = Number(value);
+    opacity = clamp(Number.isFinite(next) ? next : DEFAULT_OPACITY, MIN_OPACITY, 1);
+    applyMaterial();
+    syncUi();
+    return state();
+  }
+
+  function setSpeed(value) {
+    const next = Number(value);
+    speed = clamp(Number.isFinite(next) ? next : DEFAULT_SPEED, MIN_SPEED, MAX_SPEED);
+    syncUi();
+    return state();
+  }
+
+  function play(name, once = false) {
+    if (!ready || !mixer) return { ok: false, reason: 'not ready', state: state() };
+    const clip = clips.find(item => item.name === name) || clips.find(item => item.name === IDLE_CLIP);
+    if (!clip) return { ok: false, reason: 'no clips', state: state() };
+    const next = actions.get(clip.name);
+    if (!next) return { ok: false, reason: 'no action', state: state() };
+    const previous = activeAction;
+    loop = !once;
+    if (previous && previous !== next) previous.fadeOut(.22);
+    next.reset();
+    next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
+    next.clampWhenFinished = once;
+    next.enabled = true;
+    next.setEffectiveTimeScale(1);
+    next.setEffectiveWeight(1);
+    next.fadeIn(.22);
+    next.play();
+    activeAction = next;
+    activeName = clip.name;
+    syncUi();
+    return { ok: true, clip: activeName, loop, state: state() };
+  }
+
+  function setLoop(value) {
+    const next = !value;
+    if (loop !== next && activeName) return play(activeName, !next);
+    loop = next;
+    syncUi();
+    return state();
+  }
+
+  function setVisible(value) {
+    const on = !!value && !!enabled;
+    layout();
+    root.visible = on;
+    if (on){
+      load();
+    } else if (!ready && !loading){
+      setStatus('MSN hidden — choose Both or MSN to load.');
+    }
+    syncPanel();
+    syncUi();
+    return state();
+  }
+
+  function setPanelVisible(value) {
+    panelVisible = !!value;
+    syncPanel();
+    return state();
+  }
+
+  async function load() {
+    if (ready) return state();
+    if (loading) return loading;
+    error = null;
+    setStatus('Loading MSN Buddy…');
+    loading = (async () => {
+      const started = performance.now();
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      const gltf = await new GLTFLoader().loadAsync(ASSET_URL);
+      const source = gltf.scene;
+      source.name = 'MSNBuddy';
+      const box = new THREE.Box3().setFromObject(source);
+      const size = box.getSize(new THREE.Vector3());
+      if (Number.isFinite(box.min.y)) source.position.y -= box.min.y;
+      height = size.y;
+      width = size.x;
+      depth = size.z;
+
+      const materialMap = new Map();
+      meshes = 0;
+      tris = 0;
+      bones = 0;
+      source.traverse(object => {
+        if (object.isSkinnedMesh) bones = Math.max(bones, object.skeleton.bones.length);
+        if (!object.isMesh) return;
+        meshes++;
+        const geometry = object.geometry;
+        const count = geometry.index ? geometry.index.count : geometry.attributes.position.count;
+        tris += Math.floor(count / 3);
+        object.castShadow = false;
+        object.receiveShadow = false;
+        const list = Array.isArray(object.material) ? object.material : [object.material];
+        const cloned = list.map(material => {
+          if (!material) return material;
+          if (!materialMap.has(material)) {
+            const copy = material.clone();
+            copy.name = material.name + ' · prototype';
+            materialMap.set(material, copy);
+          }
+          return materialMap.get(material);
+        });
+        object.material = Array.isArray(object.material) ? cloned : cloned[0];
+      });
+      materials = [...materialMap.values()];
+
+      model = source;
+      holder.add(model);
+      mixer = new THREE.AnimationMixer(model);
+      clips = gltf.animations.slice();
+      actions = new Map(clips.map(clip => [clip.name, mixer.clipAction(clip)]));
+      mixer.addEventListener('finished', event => {
+        if (loop || event.action !== activeAction) return;
+        play(IDLE_CLIP, false);
+      });
+      fillClipOptions();
+      ready = true;
+      placed = true;
+      setStatus(`Ready · ${clips.length} clips · ${meshes} meshes · ${tris.toLocaleString()} tris · ${(performance.now() - started).toFixed(0)} ms`);
+      setOpacity(opacity);
+      play(IDLE_CLIP, false);
+      syncUi();
+      return state();
+    })().catch(err => {
+      error = err;
+      ready = false;
+      setStatus('MSN Buddy failed to load — game continues without it.');
+      console.warn('[msn] prototype failed to load:', err);
+      return state();
+    }).finally(() => {
+      loading = null;
+      syncPanel();
+      syncUi();
+    });
+    return loading;
+  }
+
+  function update(dt) {
+    if (!ready || !root.visible || !mixer) return;
+    mixer.update(Math.max(0, dt) * speed);
+  }
+
+  function reset() {
+    setOpacity(DEFAULT_OPACITY);
+    setSpeed(DEFAULT_SPEED);
+    loop = true;
+    if (ready) play(IDLE_CLIP, false);
+    syncUi();
+    return state();
+  }
+
+  function dispose() {
+    root.removeFromParent();
+    for (const material of materials) material.dispose();
+    materials = [];
+    const shadow = contactShadow.material;
+    if (shadow) {
+      if (shadow.map) shadow.map.dispose();
+      shadow.dispose();
+    }
+    contactShadow.geometry.dispose();
+    ready = false;
+    model = null;
+    mixer = null;
+    clips = [];
+    actions.clear();
+    activeAction = null;
+    activeName = '';
+    syncPanel();
+  }
+
+  if (ui.clip) {
+    ui.clip.addEventListener('change', () => {
+      play(ui.clip.value, ui.mode ? ui.mode.value === 'once' : false);
+    });
+  }
+  if (ui.mode) {
+    ui.mode.addEventListener('change', () => {
+      setLoop(ui.mode.value !== 'once');
+    });
+  }
+  if (ui.opacity) {
+    ui.opacity.addEventListener('input', () => setOpacity(ui.opacity.value));
+  }
+  if (ui.speed) {
+    ui.speed.addEventListener('input', () => setSpeed(ui.speed.value));
+  }
+  if (ui.reset) {
+    ui.reset.addEventListener('click', reset);
+  }
+  if (ui.toggle && ui.panel) {
+    ui.toggle.addEventListener('click', () => {
+      const collapsed = ui.panel.classList.toggle('collapsed');
+      ui.toggle.textContent = collapsed ? '+' : '–';
+      ui.toggle.setAttribute('aria-expanded', String(!collapsed));
+    });
+  }
+
+  setOpacity(opacity);
+  setSpeed(speed);
+  syncPanel();
+  syncUi();
+
+  return {
+    root,
+    load,
+    update,
+    layout,
+    setVisible,
+    setPanelVisible,
+    setOpacity,
+    setSpeed,
+    play,
+    setLoop,
+    reset,
+    state,
+    dispose,
+    get placed() { return placed; },
+  };
+}

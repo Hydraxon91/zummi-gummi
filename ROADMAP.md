@@ -394,6 +394,46 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   does not prove matching occlusion. The flag affects hero trees/bushes, not
   every meadow object.
 
+**MSN Buddy race prototype (Oct 2026, Studio-only, prototype)** — recorded:
+
+- **Asset:** `assets/MSN_Figure/msn.glb` (228,852 bytes) loads as 3 skinned
+  meshes, one skin with 9 joints, 10 named clips and one shared material. The
+  Blender source remains untracked by policy (`*.blend`); only the exported GLB is
+  a delivery candidate. The model is 1.573 m tall and is placed at authored scale.
+- **Runtime:** `src/msn.js` lazily imports the pinned `three/addons` GLTFLoader on
+  the first Studio entry. It is independent of the bear pool, Box3D handles, AI,
+  saves and poses. The Meadow never requests the GLB. `?race=off` disables the
+  prototype and hides the Race Lab.
+- **Material and animation:** the GLB's transmission material is converted to
+  alpha (`transmission = 0`, `transparent`, default opacity 0.55) to avoid the
+  transmission pass and give a real see-through control. Idle loops; the panel
+  selects all 10 clips, loop/once, speed and opacity. One-shot clips return to
+  Idle. The buried arm surfaces remain visible at low opacity; the mesh is not
+  clipped.
+- **Studio cast filter:** **Bears / Both / MSN** is a view filter, not a physics
+  or save change. **MSN** hides bear meshes/eyes/painted shadows, the bear card,
+  the header and the cannon; bears keep their state and simulation. The choice
+  persists locally as `gummy.studio.cast`. Meadow always shows bears.
+- **Verification:** isolated GLB audit and live browser checks cover the lazy
+  load, mesh/bone/clip counts, mixer advance, one-shot return, opacity settings,
+  cast filters, cast persistence, `?race=off`, map isolation and desktop/390×844
+  captures. Numbers are in `PERFORMANCE.md`.
+- **Known follow-ups:** the prototype has no physics, collision, AI, possession
+  or soft-body deformation; a playable race is a separate scope. The cast filter
+  intentionally leaves hidden bears simulating, so their arrangement survives a
+  round trip. Multiple MSN instances, save-state integration and limb clipping
+  are deferred.
+- **Future — two MSN variants (requested 2026-10-19, deferred):**
+  - **Glass MSN:** the current GLB path with authored skeletal clips, a
+    transmission/refraction material and little or no soft-body stretch. It is
+    rigid by design and should not reuse the bears' soft-body solver.
+  - **Gummy MSN:** a bear-like soft body with real stretch/wobble and a
+    gummy/clarity material closer to the existing bears. This needs a separate
+    metaball/Box3D rig path and its own surface, grab, AI, possession and save
+    decisions; it is not a material swap on the GLB.
+  - Add a Race Lab **type** selector only once both paths exist. Do not silently
+    share one material, solver or animation set between them.
+
 **Known follow-ups after 8c** — recorded, not blockers:
 - **Possession is session-only.** Reloading or changing maps returns the bear to
   AI in place; decide whether a save should restore control.

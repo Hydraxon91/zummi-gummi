@@ -327,6 +327,27 @@ counts and scale increasing together without page errors. Mating/birth decisions
 only scan adults and the existing food list, and emotes stay in the fixed pool.
 No new full-frame GPU profile was taken in this pass.
 
+## Studio race prototype spot check
+
+The MSN Buddy is a Studio-only GLB prototype, loaded on the first Studio entry
+and hidden without drawing in the Meadow. Method: headless Brave, 1440×900,
+DPR 1, six bears, quality 1, direct Studio renderer, twenty-frame
+`renderProbe` with the prototype visible versus hidden. This is a relative
+spot reading, not a frame-rate claim.
+
+| Studio state | calls | triangles | probe ms |
+|---|---:|---:|---:|
+| prototype visible | 60 | 430,904 | 0.51 |
+| prototype hidden | 53 | 420,870 | 0.36 |
+
+The three skinned meshes, 5,744 GLB triangles and one painted contact shadow are
+the added work; the authored material is double-sided, so visible triangle
+submission is higher than the raw GLB count. The material is alpha, not
+transmission, and the model only loads in the Studio. A separate FrontSide trial
+was inspected but not adopted: the authored double-sided material remains the
+fidelity baseline. The animate loop updates one `AnimationMixer` only while the
+prototype is visible.
+
 ## Effects follow-up spot check
 
 The meadow post stack is optional and tiered: Off keeps the direct renderer,

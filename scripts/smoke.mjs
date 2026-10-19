@@ -45,6 +45,7 @@ check(html.includes("three@0.186.1"), "page pins the three.js version");
 check(html.includes('id="aeroHud"'), "page includes the HUD markup");
 check(html.includes('id="settings"'), "page includes the settings sheet");
 check(html.includes('data-profile="auto"'), "page includes graphics presets");
+check(html.includes('id="raceLab"'), "page includes the Studio race prototype");
 
 // --- source modules ---------------------------------------------------------
 const modules = [
@@ -57,6 +58,7 @@ const modules = [
   "/src/life.js",
   "/src/ai.js",
   "/src/effects.js",
+  "/src/msn.js",
   "/src/aidebug.js",
   "/src/sky.js",
   "/src/box3d.js",
@@ -76,6 +78,20 @@ for (const path of modules) {
   // of that state regardless of the CI Node version.
   await res.arrayBuffer();
 }
+
+// --- Studio GLB -------------------------------------------------------------
+const glbRes = await get("/assets/MSN_Figure/msn.glb");
+const glbType = glbRes.headers.get("content-type") ?? "";
+check(glbRes.status === 200, "GET /assets/MSN_Figure/msn.glb returns 200");
+check(
+  glbType.includes("gltf-binary"),
+  "GLB is served with the model/gltf-binary MIME type",
+  glbType,
+);
+const glbBytes = new Uint8Array(await glbRes.arrayBuffer());
+const glbMagic = new TextDecoder().decode(glbBytes.subarray(0, 4));
+check(glbMagic === "glTF", "GLB has the glTF magic header", glbMagic);
+check(glbBytes.length > 200_000, "GLB payload is present", `${glbBytes.length} bytes`);
 
 // --- Box3D wasm -------------------------------------------------------------
 const wasmRes = await get("/vendor/box3d/box3d.wasm");
