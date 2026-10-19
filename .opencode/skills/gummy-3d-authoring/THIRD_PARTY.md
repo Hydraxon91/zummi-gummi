@@ -21,6 +21,9 @@ coverage do not establish validation of these local adaptations.
 `references/openings-and-glazing.md` and `scripts/render_state_audit.py` are project-authored from
 the Raptor RC glazing round, not adapted from the upstream suite.
 
+`scripts/texture_inventory.py` and the external-review guidance are project-authored;
+they are not copied from the upstream suite.
+
 ## MIT License
 
 Copyright (c) 2026 EL4CTEO

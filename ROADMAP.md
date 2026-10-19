@@ -318,6 +318,12 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   42–68 m. Sectoring without culling is slower, so the split ships with per-pass
   frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
 
+**Known follow-ups — texture inventory (deferred):** Blender 5.2.2 background fixtures
+emit two colour-space enum warnings when inventorying all image datablocks (including
+Blender-managed images). Assertions pass, but those colour-space entries require manual
+interpretation; the helper does not certify them. Affects
+`.opencode/skills/gummy-3d-authoring/scripts/texture_inventory.py`.
+
 **Known follow-ups after the culling/LOD pass** — recorded, not blockers:
 
 - **Leaf LOD is a fixed distance band.** 42–68 m and the 60% floor are not tied

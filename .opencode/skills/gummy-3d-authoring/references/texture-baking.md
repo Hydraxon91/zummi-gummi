@@ -96,6 +96,18 @@ subdivision on a mesh that will not be exported that way.
 
 ## Inspect the result
 
+- Establish the delivered material's connected images, UV map, resolution and colour space
+  before reviewing maps. Separate current maps, diagnostic overlays and older files.
+  A filled atlas background does not prove island padding or eliminate seams: inspect dilation
+  around actual islands at the intended mip levels. Texture-only review cannot certify
+  stretching, seam alignment on the model, glass, geometry or rendered response.
+- Inspect at native resolution and under matching rendered conditions. Locate suspicious normal
+  patches on their UV triangles and actual surfaces before calling them artifacts; check colour
+  space, normal convention, tangent basis and triangulation. A flat map can be intentional.
+- Inspect AO clipping, speckle and unintended self-occlusion separately from legitimate cavity
+  darkness. Keep AO separate for glTF's occlusion channel; do not automatically multiply it into
+  albedo or prescribe a universal strength. Baked lighting needs an approved stylistic decision.
+
 - Check the normal map in a lit material view for waviness, skewed details, black areas and
   seam mismatches. A flat neutral normal is not proof of a good bake.
 - Confirm the map is actually connected through the intended Principled input, not merely

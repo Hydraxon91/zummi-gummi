@@ -108,9 +108,12 @@ only evaluates inside Blender and claim it is game-ready.
   material view. Do not conceal a shape or material defect with colored lighting.
 - `material.diffuse_color` affects only viewport solid/workbench display; rendered color comes
   from shader inputs.
-- A fully metallic surface has no diffuse albedo: its colour is the environment's. Judge metallic
-  paint, rims and black-coated parts under a neutral studio world, and do not edit Base Color to
-  "fix" a cast before ruling out the world, an HDRI or a coloured backdrop.
+- A metal's Base Color tints its specular reflection; lighting and roughness also affect colour.
+  Coated or painted metal is not necessarily a fully metallic surface. Judge under neutral
+  lighting before attributing a cast to the texture.
+- Constant roughness and flat normals are valid for clean stylized assets. Wear and noise need
+  reference evidence or user intent. Review material separation across the assembled asset,
+  not just one body's maps; dark tyre albedo does not establish missing modeled tread.
 
 ## Verification
 

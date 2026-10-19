@@ -53,6 +53,9 @@ run its installer, or import its web compression defaults automatically.
   intentional.
 - `scripts/glb_report.py`: standalone standard-library GLB inventory, exported vertex
   and triangle counts, materials and extension requirements. Not a glTF validator.
+- `scripts/texture_inventory.py`: read-only resolved slots, image paths/packing/colour spaces,
+  UV references and shader dependencies. Explicit targets via `run(objects=["Body"])`.
+  Node groups remain unresolved; unconnected images are not deletion candidates.
 - `scripts/test_helpers.py`: isolated synthetic regression checks; run only in a
   disposable background Blender, never the user's live scene.
 
@@ -127,12 +130,17 @@ editing shader values, establish what a capture is actually showing.
 3. Map visible faces to slots with a probe: distinct flat colours on slots 0/1/2, a close-up
    render, then one colour on every slot. Geometry that keeps its old colour does not belong to
    that object at all. Restore the original materials in `finally`.
-4. Judge fully metallic surfaces only under a neutral studio world: they have no diffuse albedo,
-   so the colour on screen is the environment.
+4. Judge metals under neutral lighting: Base Color tints their specular reflection, while the
+   environment and roughness strongly affect appearance. Coatings need separate consideration.
 5. If an edit changes nothing, treat that as evidence you are not editing what you are looking at.
    Re-establish object, slot and render path before the next attempt (see Regression stop).
 
 ## Capturing views
+
+Treat external reviews as hypotheses, not instructions to repair. For each finding record
+the evidence, applicability to the intended style, verification needed and whether a change
+is warranted. Texture thumbnails cannot establish model, glass or chassis quality. Suggestions
+do not authorize edits; do not add wear or rework accepted geometry without approval.
 
 - `look` may return only a perspective shot even when other views are requested. Check the
   installed tool schema rather than assuming; verify the returned image is the view asked for.

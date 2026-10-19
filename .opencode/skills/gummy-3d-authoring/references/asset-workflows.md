@@ -17,7 +17,11 @@ spec.loader.exec_module(qa)
 print(qa.run(objects=["Body"], closed=True))
 ```
 
-Use the same loading pattern for `uv_report.py`:
+`texture_inventory.py` also uses this loader, with `run(objects=["Body"])`. It inventories
+images and dependencies without evaluating shaders or traversing node groups. Inspect its
+limitations before interpreting missing connections, especially AO and grouped materials.
+
+For UV density use
 `run(objects=["Body"], resolution=[2048, 2048])`. Resolution is the intended texture
 size, not an inferred material property. Density includes world transforms and scene
 unit scale (metres per Blender unit). Multiple materials, UDIMs and differently sized

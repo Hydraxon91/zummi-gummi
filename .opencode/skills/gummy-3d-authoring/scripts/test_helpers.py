@@ -136,6 +136,32 @@ def main():
             'QA_FixtureRenderHidden', 'QA_FixtureViewportHidden']
         assert audit['objects_checked'] == 6
 
+        textures = load('texture_inventory')
+        mat = bpy.data.materials.new('QA_TextureMaterial')
+        tree = mat.node_tree
+        shader = next(n for n in tree.nodes if n.type == 'BSDF_PRINCIPLED')
+        image = bpy.data.images.new('QA_Connected', width=8, height=8)
+        unused = bpy.data.images.new('QA_Unconnected', width=4, height=4)
+        image.colorspace_settings.name = 'sRGB'
+        unused.colorspace_settings.name = 'sRGB'
+        tex = tree.nodes.new('ShaderNodeTexImage')
+        tex.image = image
+        uv_node = tree.nodes.new('ShaderNodeUVMap')
+        uv_node.uv_map = 'FixtureUV'
+        tree.links.new(uv_node.outputs[0], tex.inputs['Vector'])
+        tree.links.new(tex.outputs['Color'], shader.inputs['Base Color'])
+        slotless.data.materials.append(mat)
+        before = (len(bpy.data.objects), len(bpy.data.images), bpy.data.is_dirty)
+        inventory = textures.run([slotless.name])
+        record = inventory['materials'][mat.name]
+        assert record['images'][0]['explicit_uv_maps'] == ['FixtureUV']
+        assert record['images'][0]['output_dependency']
+        assert unused.name in inventory['images_not_connected_to_inspected_outputs']
+        assert image.name not in inventory['images_not_connected_to_inspected_outputs']
+        assert inventory['images'][image.name]['size'] == [8, 8]
+        assert before == (len(bpy.data.objects), len(bpy.data.images), bpy.data.is_dirty)
+        print('TEXTURE_INVENTORY_PASS: output dependency, UV, dimensions, unconnected image, read-only')
+
         def pack(doc):
             payload = json.dumps(doc).encode()
             payload += b' ' * (-len(payload) % 4)
