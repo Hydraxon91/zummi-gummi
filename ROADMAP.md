@@ -589,9 +589,14 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   single sphere unless throws or collisions become gameplay-critical.
 - **Glass daytime shelter is a hidden home-door state**, not an interior scene.
   A door sparkle marks enter/exit, needs and pregnancy persist, and the actor
-  emerges at night; add interiors only with the home pass.
+  emerges at night. Glass interiors are deferred until 3D model/interior
+  authoring is available.
 - **Glass visits are door-level only.** Glass hosts/guests walk to the villa
-  door and socialize outside; interiors remain deferred with the home pass.
+  door and socialize outside; entering the villa together waits for the same
+  3D model/interior authoring pass.
+- **Glass interior models — later.** Do not add an interior scene until authored
+  3D models are available. The current door fade/visit states are the seam for
+  that future pass.
 
 Each phase ends playable, with screenshots and headless checks, so the direction
 can be adjusted without losing the working app.
