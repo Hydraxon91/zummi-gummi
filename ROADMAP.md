@@ -459,11 +459,12 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     visible in **Both** and **MSN** casts, hidden in **Bears**, and disabled by
     `?race=off`. Studio save/load preserves its species flag and 24-body rig.
     It has no dedicated Studio idle/interaction behavior yet.
-  - **Gummy Meadow parity (in progress, Oct 2026):** one Gummy joins the new
+  - **Gummy Meadow parity (in progress, Oct 2026):** two Gummies join the new
     Meadow colony and the buddy roster, using the shared AI navigation/needs,
-    food/water, home/sleep and grab/throw paths. Growth, pregnancy, life-stage
-    inheritance and full cross-species social/life depth remain bear-only; the
-    current `canMatePair` guard keeps reproduction same-species until DNA.
+    food/water, home/sleep, growth, pregnancy/birth and grab/throw paths.
+    Gummy births spawn the Gummy rig and inherit Gummy parentage. Full
+    cross-species social/life depth and Glass Meadow design remain deferred; the
+    `canMatePair` guard keeps reproduction same-species until DNA.
   - **Gummy Studio control (Oct 2026):** the Race Lab **Control Gummy** button
     enters the existing possession path for the 24-body actor. WASD/arrows or
     the on-screen stick move, Space hops, and V/Esc exits; the camera follows

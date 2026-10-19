@@ -560,7 +560,7 @@ function chooseBirthHome(mother) {
 // points around the current COM so the bear grows in place instead of snapping
 // to a new origin.
 function applyBearStage(b, nextStage) {
-  if (!b || !b.active || b.species !== 'bear' || !STAGE_ORDER.includes(nextStage) || b.stage === nextStage) {
+  if (!b || !b.active || !STAGE_ORDER.includes(nextStage) || b.stage === nextStage) {
     if (b) b.pendingStage = null;
     return false;
   }
@@ -571,7 +571,7 @@ function applyBearStage(b, nextStage) {
   const oldScale = b.scale || 1;
   const nextScale = scaleForStage(nextStage);
   const factor = nextScale / oldScale;
-  for (let i = 0; i < NP; i++) {
+  for (let i = 0; i < b.np; i++) {
     b.px[i] = b.cx + (b.px[i] - b.cx) * factor;
     b.py[i] = b.cy + (b.py[i] - b.cy) * factor;
     b.pz[i] = b.cz + (b.pz[i] - b.cz) * factor;
@@ -629,6 +629,7 @@ function tryBirth(mother) {
   const p = field && field.nav ? field.nav.nearestWalkable(x, z) : null;
   if (p) { x = p.x; z = p.z; }
   const baby = spawn(x, z, 0.004, flavor, {
+    rig: mother.rig,
     stage: 'baby',
     scale: scaleForStage('baby'),
     age: 0,
@@ -655,7 +656,7 @@ function tryBirth(mother) {
 function stepLife(dt) {
   if (!isMeadow() || !field || frozen) return;
   for (const b of bears) {
-    if (!b.active || b.species !== 'bear') continue;
+    if (!b.active) continue;
     if (b.mateCooldown > 0) b.mateCooldown = Math.max(0, b.mateCooldown - dt);
     if (b.birthRetryT > 0) b.birthRetryT = Math.max(0, b.birthRetryT - dt);
     if (b.pendingStage && b.grabs === 0 && !b.airborne && !b.inPond) {
@@ -4780,11 +4781,17 @@ function seedMeadowBears(){
     }
   }
   if (RACE_ENABLED && field && field.nav){
-    const spot = field.nav.nearestWalkable(0.5, 6.0) || { x: 0.5, z: 6.0 };
-    const gummy = spawn(spot.x, spot.z, 0.004, 3, {
-      rig: MSN_RIG, name: 'MSN Buddy', stage: 'adult', scale: 1, tilt: 0.02, lift: 0.004,
-    });
-    if (gummy) gummy.home = '';
+    const gummies = [
+      { x: 0.5, z: 6.0, sex: 'F', name: 'MSN Buddy' },
+      { x: 2.8, z: 6.4, sex: 'M', name: 'MSN Buddy 2' },
+    ];
+    for (const item of gummies){
+      const spot = field.nav.nearestWalkable(item.x, item.z) || { x: item.x, z: item.z };
+      const gummy = spawn(spot.x, spot.z, 0.004, 3, {
+        rig: MSN_RIG, name: item.name, sex: item.sex, stage: 'adult', scale: 1, tilt: 0.02, lift: 0.004,
+      });
+      if (gummy) gummy.home = '';
+    }
   }
 }
 
