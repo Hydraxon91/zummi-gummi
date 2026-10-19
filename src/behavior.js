@@ -16,7 +16,7 @@ import { isSafeFood } from './foodtypes.js';
 import {
   familyRelation, addBond, pairBond, skillsFor, forageEatScale,
   socialAcceptBonus, pushHistory, playdateDue, schedulePlaydate,
-  nextPlaydateDay, teachSkill, PLAYDATE_WINDOW,
+  nextPlaydateDay, teachSkill, PLAYDATE_WINDOW, routineWindowFor,
 } from './family.js';
 import {
   INTERACTIONS, interactionFor, startTask, cancelTask,
@@ -186,6 +186,7 @@ export function createBehavior({
       playdate: false,
       playdateHome: null,
       playdateTarget: null,
+      lastMealWindow: null,
       shelter: false,
       waitForPartner: false,
       hopState: null,
@@ -1390,6 +1391,60 @@ export function createBehavior({
     schedulePlaydate(actor, partner, next);
   }
 
+  /* -------------------------------------------------------------- family meal */
+
+  function mealAnchor(actor) {
+    const home = homeFor(actor);
+    if (!home) return null;
+    let best = null;
+    let bestD = 9;
+    if (field && field.food && typeof field.food.allRipe === 'function') {
+      for (const source of field.food.allRipe({ safe: true })) {
+        const d = Math.hypot(source.x - home.door.x, source.z - home.door.z);
+        if (d < bestD) { bestD = d; best = source; }
+      }
+    }
+    if (best) {
+      return { x: best.approachX, z: best.approachZ, home: home.name, foodId: best.id };
+    }
+    return { x: home.door.x, z: home.door.z, home: home.name };
+  }
+
+  function mealWindow(actor) {
+    if (!actor || !actor.ai) return null;
+    const window = routineWindowFor(actor, hoursNow());
+    if (!window || window.kind !== 'meal') return null;
+    const key = `${dayNow()}:${window.name}`;
+    if (actor.ai.lastMealWindow === key) return null;
+    const p = profile(actor);
+    if (actor.ai.taskCooldown > 0) return null;
+    if (actor.hunger >= p.thresholds.criticalHunger || actor.thirst >= p.thresholds.criticalThirst) return null;
+    if (actor.hunger < .08) return null;
+    return { window, key };
+  }
+
+  function startFamilyMeal(actor, meal) {
+    if (!actor || !actor.ai) return false;
+    const anchor = mealAnchor(actor);
+    if (!anchor) return false;
+    startTask(actor, INTERACTIONS.familyMeal, {
+      role: 'host',
+      anchor,
+      data: { routine: meal.window.name },
+      phase: 'travel',
+    });
+    actor.ai.lastMealWindow = meal.key;
+    if (actor.ai.familyTask.phase === 'act') {
+      stop(actor);
+      return true;
+    }
+    if (!setDestination(actor, anchor.x, anchor.z)) {
+      cancelTask(actor, { stop });
+      return false;
+    }
+    return true;
+  }
+
   /* ----------------------------------------------------------- family task */
 
   function finishFamilyTask(actor) {
@@ -1428,7 +1483,18 @@ export function createBehavior({
     } else if (task.id === INTERACTIONS.familyMeal) {
       actor.hunger = Math.max(0, actor.hunger - .28);
       actor.social = Math.max(0, actor.social - .10);
-      pushHistory(actor, { kind: 'meal', uid: 0, day, hour });
+      let companion = null;
+      let bestD = 2.6;
+      for (const other of actors()) {
+        if (!other || other === actor || !other.active || other.sleeping) continue;
+        if (other.home !== actor.home) continue;
+        const d = Math.hypot(other.cx - actor.cx, other.cz - actor.cz);
+        if (d > 2.6) continue;
+        addBond(actor, other, .05);
+        if (d < bestD) { bestD = d; companion = other; }
+      }
+      pushHistory(actor, { kind: 'meal', uid: companion ? companion.uid : 0, day, hour });
+      emit(actor, 'heart', .9);
       cancelTask(actor, { stop });
     } else {
       cancelTask(actor, { stop });
@@ -1458,6 +1524,8 @@ export function createBehavior({
     }
     if (actor.ai.taskCooldown > 0) return;
     if (actor.thirst >= p.thresholds.seekThirst && acquireWater(actor)) return;
+    const meal = mealWindow(actor);
+    if (meal && startFamilyMeal(actor, meal)) return;
     if (p.hive && actor.hunger >= p.hive.hunger && acquireHive(actor)) return;
     if (p.conflict && actor.hunger >= p.thresholds.criticalHunger && acquireContest(actor)) return;
     if (actor.hunger >= p.thresholds.seekHunger) {
@@ -2102,6 +2170,12 @@ export function createBehavior({
     return { ok: startConflict(actor, partner, claim), state: actor.ai.state };
   }
 
+  function forceMeal(actor) {
+    if (!actor || !actor.ai) return { ok: false, note: 'no actor' };
+    const ok = startFamilyMeal(actor, { window: { name: 'meal' }, key: `${dayNow()}:forced` });
+    return { ok, state: actor.ai.state };
+  }
+
   const api = {
     field, profile, actors, hoursNow, dayNow, rng,
     pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
@@ -2116,7 +2190,7 @@ export function createBehavior({
   return {
     attach, tick, plan, stats: statsNow, registerAdapter,
     setEnabled, onGrab, onRelease, detach, resumeTask, debugState,
-    setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict,
+    setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal,
     startSeekHome, startPlaydate,
     get enabled() { return enabled; },
     get actors() { return actors(); },

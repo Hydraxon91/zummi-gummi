@@ -6,6 +6,7 @@ import {
   registerInteraction, interactionFor, startTask, tickTask, cancelTask,
   pairAvailable, beginPair, endPair, breakPair,
 } from '../src/interactions.js';
+import { homeRoutineOffset } from '../src/family.js';
 
 function fakeField() {
   const source = {
@@ -250,6 +251,38 @@ test('conflict resolves a claimed food source without leaving both paired', () =
   assert.notEqual(b.ai.state, 'conflict');
   assert.equal(source.claim, a);
   assert.ok(b.ai.shove || b.ai.conflictCooldown > 0);
+});
+
+test('household routine starts a family meal once per window', () => {
+  const offset = homeRoutineOffset('Home 1');
+  const { actors, engine, setHours } = setup({ rng: () => 1 });
+  setHours(12 + offset + .1);
+  const a = actor(1, { hunger: .5 });
+  const b = actor(2, { hunger: .5, cx: .6 });
+  actors.push(a, b);
+  engine.attach(a); engine.attach(b);
+  a.ai.nextThink = 0;
+  b.ai.nextThink = 0;
+  engine.tick(a, .01, { ready: true });
+  assert.equal(a.ai.state, 'familyTask');
+  assert.equal(a.ai.familyTask.id, 'familyMeal');
+  assert.equal(a.ai.familyTask.data.routine, 'lunch');
+  // Move the eater to the anchor and finish the meal next to their housemate.
+  a.cx = 2; a.cz = 0;
+  b.cx = 2.2; b.cz = 0;
+  engine.tick(a, 7, { ready: true });
+  assert.notEqual(a.ai.state, 'familyTask');
+  assert.ok(a.hunger < .5);
+  assert.ok(a.history.some(event => event.kind === 'meal'));
+  assert.ok(Number(a.bonds['2'] || 0) > 0);
+
+  // The same window cannot trigger a second meal.
+  a.ai.state = 'wander';
+  a.ai.nextThink = 0;
+  a.ai.taskCooldown = 0;
+  a.hunger = .5;
+  engine.tick(a, .01, { ready: true });
+  assert.notEqual(a.ai.state, 'familyTask');
 });
 
 test('interaction primitives create and clear shared pair/task state', () => {

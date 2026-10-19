@@ -695,14 +695,17 @@ can proceed with the current runtime and assets.
   `sky.day`, and prunes stale uid references on load.
 - Bear/Gummy/Glass now share social, invite/decline, visit, follow, mate and playdate paths;
   mixed-species pairs use the same protocol.
-- Open C–F: finish removing the legacy Glass helper block; add household meals/routines;
-  add parent teaching/skills; add the lineage/history panel; then re-profile and update
-  `PERFORMANCE.md`.
-- **Profile-specific states migrated (C, in progress).** Bear hive raids, flee, conflict
-  and the shared branch of the directive system now live in `behavior.js`; Glass stargaze
-  and daytime shelter are also shared. `ai.js` is now a thin hop adapter plus directives.
-  The pre-unification helper functions left in `glass.js` are unreachable when the shared
-  engine is present and still need deletion.
+- Open E–F: add parent teaching/skills; add the lineage/history panel; then re-profile and
+  update `PERFORMANCE.md`.
+- **Profile-specific states migrated (C, done).** Bear hive raids, flee, conflict and the
+  shared branch of the directive system live in `behavior.js`; Glass stargaze and daytime
+  shelter are shared. `ai.js` and `glass.js` are now representation adapters; the old Glass
+  decision helpers were removed.
+- **Household meals (D, landed).** `family.js` routine windows (breakfast/lunch/supper)
+  trigger a shared `familyMeal` task. Household members walk to the home door or the nearest
+  safe food source within 9 m, eat for 6 s, relieve hunger/social, gain a small bond with
+  co-resident eaters and write a meal history event. One meal per actor per window; the
+  buddy status names the routine.
 - **Perf profiling deferred to Phase 3.** A/B verification ran while the authoring machine
   was hosting an Android emulator/Studio workload, so frame-time numbers are not
   comparable to the recorded baselines. Do not publish A/B perf numbers; profile in the
@@ -710,14 +713,14 @@ can proceed with the current runtime and assets.
 
 **Known follow-ups from A/B:**
 
-- **Legacy fallback code remains.** The old `glass.js` helper functions and state dispatch are
-  unreachable because the live app always passes the shared engine; `ai.js` no longer has a
-  fallback path. Remove the Glass block in a dedicated cleanup commit after the Phase C
-  behavior checks stay green.
-- **Glass balance is preserved by profile.** Food/water/social/mate values were mapped from
-  the old Glass constants. Re-check them in Phase C alongside stargaze/shelter migration.
-- **Meal and lesson task effects exist but no trigger creates them yet.** Phase D/E adds
-  the household meal and parent-teaching triggers.
+- **Legacy fallback code removed (C).** `ai.js` is a thin hop adapter plus directives;
+  `glass.js` is a hover/GLB adapter. The old decision helpers and unreachable state
+  dispatch are gone.
+- **Glass balance is preserved by profile.** Food/water/social/mate values remain in
+  `behaviorprofiles.js`; the Phase C behavior checks cover shelter, stargaze, social and
+  mate paths.
+- **Meal tasks now trigger from routines; lessons do not yet.** Phase D adds household
+  meals; parent teaching remains Phase E.
 - **`__gummy.familyPlay(i,j)` now starts a playdate task** with a shared meeting point,
   not the old in-place social pair. Existing harnesses that expected immediate `social`
   should assert `familyTask` first.

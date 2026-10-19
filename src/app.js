@@ -3451,7 +3451,9 @@ function familyTaskStatus(b){
     return task.role === 'teacher' ? `teaching ${who}` : `learning from ${who}`;
   }
   if (task.id === 'familyMeal') {
-    return `sharing a meal${task.anchor && task.anchor.home ? ` at ${task.anchor.home}` : ''}`;
+    const routine = task.data && task.data.routine ? task.data.routine : 'a meal';
+    const place = task.anchor && task.anchor.home ? ` at ${task.anchor.home}` : '';
+    return task.phase === 'travel' ? `heading to ${routine}${place}` : `sharing ${routine}${place}`;
   }
   return null;
 }
@@ -6601,6 +6603,10 @@ window.__gummy = {
   familyPlay(i, j){
     if (!ai) return { ok:false, note:'meadow only' };
     return ai.debugFamilyPlay(bears[i], bears[j]);
+  },
+  familyMeal(i){
+    if (!behavior) return { ok:false, note:'meadow only' };
+    return behavior.forceMeal(bears[i]);
   },
   forceInvite(i, j, accept = true){
     if (!ai) return { ok:false, note:'meadow only' };
