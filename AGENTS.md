@@ -143,17 +143,20 @@ assume "mechanical".
 Gummy Bears is offline-first, browser-first, and deliberately dependency-light. Keep the
 existing stack and structure.
 
-- **Do not swap the core stack.** Three.js stays the renderer, Box3D stays the physics
-  engine, and the metaball/surface-nets surface plus the 24-body rig stay the simulation
-  approach. Diagnose problems inside the current stack rather than replacing a library.
-  If the only remedy you can see is an architectural substitution, stop, report the
-  evidence and await instruction.
+- **Do not swap the core stack.** Three.js stays the renderer and Box3D stays the physics
+  engine. The soft-body Bear/Gummy path stays the metaball/surface-nets surface plus the
+  24-body rig. Glass is the documented exception: a skinned GLB with a rigid Box3D sphere
+  adapter, not a metaball body. Future hybrids are authored assets registered as species,
+  not runtime mesh blends. Diagnose problems inside the current representation rather than
+  replacing a library. If the only remedy you can see is an architectural substitution,
+  stop, report the evidence and await instruction.
 - **Three.js is pinned on purpose.** `index.html` loads `three@0.186.1` from the CDN via an
   import map (`scripts/smoke.mjs` asserts this). Do not bump the version or switch to a
   vendored copy without explicit approval.
 - **No unsolicited dependencies or build tooling.** There is no `package.json` and no
   bundler. Do not add one, or add any npm/runtime dependency, unless explicitly requested.
-  Node is used only to run `scripts/smoke.mjs`.
+  Node runs `scripts/smoke.mjs`, the committed `tests/` suite via its built-in test runner,
+  and local CDP harnesses; do not introduce a third-party test framework for that.
 - **Box3D WASM is vendored and pinned** (`vendor/box3d/box3d.js`, `box3d.wasm`,
   `LICENSE`). The wrapper (`scripts/box3d_wrapper.c`) is built by
   `scripts/build-box3d.sh` (needs cmake + Emscripten) into `vendor/box3d/`. The prebuilt
@@ -163,8 +166,18 @@ existing stack and structure.
   fireworks and the loop; `field.js` the meadow/pond/grass/props/nav; `sky.js` the
   day/night sky; `launcher.js` the cannon; `world.js` the map registry + per-map state;
   `navmesh.js` navigation; `trees.js`/`bushes.js`/`homes.js`/`studiohouse.js`/`backdrop.js`/
-  `horizon.js`/`wind.js`/`fieldshape.js` their named systems. Put new logic in the matching
-  module rather than growing `app.js`. See the target split in `ROADMAP.md`.
+  `horizon.js`/`wind.js`/`fieldshape.js` their named systems. The species layer is split:
+  `species.js` is the capability/asset registry, `dna.js` is pure genetics, `npc.js` is the
+  read-only soft-body/Glass actor view, `glass.js` owns the Glass Meadow adapter, `msn.js`
+  owns the Studio prototype, and `msnrig.js`/`buddyrig.js` own rig data. `life.js`/`ai.js`
+  own shared needs, social and cross-species behavior. Put new logic in the matching module
+  rather than growing `app.js`. See the target split in `ROADMAP.md`.
+
+  | Actor | Representation | Hot-path owner |
+  | --- | --- | --- |
+  | Bear / Gummy | 24-body Box3D + metaball surface | `app.js` / `life.js` / `ai.js` |
+  | Glass | Skinned GLB + rigid Box3D sphere | `glass.js` / `msn.js` |
+  | Future hybrid | Authored asset registered as a species | new species entry; no runtime blend |
 - **Performance-shaped structures are not incidental.** Grass/tree/foliage batching,
   instancing, the coarse occupancy mask, and the "no per-frame CPU branch loops" rules are
   load-bearing. Do not reintroduce per-frame per-blade or per-foliage CPU work.
@@ -191,9 +204,13 @@ existing stack and structure.
 
 ## 9. Verification & Self-Test Standards
 
-There is no unit-test framework. Verification is done by loading the served app and
-driving it.
+There is no third-party unit-test framework. Pure modules use Node's built-in test runner
+and plain assertions; stateful and visual behavior is verified by loading the served app
+and driving it.
 
+- **Committed pure checks cover the species layer.** `node --test tests` runs the registry,
+  DNA, save-validation, actor-view and asset-manifest checks. A change to species
+  capabilities, genomes, save shape or `npc.js` updates these tests in the same scope.
 - **The committed check is the smoke test.** `scripts/smoke.mjs` boots from a running
   `launch.py` server and asserts the page shell, source modules, licenses, the wasm MIME
   type/magic/exports and 404 handling. Run it as:
@@ -252,6 +269,11 @@ driving it.
   the repo. Run it (or the applicable subset) before reporting physics work done.
 - **New behavior ships with a way to verify it.** Add or extend a self-test check and/or a
   `window.__gummy` hook in the same scope as the change, unless told to defer.
+- **Match the check to the layer:** pure species/DNA/save/actor-view logic uses
+  `node --test tests`; served-shell/import/tooling changes use the smoke test; actor,
+  map, physics and UI behavior uses a browser harness or `__gummy` assertions; visual
+  changes use inspected captures; shipped assets use `asset.json` plus the in-game load.
+  A smoke pass is not evidence for a behavior or visual claim.
 - **Verification is not approval.** Passing the smoke test or a green self-test does not
   authorize a commit, push or tag; those follow Commit Discipline.
 
@@ -262,7 +284,8 @@ driving it.
   or performance characteristics, update the affected doc(s) as part of that same approved
   scope and commit.
 - **Living docs (keep current):** `README.md`, `ROADMAP.md`, `PERFORMANCE.md`,
-  `screenshots/README.md`, `AGENTS.md`.
+  `screenshots/README.md`, `AGENTS.md`, and the project skills under
+  `.opencode/skills/*/SKILL.md` when a command, harness or verification procedure changes.
 - **`ROADMAP.md` status is updated at phase boundaries,** not per intermediate step. Keep
   phase tables, the "Status" list and "Tuning defaults" consistent with reality.
 - **Historical records are immutable:** `snapshots/*.zip`, dated screenshot sets and
@@ -477,6 +500,16 @@ approved work chunk.
   scratch captures under `.dev-shots/` as described in Visual Verification. True orthographic
   captures need a PNG written there; if the session is read-only, ask for a mode switch
   before starting rather than after a failed audit.
+- **Every shipped asset has a manifest.** Record the tracked file, SHA-256, byte size,
+  scale/axis, bounds, mesh/skin/clip/material inventory, extensions, source and rights
+  beside the asset (for example `assets/MSN_Figure/asset.json` and its README), and keep
+  `node --test tests` passing against it. A GLB that loads is not a verified delivery.
+- **Editable source is not delivery.** The tracked GLB and manifest are reproducible
+  deliverables; local `.blend` checkpoints are not backups. Record the authoritative
+  checkpoint and keep an external copy, or add a zipped snapshot with explicit approval.
+- **Generated assets need a preflight.** `generate_3d` may cost a credit and creates one
+  object, not a scene. Confirm the target, provider and cost before using it; generation
+  is not topology, material, reference or in-game verification.
 - **Separate delivery states.** Report whether work exists only in the live scene,
   is saved to a `.blend`, is exported, or is verified in-game. Asset authoring does
   not authorize game integration. Measure evaluated/exported triangles and vertices,
