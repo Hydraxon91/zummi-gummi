@@ -721,6 +721,15 @@ function childGenomeFor(mother, father, childSpecies) {
   return genome;
 }
 
+function addSiblingBonds(child) {
+  const parents = new Set(child?.parentUids || []);
+  if (!parents.size) return;
+  for (const other of actorView.active()) {
+    if (other === child || !Array.isArray(other.parentUids)) continue;
+    if (other.parentUids.some(uid => parents.has(uid))) addFamilyBond(other, child, .35);
+  }
+}
+
 function addFamilyBond(parent, child, value = .62) {
   if (!parent || !child || parent === child) return;
   if (!parent.bonds || typeof parent.bonds !== 'object') parent.bonds = {};
@@ -791,6 +800,7 @@ function birthChild(mother, father = null) {
   }
   addFamilyBond(mother, baby);
   if (father) addFamilyBond(father, baby);
+  addSiblingBonds(baby);
   mother.pregnant = false;
   mother.gestation = 0;
   mother.birthRetryT = 0;
@@ -3404,6 +3414,12 @@ function buddyStatus(b){
     if (b.pregnant) return b.gestation > 0 ? 'expecting a little glassling' : 'ready to welcome a glassling';
     if (b.ai) {
       if (b.ai.state === 'follow') return `following ${b.ai.follow ? (b.ai.follow.name || 'a parent') : 'a parent'}`;
+      if (b.ai.state === 'visit') {
+        const who = buddyPartnerName(b);
+        return b.ai.visitRole === 'guest'
+          ? `visiting ${who}`
+          : `hosting ${who} at ${b.ai.visitHome || b.home || 'home'}`;
+      }
       if (b.ai.state === 'seekMate') return 'looking for a mate';
       if (b.ai.state === 'mate') return 'courting';
       if (b.ai.state === 'social') return `hovering with ${buddyPartnerName(b)}`;
@@ -6475,6 +6491,14 @@ window.__gummy = {
   glassSetPregnant(i, on, gestation){ return glassColony ? glassColony.setPregnant(i, on, gestation) : false; },
   glassReset(i){ return glassColony ? glassColony.resetActor(i) : false; },
   glassShelter(i){ return glassColony ? glassColony.forceShelter(i) : false; },
+  glassDragStart(i, x, y){
+    const a = glassColony ? glassColony.actors[i] : null;
+    return a ? glassColony.beginDrag(a, x, y, camera, renderer) : false;
+  },
+  glassDragTo(i, x, y, shift){ const a = glassColony ? glassColony.actors[i] : null; return a ? glassColony.drag(a, x, y, camera, renderer, !!shift) : false; },
+  glassDragEnd(i){ const a = glassColony ? glassColony.actors[i] : null; return a ? glassColony.endDrag(a) : false; },
+  glassVisit(i, j){ return glassColony ? glassColony.forceVisit(i, j) : false; },
+  glassVisitBear(i, j){ return glassColony ? glassColony.forceVisitWithBear(i, bears[j]) : false; },
   glassMate(i, j){ return glassColony ? glassColony.forceMate(i, j) : { ok:false, note:'meadow only' }; },
   glassMateBear(i, j){
     return glassColony ? glassColony.forceMateWithBear(i, bears[j]) : { ok:false, note:'meadow only' };

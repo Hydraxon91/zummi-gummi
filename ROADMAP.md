@@ -484,8 +484,10 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     or lowers, and release carries pointer velocity into a short hover coast.
     They use the shared roster/social/bonds/life fields, take their
     baby/teen/adult growth step only at night, follow a living parent as
-    babies, inherit family homes/parent bonds, can become pregnant and give
-    birth, and save/load in the world payload. Bear/Gummy AI scans the combined
+    babies, inherit family homes/parent bonds, gain sibling bonds, can continue
+    successful socializing into a door-level visit with Glass or soft-body
+    partners, can become pregnant and give birth, and save/load in the world
+    payload. Bear/Gummy AI scans the combined
     companion list for social and mating, so both directions can initiate
     cross-species pairs. Cross-species Glass × Bear/Gummy births use the
     existing Glass GLB or the other parent's rig; custom hybrid bodies remain
@@ -580,9 +582,10 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   returns to hover; it does not yet collide/bounce off world geometry like a
   rigid body throw.
 - **Glass daytime shelter is a hidden home-door state**, not an interior scene.
-  It preserves needs and emerges at night; add interiors only with the home pass.
-- **Bear/Gummy social visits stay among soft-body actors.** A Glass pair can
-  socialize/court in place, but the door-visit stage is skipped for Glass.
+  A door sparkle marks enter/exit, needs and pregnancy persist, and the actor
+  emerges at night; add interiors only with the home pass.
+- **Glass visits are door-level only.** Glass hosts/guests walk to the villa
+  door and socialize outside; interiors remain deferred with the home pass.
 
 Each phase ends playable, with screenshots and headless checks, so the direction
 can be adjusted without losing the working app.

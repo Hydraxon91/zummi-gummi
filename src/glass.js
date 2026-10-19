@@ -34,6 +34,10 @@ const SEEK_AFFECTION = .68;
 const STOP_SOCIAL = .32;
 const SOCIAL_TIME = 3.4;
 const SOCIAL_COOLDOWN = 15;
+const VISIT_CHANCE = .35;
+const VISIT_BOND = .16;
+const VISIT_TIME = 4.8;
+const VISIT_DIST = 1.55;
 const MATE_RADIUS = 22;
 const MATE_DIST = 1.25;
 const WANDER_MIN = 4.0;
@@ -139,6 +143,12 @@ function makeAI() {
     socialT: 0,
     idleT: 0,
     insideT: 0,
+    visitHome: null,
+    visitRole: null,
+    visitPhase: null,
+    visitT: 0,
+    visitArrived: false,
+    visitHearts: 0,
     faceYaw: null,
     socialCooldown: 0,
     taskCooldown: 0,
@@ -467,16 +477,149 @@ export function createGlassColony({
     if (field && field.emote) field.emote(a.cx, a.cy + .95, a.cz, 'heart');
   }
 
+  function startVisitPair(a, b) {
+    if (!a || !b || !a.active || !b.active || a === b) return false;
+    if (a.inside || b.inside || a.sleeping || b.sleeping) return false;
+    const field = fieldNow();
+    if (!field || !Array.isArray(field.homes) || !field.nav) return false;
+    if (!isDay(hoursNow())) return false;
+    const host = a.home ? a : (b.home ? b : null);
+    if (!host) return false;
+    const guest = host === a ? b : a;
+    const home = field.homes.find(h => h.name === host.home);
+    if (!home) return false;
+    const dx = home.door.x - home.x;
+    const dz = home.door.z - home.z;
+    const len = Math.hypot(dx, dz) || 1;
+    let gx = home.door.x - dz / len * .72;
+    let gz = home.door.z + dx / len * .72;
+    const near = field.nav.nearestWalkable(gx, gz);
+    if (near) {
+      gx = near.x;
+      gz = near.z;
+    }
+    const setup = (actor, partner, role, target) => {
+      if (!actor || !actor.ai) return;
+      actor.ai.state = 'visit';
+      actor.ai.partner = partner;
+      actor.ai.visitHome = home.name;
+      actor.ai.visitRole = role;
+      actor.ai.visitPhase = 'travel';
+      actor.ai.visitT = 0;
+      actor.ai.visitArrived = false;
+      actor.ai.visitHearts = 0;
+      actor.ai.moving = false;
+      actor.ai.path = null;
+      actor.ai.target = target;
+      actor.ai.faceYaw = Math.atan2(target.x - actor.cx, target.z - actor.cz);
+      setMoving(actor, target.x, target.z);
+    };
+    setup(host, guest, 'host', { x: home.door.x, z: home.door.z });
+    setup(guest, host, 'guest', { x: gx, z: gz });
+    return true;
+  }
+
+  function finishVisit(a) {
+    const partner = a.ai.partner;
+    const finishSide = (actor) => {
+      if (!actor || !actor.ai) return;
+      actor.ai.state = 'wander';
+      actor.ai.partner = null;
+      actor.ai.visitHome = null;
+      actor.ai.visitRole = null;
+      actor.ai.visitPhase = null;
+      actor.ai.visitT = 0;
+      actor.ai.visitArrived = false;
+      actor.ai.moving = false;
+      actor.ai.path = null;
+      actor.ai.idleT = .55;
+      actor.ai.taskCooldown = 1.0;
+    };
+    if (partner && partner.active) addBond(a, partner, .08);
+    a.social = Math.max(0, a.social - .22);
+    a.affection = Math.max(0, a.affection - .16);
+    a.ai.socialCooldown = 8;
+    finishSide(a);
+    if (partner && partner.ai && partner.ai.partner === a) {
+      partner.social = Math.max(0, finite(partner.social, .3) - .22);
+      partner.affection = Math.max(0, finite(partner.affection, .25) - .16);
+      finishSide(partner);
+    }
+  }
+
+  function updateVisit(a, dt) {
+    const partner = a.ai.partner;
+    if (!isDay(hoursNow())) {
+      finishVisit(a);
+      return;
+    }
+    if (!partner || !partner.active || !a.ai.visitHome) {
+      finishVisit(a);
+      return;
+    }
+    const field = fieldNow();
+    const home = field && Array.isArray(field.homes)
+      ? field.homes.find(h => h.name === a.ai.visitHome)
+      : null;
+    if (!home) {
+      finishVisit(a);
+      return;
+    }
+    if (a.ai.visitPhase === 'hangout') {
+      a.ai.visitT = Math.max(0, (a.ai.visitT || 0) - dt);
+      a.ai.visitHearts = Math.max(0, (a.ai.visitHearts || 0) - dt);
+      if (a.ai.visitHearts <= 0) {
+        a.ai.visitHearts = 1.1;
+        if (field.emote) field.emote(a.cx, a.cy + .95, a.cz, 'heart');
+      }
+      if (a.ai.visitT <= 0) finishVisit(a);
+      return;
+    }
+    a.ai.visitT = (a.ai.visitT || 0) + dt;
+    if (a.ai.visitT > 12) {
+      finishVisit(a);
+      return;
+    }
+    const target = a.ai.target;
+    if (!target) {
+      finishVisit(a);
+      return;
+    }
+    const d = Math.hypot(target.x - a.cx, target.z - a.cz);
+    if (d <= VISIT_DIST) {
+      a.ai.visitArrived = true;
+      a.ai.moving = false;
+      clearPath(a);
+      if (partner.ai && partner.ai.visitArrived) {
+        a.ai.visitPhase = 'hangout';
+        a.ai.visitT = VISIT_TIME;
+        a.ai.visitHearts = 0;
+        if (partner.ai) {
+          partner.ai.visitPhase = 'hangout';
+          partner.ai.visitT = VISIT_TIME;
+          partner.ai.visitHearts = 0;
+        }
+        if (field.emote) field.emote(a.cx, a.cy + .95, a.cz, 'heart');
+      }
+      return;
+    }
+    if (!a.ai.path || !a.ai.path.length) setMoving(a, target.x, target.z);
+    move(a, dt);
+  }
+
   function finishSocial(a) {
     const partner = a.ai.partner;
+    let canVisit = false;
     if (partner && partner.active) {
-      addBond(a, partner, .14 + Math.random() * .06);
+      const bond = addBond(a, partner, .14 + Math.random() * .06);
       a.social = Math.max(0, a.social - .42);
       a.affection = Math.max(0, a.affection - .30);
       if (partner.kind !== 'glass') {
         partner.social = Math.max(0, finite(partner.social, .3) - .18);
         partner.affection = Math.max(0, finite(partner.affection, .25) - .12);
       }
+      canVisit = bond >= VISIT_BOND && isDay(hoursNow()) && Math.random() < VISIT_CHANCE;
+      if (canVisit && startVisitPair(a, partner)) return;
     }
     a.ai.partner = null;
     a.ai.state = 'wander';
@@ -805,14 +948,22 @@ export function createGlassColony({
         partner.ai.partner = null;
         partner.ai.moving = false;
         partner.ai.path = null;
-        if (['social', 'invite', 'decline', 'mate', 'seekCompany', 'seekMate', 'seekSocial'].includes(partner.ai.state)) {
+        if (['social', 'invite', 'decline', 'mate', 'seekCompany', 'seekMate', 'seekSocial', 'visit'].includes(partner.ai.state)) {
           partner.ai.state = 'wander';
           partner.ai.idleT = .4;
+          partner.ai.visitHome = null;
+          partner.ai.visitRole = null;
+          partner.ai.visitPhase = null;
         }
       }
       a.ai.partner = null;
     }
     a.ai.state = 'wander';
+    a.ai.visitHome = null;
+    a.ai.visitRole = null;
+    a.ai.visitPhase = null;
+    a.ai.visitT = 0;
+    a.ai.visitArrived = false;
     a.ai.moving = false;
     a.ai.path = null;
     a.ai.pathIndex = 0;
@@ -1189,6 +1340,10 @@ export function createGlassColony({
       state: a.ai ? a.ai.state : null,
       partner: a.ai && a.ai.partner ? a.ai.partner.name : null,
       follow: a.ai && a.ai.follow ? (a.ai.follow.name || null) : null,
+      visitRole: a.ai ? a.ai.visitRole : null,
+      visitPhase: a.ai ? a.ai.visitPhase : null,
+      visitHome: a.ai ? a.ai.visitHome : null,
+      visitArrived: !!(a.ai && a.ai.visitArrived),
       parentUids: (a.parentUids || []).slice(),
       position: [+a.cx.toFixed(2), +a.cy.toFixed(2), +a.cz.toFixed(2)],
       genome: a.genome,
@@ -1345,6 +1500,12 @@ export function createGlassColony({
           a.ai.idleT = 0;
           a.ai.nextThink = 0;
         }
+        updateVisual(a);
+        if (a.mixer) a.mixer.update(dt);
+        continue;
+      }
+      if (a.ai.state === 'visit') {
+        updateVisit(a, dt);
         updateVisual(a);
         if (a.mixer) a.mixer.update(dt);
         continue;
@@ -1661,6 +1822,14 @@ export function createGlassColony({
     return true;
   }
 
+  function forceVisit(indexA, indexB) {
+    return startVisitPair(actors[indexA], actors[indexB]);
+  }
+
+  function forceVisitWithBear(index, bear) {
+    return startVisitPair(actors[index], bear);
+  }
+
   function forceShelter(index) {
     const a = actors[index];
     if (!a) return false;
@@ -1734,6 +1903,8 @@ export function createGlassColony({
     setAge,
     setPregnant,
     resetActor,
+    forceVisit,
+    forceVisitWithBear,
     forceShelter,
     forceMate,
     forceMateWithBear,
