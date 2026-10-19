@@ -460,6 +460,17 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
     `?race=off`. Studio save/load preserves its species flag and 24-body rig.
     It has no AI, needs, life stages, homes, Meadow integration or dedicated
     locomotion yet.
+  - **Gummy Studio control (Oct 2026):** the Race Lab **Control Gummy** button
+    enters the existing possession path for the 24-body actor. WASD/arrows or
+    the on-screen stick move, Space hops, and V/Esc exits; the camera follows
+    inside the Studio table. Gummy can still be grabbed when not possessed.
+    Glass remains rigid and non-possessable.
+  - **Next — Gummy Studio behavior (Chunk 2):** add interactions and random idle
+    "thinks" based on the ten authored MSN clips. Map Nod, Lean, Wiggle, Wave,
+    BigWave, Cheer, Handshake, Hop, Squash and Idle to procedural soft-body pose
+    targets and timed behavior choices rather than skeletal playback. Include
+    look-at/click reactions, occasional idle choices, and a calm default so the
+    Gummy does not fidget constantly.
   - Add a Race Lab **type** selector only once both paths have their final
     controls. Do not silently share one material, solver or animation set
     between them.

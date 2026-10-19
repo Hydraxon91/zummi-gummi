@@ -2138,13 +2138,18 @@ function applyCamera(dt){
   );
   // Third-person possession keeps the camera above the ground and inside the
   // arena, so orbiting cannot clip through the meadow floor or boundary.
-  if (possessedBear && isMeadow()){
+  if (possessedBear){
     camera.position.y = Math.max(camera.position.y, 0.55);
-    const maxR = (Number.isFinite(FIELD_RADIUS) ? FIELD_RADIUS : 60) - 1.2;
-    const r = Math.hypot(camera.position.x, camera.position.z);
-    if (r > maxR){
-      camera.position.x *= maxR / r;
-      camera.position.z *= maxR / r;
+    if (isMeadow()){
+      const maxR = (Number.isFinite(FIELD_RADIUS) ? FIELD_RADIUS : 60) - 1.2;
+      const r = Math.hypot(camera.position.x, camera.position.z);
+      if (r > maxR){
+        camera.position.x *= maxR / r;
+        camera.position.z *= maxR / r;
+      }
+    } else {
+      camera.position.x = clamp(camera.position.x, -TABLE.hx - .45, TABLE.hx + .45);
+      camera.position.z = clamp(camera.position.z, -TABLE.hz - .45, TABLE.hz + .45);
     }
   }
   if (dt > 0 && camShakeT > 0){
@@ -3272,9 +3277,11 @@ function syncPossessHud(){
   if (possessNameEl) {
     possessNameEl.textContent = on ? `Controlling ${possessedBear.name || 'Gummy'}` : 'In control';
   }
+  syncRaceControlUI();
 }
 function enterPossession(b){
-  if (!b || !b.active || !ai || !isMeadow()) return false;
+  if (!b || !b.active || !ai) return false;
+  if (!isMeadow() && b.species !== 'msn') return false;
   if (possessedBear && possessedBear !== b) exitPossession();
   // Sleeping is not a refusal: possession wakes the bear and hands control over.
   if (b.sleeping){
@@ -3302,6 +3309,26 @@ function exitPossession(){
   syncPossessHud();
   return true;
 }
+function gummyActor(){
+  return bears.find(b => b.active && b.species === 'msn') || null;
+}
+function syncRaceControlUI(){
+  const btn = document.getElementById('raceControl');
+  if (!btn) return;
+  const g = gummyActor();
+  const available = !!g && !studioActorHidden(g);
+  btn.disabled = !available;
+  const controlling = !!possessedBear && possessedBear === g;
+  btn.textContent = controlling ? 'Exit control' : 'Control Gummy';
+  btn.classList.toggle('on', controlling);
+}
+function toggleGummyPossession(){
+  if (possessedBear) return exitPossession();
+  const g = gummyActor();
+  if (!g || studioActorHidden(g)) return false;
+  selectedBear = g;
+  return enterPossession(g);
+}
 function togglePossession(){
   if (possessedBear) return exitPossession();
   return selectedBear ? enterPossession(selectedBear) : false;
@@ -3318,7 +3345,7 @@ function possessionJump(){
 }
 function updatePossessionLocomotion(dt){
   if (!possessedBear) return;
-  if (!isMeadow() || !possessedBear.active) { exitPossession(); return; }
+  if (!possessedBear.active || (!isMeadow() && possessedBear.species !== 'msn')) { exitPossession(); return; }
   const b = possessedBear;
   if (possessHopCd > 0) possessHopCd = Math.max(0, possessHopCd - dt);
   if (b.grabs > 0 || b.inPond) return;
@@ -4940,6 +4967,8 @@ function applyStudioCast(value = studioCast, persist = true){
     directivePick = false;
     syncDirectivePanel();
   }
+  if (!meadow && studioCast === 'bears' && possessedBear && possessedBear.species === 'msn') exitPossession();
+  syncRaceControlUI();
   if (!msnOn) cursorEl.classList.remove('move');
   document.body.classList.toggle('msn-only', !meadow && studioCast === 'msn');
   syncStudioCastUI();
@@ -5008,6 +5037,7 @@ function activateMap(id, opts = {}){
     seedStudioBears();
   }
   syncStudioCastPhysics();
+  syncRaceControlUI();
   w.initialized = true;
   selectedBear = null;
   directivePick = false;
@@ -6172,7 +6202,9 @@ for (const btn of document.querySelectorAll('#raceCast [data-cast]')){
   btn.addEventListener('click', () => applyStudioCast(btn.dataset.cast));
 }
 document.getElementById('raceFrame')?.addEventListener('click', focusMsn);
+document.getElementById('raceControl')?.addEventListener('click', toggleGummyPossession);
 syncStudioCastUI();
+syncRaceControlUI();
 
 initMenu();
 if (new URLSearchParams(location.search).get('autostart') === '1') {
