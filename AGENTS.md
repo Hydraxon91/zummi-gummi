@@ -58,7 +58,8 @@ working in this repo.
   navigation, not proof of current source or authorization. If a required decision or
   approval is missing or ambiguous, ask rather than reconstruct it.
 - **Keep tool output small:** use grep/head/line ranges and `git status --short`; never
-  dump whole files or full logs. Do not narrate progress or print step checklists.
+  dump whole files or full logs. Avoid routine narration and printed step checklists;
+  provide concise updates at meaningful results, blockers or the call-budget boundary.
 - **Stop and report** if ~30 tool calls pass without a plan or a result. If an assigned
   time or tool-call limit is approaching, stop at a clean point and report what remains. Do
   not invent remaining-token counts or treat an unspecified budget as nearly exhausted.
@@ -178,6 +179,10 @@ existing stack and structure.
 - **No style conversions for aesthetics:** if existing code is functional and matches the
   surrounding style, leave it alone. Do not change working syntax unless aligning newly
   written code to it.
+- **Reusable copies must not replace project guidance.** Extracting a universal skill or
+  workflow means copying and generalizing it separately. Preserve this project's adapted
+  instructions and local resources; replacing them with an adapter or adding an external
+  folder dependency requires explicit approval for that change.
 - **Preserve the app at every step:** the game must stay loadable. Do not leave the working
   tree in a temporarily broken state at the end of a turn; if you must stop mid-check, say
   so first and name the file and change still to be reverted.
@@ -376,6 +381,9 @@ approved work chunk.
 - **Keep source editable.** Preserve source geometry/parameters before applying
   destructive booleans, remeshing or decimation. Use a separate export/evaluated copy
   where appropriate. A requested change to one part must not silently reshape others.
+- **Check shared data before edits.** Inventory mesh, material and image users, parents,
+  constraints and modifier dependencies. Make an approved independent copy when necessary;
+  changing one part must not silently change linked parts or their placement.
 - **Calibrate references before modeling.** Record the real target dimensions, measure what
   each reference sheet actually encodes, pick one sheet as the dimensional authority and
   never non-uniformly scale a reference to force agreement. If sheets conflict, that is the
@@ -419,17 +427,19 @@ approved work chunk.
   requires approval if it would discard them. If safe restoration is blocked, stop and
   report. Do not keep patching on top of a failing generator.
 - **Locate the target before editing it.** When a change is aimed at something visible,
-  cast a ray from the capture camera through that point and print the object name, face
-  index and world coordinate. Do not infer the target from bounding boxes, vertex scans or
-  proximity: a body shell, a cage tube and a bed rail can share a region. No edit before the
-  target is identified this way.
-- **Hiding is destructive.** Before hiding, deleting or superseding an object, print its
-  island inventory (island count, vertices per island, bounds) and check whether one island
-  is the structural surface rather than a detail. Hiding a body panel flattens the model;
-  keep the source and restore it if the silhouette changes.
-- **Never run partial-mesh surgery.** Bisecting or boolean-cutting a subset of an object's
-  faces leaves T-junctions and non-manifold edges on the untouched boundary. Cut whole
-  objects, then run the manifold/loose/flipped check immediately.
+  confirm the object/component using picking or a raycast tied to the actual capture camera,
+  then inspect an isolation capture. Record the object, face/component and world position;
+  the first hit may be an occluder, not the target. If camera/pixel correspondence is unknown,
+  reproduce the view or ask for a marked target. Names, bounds and proximity alone do not
+  establish identity; do not invent coordinates to satisfy this check.
+- **Distinguish isolation from replacement.** Temporary diagnostic hiding is allowed within
+  scope and must be restored in `finally`. Before deleting, superseding or excluding an
+  object from delivery, print its island inventory and identify structural surfaces versus
+  details. Preserve the source and verify silhouette and structural completeness afterward.
+- **Handle partial-mesh boundaries deliberately.** Prefer complete connected components,
+  isolated copies or closed boolean operands. Partial cuts can leave T-junctions or open
+  boundaries; verify selection, closure and neighboring topology, then immediately run the
+  manifold/loose/flipped check. Do not assume either failure or safety from the operation alone.
 - **One coordinate space per build.** State whether coordinates are local or world before
   writing geometry, and never mix them: `v.co` is local, `matrix_world` is not, and a rotated
   object's local Z is not world Z. Build one instance, print its world bounding box against
@@ -442,6 +452,18 @@ approved work chunk.
   control is forbidden even when the fix looks right; report the evidence and the attempts.
 - **Report on a call budget.** At twenty tool calls in one turn, post one line: done,
   blocked, next. Do not keep working past it silently.
+- **Scripts are not transactions.** After an exception, inspect which edits already ran
+  before retrying. Restore temporary diagnostics and state in `finally`; do not rerun a
+  partly applied script blindly or treat a failed call as proof that nothing changed.
+- **Cleanup requires an explicit manifest.** Propose the exact keep/move/delete sets,
+  collision handling and rationale before approval. Preserve accepted checkpoints and
+  important baseline/verification evidence; recency or a fixed capture count alone is not
+  a retention policy. Inspect destinations and verify the resulting inventory afterward.
+- **Bake and export faithfully.** A new noise texture is a replacement, not a bake of the
+  original shader. Preserve source graphs, transfer all required channels and compare under
+  matching conditions; simplifications require approval. Verify self-contained exports in
+  a clean import with original texture paths unavailable, inspect connected maps and view
+  the result. A Blender round trip does not prove support in the destination engine.
 - **Asset-library integrations are unvalidated.** Poly Haven, Sketchfab and Poly Pizza are
   enabled in the Blender MCP addon but have not been exercised in this project. Treat them as
   untrusted: record source, author and licence for every imported asset, verify scale, axis

@@ -66,15 +66,19 @@ remote code in Blender. Report limitations alongside results, not just a pass fl
 4. State units and axis conventions in the plan (e.g. metres, +Y front, +Z up) and keep
    them for the whole session. Put parts in collections per system and name objects
    clearly (`Wheel_FL`, `Tire_FL`).
+5. Inventory shared mesh/material/image users, parents, constraints and modifier dependencies
+   before changing data. Preserve linked users outside the scope; create an approved independent
+   copy when needed rather than silently altering another part or its placement.
 
 ## Locating geometry before you touch it
 
 When the user points at something ("this tube clips the body", "the hood is gone"), identify
 it from the capture, not from bounding boxes or proximity.
 
-1. Cast a ray from the capture camera through the reported position and print the hit
-   object, face index and world coordinate. Reuse the exact camera transform of the capture
-   that showed the problem; a re-framed view relocates the target.
+1. Pick the visible target or cast a ray using the actual capture camera/pixel correspondence.
+   Record the object, face/component and world position, then confirm it in an isolation
+   capture. The first hit can be an occluder. If the camera cannot be recovered, reproduce
+   the view or ask for a marked target; do not invent coordinates or edit a guessed object.
 2. Print that object's island inventory before assuming what it is: island count, vertices
    per island, and each island's bounds. One object routinely holds both a detail and a
    structural panel.
@@ -86,8 +90,10 @@ spanning X ±0.40 / Y −1.14…−0.53 — the raised hood panel itself. Hiding
 flattened the hood and the user caught it. An island inventory before hiding would have
 prevented the whole detour.
 
-Corollary: vertex-based protrusion tests are meaningless on tube meshes, whose vertices sit
-only at the ring ends. Test triangle intersections with a BVH, or cast rays, instead.
+Vertex sampling can detect some defects and measure vertex displacement, but cannot establish
+complete surface clearance. Long tube faces can cross a host while both endpoint rings clear
+it. Inspect evaluated triangles with BVH/ray or surface tests and captures; interpret intended
+joints and containment separately rather than treating an overlap count as the verdict.
 
 ## Capturing views
 
@@ -159,9 +165,10 @@ only at the ring ends. Test triangle intersections with a BVH, or cast rays, ins
    rim/flare strips in generator code. Where a surface will later be smoothed, subdivided,
    remeshed or boolean-cut as a solid, build it as a closed manifold solid. Intentional
    open panels may be smoothed or subdivided, but must not be treated as closed volumes.
-4. Cut openings (wheel arches, windows) with Boolean cutters kept unapplied, in a hidden
-   `Cutters` collection. Apply only when approved. Build flares and trim as separate
-   objects so edits to the shell never touch them.
+4. Cut openings (wheel arches, windows) with closed Boolean cutters kept unapplied in dedicated
+   collections. Inspect existing collection-boolean consumers before adding operands; never
+   put a new cutter into a shared collection merely because it is named `Cutters`. Apply only
+   when approved. Build flares and trim separately so their edits do not reshape the shell.
 5. When salvaging a model, keep the parts that match the references. Hide, do not delete,
    a replaced shape and use it as a size guide.
 6. Match the silhouette in solid shading before polishing glass or lighting. Keep
@@ -170,6 +177,9 @@ only at the ring ends. Test triangle intersections with a BVH, or cast rays, ins
 7. Change only the requested region. For percentage edits, record the baseline
    dimensions/parameters and preserve unrelated regions. Applied unions make isolated
    edits harder: preserve the source operands before applying them.
+8. Temporary hiding for isolation is diagnostic state: restore it in `finally`. Superseding
+   or excluding geometry from delivery requires a component inventory, preserved source and
+   silhouette/completeness checks; do not confuse temporary isolation with asset removal.
 
 ## Fitting attachments to host surfaces
 
@@ -250,13 +260,16 @@ unrelated lighting or cameras to conceal shape defects.
   active object, overlays and shading in `finally`, even when capture fails. Use verified
   orthographic views or a tested camera-framing helper rather than repeated guessed
   perspective rotations. Inspect the capture before claiming the intended framing worked.
-- BMesh elements are invalid after `bm.free()` or `to_mesh()`. Collect indices or plain
-  coordinates, never keep `BMVert`/`BMEdge`/`BMFace` references across the free. The error
-  is `ReferenceError: BMesh data of type BMVert has been removed` and it aborts the script
-  after earlier edits have already been applied.
-- Primitive sizes are half-extents: `bmesh.ops.create_cube(size=s)` spans ±s/2, and object
-  `scale` multiplies that. Decide the intended span, set size/scale, then print `dimensions`
-  and compare before building anything on top of it.
+- BMesh element references become invalid after `bm.free()` or deletion of those elements;
+  topology changes can invalidate retained references/indices. Copy coordinates or collect
+  indices while valid, and refresh index/lookup tables after topology edits. `bm.to_mesh()`
+  writes a mesh but does not itself free the BMesh.
+- Scripts are not transactions: an exception can follow successful earlier edits. Inspect
+  the actual scene before retrying, avoid double-applying changes, and restore temporary
+  selection, visibility, material overrides and render/bake settings in `finally`.
+- `bmesh.ops.create_cube(size=s)` has full side length `s` and spans ±s/2; object `scale`
+  multiplies that. Decide the intended span, then verify evaluated world dimensions after
+  updating the view layer/depsgraph before building anything on top of it.
 - `v.co` is local. On a rotated or offset object, edit through `matrix_world` (or
   `matrix_world.inverted()`); a local Z change does not move the object vertically in world
   space. Moving a cylinder along its local Z slides it along its own axis.
@@ -265,10 +278,11 @@ unrelated lighting or cameras to conceal shape defects.
   against the target, then replicate — do not rebuild all four and discover it afterwards.
 - `hide_set` is viewport-only: hidden objects still evaluate into booleans and modifiers, but
   are excluded from `visible_get()` and from an export built on visible objects.
-- Partial-mesh bisect or boolean leaves T-junctions on the untouched boundary and produces
-  non-manifold edges. Cut whole objects, then run the manifold check immediately.
-- A beveled curve with `use_fill_caps` can still produce doubled cap vertices; weld and fill
-  before claiming a closed mesh.
+- Prefer complete connected components, isolated copies or closed operands for cuts. Partial
+  face operations can leave T-junctions/open boundaries; verify selection, closure and neighboring
+  topology and run the health check immediately. They are not inherently invalid in every case.
+- A beveled curve with `use_fill_caps` can still produce coincident cap-rim vertices. Inspect
+  evaluated boundaries and weld/fill only where approved and necessary; preserve intentional holes.
 - Keep MCP local-only. Do not enable paid generators/download integrations without
   approval or use Blender scripting to bypass repository file-edit requirements.
 
@@ -277,8 +291,8 @@ unrelated lighting or cameras to conceal shape defects.
 Enabled in the Blender MCP addon but **not yet validated in this project**. Treat every
 library asset as untrusted until checked:
 
-- Record source, asset id, author and licence beside the import; never mix licences in one
-  deliverable.
+- Record source, asset id, author and licence beside the import. Check compatibility and meet
+  each asset's attribution/redistribution obligations; different licences may coexist when compatible.
 - Imported models arrive at arbitrary scale, axis and origin. Measure the bounding box, then
   set scale, rotation and origin explicitly; do not assume metres or Z-up.
 - A library asset is not evidence of reference fidelity. Do not substitute it for a part the
@@ -301,14 +315,25 @@ library asset as untrusted until checked:
 - Export only intended objects to the approved path. Check scale, axis conversion,
   origin, normals, material support and required extensions. Blender is Z-up;
   glTF is Y-up: verify conversion rather than adding an untested extra rotation.
-- Check export readiness explicitly, not by assumption: every visible mesh has at least one
-  material slot (a mesh with none renders default grey and reads as a hole in the paint),
-  every exported mesh has a UV layer, and a re-import confirms the images travelled with the
-  file when textures are expected. Procedural shader nodes do not survive any interchange
-  format; bake them to images with real UVs first, or state that the paint arrives flat.
-- Bake on the object's own UV layout and give each baked object its own material copy; a
-  shared material cannot hold two different bakes. Set metallic/roughness to constants when
-  their procedural drivers are baked away, and say so in the report.
+- Check rendered material coverage; missing material slots must be intentional, not unnoticed
+  default grey. Require valid UVs where textures/bakes or the destination need them, not on
+  every untextured mesh. Inspect islands, checker distortion, overlap and padding at the intended
+  resolution; a UV layer or successful automatic unwrap alone does not establish suitability.
+- Blender procedural graphs generally do not transfer faithfully to glTF/FBX. Preserve original
+  graphs and bake required channels where unsupported. Newly generated noise is a replacement,
+  not a transfer of the original appearance. Compare source and baked materials under matching
+  lighting, cameras and view transform.
+- Separate per-object material copies when distinct bake images need them, unless an intentional
+  shared atlas is used. Prepare active image targets in every relevant material; resolve missing-target
+  warnings before claiming complete coverage. Set colour/data spaces before baking and saving.
+- A colour bake does not transfer procedural roughness, metallic, bump or coat. Bake required
+  channels too, or obtain approval for a documented simplification; do not silently replace their
+  drivers with constants. Save/reload images deliberately and inspect the connected maps.
+- For self-contained packaging, re-import in a disposable scene with original texture paths
+  unavailable. Inspect resolved images, actual material connections and rendered appearance—not
+  just image-node counts. Embedding depends on exporter/importer support; a Blender round trip
+  does not prove destination-engine support. If unverified, say so and offer a relative-path
+  texture bundle rather than promising the FBX alone is sufficient.
 - Quads/ngons triangulate on glTF export; UV/normal discontinuities can increase
   vertex counts. Record exported stats and validate the GLB with Khronos's validator
   when available. Its browser tool processes files locally; no new project package
@@ -317,6 +342,16 @@ library asset as untrusted until checked:
   inspect in the project's pinned three.js runtime with the real lighting/materials.
   Keep Blender/MCP out of runtime dependencies. Record source/reference provenance;
   do not assume a recreated branded character grants redistribution rights.
+
+## Cleanup and reuse
+
+- Before cleanup, propose exact keep/move/delete sets, destination collision handling and
+  rationale. Preserve accepted source checkpoints and important baseline/verification captures;
+  retaining only the newest files or a fixed capture count is not sufficient justification.
+  Follow the project's deletion approval gate and verify the resulting inventory afterward.
+- Reusable guidance is a separate copied/generalized deliverable. Keep this project's adapted
+  skill, instructions and local resources intact unless replacing them or adding an external
+  dependency is explicitly requested and approved.
 
 ## Step report format
 

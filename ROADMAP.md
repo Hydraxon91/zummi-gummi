@@ -1284,6 +1284,20 @@ a runtime dependency of the browser game.
   `71d031dab8bc6729504d11a78cbe91945401045f`; attribution and isolated Blender
   5.2.2 LTS fixture commands live alongside the skill. No global installation,
   compressed-export defaults, runtime dependencies or game integration.
+- **Independent reusable authoring copy (2026-10-19):** the sibling `../BlenderAuthoring/`
+  package is a separate, harness-neutral copy for other projects, not a dependency of Gummy.
+  The full project-specific `gummy-3d-authoring` skill and `AGENTS.md` section 15 have been
+  restored from `cfd26ee` and then corrected in place; their local references and helpers
+  remain authoritative here.
+  No external package is required alongside a Gummy clone. The universal package is unchanged.
+- **Known follow-ups — authoring-rule corrections (2026-10-19, fixed):** the restored
+  skill's cube-size/BMesh lifetime claims, blanket UV requirement and mixed-licence ban
+  could cause incorrect geometry or unnecessary edits. Corrected them in place, added
+  clean-path/importer export checks, and required faithful multi-channel baking or approved
+  simplifications. Target picking now handles occluders/unknown cameras; temporary isolation
+  and partial cuts have explicit state/boundary checks rather than blanket prohibitions.
+  Added shared-data, partial-script recovery, cleanup-manifest and independent-copy safeguards,
+  while retaining Gummy's full adapted instructions and resolving progress-update wording.
 - **Known follow-ups — upstream skill adaptation:** deferred/not imported:
   upstream `blender-asset-qa`'s `game` profile can pass open boundaries and only
   warn on non-manifold edges; it must not replace our closed-solid health gate.
