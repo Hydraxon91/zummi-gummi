@@ -36,8 +36,8 @@ jobs:
           rm -rf _site
           mkdir -p _site
           cp index.html LICENSE _site/
-          cp -R src vendor _site/
-          for f in index.html LICENSE src/app.js src/config.js src/box3d.js vendor/box3d/box3d.js vendor/box3d/box3d.wasm; do
+          cp -R src vendor assets _site/
+          for f in index.html LICENSE src/app.js src/config.js src/box3d.js vendor/box3d/box3d.js vendor/box3d/box3d.wasm assets/MSN_Figure/msn.glb; do
             test -f "_site/$f" || { echo "::error::missing _site/$f"; exit 1; }
           done
           find _site -maxdepth 1 -mindepth 1 | sort
