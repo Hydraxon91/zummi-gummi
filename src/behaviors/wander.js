@@ -75,21 +75,7 @@ function think(ctx) {
   const family = api.acquireFamilyPlaymate(actor);
   if (family && api.startPlaydate(actor, family.actor, family.kind)) { api.coverSlot('familyPlaymate'); return true; }
   if (api.runOpportunity(actor, 'social.company')) return true;
-  // TEMPORARY(port): stargaze
-  let stargazeWindow = !api.isDayFor(actor);
-  if (api.feature('glassNightWindow')) {
-    const nightStart = Number.isFinite(p.rest.nightStart) ? p.rest.nightStart : 18;
-    const nightEnd = Number.isFinite(p.rest.nightEnd) ? p.rest.nightEnd : 6;
-    const h = api.hoursNow();
-    stargazeWindow = h >= nightStart || h < nightEnd;
-  }
-  if (p.stargaze && stargazeWindow && rng() < p.stargaze.chance) {
-    api.coverSlot('stargaze');
-    ai.state = 'stargaze';
-    ai.idleT = p.stargaze.min + rng() * (p.stargaze.max - p.stargaze.min);
-    api.stop(actor);
-    return true;
-  }
+  if (api.runOpportunity(actor, 'stargaze.seek')) return true;
   if (api.runOpportunity(actor, 'wander.arrive')) return true;
   if (ai.idleT > 0) return true;
   api.runOpportunity(actor, 'wander.target');

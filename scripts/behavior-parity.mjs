@@ -857,6 +857,7 @@ export function mergeCoverage(results) {
   const taskEntries = {};
   const pipeline = {};
   const conflictOutcomes = {};
+  const stargazeHours = {};
   const add = (target, source) => {
     for (const [key, value] of Object.entries(source || {})) {
       target[key] = (target[key] || 0) + value;
@@ -873,8 +874,9 @@ export function mergeCoverage(results) {
     add(taskEntries, coverage.taskEntries);
     add(pipeline, coverage.pipeline);
     add(conflictOutcomes, coverage.conflictOutcomes);
+    add(stargazeHours, coverage.stargazeHours);
   }
-  return { states, entries, opportunities, taskPhases, tasks, taskEntries, pipeline, conflictOutcomes };
+  return { states, entries, opportunities, taskPhases, tasks, taskEntries, pipeline, conflictOutcomes, stargazeHours };
 }
 
 function coverageSection(merged, title, race = null) {
@@ -911,6 +913,11 @@ function coverageSection(merged, title, race = null) {
   lines.push('  conflict outcomes');
   for (const id of Object.keys(merged.conflictOutcomes || {}).sort()) {
     lines.push(`    ${id.padEnd(18)} ${String(merged.conflictOutcomes[id] || 0).padStart(7)}`);
+  }
+  const stargazeHours = Object.entries(merged.stargazeHours || {}).sort(([a], [b]) => a.localeCompare(b));
+  if (stargazeHours.length) {
+    lines.push('  stargaze by hour: ' +
+      stargazeHours.map(([key, hits]) => `${key}=${hits}`).join(', '));
   }
   const travel = merged.taskPhases.travel || 0;
   const act = merged.taskPhases.act || 0;

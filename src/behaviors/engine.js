@@ -30,6 +30,7 @@ import { socialModule } from './social.js';
 import { mateModule } from './mate.js';
 import { conflictModule } from './conflict.js';
 import { followModule } from './follow.js';
+import { stargazeModule } from './stargaze.js';
 
 const STUCK_DIST2 = .04;
 
@@ -119,6 +120,11 @@ export function createBehaviorModules({
     coverage.conflictOutcomes.set(id, (coverage.conflictOutcomes.get(id) || 0) + 1);
   }
 
+  function coverHour(kind, hour) {
+    const key = `${kind}:${Math.max(0, Math.min(23, Math.floor(hour)))}`;
+    coverage.stargazeHours.set(key, (coverage.stargazeHours.get(key) || 0) + 1);
+  }
+
   function coverageSnapshot() {
     const map = (source) => Object.fromEntries([...source.entries()].sort(([a], [b]) => a.localeCompare(b)));
     return {
@@ -130,6 +136,7 @@ export function createBehaviorModules({
       taskEntries: map(coverage.taskEntries),
       pipeline: map(coverage.pipeline),
       conflictOutcomes: map(coverage.conflictOutcomes),
+      stargazeHours: map(coverage.stargazeHours),
     };
   }
 
@@ -227,7 +234,7 @@ export function createBehaviorModules({
   const coverage = {
     states: new Map(), entries: new Map(), opportunities: new Map(),
     taskPhases: new Map(), tasks: new Map(), taskEntries: new Map(),
-    pipeline: new Map(), conflictOutcomes: new Map(),
+    pipeline: new Map(), conflictOutcomes: new Map(), stargazeHours: new Map(),
   };
   const lastCoverState = new WeakMap();
   const lastCoverTask = new WeakMap();
@@ -1282,15 +1289,6 @@ export function createBehaviorModules({
       hiveModule.tick(contextFor(actor, { dt }), dt);
       return;
     }
-    if (ai.state === 'stargaze') {
-      ai.idleT = Math.max(0, ai.idleT - dt);
-      if (ai.idleT <= 0 || actor.hunger > .85 || actor.thirst > .88) {
-        ai.state = 'wander';
-        ai.idleT = 0;
-        ai.nextThink = 0;
-      }
-      return;
-    }
     if (adapter && typeof adapter.tickState === 'function') {
       if (adapter.tickState(actor, dt, api) !== false) return;
     }
@@ -1609,6 +1607,7 @@ export function createBehaviorModules({
   registerModule(mateModule);
   registerModule(conflictModule);
   registerModule(followModule);
+  registerModule(stargazeModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -1655,7 +1654,7 @@ export function createBehaviorModules({
     startVisit, startPlaydate, startConflict,
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
-    coverSlot, coverConflictOutcome,
+    coverSlot, coverConflictOutcome, coverHour,
     adapterSleepDone, adapterOnSleep, adapterOnWake, adapterHungerOpportunity,
     noteDoorTransition,
     setModuleEnabled, setModuleParams, setActorConfig, setFeature,
