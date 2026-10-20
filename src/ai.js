@@ -554,6 +554,7 @@ export function createBearAI({
     directiveState: moduleDirectiveState,
     setPossessed,
     preNeeds: directives.preNeeds,
+    preTick: (b, dt) => directives.preTick(b, dt),
     get enabled() { return enabled; },
   };
 }
