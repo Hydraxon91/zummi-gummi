@@ -1012,11 +1012,12 @@ can proceed with the current runtime and assets.
   the refusal sprite was also checked at night. No square backing or halo is visible,
   and the canvas corners are fully transparent. The canvas is explicitly cleared,
   mipmaps are disabled and the sprite uses `alphaTest` to reject transparent texels.
-- **Movement profile (recorded).** The current 8-soft-body + 2-Glass session measured
-  **26.37 ms** normal and **12.55 ms** in the CI graphics profile, with AI at
-  0.048/0.068 ms. The normal reading is ~4 ms above the earlier Phase F session but
-  is a different session; it is recorded as the current monitoring baseline in
-  `PERFORMANCE.md`, not as a claimed regression or win.
+- **Movement profile (contended, discarded).** A 8-soft-body + 2-Glass session
+  measured 26.37 ms normal and 12.55 ms in the CI graphics profile, with AI at
+  0.048/0.068 ms, but Blender was running and competing for GPU/CPU. The frame
+  times are discarded and recorded only as a contended run in `PERFORMANCE.md`;
+  the earlier 22.0–22.7 ms clean Phase F result remains the last valid reference.
+  Re-profile in a fresh session before changing grass density or quality defaults.
 - **Citizen panel (fixed).** The two refresh signatures now share one helper, and rows
   are keyed by actor uid and updated in place instead of rebuilding the whole list.
   Browser checks keep an original row connected after idle and complete 10/10 CDP
