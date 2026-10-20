@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "profile_id": "mixed_architecture",
   "status": "provisional",
   "description": "Provisional profile for the Frutiger Aero bubble house: mixed opaque shell, glass and emissive trim, exterior-only for the first delivery.",
@@ -15,7 +15,7 @@
   "requirements": {
     "units": "metres",
     "axes": "Blender +Z up; glTF conversion and destination orientation verified",
-    "uv": "UVs only where required by the chosen materials or bake path",
+    "uv": "UVs only where required by image textures or the bake path; constant/procedural materials do not require UVs by themselves",
     "geometry": "Closed intended solids, real window/door openings and wall thickness",
     "source": "Editable Blender source preserved; bake/export processing happens on a copy"
   },
@@ -40,7 +40,7 @@
   },
   "textures": {
     "source": "procedural Blender materials; bake/convert for glTF",
-    "resolution_policy": "camera-derived density policy is Phase 1b",
+    "resolution_policy": "Measure 1024 and 2048 as advisory variants; bake resolution follows the selected closest view",
     "color_spaces": {
       "base_color": "sRGB",
       "normal": "Non-Color",
@@ -50,6 +50,25 @@
       "emissive": "sRGB"
     },
     "tiling": "not assumed for architecture"
+  },
+  "texel_density": {
+    "method": "camera_projected_advisory",
+    "camera": null,
+    "viewport_px": [1920, 1080],
+    "texture_resolutions_px": [[1024, 1024], [2048, 2048]],
+    "target_texels_per_screen_pixel": [1.0, 2.0],
+    "spread_ratio_max": 2.0,
+    "anisotropy_ratio_max": 1.5,
+    "zone_mode": "material",
+    "small_triangle_screen_px": 4.0,
+    "min_zone_samples": 4,
+    "min_visible_fraction": 0.1,
+    "advisory": true,
+    "notes": [
+      "Camera must be selected explicitly; the scene camera is never assumed to be the closest intended view.",
+      "Consistency is evaluated per material zone, not across shell, glass and trim together.",
+      "Thresholds are advisory until calibrated against the curved house test."
+    ]
   },
   "web_delivery": {
     "format": "glb",
@@ -102,6 +121,7 @@
     "Provisional until the bubble house is modeled and tested.",
     "Reference image 3 is copyrighted night-lit inspiration only; never a generation, projection or texture input.",
     "No UDIM assumption in glTF delivery.",
+    "Texel-density thresholds are advisory and do not establish delivery acceptance.",
     "Exterior-only first scope; interiors, aquarium, animated bubbles, landscaping and spiral staircase are deferred."
   ],
   "deferred": [

@@ -5,6 +5,11 @@ import json
 import sys
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+import density_policy  # noqa: E402
+
 PROFILE_REQUIRED = (
     "schema_version",
     "profile_id",
@@ -12,6 +17,7 @@ PROFILE_REQUIRED = (
     "description",
     "scope",
     "materials",
+    "texel_density",
     "web_delivery",
     "verification",
     "limits",
@@ -61,6 +67,10 @@ def validate_profile(doc):
     for key in ("limits", "deferred"):
         _require_type(doc[key], list, "profile." + key)
     _require_type(doc["materials"].get("model"), str, "profile.materials.model")
+    try:
+        density_policy.validate_policy(doc["texel_density"])
+    except density_policy.PolicyError as exc:
+        raise DocumentError("profile.texel_density: %s" % exc)
     _require_type(doc["web_delivery"].get("format"), str, "profile.web_delivery.format")
     _require_type(doc["web_delivery"].get("compression"), dict,
                   "profile.web_delivery.compression")

@@ -1,6 +1,6 @@
 # Asset Pipeline Roadmap
 
-Status: **Phase 1a implemented**; Phase 1b next.
+Status: **Phase 1b implemented**; Phase 2 next.
 Date: 2026-10-20
 Owner: Hydraxon
 
@@ -149,7 +149,8 @@ Approve profile/schema fields and representative assets. No generation or house 
 - Pure tests and a Blender fixture pass: valid cube, bad out-of-bounds UV/no material
   cube, and no-UV cube.
 - Crate audit verified with and without the opaque profile; source SHA-256 is unchanged.
-- No texel-density policy, routing, export, Qwen generation or house modeling yet.
+- Phase 1a did not include a texel-density policy, routing, export, Qwen generation or
+  house modeling.
 
 ---
 
@@ -189,6 +190,33 @@ Approximately **1 day** (combined Phase 1 effort: ~2–3 days).
 ### Decision gate
 
 Approve density range, fixture coverage and warning semantics.
+
+Approved 2026-10-20: advisory camera-derived defaults, per-material-zone consistency,
+and review/unverified semantics. Blocking use requires later calibration.
+
+### Implementation (2026-10-20)
+
+- Added an advisory camera-projected density policy. An explicit camera is required;
+  the scene camera is not assumed to be the closest intended view.
+- Compares measured texture density with per-triangle projected screen density,
+  including oblique surfaces, and reports directional UV anisotropy separately.
+- Evaluates `1024²`, `2048²` and fixture-only `4096²` independently; no resolution is
+  mandatory.
+- Consistency is checked per material zone, with small triangles reported separately
+  rather than discarded.
+- Thresholds are advisory: ratio `1.0–2.0`, spread `p95/p05 > 2.0`, anisotropy
+  `p95 > 1.5`.
+- `no_active_uv` is now conditional on image-textured materials; untextured constant or
+  procedural meshes do not warn.
+- Export preflight distinguishes required missing images from unused/unconnected ones
+  and flags UDIM/sequence/movie sources and zero-pixel images.
+- Added pure policy tests and a failing Blender fixture covering under/over density,
+  inconsistent density, anisotropy, missing/packed-missing/unsupported images,
+  object-linked slots, unresolved groups, degenerate geometry and unverified density
+  without a camera.
+- Added `--camera` and `--fail-on {none,error,warning}`; default remains non-blocking.
+- Crate audit verified with the explicit scene camera; source SHA-256 is unchanged.
+- No export, validator, Qwen generation or house modeling yet.
 
 ---
 
@@ -688,7 +716,7 @@ authorize game integration, dependency changes, commits or pushes.
 
 # Approval gates and deferred work
 
-- **Phase 1a only** is the next implementation step.
+- **Phase 2** is the next implementation step.
 - No house modeling, Qwen generation or game integration at this stage.
 - No commit or push without explicit approval.
 - Validator provisioning is approved, but loader/preview-harness changes are separate.
@@ -698,7 +726,8 @@ authorize game integration, dependency changes, commits or pushes.
 
 ## Next action
 
-Phase 1a is implemented under `tools/asset-pipeline/`. Begin **Phase 1b** next:
-texel-density policy, failing fixtures and documented warning semantics.
+Phase 1b is implemented under `tools/asset-pipeline/`. Begin **Phase 2** next:
+the unified export-verification report, including pinned glTF-Validator results,
+clean-load checks and three.js capture evidence.
 
-No texel-density gate, export, generation or house modeling has started yet.
+Density thresholds remain advisory; no export, generation or house modeling has started.

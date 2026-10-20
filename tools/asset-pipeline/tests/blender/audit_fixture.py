@@ -64,6 +64,8 @@ bad = make_cube("Bad_Cube", with_material=False, bad_uv=True)
 bad.location.x = 2.0
 no_uv = make_cube("No_UV_Cube", with_material=False, with_uv=False)
 no_uv.location.x = 4.0
+no_uv_textured = make_cube("No_UV_Textured", with_material=True, with_uv=False)
+no_uv_textured.location.x = 6.0
 
 before_uv = tuple(
     (float(loop.uv.x), float(loop.uv.y))
@@ -73,21 +75,34 @@ before_objects = {ob.name for ob in bpy.data.objects}
 
 helpers = audit_asset.load_helpers()
 report = audit_asset.build_report(
-    ["Fixture_Cube", "Bad_Cube", "No_UV_Cube"], helpers, resolution=64,
-    closed=True, profile_path=None)
+    ["Fixture_Cube", "Bad_Cube", "No_UV_Cube", "No_UV_Textured"], helpers,
+    resolution=64, closed=True, profile_path=None)
 
 assert report["schema_version"] == audit_asset.REPORT_SCHEMA_VERSION
-assert report["summary"]["objects"] == 3
+assert report["summary"]["objects"] == 4
 assert report["objects"]["Fixture_Cube"]["uv"]["layers"]
 assert report["objects"]["Fixture_Cube"]["material_slots"]
 assert report["objects"]["Bad_Cube"]["material_slots"] == []
 assert report["objects"]["No_UV_Cube"]["uv"]["layers"] == []
+assert report["objects"]["No_UV_Cube"]["uv_required"] is False
+assert report["objects"]["No_UV_Textured"]["uv"]["layers"] == []
+assert report["objects"]["No_UV_Textured"]["uv_required"] is True
 assert report["summary"]["findings_total"] > 0
 
 codes = {finding["code"] for finding in report["summary"]["findings"]}
 assert "mesh_without_material_slots" in codes, codes
 assert "no_active_uv" in codes, codes
 assert "uv_outside_single_tile" in codes or "uv_out_of_bounds" in codes, codes
+assert not any(
+    finding["code"] == "no_active_uv"
+    and finding["object"] == "No_UV_Cube"
+    for finding in report["summary"]["findings"]
+)
+assert any(
+    finding["code"] == "no_active_uv"
+    and finding["object"] == "No_UV_Textured"
+    for finding in report["summary"]["findings"]
+)
 
 after_uv = tuple(
     (float(loop.uv.x), float(loop.uv.y))

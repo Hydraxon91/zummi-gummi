@@ -10,6 +10,7 @@
     "description",
     "scope",
     "materials",
+    "texel_density",
     "web_delivery",
     "verification",
     "limits",
@@ -61,6 +62,63 @@
     },
     "textures": {
       "type": "object",
+      "additionalProperties": true
+    },
+    "texel_density": {
+      "type": "object",
+      "required": [
+        "method",
+        "camera",
+        "viewport_px",
+        "texture_resolutions_px",
+        "target_texels_per_screen_pixel",
+        "spread_ratio_max",
+        "anisotropy_ratio_max",
+        "zone_mode",
+        "small_triangle_screen_px",
+        "min_zone_samples",
+        "min_visible_fraction",
+        "advisory",
+        "notes"
+      ],
+      "properties": {
+        "method": {"const": "camera_projected_advisory"},
+        "camera": {"type": ["string", "null"]},
+        "viewport_px": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "texture_resolutions_px": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "items": {"type": "integer", "minimum": 1},
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "target_texels_per_screen_pixel": {
+          "type": "array",
+          "items": {"type": "number", "exclusiveMinimum": 0},
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "spread_ratio_max": {"type": "number", "exclusiveMinimum": 0},
+        "anisotropy_ratio_max": {"type": "number", "minimum": 1},
+        "zone_mode": {"enum": ["material", "object"]},
+        "small_triangle_screen_px": {"type": "number", "minimum": 0},
+        "min_zone_samples": {"type": "integer", "minimum": 1},
+        "min_visible_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "advisory": {"type": "boolean"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      },
       "additionalProperties": true
     },
     "web_delivery": {

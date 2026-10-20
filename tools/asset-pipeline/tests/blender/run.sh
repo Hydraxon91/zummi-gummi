@@ -6,3 +6,6 @@ BLENDER=${BLENDER:-/Applications/Blender.app/Contents/MacOS/Blender}
 
 "$BLENDER" --background --factory-startup --python-exit-code 1 \
   --python "$ROOT/tools/asset-pipeline/tests/blender/audit_fixture.py"
+
+"$BLENDER" --background --factory-startup --python-exit-code 1 \
+  --python "$ROOT/tools/asset-pipeline/tests/blender/phase1b_fixture.py"
