@@ -81,9 +81,7 @@ function think(ctx) {
   }
   const family = api.acquireFamilyPlaymate(actor);
   if (family && api.startPlaydate(actor, family.actor, family.kind)) return true;
-  if (actor.social >= p.thresholds.seekSocial || actor.affection >= p.thresholds.seekAffection) {
-    if (api.acquireCompany(actor)) return true;
-  }
+  if (api.runOpportunity(actor, 'social.company')) return true;
   // TEMPORARY(port): stargaze
   let stargazeWindow = !api.isDayFor(actor);
   if (api.feature('glassNightWindow')) {

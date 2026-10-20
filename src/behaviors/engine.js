@@ -29,9 +29,9 @@ import { restModule } from './rest.js';
 import { forageModule } from './forage.js';
 import { waterModule } from './water.js';
 import { wanderModule } from './wander.js';
+import { socialModule } from './social.js';
 
 const STUCK_DIST2 = .04;
-const HEART_INTERVAL = .72;
 
 function finite(n, fallback) {
   return Number.isFinite(n) ? n : fallback;
@@ -498,7 +498,6 @@ export function createBehaviorModules({
     releaseFood(actor);
     if (partner) releaseFood(partner);
     breakSharedPair(actor, { stop });
-    // TEMPORARY(port): social/visit/family/conflict pair reset.
     const pairState = ['social', 'invite', 'decline', 'visit', 'seekCompany', 'seekMate', 'mate', 'familyTask', 'conflict'].includes(actor.ai.state);
     const seekState = features.cancelPairStateReset &&
       ['seekFood', 'seekHive', 'seekWater', 'seekHome', 'seekConflict'].includes(actor.ai.state);
@@ -766,7 +765,7 @@ export function createBehaviorModules({
     if (owner && typeof owner.isTraveling === 'function') {
       return owner.isTraveling(contextFor(actor));
     }
-    if (['seekConflict', 'seekMate', 'seekCompany'].includes(ai.state)) return true;
+    if (['seekConflict', 'seekMate'].includes(ai.state)) return true;
     if (ai.state === 'familyTask' && ai.familyTask && ai.familyTask.phase === 'travel') {
       const anchor = ai.familyTask.anchor;
       return !anchor || Math.hypot(anchor.x - actor.cx, anchor.z - actor.cz) > 1.5;
@@ -990,319 +989,28 @@ export function createBehaviorModules({
 
   /* ----------------------------------------------------------- pair states */
 
-  // TEMPORARY(port): social (company/invite/social/decline)
-  function canCompany(actor, other) {
-    if (!pairAvailable(actor, other, { states: ['wander', 'seekCompany', 'stargaze', 'seekSocial'] })) return false;
-    if (!['wander', 'seekCompany', 'stargaze', 'seekSocial'].includes(other.ai.state)) return false;
-    const p = profile(actor);
-    if (other.health < p.thresholds.healthWoozy) return false;
-    return true;
-  }
-
   function acquireCompany(actor) {
-    if (!actor || !actor.ai || actor.ai.socialCooldown > 0) return null;
-    const p = profile(actor);
-    if (actor.social < p.thresholds.seekSocial && actor.affection < p.thresholds.seekAffection) return null;
-    actor.ai.familyPlay = false;
-    actor.ai.playmateKind = null;
-    let best = null;
-    let bestScore = -Infinity;
-    for (const other of actors()) {
-      if (!canCompany(actor, other)) continue;
-      const d = dist(actor, other);
-      if (d > p.social.radius) continue;
-      const bond = pairBond(actor, other);
-      const need = unit(other.social);
-      const relation = familyRelation(actor, other);
-      const familyBonus = actor.ai.familyPlayCooldown > 0 ? 0
-        : relation === 'sibling' ? .35 : (relation === 'parent' || relation === 'child') ? .2 : 0;
-      const score = bond * 1.3 + need * .7 - d * .025 + familyBonus +
-        (other.ai.state === 'wander' && !other.ai.moving ? .18 : 0) +
-        (rng() - .5) * .08;
-      if (score > bestScore) { bestScore = score; best = other; }
-    }
-    if (!best) {
-      actor.ai.socialCooldown = 3.0;
-      return null;
-    }
-    const relation = familyRelation(actor, best);
-    actor.ai.familyPlay = actor.ai.familyPlayCooldown <= 0 &&
-      (relation === 'sibling' || relation === 'parent' || relation === 'child');
-    actor.ai.playmateKind = actor.ai.familyPlay ? relation : null;
-    startSeekCompany(actor, best);
-    return best;
-  }
-
-  function startSeekCompany(actor, partner) {
-    if (!actor || !actor.ai || !partner || !partner.ai) return false;
-    releaseFood(actor);
-    actor.ai.waterSpot = null;
-    beginPair(actor, partner, 'seekCompany', { stop, face });
-    actor.ai.target = { x: partner.cx, z: partner.cz };
-    setDestination(actor, partner.cx, partner.cz);
-    return true;
-  }
-
-  function thinkSeekCompany(actor) {
-    if (!actor || !actor.ai) return;
-    const p = profile(actor);
-    const partner = actor.ai.partner;
-    if (!canCompany(actor, partner)) {
-      if (partner && partner.ai && partner.ai.partner === actor) cancelPair(actor);
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .5;
-      actor.ai.socialCooldown = Math.max(actor.ai.socialCooldown, 3.0);
-      stop(actor);
-      return;
-    }
-    if (actor.social < p.thresholds.stopSocial && actor.affection < p.thresholds.stopSocial) {
-      cancelPair(actor);
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .5;
-      stop(actor);
-      return;
-    }
-    const d = dist(actor, partner);
-    if (d <= p.social.dist) { startInvite(actor, partner); return; }
-    if (needsReplan(actor.ai)) {
-      if (!setDestination(actor, partner.cx, partner.cz) && d > 2.2) {
-        cancelPair(actor);
-        actor.ai.state = 'wander';
-        actor.ai.idleT = .7;
-        actor.ai.socialCooldown = Math.max(actor.ai.socialCooldown, 3.0);
-      }
-    }
-  }
-
-  function decideAccept(initiator, partner) {
-    const p = profile(partner);
-    const need = unit(partner.social);
-    const bond = pairBond(initiator, partner);
-    let chance = .30 + need * .55 + bond * .30 + (partner.ai.state === 'wander' ? .12 : 0) +
-      socialAcceptBonus(partner);
-    if (partner.health < p.thresholds.healthHurt) chance -= .18;
-    if (partner.energy < p.thresholds.energyTired) chance -= .12;
-    chance = clamp(chance, .15, .94);
-    return rng() < chance;
+    return socialModule.acquireCompany(contextFor(actor));
   }
 
   function startInvite(actor, partner, acceptedOverride) {
-    if (!actor || !actor.ai || !partner || !partner.ai) return false;
-    if (!canCompany(actor, partner)) return false;
-    const accepted = acceptedOverride === undefined ? decideAccept(actor, partner) : !!acceptedOverride;
-    actor.ai.state = 'invite';
-    actor.ai.partner = partner;
-    actor.ai.inviteAccepted = accepted;
-    actor.ai.inviteT = profile(actor).social.inviteTime;
-    actor.ai.moving = false;
-    actor.ai.path = null;
-    actor.ai.target = { x: partner.cx, z: partner.cz };
-    face(actor, partner.cx, partner.cz);
-    partner.ai.partner = actor;
-    partner.ai.inviteAccepted = accepted;
-    partner.ai.inviteT = profile(partner).social.inviteTime;
-    partner.ai.declineT = profile(partner).social.declineTime;
-    partner.ai.moving = false;
-    partner.ai.path = null;
-    partner.ai.target = { x: actor.cx, z: actor.cz };
-    face(partner, actor.cx, actor.cz);
-    partner.ai.state = accepted ? 'invite' : 'decline';
-    emit(actor, 'question', 1.08);
-    return true;
+    return socialModule.startInvite(contextFor(actor), partner, acceptedOverride);
   }
 
   function beginSocialPair(actor, partner, familyPlay = false, playmateKind = null) {
-    if (!actor || !partner || !actor.ai || !partner.ai) return false;
-    const p = profile(actor);
-    const family = !!(familyPlay || actor.ai.familyPlay || partner.ai.familyPlay);
-    const kind = playmateKind || actor.ai.playmateKind || partner.ai.playmateKind || 'family';
-    const duration = family ? p.social.familySocialTime : p.social.socialTime;
-    beginPair(actor, partner, 'social', { stop, face });
-    actor.ai.socialT = duration;
-    partner.ai.socialT = duration;
-    actor.ai.familyPlay = family;
-    partner.ai.familyPlay = family;
-    actor.ai.playmateKind = family ? kind : null;
-    partner.ai.playmateKind = family ? kind : null;
-    actor.ai.inviteT = 0;
-    partner.ai.inviteT = 0;
-    actor.ai.heartT = 0;
-    partner.ai.heartT = .22;
-    actor.ai.animT = 0;
-    partner.ai.animT = 0;
-    actor.ai.target = { x: partner.cx, z: partner.cz };
-    partner.ai.target = { x: actor.cx, z: actor.cz };
-    emit(actor, 'heart', .9);
-    return true;
-  }
-
-  function settleSocial(actor) {
-    if (!actor || !actor.ai) return;
-    const p = profile(actor);
-    actor.social = Math.max(0, actor.social - p.social.relief);
-    actor.affection = Math.max(0, actor.affection - p.social.affectionRelief);
-    actor.ai.socialCooldown = p.social.cooldown;
-  }
-
-  function endSocialPair(actor) {
-    if (!actor || !actor.ai || actor.ai.state !== 'social') return;
-    const p = profile(actor);
-    const partner = actor.ai.partner;
-    const familyPlay = !!(actor.ai.familyPlay || (partner && partner.ai && partner.ai.familyPlay));
-    settleSocial(actor);
-    if (partner && partner.ai && partner.ai.state === 'social' && partner.ai.partner === actor) settleSocial(partner);
-    addBond(actor, partner, (familyPlay ? p.social.familyBondBase : p.social.bondBase) + rng() * p.social.bondJitter);
-    if (familyPlay) {
-      addBond(actor, partner, p.social.familyBondExtra);
-      actor.ai.familyPlayCooldown = 18;
-      if (partner && partner.ai) partner.ai.familyPlayCooldown = 18;
-      scheduleNextPlaydate(actor, partner);
-    }
-    endPair(actor, { stop, next: 'wander', idleT: .55, taskCooldown: 1.0 });
-    const canVisit = partner && isDayFor(actor) &&
-      pairBond(actor, partner) >= p.social.visitBond && rng() < p.social.visitChance;
-    if (canVisit) startVisit(actor, partner);
+    return socialModule.beginSocialPair(contextFor(actor), partner, familyPlay, playmateKind);
   }
 
   function startDeclinePair(actor, partner) {
-    if (!actor || !actor.ai || !partner || !partner.ai) return;
-    const p = profile(actor);
-    beginPair(actor, partner, 'decline', { stop, face });
-    actor.ai.declineT = p.social.declineTime;
-    partner.ai.declineT = profile(partner).social.declineTime;
-    actor.ai.inviteT = 0;
-    partner.ai.inviteT = 0;
-    actor.ai.socialCooldown = Math.max(actor.ai.socialCooldown, 4.0);
-    partner.ai.socialCooldown = Math.max(partner.ai.socialCooldown, 2.5);
-    emit(actor, 'no', 1.08);
-    emit(partner, 'no', 1.08);
+    return socialModule.startDeclinePair(contextFor(actor), partner);
   }
 
-  function finishDeclinePair(actor) {
-    if (!actor || !actor.ai || actor.ai.state !== 'decline') return;
-    endPair(actor, { stop, next: 'wander', idleT: .55 });
-  }
-
-  function resolveInvite(actor) {
-    if (!actor || !actor.ai || actor.ai.state !== 'invite' || actor.ai.inviteT > 0) return;
-    const partner = actor.ai.partner;
-    if (!partner || !partner.ai) {
-      actor.ai.state = 'wander';
-      actor.ai.partner = null;
-      stop(actor);
-      return;
-    }
-    if (actor.ai.inviteAccepted) beginSocialPair(actor, partner);
-    else startDeclinePair(actor, partner);
-  }
-
-  /* ---------------------------------------------------------------- visits */
-
-  // TEMPORARY(port): social (visit)
   function startVisit(actor, partner) {
-    if (!actor || !partner || !actor.ai || !partner.ai || actor === partner) return false;
-    if (!isDayFor(actor)) return false;
-    const home = homeFor(actor);
-    if (!home || !field || !field.nav) return false;
-    const dx = home.door.x - home.x;
-    const dz = home.door.z - home.z;
-    const len = Math.hypot(dx, dz) || 1;
-    let gx = home.door.x - dz / len * .72;
-    let gz = home.door.z + dx / len * .72;
-    const near = field.nav.nearestWalkable(gx, gz);
-    if (near && !(field.pond && field.pond.contains(near.x, near.z))) {
-      gx = near.x; gz = near.z;
-    } else {
-      gx = home.door.x; gz = home.door.z;
-    }
-    actor.ai.state = 'visit';
-    partner.ai.state = 'visit';
-    actor.ai.partner = partner;
-    partner.ai.partner = actor;
-    actor.ai.visitHome = home.name;
-    partner.ai.visitHome = home.name;
-    actor.ai.visitRole = 'host';
-    partner.ai.visitRole = 'guest';
-    actor.ai.visitPhase = 'travel';
-    partner.ai.visitPhase = 'travel';
-    actor.ai.visitT = 0;
-    partner.ai.visitT = 0;
-    actor.ai.visitArrived = false;
-    partner.ai.visitArrived = false;
-    actor.ai.moving = false;
-    partner.ai.moving = false;
-    actor.ai.target = { x: home.door.x, z: home.door.z };
-    partner.ai.target = { x: gx, z: gz };
-    face(actor, home.door.x, home.door.z);
-    face(partner, gx, gz);
-    setPath(actor, pathTo(actor, home.door.x, home.door.z) || [{ x: home.door.x, z: home.door.z }]);
-    setPath(partner, pathTo(partner, gx, gz) || [{ x: gx, z: gz }]);
-    emit(actor, 'heart', .95);
-    return true;
-  }
-
-  function beginVisitHangout(actor, partner) {
-    if (!actor || !partner || !actor.ai || !partner.ai) return;
-    const p = profile(actor);
-    actor.ai.visitPhase = 'hangout';
-    partner.ai.visitPhase = 'hangout';
-    actor.ai.visitT = p.social.visitTime;
-    partner.ai.visitT = p.social.visitTime;
-    actor.ai.animT = 0;
-    partner.ai.animT = 0;
-    actor.ai.heartT = .3;
-    partner.ai.heartT = 1.0;
-    actor.ai.moving = false;
-    partner.ai.moving = false;
-    actor.ai.path = null;
-    partner.ai.path = null;
-    face(actor, partner.cx, partner.cz);
-    face(partner, actor.cx, actor.cz);
-    emit(actor, 'heart', .95);
+    return socialModule.startVisit(contextFor(actor), partner);
   }
 
   function finishVisitPair(actor) {
-    if (!actor || !actor.ai || actor.ai.state !== 'visit') return;
-    const partner = actor.ai.partner;
-    addBond(actor, partner, .08);
-    actor.social = Math.max(0, actor.social - .22);
-    actor.affection = Math.max(0, actor.affection - .16);
-    actor.ai.socialCooldown = 8;
-    endPair(actor, { stop, next: 'wander', idleT: .6, taskCooldown: 1.2, socialCooldown: 8 });
-    if (partner && partner.ai) {
-      partner.social = Math.max(0, partner.social - .22);
-      partner.affection = Math.max(0, partner.affection - .16);
-    }
-  }
-
-  function tickVisit(actor, dt) {
-    if (!actor || !actor.ai || actor.ai.state !== 'visit') return;
-    const partner = actor.ai.partner;
-    if (!partner || !partner.ai || partner.ai.partner !== actor || partner.ai.state !== 'visit' || !isDayFor(actor)) {
-      finishVisitPair(actor);
-      return;
-    }
-    if (actor.ai.visitPhase === 'hangout') return;
-    actor.ai.visitT = (actor.ai.visitT || 0) + dt;
-    if (actor.ai.visitT > 12) { finishVisitPair(actor); return; }
-    const home = field.homes.find(h => h.name === actor.ai.visitHome);
-    if (!home || !actor.ai.target) { finishVisitPair(actor); return; }
-    const target = actor.ai.target;
-    const d = Math.hypot(target.x - actor.cx, target.z - actor.cz);
-    if (d <= profile(actor).social.visitDist) {
-      actor.ai.visitArrived = true;
-      actor.ai.moving = false;
-      actor.ai.path = null;
-      if (partner.ai.visitArrived) {
-        const host = actor.ai.visitRole === 'host' ? actor : partner;
-        const guest = host === actor ? partner : actor;
-        beginVisitHangout(host, guest);
-      }
-      return;
-    }
-    if (needsReplan(actor.ai)) {
-      if (!setDestination(actor, target.x, target.z) && d > 2.2) finishVisitPair(actor);
-    }
+    return socialModule.finishVisit(contextFor(actor));
   }
 
   /* ---------------------------------------------------------------- follow */
@@ -1776,7 +1484,6 @@ export function createBehaviorModules({
     const owner = moduleStateOwner(state);
     if (owner && typeof owner.think === 'function') owner.think(contextFor(actor));
     else if (state === 'seekConflict') thinkSeekConflict(actor);
-    else if (state === 'seekCompany') thinkSeekCompany(actor);
     else if (state === 'seekMate') thinkSeekMate(actor);
     else if (state === 'follow') thinkFollow(actor);
     else if (adapter && typeof adapter.think === 'function') adapter.think(actor, api);
@@ -1825,46 +1532,10 @@ export function createBehaviorModules({
       return;
     }
 
-    if (ai.state === 'invite') {
-      ai.animT += dt;
-      ai.inviteT -= dt;
-      if (ai.inviteT <= 0) resolveInvite(actor);
-      return;
-    }
-    if (ai.state === 'social') {
-      ai.animT += dt;
-      ai.socialT -= dt;
-      ai.heartT -= dt;
-      if (ai.heartT <= 0) {
-        ai.heartT = HEART_INTERVAL;
-        emit(actor, 'heart', .95);
-      }
-      if (ai.socialT <= 0) endSocialPair(actor);
-      return;
-    }
-    if (ai.state === 'decline') {
-      ai.animT += dt;
-      ai.declineT -= dt;
-      if (ai.declineT <= 0) finishDeclinePair(actor);
-      return;
-    }
     if (ai.state === 'mate') {
       ai.animT += dt;
       ai.mateT -= dt;
       if (ai.mateT <= 0) finishMatePair(actor);
-      return;
-    }
-    if (ai.state === 'visit') {
-      if (ai.visitPhase === 'hangout') {
-        ai.animT += dt;
-        ai.heartT -= dt;
-        ai.visitT -= dt;
-        if (ai.heartT <= 0) { ai.heartT = 1.0; emit(actor, 'heart', .95); }
-        if (ai.visitT <= 0) finishVisitPair(actor);
-      } else {
-        ai.animT += dt;
-        tickVisit(actor, dt);
-      }
       return;
     }
     const stateOwner = moduleStateOwner(ai.state);
@@ -2252,6 +1923,7 @@ export function createBehaviorModules({
   registerModule(forageModule);
   registerModule(waterModule);
   registerModule(wanderModule);
+  registerModule(socialModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
