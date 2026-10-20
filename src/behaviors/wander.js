@@ -61,16 +61,10 @@ function think(ctx) {
   const meal = api.mealWindow(actor);
   if (meal && api.startFamilyMeal(actor, meal)) { api.coverSlot('meal'); return true; }
   if (api.runOpportunity(actor, 'hive.seek')) return true;
-  if (p.conflict && actor.hunger >= p.thresholds.criticalHunger) {
-    api.coverSlot('conflict.critical');
-    if (api.acquireContest(actor)) return true;
-  }
+  if (api.runOpportunity(actor, 'conflict.critical')) return true;
   if (actor.hunger >= p.thresholds.seekHunger) {
     if (api.runOpportunity(actor, 'forage.seek')) return true;
-    if (p.conflict) {
-      api.coverSlot('conflict.fallback');
-      if (api.acquireContest(actor)) return true;
-    }
+    if (api.runOpportunity(actor, 'conflict.fallback')) return true;
   }
   const lesson = api.lessonCandidate(actor);
   if (lesson && api.startLesson(actor, lesson.student)) { api.coverSlot('lesson'); return true; }

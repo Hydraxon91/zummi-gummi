@@ -28,6 +28,7 @@ import { waterModule } from './water.js';
 import { wanderModule } from './wander.js';
 import { socialModule } from './social.js';
 import { mateModule } from './mate.js';
+import { conflictModule } from './conflict.js';
 
 const STUCK_DIST2 = .04;
 
@@ -112,6 +113,11 @@ export function createBehaviorModules({
     coverage.pipeline.set(id, (coverage.pipeline.get(id) || 0) + 1);
   }
 
+  function coverConflictOutcome(id) {
+    if (!id) return;
+    coverage.conflictOutcomes.set(id, (coverage.conflictOutcomes.get(id) || 0) + 1);
+  }
+
   function coverageSnapshot() {
     const map = (source) => Object.fromEntries([...source.entries()].sort(([a], [b]) => a.localeCompare(b)));
     return {
@@ -122,6 +128,7 @@ export function createBehaviorModules({
       tasks: map(coverage.tasks),
       taskEntries: map(coverage.taskEntries),
       pipeline: map(coverage.pipeline),
+      conflictOutcomes: map(coverage.conflictOutcomes),
     };
   }
 
@@ -219,7 +226,7 @@ export function createBehaviorModules({
   const coverage = {
     states: new Map(), entries: new Map(), opportunities: new Map(),
     taskPhases: new Map(), tasks: new Map(), taskEntries: new Map(),
-    pipeline: new Map(),
+    pipeline: new Map(), conflictOutcomes: new Map(),
   };
   const lastCoverState = new WeakMap();
   const lastCoverTask = new WeakMap();
@@ -530,7 +537,7 @@ export function createBehaviorModules({
 
   /* ------------------------------------------------------------ hive/conflict */
 
-  // TEMPORARY(port): conflict + flee. Hive raid is the first real module.
+  // TEMPORARY(port): flee. Conflict is ported; flee stays shared by hive and conflict.
   function acquireHive(actor) {
     return hiveModule.acquire(contextFor(actor));
   }
@@ -563,170 +570,12 @@ export function createBehaviorModules({
     else actor.ai.moving = false;
   }
 
-  function findContest(actor) {
-    const conflict = profile(actor).conflict;
-    if (!conflict || !actor || !actor.ai || !field || !field.food || !field.food.sources) return null;
-    if (actor.hunger < profile(actor).thresholds.seekHunger ||
-        actor.health < profile(actor).thresholds.healthWoozy ||
-        actor.ai.conflictCooldown > 0) return null;
-    let best = null;
-    let bestScore = -Infinity;
-    for (const source of field.food.sources) {
-      if (!source.ripe || !source.claim || source.claim === actor) continue;
-      if (!isSafeFood(source)) continue;
-      const other = source.claim;
-      if (!other || !other.active || other.sleeping ||
-          other.health < profile(other).thresholds.healthWoozy) continue;
-      if (!other.ai || !['wander', 'seekFood', 'eat', 'drink', 'seekWater', 'seekCompany'].includes(other.ai.state)) continue;
-      if (other.grabs > 0 || other.inPond) continue;
-      const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
-      if (d > conflict.radius) continue;
-      const dc = Math.hypot(other.cx - source.approachX, other.cz - source.approachZ);
-      if (dc > 3.5) continue;
-      if (actor.bold < .30 && other.scale > actor.scale * 1.06) continue;
-      const score = (1 - d / conflict.radius) * .6 + actor.hunger * .5 +
-        (actor.scale >= other.scale ? .08 : 0) - pairBond(actor, other) * .25;
-      if (score > bestScore) { bestScore = score; best = { source, actor: other }; }
-    }
-    return best;
-  }
-
   function acquireContest(actor) {
-    if (!profile(actor).conflict) return null;
-    const contest = findContest(actor);
-    if (!contest) return null;
-    releaseFood(actor);
-    actor.ai.source = null;
-    actor.ai.contestSource = contest.source;
-    actor.ai.contestBear = contest.actor;
-    actor.ai.state = 'seekConflict';
-    actor.ai.target = { x: contest.source.approachX, z: contest.source.approachZ };
-    face(actor, contest.source.approachX, contest.source.approachZ);
-    setDestination(actor, contest.source.approachX, contest.source.approachZ);
-    return contest.source;
-  }
-
-  function thinkSeekConflict(actor) {
-    if (!actor || !actor.ai) return;
-    const source = actor.ai.contestSource;
-    const other = source ? source.claim : actor.ai.contestBear;
-    if (!source || !source.ripe || !other || !other.active || other.sleeping ||
-        other.grabs > 0 || other.inPond || !other.ai) {
-      actor.ai.contestSource = null;
-      actor.ai.contestBear = null;
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .6;
-      actor.ai.conflictCooldown = Math.max(actor.ai.conflictCooldown, 2);
-      stop(actor);
-      return;
-    }
-    const d = Math.hypot(other.cx - actor.cx, other.cz - actor.cz);
-    if (d <= profile(actor).conflict.dist) {
-      startConflict(actor, other, source);
-      return;
-    }
-    actor.ai.target = { x: source.approachX, z: source.approachZ };
-    face(actor, source.approachX, source.approachZ);
-    if (needsReplan(actor.ai)) {
-      if (!setDestination(actor, source.approachX, source.approachZ)) {
-        actor.ai.contestSource = null;
-        actor.ai.contestBear = null;
-        actor.ai.state = 'wander';
-        actor.ai.idleT = .6;
-        actor.ai.conflictCooldown = Math.max(actor.ai.conflictCooldown, 3);
-      }
-    }
+    return conflictModule.acquireContest(contextFor(actor));
   }
 
   function startConflict(actor, other, source) {
-    const conflict = profile(actor).conflict;
-    if (!conflict || !actor || !other || !actor.ai || !other.ai || actor === other) return false;
-    beginPair(actor, other, 'conflict', { stop, face });
-    actor.ai.conflictT = conflict.time;
-    other.ai.conflictT = conflict.time;
-    actor.ai.conflictSource = source;
-    other.ai.conflictSource = source;
-    actor.ai.target = { x: other.cx, z: other.cz };
-    other.ai.target = { x: actor.cx, z: actor.cz };
-    actor.ai.animT = 0;
-    other.ai.animT = 0;
-    emit(actor, 'exclaim', 1.14);
-    emit(other, 'exclaim', 1.14);
-    return true;
-  }
-
-  function finishConflict(actor) {
-    const conflict = profile(actor).conflict;
-    if (!conflict || !actor || !actor.ai || actor.ai.state !== 'conflict') return;
-    const other = actor.ai.partner;
-    const source = actor.ai.conflictSource || (other && other.ai ? other.ai.conflictSource : null);
-    if (!other || !other.ai) {
-      actor.ai.state = 'wander';
-      actor.ai.partner = null;
-      actor.ai.conflictSource = null;
-      actor.ai.conflictT = 0;
-      stop(actor);
-      return;
-    }
-    const weight = (bear) => (bear.scale || 1) * 1.05 + unit(bear.hunger) * .75 +
-      unit(bear.bold) * .35 + unit(bear.energy) * .15 + rng() * .20;
-    const winner = weight(actor) >= weight(other) ? actor : other;
-    const loser = winner === actor ? other : actor;
-    const claimant = source ? source.claim : null;
-    const claimOk = !!source && source.ripe;
-
-    actor.ai.partner = null;
-    other.ai.partner = null;
-    actor.ai.conflictSource = null;
-    other.ai.conflictSource = null;
-    actor.ai.contestSource = null;
-    other.ai.contestSource = null;
-    actor.ai.contestBear = null;
-    other.ai.contestBear = null;
-    actor.ai.conflictT = 0;
-    other.ai.conflictT = 0;
-
-    if (claimOk && winner !== claimant) {
-      field.food.release(source, claimant);
-      field.food.claim(source, winner);
-    }
-
-    const loserWasClaimant = loser === claimant;
-    if (loserWasClaimant && source) field.food.release(source, loser);
-    releaseFood(loser);
-    loser.ai.source = null;
-    loser.ai.state = 'wander';
-    loser.ai.idleT = .8;
-    loser.ai.taskCooldown = 2.4;
-    loser.ai.conflictCooldown = conflict.cooldown;
-    loser.ai.socialCooldown = Math.max(loser.ai.socialCooldown, 4.0);
-    stop(loser);
-    const dx = loser.cx - winner.cx;
-    const dz = loser.cz - winner.cz;
-    const len = Math.hypot(dx, dz) || 1;
-    loser.ai.shove = { x: dx / len * 1.15, z: dz / len * 1.15 };
-
-    winner.ai.taskCooldown = .35;
-    winner.ai.conflictCooldown = 5;
-    winner.ai.idleT = .2;
-    if (claimOk && source.claim === winner) {
-      winner.ai.source = source;
-      winner.ai.target = { x: source.approachX, z: source.approachZ };
-      const d = Math.hypot(source.approachX - winner.cx, source.approachZ - winner.cz);
-      if (d <= profile(winner).food.eatDist) {
-        startEat(winner);
-      } else {
-        winner.ai.state = 'seekFood';
-        setDestination(winner, source.approachX, source.approachZ);
-      }
-    } else {
-      winner.ai.source = null;
-      winner.ai.state = 'wander';
-      winner.ai.idleT = .5;
-      stop(winner);
-    }
-    addBond(actor, other, -.08);
-    emit(loser, 'no', 1.05);
+    return conflictModule.startConflict(contextFor(actor), other, source);
   }
 
   /* ---------------------------------------------------------------- needs */
@@ -770,7 +619,7 @@ export function createBehaviorModules({
     if (owner && typeof owner.isTraveling === 'function') {
       return owner.isTraveling(contextFor(actor));
     }
-    if (ai.state === 'seekConflict') return true;
+
     if (ai.state === 'familyTask' && ai.familyTask && ai.familyTask.phase === 'travel') {
       const anchor = ai.familyTask.anchor;
       return !anchor || Math.hypot(anchor.x - actor.cx, anchor.z - actor.cz) > 1.5;
@@ -1400,7 +1249,6 @@ export function createBehaviorModules({
     if (actor.ai.directive) return;
     const owner = moduleStateOwner(state);
     if (owner && typeof owner.think === 'function') owner.think(contextFor(actor));
-    else if (state === 'seekConflict') thinkSeekConflict(actor);
     else if (state === 'follow') thinkFollow(actor);
     else if (adapter && typeof adapter.think === 'function') adapter.think(actor, api);
   }
@@ -1502,12 +1350,6 @@ export function createBehaviorModules({
     }
     if (ai.state === 'raidHive') {
       hiveModule.tick(contextFor(actor, { dt }), dt);
-      return;
-    }
-    if (ai.state === 'conflict') {
-      ai.animT += dt;
-      ai.conflictT -= dt;
-      if (ai.conflictT <= 0) finishConflict(actor);
       return;
     }
     if (ai.state === 'stargaze') {
@@ -1835,6 +1677,7 @@ export function createBehaviorModules({
   registerModule(wanderModule);
   registerModule(socialModule);
   registerModule(mateModule);
+  registerModule(conflictModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -1872,6 +1715,7 @@ export function createBehaviorModules({
     field, profile, actors, hoursNow, dayNow, rng,
     pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
     homeFor, assignHome, parentFor, safeFoodCount, needsReplan, populationCap,
+    startEat,
     acquireFood, acquireWater, acquireHive, acquireContest, acquireFamilyPlaymate,
     acquireMate, acquireCompany, startFollow, parentFor,
     mealWindow, startFamilyMeal, lessonCandidate, startLesson, findDuePlaydate,
@@ -1880,7 +1724,7 @@ export function createBehaviorModules({
     startVisit, startPlaydate, startConflict,
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
-    coverSlot,
+    coverSlot, coverConflictOutcome,
     adapterSleepDone, adapterOnSleep, adapterOnWake, adapterHungerOpportunity,
     noteDoorTransition,
     setModuleEnabled, setModuleParams, setActorConfig, setFeature,

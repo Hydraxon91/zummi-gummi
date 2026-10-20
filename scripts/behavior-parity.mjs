@@ -20,11 +20,25 @@
 import { pathToFileURL } from 'node:url';
 import { createBehavior } from '../src/behaviors/index.js';
 import { createFoodRegistry } from '../src/food.js';
+import {
+  STAGE_AGE, GESTATION_TIME, MATE_COOLDOWN,
+  advanceAge, advanceGestation, scaleForStage,
+} from '../src/life.js';
 
 const DT = 1 / 20;
 const DAY_SECONDS = 240;
 const START_HOUR = 6;
 const POPULATION_CAP = 40;
+
+// Mirrors app.js stepLife() (~870-895), applyBearStage() (~670-674) and the
+// meadow population cap in setCeilingForMap() (~5260). The lifecycle test
+// fails if these drift from life.js or the app-owned cap.
+export const HARNESS_LIFECYCLE = Object.freeze({
+  stageAge: Object.freeze({ ...STAGE_AGE }),
+  gestation: GESTATION_TIME,
+  mateCooldown: MATE_COOLDOWN,
+  populationCap: POPULATION_CAP,
+});
 
 /* ------------------------------------------------------------------- rng */
 
@@ -59,6 +73,18 @@ const FOOD = [
   { id: 'flower-6', kind: 'flower', x: -6.5, z: -2.5, respawn: 40 },
   { id: 'flower-7', kind: 'flower', x: 4.0, z: -5.5, respawn: 40 },
   { id: 'flower-8', kind: 'flower', x: -5.0, z: 6.0, respawn: 40 },
+  { id: 'flower-9', kind: 'flower', x: 3.0, z: 8.0, respawn: 40 },
+  { id: 'flower-10', kind: 'flower', x: -3.0, z: 8.0, respawn: 40 },
+  { id: 'flower-11', kind: 'flower', x: 8.0, z: 4.0, respawn: 40 },
+  { id: 'flower-12', kind: 'flower', x: -8.0, z: 4.0, respawn: 40 },
+  { id: 'flower-13', kind: 'flower', x: 8.0, z: -4.0, respawn: 40 },
+  { id: 'flower-14', kind: 'flower', x: -8.0, z: -4.0, respawn: 40 },
+  { id: 'flower-15', kind: 'flower', x: 3.0, z: -8.0, respawn: 40 },
+  { id: 'flower-16', kind: 'flower', x: -3.0, z: -8.0, respawn: 40 },
+  { id: 'flower-17', kind: 'flower', x: 11.0, z: 0.0, respawn: 40 },
+  { id: 'flower-18', kind: 'flower', x: -11.0, z: 0.0, respawn: 40 },
+  { id: 'flower-19', kind: 'flower', x: 0.0, z: 9.0, respawn: 40 },
+  { id: 'flower-20', kind: 'flower', x: 0.0, z: -9.0, respawn: 40 },
   { id: 'hive-1', kind: 'hive', x: 8.0, z: 0.0, respawn: 120 },
   { id: 'hive-2', kind: 'hive', x: -8.0, z: 1.5, respawn: 120 },
 ];
@@ -224,6 +250,67 @@ export function createRoster(race, perturb = 0, { seedBonds = false, social = fa
   return roster;
 }
 
+// Minimal app-equivalent birth. app.js birthChild() also handles genomes,
+// flavors and effects; the behavior engine only needs the actor fields.
+function birthChild(run, mother) {
+  if (!mother || !mother.active || !mother.pregnant) return false;
+  if (run.roster.filter(actor => actor.active).length >= HARNESS_LIFECYCLE.populationCap) return false;
+  const father = run.roster.find(actor => actor.active && actor.uid === mother.fatherUid) || null;
+  const uid = run.nextBirthUid++;
+  const child = {
+    uid,
+    active: true,
+    kind: mother.kind,
+    species: mother.species,
+    name: `born-${uid}`,
+    cx: mother.cx,
+    cz: mother.cz,
+    cy: 1,
+    sex: uid % 2 ? 'F' : 'M',
+    stage: 'baby',
+    age: 0,
+    scale: scaleForStage('baby'),
+    home: mother.home,
+    parentUids: [mother.uid, father ? father.uid : 0].filter(Boolean),
+    fatherUid: father ? father.uid : 0,
+    hunger: .30,
+    thirst: .30,
+    energy: 1,
+    health: 100,
+    social: .30,
+    affection: .25,
+    bold: .5,
+    pregnant: false,
+    gestation: 0,
+    mateCooldown: 0,
+    bedtime: mother.bedtime,
+    wakeTime: mother.wakeTime,
+    bonds: {},
+    skills: { forage: 0, courage: 0, social: 0 },
+    playdates: {},
+    history: [],
+    grabs: 0,
+    inPond: false,
+    sleeping: false,
+    inside: false,
+    freeBody: false,
+    hopSpeedMin: .8,
+    hopSpeedMax: 1.65,
+  };
+  if (mother.bonds) mother.bonds[String(uid)] = .5;
+  if (father && father.bonds) father.bonds[String(uid)] = .5;
+  child.bonds[String(mother.uid)] = .5;
+  if (father) child.bonds[String(father.uid)] = .5;
+  run.engineApi.attach(child);
+  run.roster.push(child);
+  mother.pregnant = false;
+  mother.gestation = 0;
+  mother.birthRetryT = 0;
+  mother.mateCooldown = HARNESS_LIFECYCLE.mateCooldown;
+  run.life.births++;
+  return true;
+}
+
 /* --------------------------------------------------------------- adapters */
 
 function glassDay(hours) {
@@ -282,6 +369,33 @@ function hostTick(run, dt) {
     if (!ai) continue;
     if (Number.isFinite(actor.mateCooldown) && actor.mateCooldown > 0) {
       actor.mateCooldown = Math.max(0, actor.mateCooldown - dt);
+    }
+    if (actor.birthRetryT > 0) actor.birthRetryT = Math.max(0, actor.birthRetryT - dt);
+    if (actor.pendingStage && actor.grabs === 0 && !actor.inPond) {
+      actor.stage = actor.pendingStage;
+      actor.scale = scaleForStage(actor.stage);
+      actor.pendingStage = null;
+      run.life.stageUps++;
+    }
+    const nextStage = advanceAge(actor, dt);
+    if (nextStage !== actor.stage) {
+      if (actor.grabs === 0 && !actor.inPond) {
+        actor.stage = nextStage;
+        actor.scale = scaleForStage(nextStage);
+        if (nextStage !== 'baby' && ai.state === 'follow') {
+          ai.follow = null;
+          ai.state = 'wander';
+          ai.idleT = .5;
+          ai.path = null;
+          ai.moving = false;
+        }
+        run.life.stageUps++;
+      } else {
+        actor.pendingStage = nextStage;
+      }
+    }
+    if (actor.pregnant && advanceGestation(actor, dt) && actor.birthRetryT <= 0) {
+      if (!birthChild(run, actor)) actor.birthRetryT = 3;
     }
     if (ai.possessed) {
       run.engineApi.tick(actor, dt, { ready: false });
@@ -509,7 +623,7 @@ function firstDiffPath(left, right, path = [], out = []) {
 
 /* ------------------------------------------------------------------ runs */
 
-function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false }) {
+function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false, rngValue = null }) {
   const world = createWorld({ flowers });
   const roster = createRoster(race, perturb, { social, seedBonds, allAdults });
   const traced = tracedRng(seed);
@@ -521,14 +635,17 @@ function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DA
     getHours: () => clockAt(clock.seconds, daySeconds, startHour).hours,
     getDay: () => clockAt(clock.seconds, daySeconds, startHour).day,
     getPopulationCap: () => POPULATION_CAP,
-    rng: traced.rng,
+    rng: Number.isFinite(rngValue) ? () => rngValue : traced.rng,
   });
   engineApi.registerAdapter('softbody', createSoftAdapter());
   engineApi.registerAdapter('skinned', createGlassAdapter());
   for (const actor of roster) engineApi.attach(actor);
   const run = {
     race, seed, engine, world, roster, engineApi, traced, daySeconds, collectSamples, clock, startHour,
+    rngValue,
     transitions: [], samples: [], warnings: [], lastState: new Map(), grabHold: new Map(),
+    life: { pregnancies: 0, births: 0, stageUps: 0 }, nextBirthUid: 1000,
+    pregnancySeen: new Set(),
   };
   for (const actor of roster) run.lastState.set(actor.uid, actor.ai ? actor.ai.state : null);
   return run;
@@ -548,6 +665,16 @@ function captureWarnings(run, fn) {
 function stepRun(run, { dt, sampleEvery, sampleAcc }) {
   const before = new Map(run.roster.map(actor => [actor.uid, actor.ai ? actor.ai.state : null]));
   captureWarnings(run, () => hostTick(run, dt));
+  for (const actor of run.roster) {
+    if (actor.pregnant) {
+      if (!run.pregnancySeen.has(actor.uid)) {
+        run.pregnancySeen.add(actor.uid);
+        run.life.pregnancies++;
+      }
+    } else {
+      run.pregnancySeen.delete(actor.uid);
+    }
+  }
   const t = +run.clock.seconds.toFixed(6);
   for (const actor of run.roster) {
     const state = actor.ai ? actor.ai.state : null;
@@ -594,9 +721,10 @@ export function runParity({
   hooks = [],
   startHour = START_HOUR,
   allAdults = false,
+  rngValue = null,
 } = {}) {
-  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults });
-  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults });
+  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults, rngValue });
+  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults, rngValue });
   const ticks = Math.round(days * daySeconds / dt);
   const started = Date.now();
   const originalWarn = console.warn;
@@ -627,6 +755,7 @@ export function runParity({
           drawsA: a.traced.draws, drawsB: b.traced.draws,
           warningsA: a.warnings.length, warningsB: b.warnings.length,
           coverage: typeof b.engineApi.coverage === 'function' ? b.engineApi.coverage() : null,
+          life: b.life, roster: b.roster.length,
           diffs,
           firstTick: tick,
           durationMs: Date.now() - started,
@@ -647,6 +776,7 @@ export function runParity({
     drawsA: a.traced.draws, drawsB: b.traced.draws,
     warningsA: a.warnings.length, warningsB: b.warnings.length,
     coverage: typeof b.engineApi.coverage === 'function' ? b.engineApi.coverage() : null,
+    life: b.life, roster: b.roster.length,
     diffs: [],
     durationMs: Date.now() - started,
     transitions: verbose ? b.transitions : undefined,
@@ -726,6 +856,7 @@ export function mergeCoverage(results) {
   const tasks = {};
   const taskEntries = {};
   const pipeline = {};
+  const conflictOutcomes = {};
   const add = (target, source) => {
     for (const [key, value] of Object.entries(source || {})) {
       target[key] = (target[key] || 0) + value;
@@ -741,8 +872,9 @@ export function mergeCoverage(results) {
     add(tasks, coverage.tasks);
     add(taskEntries, coverage.taskEntries);
     add(pipeline, coverage.pipeline);
+    add(conflictOutcomes, coverage.conflictOutcomes);
   }
-  return { states, entries, opportunities, taskPhases, tasks, taskEntries, pipeline };
+  return { states, entries, opportunities, taskPhases, tasks, taskEntries, pipeline, conflictOutcomes };
 }
 
 function coverageSection(merged, title, race = null) {
@@ -775,6 +907,10 @@ function coverageSection(merged, title, race = null) {
     const hits = merged.pipeline?.[id] || 0;
     if (hits < LOW_COVERAGE) lowPipeline.push(id);
     lines.push(`    ${id.padEnd(18)} ${String(hits).padStart(7)}${hits < LOW_COVERAGE ? '  LOW' : ''}`);
+  }
+  lines.push('  conflict outcomes');
+  for (const id of Object.keys(merged.conflictOutcomes || {}).sort()) {
+    lines.push(`    ${id.padEnd(18)} ${String(merged.conflictOutcomes[id] || 0).padStart(7)}`);
   }
   const travel = merged.taskPhases.travel || 0;
   const act = merged.taskPhases.act || 0;
@@ -833,7 +969,7 @@ function rebuildRun(run) {
     getHours: () => clockAt(clock.seconds, run.daySeconds, run.startHour).hours,
     getDay: () => clockAt(clock.seconds, run.daySeconds, run.startHour).day,
     getPopulationCap: () => POPULATION_CAP,
-    rng: run.traced.rng,
+    rng: Number.isFinite(run.rngValue) ? () => run.rngValue : run.traced.rng,
   });
   engineApi.registerAdapter('softbody', createSoftAdapter());
   engineApi.registerAdapter('skinned', createGlassAdapter());
@@ -921,6 +1057,71 @@ function conflictNeeds(run) {
   actor.hunger = run.conflictFlip ? .95 : .80;
 }
 
+// Force each conflict outcome in turn. The scenario uses a constant RNG so the
+// equal-weight case is an exact tie. Health-floor targets findContest()'s
+// claimant check: other.health < profile(other).thresholds.healthWoozy.
+function conflictOutcomes(run) {
+  const actor = run.roster[0];
+  const other = run.roster[1];
+  if (!actor || !other || !actor.ai || !other.ai) return;
+  const source = run.world.food.sources.find(item => item.kind === 'flower' && item.ripe);
+  if (!source) return;
+  for (const item of run.world.food.sources) item.claim = null;
+  source.claim = other;
+  actor.cx = source.approachX + .3;
+  actor.cz = source.approachZ;
+  other.cx = source.approachX;
+  other.cz = source.approachZ;
+  actor.health = 100;
+  other.health = 100;
+  actor.hunger = .8;
+  other.hunger = .8;
+  actor.scale = 1;
+  other.scale = 1;
+  actor.bold = .5;
+  other.bold = .5;
+  actor.energy = 1;
+  other.energy = 1;
+  actor.pregnant = false;
+  other.pregnant = false;
+  actor.mateCooldown = 999;
+  other.mateCooldown = 999;
+  actor.sleeping = false;
+  other.sleeping = false;
+  actor.ai.state = 'wander';
+  other.ai.state = 'wander';
+  actor.ai.partner = null;
+  other.ai.partner = null;
+  actor.ai.conflictT = 0;
+  other.ai.conflictT = 0;
+  actor.ai.conflictCooldown = 0;
+  other.ai.conflictCooldown = 0;
+  actor.ai.taskCooldown = 0;
+  actor.ai.idleT = 0;
+  actor.ai.moving = false;
+  other.ai.moving = false;
+  run.conflictMode = ((run.conflictMode || 0) + 1) % 4;
+  const mode = run.scenarioTie ? 2 : run.conflictMode;
+  if (mode === 0) {
+    actor.scale = 1.5;
+    other.scale = .7;
+    run.engineApi.forceConflict(actor, other, source);
+  } else if (mode === 1) {
+    actor.scale = .7;
+    other.scale = 1.5;
+    run.engineApi.forceConflict(actor, other, source);
+  } else if (mode === 2) {
+    const profile = run.engineApi.api.profile(actor);
+    other.hunger = actor.hunger + profile.needs.hungerRate * (1 / 20);
+    other.energy = actor.energy - profile.needs.energyRate * (1 / 20);
+    run.engineApi.forceConflict(actor, other, source);
+  } else {
+    other.health = 10;
+    actor.hunger = .8;
+    run.engineApi.api.acquireContest(actor);
+  }
+}
+
 // Dedicated packs for branches the open-world long run does not reach often.
 // Mate needs a rich larder (MATE_FOOD_MIN is 18 safe sources); the fixture world
 // starts with 8 flowers, so mate is unreachable without this pack.
@@ -982,6 +1183,19 @@ export const SCENARIOS = Object.freeze({
     hooks: Object.freeze([{ every: 100, run: conflictNeeds }]),
     requirePipeline: ['conflict.critical', 'conflict.fallback'],
   }),
+  conflictOutcomes: Object.freeze({
+    id: 'conflictOutcomes', label: 'conflict win/loss/tie/health-floor', days: 1,
+    seeds: [1, 2, 3, 4, 5],
+    startHour: 10, skipRaces: ['glass'], rngValue: .5,
+    hooks: Object.freeze([{ every: 100, run: conflictOutcomes }]),
+    requireConflictOutcomes: ['actor', 'opponent', 'tie', 'healthFloor'],
+  }),
+  conflictTie: Object.freeze({
+    id: 'conflictTie', label: 'conflict tie every hook', days: 1,
+    seeds: [1, 2, 3, 4, 5], startHour: 10, skipRaces: ['glass'], rngValue: .5,
+    hooks: Object.freeze([{ every: 100, run: (run) => { run.scenarioTie = true; conflictOutcomes(run); } }]),
+    requireConflictOutcomes: ['tie'],
+  }),
   social: Object.freeze({
     id: 'social', label: 'social chain and visits', days: 10, seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     social: true, seedBonds: true, startHour: 10, require: 'visit',
@@ -1004,7 +1218,7 @@ function parseArgs(argv) {
     sampleEvery: 1, validate: false, long: false, json: false, verbose: false,
     coverage: false, scenario: null, flowers: 0, seedProvided: false,
     social: false, seedBonds: false, hooks: [], scenarioRequire: null,
-    startHour: 6, allAdults: false,
+    startHour: 6, allAdults: false, rngValue: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -1049,6 +1263,7 @@ function parseArgs(argv) {
       options.social = !!scenario.social;
       options.seedBonds = !!scenario.seedBonds;
       options.allAdults = !!scenario.allAdults;
+      options.rngValue = Number.isFinite(scenario.rngValue) ? scenario.rngValue : null;
       options.hooks = scenario.hooks ? scenario.hooks.slice() : [];
       options.scenarioRequire = scenario.require || null;
       options.startHour = Number.isFinite(scenario.startHour) ? scenario.startHour : 6;
@@ -1120,6 +1335,7 @@ async function main(argv) {
         verbose: options.verbose, flowers: options.flowers,
         social: options.social, seedBonds: options.seedBonds, hooks: options.hooks,
         startHour: options.startHour, allAdults: options.allAdults,
+        rngValue: options.rngValue,
       });
       results.push(result);
       if (!options.json) {
@@ -1128,6 +1344,10 @@ async function main(argv) {
           `${result.transitionsA}/${result.transitionsB} transitions, ` +
           `${result.drawsA}/${result.drawsB} rng draws, ` +
           `${result.warningsA}/${result.warningsB} warnings, ${result.durationMs} ms`);
+        if (result.life) {
+          console.log(`  life: pregnancies ${result.life.pregnancies}, births ${result.life.births}, ` +
+            `stage-ups ${result.life.stageUps}, roster ${result.roster}`);
+        }
         for (const diff of result.diffs.slice(0, 3)) console.log(`  ${formatDiff(diff)}`);
       }
     }
@@ -1145,7 +1365,8 @@ async function main(argv) {
         const merged = coverage.byRace[race] || {};
         const source = kind === 'state' ? merged.entries
           : kind === 'opportunity' ? merged.opportunities
-            : merged.pipeline;
+            : kind === 'conflictOutcome' ? merged.conflictOutcomes
+              : merged.pipeline;
         hits[race] = source?.[key] || 0;
         if (hits[race] < LOW_COVERAGE) scenarioOk = false;
       }
@@ -1155,7 +1376,9 @@ async function main(argv) {
     if (scenario.require) check('state', scenario.require);
     for (const key of scenario.requireOpportunities || []) check('opportunity', key);
     for (const key of scenario.requirePipeline || []) check('pipeline', key);
-    if (!scenario.require && !scenario.requireOpportunities && !scenario.requirePipeline) {
+    for (const key of scenario.requireConflictOutcomes || []) check('conflictOutcome', key);
+    if (!scenario.require && !scenario.requireOpportunities && !scenario.requirePipeline &&
+        !scenario.requireConflictOutcomes) {
       console.log(`SCENARIO ${scenario.id} (${scenario.label}) parity pack`);
     }
     if (!scenarioOk) console.log('SCENARIO COVERAGE FAIL: a required branch is under ' + LOW_COVERAGE);
