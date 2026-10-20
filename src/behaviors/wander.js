@@ -71,12 +71,7 @@ function think(ctx) {
   const due = api.findDuePlaydate(actor);
   if (due && api.startPlaydate(actor, due.other, 'friend')) { api.coverSlot('playdate'); return true; }
   if (api.runOpportunity(actor, 'mate.seek')) return true;
-  if (actor.stage === 'baby') {
-    const parent = api.parentFor(actor);    if (parent && !parent.inPond && parent.grabs === 0 &&
-        Math.hypot(parent.cx - actor.cx, parent.cz - actor.cz) > p.mate.followDist) {
-      if (api.startFollow(actor, parent)) { api.coverSlot('follow'); return true; }
-    }
-  }
+  if (api.runOpportunity(actor, 'follow.seek')) return true;
   const family = api.acquireFamilyPlaymate(actor);
   if (family && api.startPlaydate(actor, family.actor, family.kind)) { api.coverSlot('familyPlaymate'); return true; }
   if (api.runOpportunity(actor, 'social.company')) return true;

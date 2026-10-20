@@ -29,6 +29,7 @@ import { wanderModule } from './wander.js';
 import { socialModule } from './social.js';
 import { mateModule } from './mate.js';
 import { conflictModule } from './conflict.js';
+import { followModule } from './follow.js';
 
 const STUCK_DIST2 = .04;
 
@@ -608,13 +609,6 @@ export function createBehaviorModules({
   function movementIntent(actor) {
     const ai = actor && actor.ai;
     if (!ai) return false;
-    if (ai.state === 'follow') {
-      const parent = ai.follow;
-      if (!parent || parent.inside || parent.sleeping) return false;
-      const target = parentTarget(parent);
-      if (!target) return false;
-      return Math.hypot(target.x - actor.cx, target.z - actor.cz) > profile(actor).mate.followDist + .2;
-    }
     const owner = moduleStateOwner(ai.state);
     if (owner && typeof owner.isTraveling === 'function') {
       return owner.isTraveling(contextFor(actor));
@@ -869,73 +863,10 @@ export function createBehaviorModules({
 
   /* ---------------------------------------------------------------- follow */
 
-  // TEMPORARY(port): follow
-  function parentTarget(parent) {
-    if (!parent) return null;
-    if (parent.inside || parent.sleeping) {
-      const home = field && Array.isArray(field.homes)
-        ? field.homes.find(h => h.name === parent.home) : null;
-      if (home) return { x: home.door.x, z: home.door.z };
-    }
-    return { x: parent.cx, z: parent.cz };
-  }
+  /* ---------------------------------------------------------------- follow */
 
   function startFollow(actor, parent) {
-    if (!actor || !actor.ai || !parent || !parent.ai) return false;
-    if (parent.inside || parent.sleeping) return false;
-    if (actor.ai.followRetryT > 0) return false;
-    const target = parentTarget(parent);
-    if (!target) return false;
-    releaseFood(actor);
-    actor.ai.source = null;
-    actor.ai.waterSpot = null;
-    actor.ai.follow = parent;
-    actor.ai.state = 'follow';
-    actor.ai.target = { x: target.x, z: target.z };
-    face(actor, target.x, target.z);
-    actor.ai.moving = false;
-    setPath(actor, pathTo(actor, target.x, target.z) || [{ x: target.x, z: target.z }]);
-    return true;
-  }
-
-  function thinkFollow(actor) {
-    if (!actor || !actor.ai) return;
-    const parent = actor.ai.follow;
-    if (!parent || !parent.ai || !parent.active || parent.grabs > 0 || parent.inPond) {
-      actor.ai.follow = null;
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .5;
-      stop(actor);
-      return;
-    }
-    if (parent.inside || parent.sleeping) {
-      actor.ai.follow = null;
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .6;
-      actor.ai.followRetryT = 30;
-      stop(actor);
-      return;
-    }
-    const target = parentTarget(parent);
-    if (!target) return;
-    const d = Math.hypot(target.x - actor.cx, target.z - actor.cz);
-    const followDist = profile(actor).mate.followDist;
-    if (d <= followDist) {
-      actor.ai.moving = false;
-      actor.ai.path = null;
-      face(actor, parent.cx, parent.cz);
-      return;
-    }
-    if (!actor.ai.path || !actor.ai.path.length || !actor.ai.moving) {
-      if (!setDestination(actor, target.x, target.z)) {
-        actor.ai.follow = null;
-        actor.ai.state = 'wander';
-        actor.ai.idleT = .6;
-        actor.ai.taskCooldown = Math.max(actor.ai.taskCooldown || 0, 1.0);
-        actor.ai.followRetryT = 30;
-        stop(actor);
-      }
-    }
+    return followModule.startFollow(contextFor(actor), parent);
   }
 
   /* ----------------------------------------------------------------- mate */
@@ -1249,7 +1180,6 @@ export function createBehaviorModules({
     if (actor.ai.directive) return;
     const owner = moduleStateOwner(state);
     if (owner && typeof owner.think === 'function') owner.think(contextFor(actor));
-    else if (state === 'follow') thinkFollow(actor);
     else if (adapter && typeof adapter.think === 'function') adapter.think(actor, api);
   }
 
@@ -1678,6 +1608,7 @@ export function createBehaviorModules({
   registerModule(socialModule);
   registerModule(mateModule);
   registerModule(conflictModule);
+  registerModule(followModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
