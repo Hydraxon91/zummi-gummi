@@ -3553,72 +3553,99 @@ function syncBuddyHealth(b){
   b._buddyHealthEl.setAttribute('aria-label', `Health ${label} out of 100`);
   if (b._buddyHpText) b._buddyHpText.textContent = String(label);
 }
+function makeBuddyRow(b){
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'buddyRow';
+  row.dataset.uid = String(b.uid);
+  const dot = document.createElement('span');
+  dot.className = 'buddyDot';
+  const mid = document.createElement('span');
+  const name = document.createElement('span');
+  name.className = 'buddyName';
+  const sex = document.createElement('span');
+  sex.className = 'buddySex';
+  const stage = document.createElement('span');
+  stage.className = 'buddyStage';
+  const status = document.createElement('span');
+  status.className = 'buddyStatus';
+  const family = document.createElement('span');
+  family.className = 'buddyFamily';
+  mid.append(name, document.createElement('br'), status, family);
+  const right = document.createElement('span');
+  right.className = 'buddyRight';
+  const health = document.createElement('span');
+  health.className = 'buddyHealth';
+  health.setAttribute('role', 'img');
+  const healthFill = document.createElement('i');
+  health.appendChild(healthFill);
+  const hpText = document.createElement('span');
+  hpText.className = 'buddyHpText';
+  hpText.textContent = '100';
+  const vitals = document.createElement('span');
+  vitals.className = 'buddyVitals';
+  vitals.append(hpText, health);
+  const home = document.createElement('span');
+  home.className = 'buddyHome';
+  right.append(vitals, home);
+  row.append(dot, mid, right);
+  row.addEventListener('click', () => focusBuddy(b));
+  row._buddyDot = dot;
+  row._buddyNameEl = name;
+  row._buddySexEl = sex;
+  row._buddyStageEl = stage;
+  row._buddyStatusEl = status;
+  row._buddyFamilyEl = family;
+  row._buddyHomeEl = home;
+  row._buddyHealthEl = health;
+  row._buddyHealthFill = healthFill;
+  row._buddyHpText = hpText;
+  return row;
+}
+function updateBuddyRow(b, row){
+  row.title = `Find ${b.name || 'this bear'}`;
+  b._buddyDot = row._buddyDot;
+  b._buddyNameEl = row._buddyNameEl;
+  b._buddySexEl = row._buddySexEl;
+  b._buddyStageEl = row._buddyStageEl;
+  b._buddyStatusEl = row._buddyStatusEl;
+  b._buddyFamilyEl = row._buddyFamilyEl;
+  b._buddyHomeEl = row._buddyHomeEl;
+  b._buddyHealthEl = row._buddyHealthEl;
+  b._buddyHealthFill = row._buddyHealthFill;
+  b._buddyHpText = row._buddyHpText;
+  b._buddyDot.style.background = `radial-gradient(circle at 32% 30%, #fff9, ${flavorHex(b)} 48%, #5c1b2c)`;
+  b._buddyNameEl.textContent = b.name || 'Gummy';
+  b._buddyNameEl.appendChild(b._buddySexEl);
+  b._buddySexEl.textContent = b.sex === 'F' ? '♀' : '♂';
+  b._buddyStageEl.textContent = b.stage && b.stage !== 'adult' ? b.stage : '';
+  if (b._buddyStageEl.textContent) b._buddyNameEl.appendChild(b._buddyStageEl);
+  b._buddyStatusEl.textContent = buddyStatus(b);
+  b._buddyFamilyEl.textContent = familyShort(b);
+  b._buddyHomeEl.textContent = b.home || '—';
+  row.classList.toggle('selected', selectedBear === b);
+  syncBuddyHealth(b);
+}
 function refreshBuddyList(){
   if (!buddyListEl) return;
-  buddyListEl.innerHTML = '';
-  if (!isMeadow()) return;
+  if (!isMeadow()) { buddyListEl.replaceChildren(); return; }
   const list = actorView.active().filter(b => speciesOf(b)?.roster);
+  const existing = new Map();
+  for (const row of buddyListEl.children) existing.set(row.dataset.uid, row);
   for (const b of list){
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'buddyRow';
-    row.title = `Find ${b.name || 'this bear'}`;
-    const dot = document.createElement('span');
-    dot.className = 'buddyDot';
-    dot.style.background = `radial-gradient(circle at 32% 30%, #fff9, ${flavorHex(b)} 48%, #5c1b2c)`;
-    const mid = document.createElement('span');
-    const name = document.createElement('span');
-    name.className = 'buddyName';
-    name.textContent = b.name || 'Gummy';
-    const sex = document.createElement('span');
-    sex.className = 'buddySex';
-    sex.textContent = b.sex === 'F' ? '♀' : '♂';
-    name.appendChild(sex);
-    const status = document.createElement('span');
-    status.className = 'buddyStatus';
-    status.textContent = buddyStatus(b);
-    const family = document.createElement('span');
-    family.className = 'buddyFamily';
-    family.textContent = familyShort(b);
-    mid.append(name, document.createElement('br'), status);
-    if (family.textContent) mid.append(family);
-    const right = document.createElement('span');
-    right.className = 'buddyRight';
-    const health = document.createElement('span');
-    health.className = 'buddyHealth';
-    health.setAttribute('role', 'img');
-    const healthFill = document.createElement('i');
-    health.appendChild(healthFill);
-    const hpText = document.createElement('span');
-    hpText.className = 'buddyHpText';
-    hpText.textContent = '100';
-    const vitals = document.createElement('span');
-    vitals.className = 'buddyVitals';
-    vitals.append(hpText, health);
-    const home = document.createElement('span');
-    home.className = 'buddyHome';
-    home.textContent = b.home || '—';
-    right.append(vitals, home);
-    if (b.stage && b.stage !== 'adult') {
-      const stage = document.createElement('span');
-      stage.className = 'buddyStage';
-      stage.textContent = b.stage;
-      name.appendChild(stage);
-    }
-    row.append(dot, mid, right);
-    row.dataset.uid = String(b.uid);
-    if (selectedBear === b) row.classList.add('selected');
-    row.addEventListener('click', () => focusBuddy(b));
+    const key = String(b.uid);
+    const row = existing.get(key) || makeBuddyRow(b);
+    existing.delete(key);
+    updateBuddyRow(b, row);
     buddyListEl.append(row);
-    b._buddyStatusEl = status;
-    b._buddyHealthEl = health;
-    b._buddyHealthFill = healthFill;
-    b._buddyHpText = hpText;
-    syncBuddyHealth(b);
   }
+  for (const row of existing.values()) row.remove();
   if (onlineCountEl) onlineCountEl.textContent = `${list.length} online`;
-  buddySig = list.map(b=>`${b.kind || b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}:${(b.parentUids || []).join(',')}`).join('|');
+  buddySig = buddySignature(list);
   lastBuddyStatusTick = 0;
+}
+function buddySignature(list){
+  return list.map(b=>`${b.kind || b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}:${(b.parentUids || []).join(',')}`).join('|');
 }
 function updateBuddyStatuses(force = false){
   if (!isMeadow()) return;
@@ -3961,7 +3988,7 @@ function focusMsn(){
 function syncAeroUI(force){
   if (!isMeadow()) return;
   const list = actorView.active().filter(b => speciesOf(b)?.roster);
-  const sig = list.map(b=>`${b.kind || b.species}:${b.name}:${b.sex}:${b.stage}:${b.scale}:${b.home}:${b.flavor}`).join('|');
+  const sig = buddySignature(list);
   if (force || sig !== buddySig) refreshBuddyList();
   updateBuddyStatuses(force);
   for (const b of list) syncBuddyHealth(b);
@@ -4892,6 +4919,7 @@ function applyBlastImpulse(bx, by, bz, radius, power){
     b.awake = true;
     b.hopT = Math.max(b.hopT, 2.4);
   }
+  if (glassColony) glassColony.blastImpulse(bx, by, bz, radius, power);
 }
 
 function burstAt(x, y, z, pal, shape, small){

@@ -289,6 +289,7 @@ export function createBearAI({
   }
 
   function applyDirective(b, d) {
+    if (b.ai.familyTask || b.ai.partner) shared.api.cancelPair(b);
     if (d.kind === 'go') {
       if (!shared.api.setDestination(b, d.target.x, d.target.z)) return false;
       b.ai.target = { x: d.target.x, z: d.target.z };

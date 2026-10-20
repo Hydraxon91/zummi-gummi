@@ -232,6 +232,39 @@ try {
   }))()`);
   if (!familyPanel.lines) failures.push('family history panel is empty');
   if (!familyPanel.family) failures.push('family lineage line is empty');
+  const panelStability = await page.evaluate(`(async () => {
+    const row = document.querySelector('.buddyRow');
+    await new Promise(resolve => setTimeout(resolve, 600));
+    return { connected: !!row && row.isConnected, rows: document.querySelectorAll('.buddyRow').length };
+  })()`);
+  if (!panelStability.connected || panelStability.rows < 2) {
+    failures.push(`citizen panel replaced rows during idle: ${JSON.stringify(panelStability)}`);
+  }
+  const commandCheck = await page.evaluate(`(() => {
+    const g = window.__gummy;
+    const parent = g.bears.find(b => b.uid === ${JSON.stringify(parentUid)});
+    const child = g.bears.find(b => b.uid === ${JSON.stringify(childUid)});
+    if (!parent || !child) return { ok: false, note: 'pair missing' };
+    const pi = g.bears.indexOf(parent), ci = g.bears.indexOf(child);
+    const started = g.familyLesson(pi, ci);
+    const originalTask = g.bears[ci].ai.familyTask?.id ?? null;
+    const originalPartner = g.bears[ci].ai.partner?.uid ?? null;
+    let accepted = false;
+    for (let n = 0; n < 12; n++) {
+      g.directive(ci, 'go', { x: 0, z: 0 });
+      g.sim(.3, 0);
+      if (g.bears[ci].ai.directive) { accepted = true; break; }
+    }
+    g.sim(2, 0);
+    const after = g.bears[ci];
+    return { ok: true, started, accepted, originalTask, originalPartner, state: after.ai.state, task: after.ai.familyTask?.id ?? null, partner: after.ai.partner?.uid ?? null };
+  })()`, 180000);
+  const originalPairRestarted = commandCheck.task === commandCheck.originalTask &&
+    commandCheck.partner === commandCheck.originalPartner;
+  if (!commandCheck.ok || !commandCheck.started || !commandCheck.accepted ||
+      originalPairRestarted) {
+    failures.push(`command did not interrupt family task: ${JSON.stringify(commandCheck)}`);
+  }
   if (browser.pageErrors.length) failures.push(`page errors: ${browser.pageErrors.slice(0, 3).join(' | ')}`);
   if (failures.length) throw new Error(failures.join('; '));
 

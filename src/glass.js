@@ -363,6 +363,7 @@ export function createGlassColony({
     }
     if (a.bodyHandle < 0) ensureBody(a);
     if (a.bodyHandle < 0) return;
+    if (a.grabbing) return;
     const radius = Math.max(.12, .33 * a.scale);
     if (Math.abs(radius - a.bodyRadius) > .01) {
       destroyBody(a);
@@ -382,7 +383,7 @@ export function createGlassColony({
       a.root.updateMatrixWorld(true);
       return;
     }
-    if (a.freeBody) {
+    if (a.freeBody || a.grabbing) {
       const rootY = Math.max(.01, a.cy - (a.height || 1.25) * visualScale * .5);
       a.root.position.set(a.cx, rootY, a.cz);
       a.root.rotation.set(a.tumbleX, a.yaw || 0, a.tumbleZ);
@@ -457,6 +458,15 @@ export function createGlassColony({
     a.grabStartClientY = clientY;
     a.grabLastAt = performance.now();
     a.grabDepth = Math.max(2.5, camera.position.distanceTo(a.root.position));
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.set(((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    const point = raycaster.ray.at(a.grabDepth, new THREE.Vector3());
+    a.grabOffset = new THREE.Vector3(a.cx, a.cy, a.cz).sub(point);
+    a.grabTarget = new THREE.Vector3(a.cx, a.cy, a.cz);
+    ensureBody(a);
+    if (shared) shared.onGrab(a);
     stopGrabTasks(a);
     drag(a, clientX, clientY, camera, renderer, false);
     return true;
@@ -466,13 +476,10 @@ export function createGlassColony({
     if (!a || !a.active || !a.grabbing || !camera || !renderer) return false;
     const now = performance.now();
     const dt = Math.max(.001, (now - (a.grabLastAt || now)) / 1000);
-    const prevX = a.cx, prevZ = a.cz, prevY = a.grabY;
+    const prevX = a.grabTarget.x, prevZ = a.grabTarget.z, prevY = a.grabTarget.y;
     if (shift) {
-      a.grabY = clamp(
-        a.grabY + (a.grabStartClientY - clientY) * .006,
-        HOVER * a.scale + .02,
-        2.9,
-      );
+      a.grabTarget.y = clamp(prevY + (a.grabStartClientY - clientY) * .006,
+        a.bodyRadius, 4);
     } else {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set(
@@ -480,49 +487,42 @@ export function createGlassColony({
         -((clientY - rect.top) / rect.height) * 2 + 1,
       );
       raycaster.setFromCamera(pointer, camera);
-      const point = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, a.grabDepth);
-      const field = fieldNow();
-      const near = field && field.nav && field.nav.nearestWalkable
-        ? field.nav.nearestWalkable(point.x, point.z)
-        : point;
-      if (near) {
-        a.cx = near.x;
-        a.cz = near.z;
-      }
-      a.ai.faceYaw = Math.atan2(point.x - a.cx, point.z - a.cz);
+      a.grabTarget.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, a.grabDepth).add(a.grabOffset);
+      a.grabTarget.y = Math.max(a.bodyRadius, a.grabTarget.y);
     }
+    const delta = a.grabTarget.clone().sub(new THREE.Vector3(a.cx, a.cy, a.cz));
+    if (delta.length() > 6) a.grabTarget.set(a.cx, a.cy, a.cz).add(delta.setLength(6));
     const k = 1 - Math.exp(-12 * dt);
-    a.grabVx += ((a.cx - prevX) / dt - a.grabVx) * k;
-    a.grabVz += ((a.cz - prevZ) / dt - a.grabVz) * k;
-    a.grabVy += ((a.grabY - prevY) / dt - a.grabVy) * k;
+    a.grabVx += ((a.grabTarget.x - prevX) / dt - a.grabVx) * k;
+    a.grabVz += ((a.grabTarget.z - prevZ) / dt - a.grabVz) * k;
+    a.grabVy += ((a.grabTarget.y - prevY) / dt - a.grabVy) * k;
     a.grabStartClientY = clientY;
     a.grabLastAt = now;
-    updateVisual(a);
-    syncBody(a);
     return true;
   }
 
   function endDrag(a, throwIt = true) {
     if (!a || !a.grabbing) return false;
-    const speed = Math.hypot(a.grabVx, a.grabVz);
     a.grabbing = false;
     a.grabs = 0;
     a.ai.state = 'wander';
     a.ai.idleT = .35;
     a.ai.nextThink = 0;
     a.ai.faceYaw = null;
-    if (throwIt && physics && (speed > .18 || Math.abs(a.grabVy) > .18)) {
+    if (shared) shared.onRelease(a);
+    if (throwIt && physics) {
       ensureBody(a);
       if (a.bodyHandle >= 0) {
         a.freeBody = true;
         a.freeT = 2.2;
         a.coasting = false;
-        const vx = clamp(a.grabVx, -5, 5);
-        const vy = clamp(a.grabVy + .8, .2, 3.4);
-        const vz = clamp(a.grabVz, -5, 5);
+        physics.read([a.bodyHandle], bodyRead, 1);
+        const decay = Math.exp(-14 * Math.max(0, (performance.now() - a.grabLastAt - 45) / 1000));
+        const vx = clamp(bodyRead[3] + a.grabVx * decay * .25, -5, 5);
+        const vy = clamp(bodyRead[4] + a.grabVy * decay * .25 + .8, .2, 3.4);
+        const vz = clamp(bodyRead[5] + a.grabVz * decay * .25, -5, 5);
         a.spinX = clamp(-vz * .7, -7, 7);
         a.spinZ = clamp(vx * .7, -7, 7);
-        physics.setPositions([a.bodyHandle], [a.cx, a.cy, a.cz], 1);
         physics.setVelocities([a.bodyHandle], [vx, vy, vz], 1);
       }
     } else {
@@ -539,6 +539,37 @@ export function createGlassColony({
     let count = 0;
     for (const a of actors) if (endDrag(a, false)) count++;
     return count;
+  }
+
+  function blastImpulse(bx, by, bz, radius, power) {
+    if (!physics || !meadow) return 0;
+    let hits = 0;
+    for (const a of actors) {
+      if (!a.active || a.inside || !a.ready) continue;
+      const dx = a.cx - bx, dy = a.cy - by, dz = a.cz - bz;
+      const d = Math.hypot(dx, dy, dz) || .001;
+      if (d > radius) continue;
+      if (a.grabbing) endDrag(a, false);
+      ensureBody(a);
+      if (a.bodyHandle < 0) continue;
+      const fall = clamp(1 - d / radius, .15, 1);
+      const ux = dx / d, uy = dy / d, uz = dz / d;
+      const mag = power * (.45 + .55 * fall);
+      const dvx = ux * mag + (Math.random() - .5) * .7;
+      const dvy = Math.max(.8, uy * mag) * .6 + 3.6 * fall + Math.random() * 1.2;
+      const dvz = uz * mag + (Math.random() - .5) * .7;
+      a.freeBody = true;
+      a.freeT = 2.2;
+      a.coasting = false;
+      a.spinX = clamp(-dvz * .7, -7, 7);
+      a.spinZ = clamp(dvx * .7, -7, 7);
+      a.tumbleX = 0;
+      a.tumbleZ = 0;
+      if (shared) shared.api.cancelPair(a);
+      physics.applyImpulses([a.bodyHandle], [dvx * 1.2, dvy * 1.2, dvz * 1.2], 1);
+      hits++;
+    }
+    return hits;
   }
 
   function loadModel(a) {
@@ -980,7 +1011,20 @@ export function createGlassColony({
 
   function physicsForces() {
     if (!meadow) return;
-    for (const a of actors) if (a.active) syncBody(a);
+    for (const a of actors) {
+      if (!a.active) continue;
+      syncBody(a);
+      if (!physics || !a.grabbing || a.bodyHandle < 0) continue;
+      physics.read([a.bodyHandle], bodyRead, 1);
+      // Same spring model as soft-body grabs, critically damped for a single
+      // rigid proxy rather than a stretchy rig. The proxy has mass 1.2.
+      const decay = Math.exp(-14 * Math.max(0, (performance.now() - a.grabLastAt - 45) / 1000));
+      physics.applyForces([a.bodyHandle], [
+        1.2 * (600 * (a.grabTarget.x - bodyRead[0]) - 48 * (bodyRead[3] - clamp(a.grabVx * decay, -5, 5))),
+        1.2 * (600 * (a.grabTarget.y - bodyRead[1]) - 48 * (bodyRead[4] - clamp(a.grabVy * decay, -5, 5))),
+        1.2 * (600 * (a.grabTarget.z - bodyRead[2]) - 48 * (bodyRead[5] - clamp(a.grabVz * decay, -5, 5))),
+      ], true, 1);
+    }
   }
 
   function endFreeBody(a) {
@@ -999,12 +1043,19 @@ export function createGlassColony({
   function physicsRead(dt = 1 / 60) {
     if (!physics || !meadow) return;
     for (const a of actors) {
-      if (!a.active || !a.freeBody || a.bodyHandle < 0) continue;
+      if (!a.active || (!a.freeBody && !a.grabbing) || a.bodyHandle < 0) continue;
       physics.read([a.bodyHandle], bodyRead, 1);
       a.cx = bodyRead[0];
       a.cy = bodyRead[1];
       a.cz = bodyRead[2];
       const speed = Math.hypot(bodyRead[3], bodyRead[4], bodyRead[5]);
+      if (a.grabbing) {
+        const blend = 1 - Math.exp(-10 * dt);
+        a.tumbleX += (clamp(-bodyRead[5] * .15, -.8, .8) - a.tumbleX) * blend;
+        a.tumbleZ += (clamp(bodyRead[3] * .15, -.8, .8) - a.tumbleZ) * blend;
+        updateVisual(a);
+        continue;
+      }
       a.freeT = Math.max(0, (a.freeT || 0) - dt);
       updateVisual(a);
       if (a.freeT <= 0 || (speed < .3 && a.cy < .75)) endFreeBody(a);
@@ -1256,6 +1307,7 @@ export function createGlassColony({
     drag,
     endDrag,
     cancelDrag,
+    blastImpulse,
     spawnChild(opts = {}) { return makeActor({ ...opts, stage: opts.stage || 'baby' }); },
     setNeed,
     setStage,

@@ -57,6 +57,22 @@ try {
   const dragBefore = await evaluate('window.__gummy.glass().actors[0].position');
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: dragScreen.x, y: dragScreen.y, button: 'left', buttons: 1, clickCount: 1 });
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: dragScreen.x + 70, y: dragScreen.y - 35, button: 'left', buttons: 1 });
+  const targetUpdate = await evaluate(`(() => {
+    const g = window.__gummy;
+    const before = g.glass().actors[0].position;
+    g.glassDragTo(0, ${dragScreen.x + 85}, ${dragScreen.y - 35});
+    return { before, after: g.glass().actors[0].position };
+  })()`);
+  if (targetUpdate.before.some((v, i) => v !== targetUpdate.after[i])) {
+    throw new Error(`Glass pointer update teleported body ${JSON.stringify(targetUpdate)}`);
+  }
+  await sleep(180);
+  const held = await evaluate('window.__gummy.glass().actors[0]');
+  report.shots.held = await shot('held');
+  if (!held.grabbing || Math.abs(held.rotation[0]) + Math.abs(held.rotation[2]) < .01) {
+    throw new Error(`Glass spring grab did not tilt ${JSON.stringify(held)}`);
+  }
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: dragScreen.x + 105, y: dragScreen.y - 55, button: 'left', buttons: 1 });
   await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: dragScreen.x + 70, y: dragScreen.y - 35, button: 'left', buttons: 0, clickCount: 1 });
   const releaseState = await evaluate('window.__gummy.glass().actors[0]');
   if (!releaseState.freeBody) throw new Error(`Glass throw did not enter rigid-body mode ${JSON.stringify(releaseState)}`);
@@ -73,17 +89,19 @@ try {
   const liftBefore = await evaluate('window.__gummy.glass().actors[0].position[1]');
   const afterPress = await evaluate(`window.__gummy.glassDragStart(0, ${liftScreen.x}, ${liftScreen.y})`);
   await evaluate(`window.__gummy.glassDragTo(0, ${liftScreen.x}, ${liftScreen.y - 55}, true)`);
+  await sleep(250);
+  const liftHeld = await evaluate('window.__gummy.glass().actors[0]');
   await evaluate('window.__gummy.glassDragEnd(0)');
   await sleep(250);
   const liftAfter = await evaluate('window.__gummy.glass().actors[0]');
   await evaluate('window.__gummy.freeze(false)');
-  if (!afterPress || !(liftAfter.position[1] > liftBefore + .08) || liftAfter.grabbing) {
-    throw new Error(`Glass vertical drag failed ${JSON.stringify({ liftBefore, afterPress, liftAfter })}`);
+  if (!afterPress || !(liftHeld.position[1] > liftBefore + .08) || liftAfter.grabbing) {
+    throw new Error(`Glass vertical drag failed ${JSON.stringify({ liftBefore, afterPress, liftHeld, liftAfter })}`);
   }
   report.drag = {
     screen: dragScreen, moved: +dragMoved.toFixed(3),
     after: dragAfter.position, coasting: dragAfter.coasting,
-    lift: { before: liftBefore, after: liftAfter.position[1] },
+    lift: { before: liftBefore, held: liftHeld.position[1], after: liftAfter.position[1] },
   };
 
   const growth = await evaluate(`(() => {

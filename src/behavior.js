@@ -1481,7 +1481,7 @@ export function createBehavior({
       if (student.stage !== 'baby' && student.stage !== 'teen') continue;
       if (!(student.parentUids || []).includes(teacher.uid)) continue;
       if (student.sleeping || student.inside || student.grabs > 0 || student.inPond) continue;
-      if (student.ai.partner) continue;
+      if (student.ai.partner || student.ai.directive) continue;
       if (!['wander', 'follow'].includes(student.ai.state)) continue;
       if (Math.hypot(student.cx - teacher.cx, student.cz - teacher.cz) > 8) continue;
       if (taughtToday(teacher, student, day)) continue;
@@ -1665,11 +1665,17 @@ export function createBehavior({
   function think(actor) {
     if (!actor || !actor.ai) return;
     const state = actor.ai.state;
-    if (['sleep', 'invite', 'social', 'decline', 'conflict', 'mate', 'familyTask', 'raidHive', 'flee'].includes(state)) return;
+    if (state === 'familyTask') {
+      const adapter = adapterOf(actor);
+      if (adapter && typeof adapter.preNeeds === 'function' && adapter.preNeeds(actor, api)) return;
+      return;
+    }
+    if (['sleep', 'invite', 'social', 'decline', 'conflict', 'mate', 'raidHive', 'flee'].includes(state)) return;
     if (needsRest(actor) && state !== 'seekHome') { startSeekHome(actor); return; }
     if (dayShelterCheck(actor)) return;
     const adapter = adapterOf(actor);
     if (adapter && typeof adapter.preNeeds === 'function' && adapter.preNeeds(actor, api)) return;
+    if (actor.ai.directive) return;
     if (state === 'wander') thinkWander(actor);
     else if (state === 'seekFood') thinkSeekFood(actor);
     else if (state === 'seekWater') thinkSeekWater(actor);
@@ -1857,6 +1863,10 @@ export function createBehavior({
       if (ai.drinkT <= 0) finishWater(actor);
       return;
     }
+    if (ai.state === 'familyTask' && ai.directives.length) {
+      const adapter = adapterOf(actor);
+      if (adapter && typeof adapter.preNeeds === 'function' && adapter.preNeeds(actor, api)) return;
+    }
     if (ai.state === 'familyTask') {
       const task = ai.familyTask;
       if (!task) { ai.state = 'wander'; return; }
@@ -1870,7 +1880,7 @@ export function createBehavior({
             task.phase = 'act';
             ai.moving = false;
             ai.path = null;
-          } else if (!ai.path || !ai.path.length) {
+          } else if (!ai.moving || !ai.path || !ai.path.length) {
             setDestination(actor, task.anchor.x, task.anchor.z);
           }
         }
