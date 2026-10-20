@@ -22,19 +22,29 @@ function finite(n, fallback) {
 export function createDirectiveSystem({ behavior, field = null, getCompanions, rng = Math.random } = {}) {
   const shared = behavior;
 
-  function paramsFor(b) {
+  function resolvedDirectives(b) {
     try {
       const config = shared && shared.api && shared.api.config;
       const resolved = config && typeof config.forActor === 'function' ? config.forActor(b) : null;
-      const params = resolved && resolved.behaviorModules && resolved.behaviorModules.directives &&
-        resolved.behaviorModules.directives.params;
-      if (params) return { ttl: finite(params.ttl, 45), max: finite(params.max, 3) };
+      const entry = resolved && resolved.behaviorModules && resolved.behaviorModules.directives;
+      if (entry) return entry;
     } catch (error) {}
     const profile = shared && shared.api && typeof shared.api.profile === 'function' ? shared.api.profile(b) : null;
     const block = profile && profile.directives;
+    return { enabled: !!block, params: block || {} };
+  }
+
+  function enabledFor(b) {
+    const entry = resolvedDirectives(b);
+    return !!entry.enabled;
+  }
+
+  function paramsFor(b) {
+    const entry = resolvedDirectives(b);
+    const params = entry.params || {};
     return {
-      ttl: finite(block && block.ttl, 45),
-      max: finite(block && block.max, 3),
+      ttl: finite(params.ttl, 45),
+      max: finite(params.max, 3),
     };
   }
 
@@ -51,7 +61,7 @@ export function createDirectiveSystem({ behavior, field = null, getCompanions, r
   }
 
   function issueDirective(b, kind, target) {
-    if (!b || !b.ai) return null;
+    if (!b || !b.ai || !enabledFor(b)) return null;
     if (!DIRECTIVE_KINDS.includes(kind)) return null;
     if (kind === 'go' && (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z))) return null;
     const params = paramsFor(b);
@@ -236,6 +246,6 @@ export function createDirectiveSystem({ behavior, field = null, getCompanions, r
   return {
     issueDirective, cancel, state, preTick, preNeeds,
     checkDirective, startNextDirective, applyDirective, directiveRefusal,
-    paramsFor,
+    paramsFor, enabledFor,
   };
 }

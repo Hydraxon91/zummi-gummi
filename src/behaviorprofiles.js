@@ -9,7 +9,6 @@ const BEAR = {
   species: ['bear'],
   kind: 'softbody',
   locomotion: 'hop',
-  directives: true,
   states: ['wander', 'seekFood', 'eat', 'seekWater', 'drink', 'seekHive', 'raidHive', 'flee',
     'seekHome', 'sleep', 'seekCompany', 'invite', 'social', 'decline', 'visit',
     'seekConflict', 'conflict', 'seekMate', 'mate', 'follow', 'familyTask'],

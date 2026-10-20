@@ -101,6 +101,7 @@ export const hiveModule = defineBehaviorModule({
   id: 'hive',
   label: 'Hive raid',
   states: ['seekHive', 'raidHive'],
+  activeStates: ['raidHive'],
   defaults: { enabled: true, params: HIVE_DEFAULTS },
   opportunities: [{
     id: 'hive.seek',

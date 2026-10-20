@@ -108,6 +108,7 @@ export const restModule = defineBehaviorModule({
   id: 'rest',
   label: 'Home and sleep',
   states: ['seekHome', 'sleep'],
+  activeStates: ['sleep'],
   defaults: { enabled: true, params: {} },
   needsRest,
   sleepDone: (ctx) => ctx.api.adapterSleepDone(ctx.actor),

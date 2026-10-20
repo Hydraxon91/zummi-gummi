@@ -10,7 +10,6 @@ export const SKILL_KEYS = ['forage', 'courage', 'social'];
 export const SKILL_MAX = 1;
 export const LESSON_GAIN = .12;
 export const PLAYDATE_WINDOW = { start: 14.5, end: 17 };
-export const HOME_CAPACITY = 4;
 
 // The routine table is data only. Phase D turns these windows into behavior;
 // keeping it here means a new routine is an entry, not a new state machine.

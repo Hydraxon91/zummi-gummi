@@ -55,12 +55,14 @@ export function createBehaviorModules({
   const features = config.features;
   const modules = new Map();
   const opportunities = [];
+  const activeStates = new Set();
   let configVersion = 0;
 
   function registerModule(mod) {
     if (!mod || !mod.id) throw new Error('behavior module id required');
     if (modules.has(mod.id)) throw new Error(`behavior module already registered: ${mod.id}`);
     modules.set(mod.id, mod);
+    for (const state of mod.activeStates || []) activeStates.add(state);
     for (const opportunity of mod.opportunities || []) {
       if (!Number.isFinite(opportunity.order)) {
         throw new Error(`behavior opportunity ${opportunity.id} needs an order`);
@@ -568,6 +570,8 @@ export function createBehaviorModules({
     const p = profile(actor);
     const n = p.needs;
     actor.ai.clock = finite(actor.ai.clock, 0) + dt;
+    // The profile value wins; PREGNANCY_HUNGER is the fallback for profiles
+    // written before needs.pregnancyHunger existed.
     actor.hunger = Math.min(1, finite(actor.hunger, .3) +
       n.hungerRate * (actor.pregnant ? finite(n.pregnancyHunger, PREGNANCY_HUNGER) : 1) * dt);
     actor.thirst = Math.min(1, finite(actor.thirst, .3) + n.thirstRate * dt);
@@ -894,7 +898,7 @@ export function createBehaviorModules({
       if (adapter && typeof adapter.preNeeds === 'function' && adapter.preNeeds(actor, api)) return;
       return;
     }
-    if (['sleep', 'invite', 'social', 'decline', 'conflict', 'mate', 'raidHive', 'flee'].includes(state)) return;
+    if (activeStates.has(state)) return;
     if (needsRest(actor) && state !== 'seekHome') { startSeekHome(actor); return; }
     if (dayShelterCheck(actor)) return;
     const adapter = adapterOf(actor);

@@ -35,6 +35,7 @@ export const fleeModule = defineBehaviorModule({
   id: 'flee',
   label: 'Flee threat response',
   states: ['flee'],
+  activeStates: ['flee'],
   defaults: { enabled: true, params: {} },
   startFlee,
   tick(ctx) {

@@ -277,6 +277,7 @@ export const familyTaskModule = defineBehaviorModule({
   id: 'family',
   label: 'Meals, lessons and playdates',
   states: ['familyTask'],
+  activeStates: ['familyTask'],
   defaults: { enabled: true, params: {} },
   acquireFamilyPlaymate,
   startPlaydate,

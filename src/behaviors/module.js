@@ -34,9 +34,11 @@ export function defineBehaviorModule(def) {
     }
   }
   const states = Object.freeze(def.states.slice());
+  const activeStates = Object.freeze(Array.isArray(def.activeStates) ? def.activeStates.slice() : []);
   const normalized = {
     ...def,
     states,
+    activeStates,
     opportunities: Object.freeze(opportunities.map(opportunity => Object.freeze({ ...opportunity }))),
     defaults: Object.freeze({
       enabled: def.defaults.enabled !== false,
@@ -54,6 +56,7 @@ export function moduleSummary(module) {
     id: module.id,
     label: module.label || module.id,
     states: module.states.slice(),
+    activeStates: module.activeStates.slice(),
     opportunities: (module.opportunities || []).map(o => o.id),
   };
 }

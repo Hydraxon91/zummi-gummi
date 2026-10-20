@@ -7,6 +7,7 @@ import { createBehaviorConfig } from '../src/behaviors/config.js';
 test('hive module declares its states, defaults and deterministic order', () => {
   assert.equal(hiveModule.id, 'hive');
   assert.deepEqual(hiveModule.states, ['seekHive', 'raidHive']);
+  assert.deepEqual(hiveModule.activeStates, ['raidHive']);
   assert.equal(hiveModule.defaults.enabled, true);
   assert.equal(hiveModule.opportunities.length, 1);
   assert.equal(hiveModule.opportunities[0].id, 'hive.seek');
@@ -75,6 +76,6 @@ test('module definitions are validated and frozen', () => {
   });
   assert.equal(mod.defaults.enabled, false);
   assert.deepEqual(moduleSummary(mod), {
-    id: 'x', label: 'X', states: ['a'], opportunities: ['x.a'],
+    id: 'x', label: 'X', states: ['a'], activeStates: [], opportunities: ['x.a'],
   });
 });

@@ -127,6 +127,7 @@ export const mateModule = defineBehaviorModule({
   id: 'mate',
   label: 'Courtship and mating',
   states: ['seekMate', 'mate'],
+  activeStates: ['mate'],
   defaults: { enabled: true, params: {} },
   opportunities: [{
     id: 'mate.seek',

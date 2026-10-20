@@ -201,6 +201,7 @@ export const conflictModule = defineBehaviorModule({
   id: 'conflict',
   label: 'Contested food and conflict',
   states: ['seekConflict', 'conflict'],
+  activeStates: ['conflict'],
   defaults: { enabled: true, params: {} },
   opportunities: [{
     id: 'conflict.critical',

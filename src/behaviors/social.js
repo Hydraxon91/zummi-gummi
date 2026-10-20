@@ -401,6 +401,7 @@ export const socialModule = defineBehaviorModule({
   id: 'social',
   label: 'Company, social and visits',
   states: ['seekCompany', 'invite', 'social', 'decline', 'visit'],
+  activeStates: ['invite', 'social', 'decline'],
   defaults: { enabled: true, params: {} },
   opportunities: [{
     id: 'social.company',
