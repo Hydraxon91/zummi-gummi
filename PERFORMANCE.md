@@ -470,6 +470,25 @@ were unstable (29.7–45.1 ms) in the same runs, so this environment is currentl
 noisy; treat the range as a monitoring result, not a final optimization claim.
 The 32.1 ms circular-pass table above remains the last stable profile.
 
+## Dynamic Glass and local-avoidance follow-up
+
+Method: `scripts/perf-profile.mjs`, same 8-soft-body + 2-Glass Meadow, camera,
+DPR and effects settings as the Phase F profile. The first two probe samples
+are discarded as GPU ramp; rows below are the stable medians. The same session
+was used for both profiles, but it was not the earlier Phase F session.
+
+| profile | baseline | baseline repeat | grass-distance minimum | AI |
+|---|---:|---:|---:|---:|
+| 1440×900, DPR 1, quality 2, effects off | 26.37 ms | 25.93 ms | 21.73 ms | 0.048 ms |
+| 900×600, DPR 0.6, quality 3 (CI graphics) | 12.55 ms | 12.55 ms | 12.40 ms | 0.068 ms |
+
+The normal profile is about **4 ms slower** than the earlier 22.0–22.7 ms
+Phase F reading, but this is a different session and the earlier rule says not
+to compare across sessions; the result is recorded as the current monitoring
+baseline, not as a claimed regression or win. Local avoidance and Glass body
+steering stay under 0.07 ms of reported AI time. Re-profile on a quiet machine
+before changing grass density or quality defaults.
+
 ## Interpretation
 
 - The meadow remains **fill/overdraw and grass-geometry bound**.

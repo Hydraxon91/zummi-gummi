@@ -320,6 +320,19 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
 
 **Known follow-ups — UV verification (fixed/untested):**
+Corrected 4096 zero-margin rerun (2026-10-20): five diagnostic fixtures pass; wheels
+PASS with all 15,400 triangles sampled, trim checker PASS with 24 subpixel triangles and
+seven approved material-only exclusions. Glass/lights, interior and chassis FAIL on
+below-pixel resolution loss and/or unsampled regions; no acceptance exceptions added.
+Chassis Coils retains exactly the same maximum error (0.95614), 48 resolution-loss
+triangles and 1,011 unsampled triangles in an isolated bake as in the full sheet.
+Independent pixel audit finds ten high-error samples have black pixels and a missing
+blue emission marker: these are unbaked sample locations, not evidence of cross-object
+bake interference or proof that source geometry is wrong. Exact rasterization cause
+remains unresolved. No geometry, source UVs or saved source files changed.
+Deferred pending targeted diagnosis/repair decision; padding/PBR transfer unverified.
+Evidence: RaptorRC `.dev-shots/category_zero_margin_002/` including
+`coils_batch_pixel_audit.json` and `coils_isolated/transfer_check.json`.
 Source provenance blocker resolved: `raptor_rc_166_body_glass_chassis.blend1` exactly matches
 historical SHA `8355741d...`. Read-only inventories of current 166 and that backup show identical
 422 meshes (vertex/edge/loop/polygon data, UV arrays, face material indices), 464 objects
@@ -973,7 +986,7 @@ can proceed with the current runtime and assets.
   follows physical position without hover bob and tilts visually; release preserves
   body velocity. Shared grab/release hooks cancel paired tasks. Rotation remains
   visual because the sphere proxy is rotation-locked. Target-update/no-teleport,
-  lift, Shift-lift, tilt and release probes pass, as do 74 pure tests, 57 smoke
+  lift, Shift-lift, tilt and release probes pass, as do 78 pure tests, 57 smoke
   checks and the Studio browser regression. The full Glass lifecycle passes;
   obstacle-interface coverage remains outstanding.
 - **Bear growth locomotion (fixed).** `applyBearStage` now clears stale hop/stuck/contact
@@ -989,13 +1002,21 @@ can proceed with the current runtime and assets.
 - **Local actor avoidance (implemented, checks pass).** Soft-body hop steering and
   Glass walking both bias their heading away from nearby actors ahead of them. The
   bias is local and cheap (radius 1.35 m, no replanning); collisions remain the
-  fallback. Full Glass lifecycle, Studio browser regression, 74 pure tests and smoke
-  pass. A deterministic two-actor avoidance capture is still outstanding.
-- **Emote backing (checked, safeguard added).** The refusal sprite was captured at
-  day and night and cropped at its actual size; the transparent canvas has clean
-  corners and no square backing in the inspected captures. The canvas is explicitly
-  cleared, mipmaps are disabled and the sprite uses `alphaTest` to reject transparent
-  texels. Other emote kinds were not individually re-captured.
+  fallback. The shared `src/avoidance.js` helper has four pure unit tests, and the
+  Studio browser regression now also checks stage-growth recovery, a bear/Glass
+  collision and bounded night sleep/wake flips. Full Glass lifecycle, Studio
+  browser regression, 78 pure tests and smoke pass. A deterministic two-actor
+  visual avoidance capture is still outstanding.
+- **Emote backing (checked, safeguard added).** All six kinds (`refuse`, `heart`,
+  `no`, `yes`, `sparkle`, `exclaim`) were captured over grass/trees at actual size;
+  the refusal sprite was also checked at night. No square backing or halo is visible,
+  and the canvas corners are fully transparent. The canvas is explicitly cleared,
+  mipmaps are disabled and the sprite uses `alphaTest` to reject transparent texels.
+- **Movement profile (recorded).** The current 8-soft-body + 2-Glass session measured
+  **26.37 ms** normal and **12.55 ms** in the CI graphics profile, with AI at
+  0.048/0.068 ms. The normal reading is ~4 ms above the earlier Phase F session but
+  is a different session; it is recorded as the current monitoring baseline in
+  `PERFORMANCE.md`, not as a claimed regression or win.
 - **Citizen panel (fixed).** The two refresh signatures now share one helper, and rows
   are keyed by actor uid and updated in place instead of rebuilding the whole list.
   Browser checks keep an original row connected after idle and complete 10/10 CDP
