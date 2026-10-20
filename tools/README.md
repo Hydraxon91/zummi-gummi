@@ -16,16 +16,21 @@ The canonical upstream is maintained separately. See
 ## asset-pipeline
 
 Phase 1a/1b read-only audit, delivery profiles, provenance schema and advisory
-camera-projected texel-density policy for the Blender → AI-assisted materials → glTF
-pipeline.
+camera-projected texel-density policy, plus Phase 2 unified export verification for the
+Blender → AI-assisted materials → glTF pipeline.
 
 - Roadmap: `docs/asset-pipeline-roadmap.md`
 - Entry point: `tools/asset-pipeline/README.md`
 - Audit: `tools/asset-pipeline/scripts/audit_asset.py`
 - Density policy: `tools/asset-pipeline/scripts/density_policy.py`
+- Export verification: `tools/asset-pipeline/scripts/verify_asset.mjs`
+- Validator provisioning: `tools/asset-pipeline/scripts/provision_validator.mjs`
+- Standalone preview: `tools/asset-pipeline/preview/index.html`
 - Profiles: `tools/asset-pipeline/profiles/`
-- Tests: `python3 -m unittest discover -s tools/asset-pipeline/tests -p 'test_*.py'`
+- Python tests: `python3 -m unittest discover -s tools/asset-pipeline/tests -p 'test_*.py'`
+- Phase 2 tests: `tools/asset-pipeline/tests/phase2/run.sh`
 - Blender fixtures: `BLENDER=/path/to/blender tools/asset-pipeline/tests/blender/run.sh`
 
-This tooling is read-only and does not export, validate GLBs, generate textures or
-integrate assets into the game. Density thresholds are advisory, not an acceptance gate.
+This tooling is read-only and does not export, repair, generate textures, modify the game
+loader or integrate assets into the game. Density thresholds are advisory, not an
+acceptance gate; validator and preview evidence remain separate from game integration.

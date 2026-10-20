@@ -1,6 +1,6 @@
 # Asset Pipeline Roadmap
 
-Status: **Phase 1b implemented**; Phase 2 next.
+Status: **Phase 2 implemented**; Phase 3 next.
 Date: 2026-10-20
 Owner: Hydraxon
 
@@ -287,6 +287,34 @@ Automatic visual scoring and game registration.
 ### Decision gate
 
 Approve warning dispositions and any preview-harness or loader changes.
+
+Approved 2026-10-20: unified report, isolated pinned validator, disposable clean import
+and a tool-only preview. No game loader or runtime changes.
+
+### Implementation (2026-10-20)
+
+- Added the versioned verification report contract and pure status/disposition helpers.
+- Added `verify_asset.mjs` to combine node/Python inventories, validator results,
+  dependency/profile checks, clean import, preview captures and resource notes.
+- Pinned `gltf-validator@2.0.0-dev.3.10` behind an isolated provisioning script; no root
+  `package.json`, game dependency or build step was added.
+- Added a disposable factory-startup clean-import check. It excludes importer-only
+  `glTF_not_exported`/custom-shape helpers from asset counts and bounds.
+- Added a standalone three.js `0.186.1` preview with stock `GLTFLoader`, fixed day/night
+  views, shader/resource diagnostics, material/extension inventory and hash-linked PNG
+  captures.
+- Verified `KHR_materials_emissive_strength` through the validator, preview and an
+  original emissive fixture; no fallback is applied automatically.
+- Added synthetic valid, malformed, invalid-accessor, external-dependency and
+  unsupported-extension GLBs. Valid/emissive/normal paths pass; malformed and invalid
+  paths fail; missing evidence remains unverified.
+- Did not add `gltf-transform inspect`; the existing node/Python inventories cover the
+  current fields. Add it only if a demonstrated gap appears.
+- Verified the existing MSN GLB with manifest, provenance, clean import and eight
+  day/night captures. A hash-linked visual review records the inspected captures;
+  the disposition remains `review` because validator warnings and resource estimates
+  are not a clean pass.
+- No compression variant, loader change, production asset edit or game integration.
 
 ---
 
@@ -716,18 +744,18 @@ authorize game integration, dependency changes, commits or pushes.
 
 # Approval gates and deferred work
 
-- **Phase 2** is the next implementation step.
+- **Phase 3** is the next implementation step.
 - No house modeling, Qwen generation or game integration at this stage.
 - No commit or push without explicit approval.
-- Validator provisioning is approved, but loader/preview-harness changes are separate.
+- Validator provisioning is approved; loader/runtime changes remain separate.
 - Compression variants, automatic segmentation, projection texturing and UDIM are
   separately approved experiments.
 - The night-lit reference photograph remains design inspiration only.
 
 ## Next action
 
-Phase 1b is implemented under `tools/asset-pipeline/`. Begin **Phase 2** next:
-the unified export-verification report, including pinned glTF-Validator results,
-clean-load checks and three.js capture evidence.
+Phase 2 is implemented under `tools/asset-pipeline/`. Begin **Phase 3** next:
+the crate end-to-end slice, curved-surface UV/bake test and MSN baseline.
 
-Density thresholds remain advisory; no export, generation or house modeling has started.
+Density thresholds remain advisory; no compression variant, loader change, generation
+or house modeling has started.

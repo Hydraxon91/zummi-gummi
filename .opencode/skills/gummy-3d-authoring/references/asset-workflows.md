@@ -143,6 +143,12 @@ Face Orientation remain separate inspections; the helper does not certify them.
 - Run `glb_report.py`, then Khronos validation when available. Inspect the exported result
   separately from its Blender source. In-game appearance/performance verification requires
   separately approved integration; a successful export is not game readiness.
+- For a unified Phase 2 report, run
+  `node tools/asset-pipeline/scripts/verify_asset.mjs` with the manifest, profile and
+  provenance as described in `tools/asset-pipeline/README.md`. It records inventories,
+  validator results, clean import and standalone preview captures without changing the
+  game loader. A validator pass does not prove appearance, and capture existence does not
+  prove visual inspection.
 
 ## Verification
 

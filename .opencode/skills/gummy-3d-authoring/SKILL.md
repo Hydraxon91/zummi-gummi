@@ -48,6 +48,13 @@ and binary masks with dilation; deterministic ids, non-zero exit on failed valid
 `scripts/uv_label_review.py` (numbered review sheet plus a proposed-name JSON template; a human
 must review it before `--names` is used).
 
+For Phase 2 export verification, use
+`tools/asset-pipeline/scripts/verify_asset.mjs` with the workflow in
+`tools/asset-pipeline/README.md`. It links node/Python GLB inventories, the pinned
+Khronos validator, a disposable clean import and a standalone three.js preview. Validator
+conformance, preview compatibility and human visual inspection remain separate claims;
+the preview does not modify the game loader or authorize integration.
+
 For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
 [references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are
 external and do not authorize game integration, material transfer or a bake.

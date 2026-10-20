@@ -1,11 +1,12 @@
 # Asset pipeline tools
 
-Phase 1a and Phase 1b of
+Phase 1a, Phase 1b and Phase 2 of
 [`docs/asset-pipeline-roadmap.md`](../../docs/asset-pipeline-roadmap.md).
 
-This directory currently contains the **read-only asset audit**, delivery profiles,
-provenance schema and advisory texel-density policy. It does not generate textures,
-repair assets, export GLBs, run glTF-Validator or integrate anything into Gummy Bears.
+This directory contains the **read-only asset audit**, delivery profiles, provenance
+schema, advisory texel-density policy and unified export verification. It does not
+generate textures, repair assets, export GLBs, modify the game loader or integrate
+anything into Gummy Bears.
 
 ## Contents
 
@@ -15,10 +16,17 @@ repair assets, export GLBs, run glTF-Validator or integrate anything into Gummy 
   - `mixed_architecture.json` (provisional, bubble house)
 - `schemas/` — JSON Schema documents for profiles and provenance.
 - `examples/provenance.example.json` — minimal provenance record.
+- `schemas/verification-report.schema.json` — Phase 2 report contract.
 - `scripts/audit_asset.py` — read-only Blender audit.
 - `scripts/density_policy.py` — pure percentile and advisory-policy evaluation.
 - `scripts/validate_documents.py` — dependency-free profile/provenance validation.
-- `tests/` — pure document/policy tests and two Blender fixtures.
+- `scripts/verification_report.mjs` — pure status, disposition and inventory comparison.
+- `scripts/validator.mjs` — pinned Khronos `gltf-validator` adapter.
+- `scripts/provision_validator.mjs` — isolated validator provisioning.
+- `scripts/verify_asset.mjs` — unified structural/validator/import/preview coordinator.
+- `scripts/clean_import.py` — disposable Blender clean-import check.
+- `scripts/preview_capture.mjs` and `preview/` — standalone three.js preview harness.
+- `tests/` — pure document/policy/report tests, Blender fixtures and synthetic GLBs.
 
 ## Audit
 
@@ -124,6 +132,92 @@ textures; intentionally untextured constant/procedural materials do not require 
 warnings. Advisory density warnings should only be made blocking after calibration and
 explicit approval.
 
+## Phase 2 export verification
+
+`verify_asset.mjs` combines independent evidence without treating one check as another:
+
+- node and Python GLB inventories;
+- the pinned Khronos glTF Validator;
+- self-contained dependency and profile-extension checks;
+- a disposable Blender clean import;
+- a standalone three.js preview and hash-linked captures;
+- an advisory resource summary.
+
+Provision the validator once into the gitignored scratch cache:
+
+```bash
+node tools/asset-pipeline/scripts/provision_validator.mjs
+```
+
+This pins `gltf-validator@2.0.0-dev.3.10` (Apache-2.0), verifies the tarball SHA-1, and
+does not create a root `package.json`, game dependency or build step.
+
+Serve the repository and run the coordinator:
+
+```bash
+python3 launch.py --no-open --localhost --port 8123
+```
+
+```bash
+node tools/asset-pipeline/scripts/verify_asset.mjs \
+  --glb assets/MSN_Figure/msn.glb \
+  --manifest assets/MSN_Figure/asset.json \
+  --profile tools/asset-pipeline/profiles/transparent_buddy.json \
+  --provenance path/to/provenance.json \
+  --out .dev-shots/asset-pipeline/verify-msn \
+  --base-url http://localhost:8123 \
+  --views front,three_quarter,near,far \
+  --lights day,night
+```
+
+Useful options:
+
+- `--manifest path/to/asset.json` to verify a tracked inventory and hash;
+- `--visual-review path/to/review.json` to link inspected captures and hashes;
+- `--skip-clean-import` and `--skip-preview` for structural-only passes;
+- `--validator-dir DIR` to point at an explicitly provisioned validator;
+- `--clip NAME` and `--width`/`--height` for preview framing;
+- `--strict` to exit nonzero when the disposition is `fail`.
+
+The report is `report.json` in `--out`, with `node-inventory.json`,
+`python-inventory.json`, `validator.json`, `clean-import.json`, `preview.json` and
+hash-linked PNG captures beside it. The JSON contract is
+`schemas/verification-report.schema.json`.
+
+Sections are `identity`, `structure`, `validator`, `dependencies`, `clean_import`,
+`preview`, `visual` and `resources`.
+
+Sections use `pass`, `review`, `fail`, `unverified` and `not_run`. Errors block; warnings
+and unverified sections prevent a clean pass. A capture being written does not prove it
+was inspected, so `visual` remains `review` until a separate human or approved visual
+check records its evidence.
+
+A visual review is a small JSON record with `inspected`, `reviewer`, `notes` and a
+`captures` list of `{path, sha256}` entries. Every listed hash must match a current
+capture; unknown or stale evidence fails. Omitting a current capture remains a review
+item rather than a pass.
+
+The preview is a **standalone tool-only page** using the pinned three.js `0.186.1` and
+its stock `GLTFLoader`. It loads the GLB, records material/extension/inventory data and
+captures fixed views under day and night lighting. It does not modify `src/assets.js`,
+the game loader, species registry or runtime scene. Unsupported required extensions are
+surfaced for review; no automatic material fallback is applied.
+
+The Blender clean import runs in `--factory-startup` and excludes importer-only
+`glTF_not_exported`/custom-shape helper objects. A clean import establishes decoded
+inventory and material/image state, not conformance or appearance.
+
+### Phase 2 fixtures
+
+```bash
+tools/asset-pipeline/tests/phase2/run.sh
+```
+
+The fixture suite checks valid, malformed, invalid-accessor, external-dependency and
+unsupported-extension GLBs, the validator adapter and report dispositions. With
+`PREVIEW_BASE_URL=http://localhost:8123`, it also runs the MSN preview path and expects a
+`review` disposition.
+
 ## Documents
 
 ```bash
@@ -174,5 +268,11 @@ directory is relocated; the extractor path is derived from the repository root.
 - Node groups are not traversed by the texture inventory.
 - Density thresholds are advisory until calibrated; they do not establish acceptance.
 - No texture-pixel, bake-quality or rendered-appearance validation.
-- No glTF-Validator, GLB export, compression or three.js loading yet.
-- No house modeling, Qwen generation or game integration.
+- Phase 2 does not export or repair assets, change the loader or integrate into the game.
+- Validator conformance is not appearance, gameplay or universal extension support.
+- Preview captures are standalone three.js evidence, not full-game performance.
+- The preview uses the pinned three.js CDN import map; offline loading is unverified.
+- Decoded texture-memory and transfer-cost estimates remain unverified.
+- `gltf-transform inspect` is intentionally not added; existing inventories cover the
+  current fields, and a new dependency needs a demonstrated gap.
+- No compression variant, house modeling, Qwen generation or game integration.
