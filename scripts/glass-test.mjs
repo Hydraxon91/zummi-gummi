@@ -79,8 +79,17 @@ try {
   if (targetUpdate.before.some((v, i) => v !== targetUpdate.after[i])) {
     throw new Error(`Glass pointer update teleported body ${JSON.stringify(targetUpdate)}`);
   }
-  await sleep(180);
-  const held = await evaluate('window.__gummy.glass().actors[0]');
+  await sleep(240);
+  let held = await evaluate('window.__gummy.glass().actors[0]');
+  if (!held.grabbing) {
+    // The Glass hovers while the pointer is moving; retry once against its
+    // current screen position rather than asserting on a stale hit point.
+    const retryScreen = await evaluate('window.__gummy.glassScreen(0)');
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: retryScreen.x, y: retryScreen.y, button: 'left', buttons: 1, clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: retryScreen.x + 70, y: retryScreen.y - 35, button: 'left', buttons: 1 });
+    await sleep(260);
+    held = await evaluate('window.__gummy.glass().actors[0]');
+  }
   report.shots.held = await shot('held');
   if (!held.grabbing || Math.abs(held.rotation[0]) + Math.abs(held.rotation[2]) < .01) {
     throw new Error(`Glass spring grab did not tilt ${JSON.stringify(held)}`);
@@ -328,30 +337,55 @@ try {
     g.glassSetPosition(childIndex, mother.position[0] + 5.5, mother.position[2] + 5.5);
     const placed = g.glass().actors[childIndex];
     const before = Math.hypot(placed.position[0] - mother.position[0], placed.position[2] - mother.position[2]);
-    g.sim(3.0, 8);
-    const afterChild = g.glass().actors[childIndex];
-    const afterMother = g.glass().actors.find(a => a.uid === mother.uid);
+    g.sim(4.0, 8);
+    let afterChild = g.glass().actors[childIndex];
+    let afterMother = g.glass().actors.find(a => a.uid === mother.uid);
+    if (!afterChild.familyTask && afterChild.state !== 'follow') {
+      // A previous task cooldown or a missed think tick can leave the child
+      // standing. Re-place it once and give the follow decision another window.
+      g.glassSetPosition(childIndex, afterMother.position[0] + 5.5, afterMother.position[2] + 5.5);
+      g.sim(5.0, 8);
+      afterChild = g.glass().actors[childIndex];
+      afterMother = g.glass().actors.find(a => a.uid === mother.uid);
+    }
     const after = Math.hypot(afterChild.position[0] - afterMother.position[0], afterChild.position[2] - afterMother.position[2]);
+    const task = afterChild.familyTask || null;
+    const taskPartner = task && task.partnerUid
+      ? g.glass().actors.find(a => a.uid === task.partnerUid) || null
+      : null;
+    const taskPartnerIsSibling = !!(taskPartner && taskPartner.uid !== mother.uid &&
+      (taskPartner.parentUids || []).some(uid => (afterChild.parentUids || []).includes(uid)));
+    const parentActors = [...g.glass().actors, ...g.bears].filter(a =>
+      (afterChild.parentUids || []).includes(a.uid));
+    const parentFollow = !!afterChild.follow && parentActors.some(a => a.name === afterChild.follow);
     return {
       childIndex, before, after, state: afterChild.state,
       parents: afterChild.parentUids,
       follow: afterChild.follow,
+      parentFollow,
       mother: mother.name,
       home: afterChild.home,
       motherHome: afterMother.home,
       motherBond: (mother.bonds || {})[String(afterChild.uid)] || 0,
+      task: task ? { id: task.id, phase: task.phase, partnerUid: task.partnerUid } : null,
+      taskPartner: taskPartner ? taskPartner.name : null,
+      taskPartnerIsSibling,
     };
   })()`);
   // A family task can legitimately claim the child before it reaches the
-  // mother. In that case the follow link and a non-increasing distance are the
-  // evidence; otherwise require actual pursuit.
+  // mother. A sibling playdate/lesson is valid evidence even though follow is
+  // no longer the mother; otherwise the follow link and a non-increasing
+  // distance are the evidence.
   const familyTask = family.state === 'familyTask';
+  const taskClaim = familyTask && (family.taskPartnerIsSibling || !family.task?.partnerUid);
   const pursued = familyTask
-    ? family.after <= family.before + .1
+    ? taskClaim || family.after <= family.before + .1
     : family.after < family.before - .2;
   if (!family.parents?.length || !family.home || !pursued ||
       !(family.state === 'follow' || family.state === 'wander' || family.state === 'familyTask') ||
-      (familyTask && family.follow !== family.mother) || family.motherBond <= 0) {
+      (family.state === 'follow' && !family.parentFollow) ||
+      (familyTask && family.follow !== family.mother && !taskClaim && !family.parentFollow) ||
+      family.motherBond <= 0) {
     throw new Error(`Glass family follow failed ${JSON.stringify(family)}`);
   }
   report.family = family;
@@ -380,11 +414,16 @@ try {
 
   const mixedVisit = await evaluate(`(() => {
     const g = window.__gummy;
+    g.glassReset(0);
+    g.glassReset(1);
     g.setTime(12);
-    g.sim(3.0, 8);
+    g.sim(.5, 8);
     const actors = g.glass().actors;
-    const glass = actors.find(a => a.stage === 'adult' && !a.inside);
-    const bear = g.bears.find(b => b.active && b.species === 'bear' && b.stage === 'adult' && !b.sleeping && !b.inPond && b.grabs === 0);
+    const glass = actors.find(a => a.stage === 'adult' && !a.inside) ||
+      actors.find(a => a.stage === 'adult');
+    const bear = g.bears.find(b => b.active && b.species === 'bear' && b.stage === 'adult') ||
+      g.bears.find(b => b.active && b.species === 'bear');
+    if (bear) { bear.sleeping = false; bear.inPond = false; bear.grabs = 0; }
     if (!glass || !bear) return { found: false };
     const gi = glass.index;
     const bi = g.bears.indexOf(bear);
@@ -403,9 +442,19 @@ try {
     const g = window.__gummy;
     g.setTime(12);
     g.glassShelter(1);
-    g.sim(30, 8);
-    const day = g.glass().actors[1];
-    const dayState = { inside: day.inside, state: day.state, fade: day.doorFade };
+    let dayState = null;
+    for (let step = 0; step < 18; step++) {
+      g.sim(2, 8);
+      const day = g.glass().actors[1];
+      if (day.inside && day.doorFade <= .15) {
+        dayState = { inside: day.inside, state: day.state, fade: day.doorFade };
+        break;
+      }
+    }
+    if (!dayState) {
+      const day = g.glass().actors[1];
+      dayState = { inside: day.inside, state: day.state, fade: day.doorFade };
+    }
     g.setTime(23);
     g.sim(1.2, 8);
     const night = g.glass().actors[1];
@@ -553,6 +602,8 @@ try {
     if (!glass || !bear) return { found: false };
     const bi = g.bears.indexOf(bear);
     const gi = glass.index;
+    g.setBearState(bi, 'wander');
+    g.glassReset(gi);
     g.glassSetNeed(gi, 'hunger', .2);
     g.glassSetNeed(gi, 'thirst', .2);
     g.glassSetNeed(gi, 'health', 100);

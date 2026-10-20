@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { planReason } from '../src/behaviors/reason.js';
 import { thoughtBubbleRows, layoutThoughtRows, createThoughtBubbleOverlay } from '../src/thoughtbubble.js';
 import { FEATURE_DEFAULTS } from '../src/behaviors/config.js';
+import { createBehavior } from '../src/behaviors/index.js';
+import { createBehaviorConfig } from '../src/behaviors/config.js';
+import { createWorld, createRoster } from '../scripts/behavior-parity.mjs';
 
 function actor(extra = {}) {
   return {
@@ -35,6 +38,67 @@ test('planReason explains states without RNG or mutation', () => {
     assert.equal(planReason(a), expected);
     assert.equal(JSON.stringify(a), before, 'reason must not mutate the actor');
   }
+});
+
+function seeded(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6D2B79F5) | 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function featureRun(thoughtBubbles) {
+  const world = createWorld();
+  const roster = createRoster('bear');
+  const rng = seeded(17);
+  let draws = 0;
+  const config = createBehaviorConfig({ features: { thoughtBubbles } });
+  const engine = createBehavior({
+    engine: 'modules', config, field: world, getActors: () => roster,
+    getHours: () => 12, getDay: () => 1, getPopulationCap: () => 40,
+    rng: () => { draws++; return rng(); },
+  });
+  for (const actor of roster) engine.attach(actor);
+  for (let tick = 0; tick < 200; tick++) {
+    for (const actor of roster) engine.tick(actor, 1 / 20);
+  }
+  return {
+    draws,
+    state: JSON.stringify(roster.map(actor => [
+      actor.uid, actor.ai?.state, actor.hunger, actor.thirst, actor.health,
+      actor.energy, actor.social, actor.affection, actor.cx, actor.cz,
+    ])),
+  };
+}
+
+test('thoughtBubbles on/off leaves simulation state and RNG draws identical', () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const off = featureRun(false);
+    const on = featureRun(true);
+    assert.equal(on.draws, off.draws);
+    assert.equal(on.state, off.state);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+test('plan().reason is a lazy getter, not tick work', () => {
+  const engine = createBehavior({
+    engine: 'modules', field: {}, getActors: () => [], getHours: () => 12, getDay: () => 1,
+    getPopulationCap: () => 40, rng: () => .5,
+  });
+  const a = actor();
+  const plan = engine.plan(a);
+  const descriptor = Object.getOwnPropertyDescriptor(plan, 'reason');
+  assert.equal(typeof descriptor.get, 'function');
+  assert.equal('value' in descriptor, false);
+  assert.equal(plan.reason, 'wandering');
 });
 
 test('thought rows project visible actors and respect the cap', () => {

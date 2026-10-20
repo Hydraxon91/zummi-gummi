@@ -2270,9 +2270,9 @@ export function createBehavior({
 
   function plan(actor) {
     if (!actor || !actor.ai) return null;
-    return {
+    let reasonText = null;
+    const out = {
       state: actor.ai.state,
-      reason: planReason(actor),
       hunger: +finite(actor.hunger, 0).toFixed(3),
       thirst: +finite(actor.thirst, 0).toFixed(3),
       health: +finite(actor.health, 0).toFixed(1),
@@ -2309,6 +2309,15 @@ export function createBehavior({
       skills: { ...skillsFor(actor) },
       history: (actor.history || []).slice(-4),
     };
+    Object.defineProperty(out, 'reason', {
+      enumerable: true,
+      configurable: true,
+      get() {
+        if (reasonText === null) reasonText = planReason(actor);
+        return reasonText;
+      },
+    });
+    return out;
   }
 
   function statsNow(filter = null) {

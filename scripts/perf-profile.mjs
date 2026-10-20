@@ -16,6 +16,7 @@ import { launchBrowser, connectBrowser } from './browser-harness.mjs';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TAG = process.env.TAG || 'current';
 const LOW_QUALITY = process.env.LOW_QUALITY === '1';
+const THOUGHTS = process.env.THOUGHTS === '1';
 const WIDTH = Number(process.env.WIDTH || (LOW_QUALITY ? 900 : 1440));
 const HEIGHT = Number(process.env.HEIGHT || (LOW_QUALITY ? 600 : 900));
 const base = process.env.GAME_URL || 'http://localhost:8000/';
@@ -51,10 +52,22 @@ try {
       : "g.setAdaptive(false); g.setQuality(2); g.setEffects('off'); g.setNature({ canopy: 1, leafSize: 1, coverage: 1, drawDistance: 56 });"}
     g.setSkyLook('day');
     g.sim(6, 8);
+    let thought = null;
+    if (${THOUGHTS ? 'true' : 'false'}) {
+      g.thoughts(true);
+      const started = performance.now();
+      for (let i = 0; i < 120; i++) g.thoughts();
+      const state = g.thoughtState();
+      thought = {
+        msPerUpdate: +((performance.now() - started) / 120).toFixed(4),
+        updates: 120,
+        count: state?.count || 0,
+      };
+    }
     g.freeze(true);
     g.freezeCamera(true);
     g.renderProbe(120);
-    return { stats: g.stats(), field: g.fieldInfo(), settings: g.settings(), map: g.map() };
+    return { stats: g.stats(), ai: g.ai(), field: g.fieldInfo(), settings: g.settings(), map: g.map(), thought };
   })()`);
 
   const probe = async (name) => {
@@ -111,6 +124,8 @@ try {
     map: setup.map.id, bears: setup.stats.bears, glass: setup.stats.glass,
     dpr: setup.stats.dpr, quality: setup.stats.quality, calls: setup.stats.calls,
     tris: setup.stats.tris, nature: setup.field?.nature || null, settings: setup.settings,
+    aiMs: setup.ai?.ms ?? null,
+    thought: setup.thought,
   }, rows: report, pageErrors: browser.pageErrors }, null, 2));
 
   if (browser.pageErrors.length) failure = `page errors: ${browser.pageErrors.slice(0, 3).join(' | ')}`;
