@@ -895,6 +895,11 @@ export function createGlassColony({
         ? { x: +a.ai.playdateTarget.x.toFixed(2), z: +a.ai.playdateTarget.z.toFixed(2) }
         : null,
       moving: !!(a.ai && a.ai.moving),
+      noProgressT: a.ai ? +(+a.ai.noProgressT || 0).toFixed(2) : 0,
+      recoveries: a.ai ? (a.ai.recoveries | 0) : 0,
+      doorEntries: a.ai ? (a.ai.doorEntries | 0) : 0,
+      doorExits: a.ai ? (a.ai.doorExits | 0) : 0,
+      shelteredToday: !!a.shelteredToday,
       path: a.ai && a.ai.path ? a.ai.path.slice(0, 6).map(p => [+p.x.toFixed(2), +p.z.toFixed(2)]) : null,
       pathIndex: a.ai && a.ai.pathIndex || 0,
       target: a.ai && a.ai.target ? [+a.ai.target.x.toFixed(2), +a.ai.target.z.toFixed(2)] : null,
@@ -1278,6 +1283,7 @@ export function createGlassColony({
     a.ai.socialCooldown = 0;
     a.ai.partner = null;
     a.ai.follow = null;
+    a.ai.followRetryT = 0;
     a.ai.moving = false;
     a.ai.path = null;
     a.ai.pathIndex = 0;
@@ -1304,6 +1310,22 @@ export function createGlassColony({
     a.ai.directiveHome = false;
     a.ai.taskCooldown = 0;
     a.ai.familyPlayCooldown = 0;
+    a.ai.noProgressT = 0;
+    a.ai.recoveries = 0;
+    a.ai.lastStuck = null;
+    a.ai.doorEntries = 0;
+    a.ai.doorExits = 0;
+    a.ai.doorFirstAt = 0;
+    a.ai.doorWarned = false;
+    a.ai.restCooldown = 0;
+    a.ai.avoidSourceId = null;
+    a.ai.avoidSourceT = 0;
+    a.ai.progressX = a.cx;
+    a.ai.progressZ = a.cz;
+    a.ai.progressTargetX = null;
+    a.ai.progressTargetZ = null;
+    a.ai.progressDist = Infinity;
+    a.ai.progressPathIndex = 0;
     a.walkDesired = null;
     a.bodyVx = 0;
     a.bodyVz = 0;

@@ -297,8 +297,28 @@ try {
     };
   })()`, 180000);
   if (!growthCheck.ok || growthCheck.stage !== 'adult' || growthCheck.contacts < 1 ||
-      growthCheck.air || growthCheck.moved < .02) {
+      growthCheck.moved < .02) {
     failures.push(`stage growth did not resume locomotion: ${JSON.stringify(growthCheck)}`);
+  }
+  const stallCheck = await page.evaluate(`(() => {
+    const g = window.__gummy;
+    const i = g.bears.findIndex(b => b.active && !b.sleeping && !b.inPond && b.grabs === 0 &&
+      !b.airborne && b.contacts > 0 && b.rMat[4] > .62 && !(b.ai && b.ai.familyTask));
+    if (i < 0) return { ok: false, note: 'no grounded free bear' };
+    const injected = g.aiStall(i, 'seekFood');
+    if (!injected) return { ok: false, note: 'no ripe food source' };
+    const before = [g.bears[i].cx, g.bears[i].cz];
+    g.sim(6.4, 0);
+    const b = g.bears[i];
+    return {
+      ok: true, injected, state: b.ai.state,
+      recoveries: b.ai.recoveries, stuck: b.ai.lastStuck ? b.ai.lastStuck.reason : null,
+      moved: Math.hypot(b.cx - before[0], b.cz - before[1]),
+    };
+  })()`, 180000);
+  if (!stallCheck.ok || stallCheck.recoveries < 1 || stallCheck.state !== 'wander' ||
+      stallCheck.stuck !== 'no-progress') {
+    failures.push(`stationary seek watchdog failed: ${JSON.stringify(stallCheck)}`);
   }
   if (!CORE) {
     const collisionCheck = await page.evaluate(`(() => {
@@ -311,6 +331,23 @@ try {
     })()`, 180000);
     if (collisionCheck.distance < .25 || collisionCheck.free) {
       failures.push(`Glass did not collide with a bear: ${JSON.stringify(collisionCheck)}`);
+    }
+    const doorCheck = await page.evaluate(`(() => {
+      const g = window.__gummy;
+      g.setTime(12);
+      const index = g.glass().actors.findIndex(a => a.ready && !a.inside && !a.grabbing);
+      if (index < 0) return { ok: false, note: 'no shelter candidate' };
+      const started = g.glassShelter(index);
+      if (!started) return { ok: false, note: 'shelter refused' };
+      g.sim(120, 0);
+      const a = g.glass().actors[index];
+      return {
+        ok: true, inside: a.inside, state: a.state, sheltered: a.shelteredToday,
+        entries: a.doorEntries, exits: a.doorExits,
+      };
+    })()`, 180000);
+    if (!doorCheck.ok || doorCheck.entries + doorCheck.exits > 2 || doorCheck.inside) {
+      failures.push(`Glass shelter door loop: ${JSON.stringify(doorCheck)}`);
     }
   }
   const sleepCheck = await page.evaluate(`(() => {

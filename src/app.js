@@ -6648,6 +6648,28 @@ window.__gummy = {
   world(){ return { map: activeWorld.mapId, wallHeight: getActiveMap().wallHeight, walls: worldWalls.walls.slice(), ground: worldWalls.ground, bounds: [worldWalls.hx, worldWalls.hz], launcher: launcher ? launcher.state() : null }; },
   traits(){ return bears.map(b => ({ uid:b.uid, sex:b.sex, stage:b.stage, scale:b.scale, age:b.age, health:b.health, hunger:b.hunger, thirst:b.thirst, energy:b.energy, social:b.social, affection:b.affection, bonds:{ ...(b.bonds || {}) }, skills:{ ...(b.skills || {}) }, history:(b.history || []).slice(-4), playdates:{ ...(b.playdates || {}) }, bold:b.bold, hopSpeedMin:b.hopSpeedMin, hopSpeedMax:b.hopSpeedMax, pregnant:!!b.pregnant, gestation:b.gestation, mateCooldown:b.mateCooldown, parentUids:(b.parentUids || []).slice(), fatherUid:b.fatherUid || 0, bedtime:b.bedtime, wakeTime:b.wakeTime, sleeping:!!b.sleeping, home:b.home, ai:b.ai ? b.ai.state : null, familyTask:b.ai ? b.ai.familyTask : null, partner:b.ai && b.ai.partner ? b.ai.partner.name : null })); },
   ai(){ return ai ? ai.stats() : null; },
+  aiStall(i, state = 'seekFood'){
+    const b = bears[i];
+    if (!b || !b.ai || !b.active || !field || !field.food) return null;
+    const kind = state === 'seekHive' ? 'hive' : null;
+    const source = field.food.sources.find(s => s.ripe && (!kind || s.kind === kind));
+    if (!source || !field.food.claim(source, b)) return null;
+    b.ai.source = source;
+    b.ai.state = state;
+    b.ai.target = { x: source.approachX, z: source.approachZ };
+    b.ai.path = [{ x: source.approachX, z: source.approachZ }];
+    b.ai.pathIndex = 0;
+    b.ai.moving = false;
+    b.ai.nextThink = 999;
+    b.ai.noProgressT = 0;
+    b.ai.progressX = b.cx;
+    b.ai.progressZ = b.cz;
+    b.ai.progressTargetX = source.approachX;
+    b.ai.progressTargetZ = source.approachZ;
+    b.ai.progressDist = Math.hypot(source.approachX - b.cx, source.approachZ - b.cz);
+    b.ai.progressPathIndex = 0;
+    return { state: b.ai.state, source: source.id, path: b.ai.path.length };
+  },
   setAI(v){ return ai ? ai.setEnabled(v) : false; },
   food(){ return field && field.food ? field.food.stats() : null; },
   foodSources(){ return field && field.food ? field.food.sources.map(s => ({

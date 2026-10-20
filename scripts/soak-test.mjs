@@ -34,6 +34,29 @@ try {
     const last = new Map(actors.map(uid => [uid, null]));
     const still = new Map(actors.map(uid => [uid, 0]));
     const stuck = [];
+    const movementIntent = (b) => {
+      const ai = b.ai;
+      if (!ai) return false;
+      if (ai.state === 'follow') {
+        if (!ai.follow) return false;
+        let tx = ai.follow.cx, tz = ai.follow.cz;
+        if (ai.follow.inside || ai.follow.sleeping) {
+          const home = g.homes().find(h => h.name === ai.follow.home);
+          if (home) { tx = home.door.x; tz = home.door.z; }
+        }
+        return Math.hypot(tx - b.cx, tz - b.cz) > 2.35;
+      }
+      if (['seekFood', 'seekHive', 'seekWater', 'seekHome', 'seekConflict',
+        'seekMate', 'seekCompany'].includes(ai.state)) return true;
+      if (ai.state === 'familyTask' && ai.familyTask && ai.familyTask.phase === 'travel') {
+        const anchor = ai.familyTask.anchor;
+        return !anchor || Math.hypot(anchor.x - b.cx, anchor.z - b.cz) > 1.5;
+      }
+      if (ai.state === 'visit' && ai.visitPhase !== 'hangout') {
+        return !ai.target || Math.hypot(ai.target.x - b.cx, ai.target.z - b.cz) > 1.7;
+      }
+      return false;
+    };
     for (let second = 0; second < ${SECONDS}; second++) {
       g.sim(1, 0);
       if (second % 3 !== 2) continue;
@@ -44,13 +67,20 @@ try {
         last.set(b.uid, [x, z]);
         if (!previous) continue;
         const moved = Math.hypot(x - previous[0], z - previous[1]);
-        const activeTask = b.ai && (b.ai.moving || b.ai.familyTask);
-        const exempt = b.inside || b.sleeping || b.inPond || b.grabs > 0 ||
-          ['eat', 'drink', 'social', 'invite', 'decline', 'mate', 'conflict', 'familyTask'].includes(b.ai?.state);
-        if (activeTask && !exempt && moved < .03) {
+        const intends = movementIntent(b);
+        const exempt = b.inside || b.sleeping || b.inPond || b.grabs > 0 || b.ai?.interrupted;
+        if (intends && !exempt && moved < .03 && (b.ai?.noProgressT || 0) >= 6.2) {
           const n = (still.get(b.uid) || 0) + 1;
           still.set(b.uid, n);
-          if (n >= 2) stuck.push({ uid: b.uid, name: b.name, state: b.ai?.state, task: b.ai?.familyTask?.id || null, x, z });
+          if (n >= 1) stuck.push({
+            uid: b.uid, name: b.name, state: b.ai?.state,
+            moving: !!b.ai?.moving, path: b.ai?.path?.length || 0,
+            pathIndex: b.ai?.pathIndex || 0,
+            task: b.ai?.familyTask?.id || null,
+            contacts: b.contacts, airborne: !!b.airborne, interrupted: !!b.ai?.interrupted,
+            rMat4: +(b.rMat?.[4] || 0).toFixed(2),
+            noProgressT: +(b.ai?.noProgressT || 0).toFixed(2), x, z,
+          });
         } else {
           still.set(b.uid, 0);
         }
@@ -60,6 +90,20 @@ try {
     const stats = g.stats();
     const beforeMap = g.map().id;
     const beforeGlass = g.glass().count;
+    const doorLoop = [
+      ...(g.ai()?.bears || []).map(b => ({
+        uid: b.uid, species: 'bear', entries: b.doorEntries, exits: b.doorExits,
+      })),
+      ...g.glass().actors.map(a => ({
+        uid: a.uid, species: 'glass', entries: a.doorEntries, exits: a.doorExits,
+      })),
+    ].filter(a => a.entries + a.exits > 2);
+    const recoveryLoop = g.bears
+      .filter(b => (b.ai?.recoveries || 0) > 2)
+      .map(b => ({
+        uid: b.uid, name: b.name, state: b.ai?.state, recoveries: b.ai.recoveries,
+        lastStuck: b.ai.lastStuck || null,
+      }));
     return {
       startBears,
       endBears: g.bears.length,
@@ -67,6 +111,8 @@ try {
       seconds: ${SECONDS},
       stats: { nan: stats.nan, minY: stats.minY, maxXZ: stats.maxXZ },
       stuck: stuck.slice(0, 8),
+      doorLoop,
+      recoveryLoop,
       map: { beforeMap, beforeGlass },
       errors: 0,
     };
@@ -87,6 +133,8 @@ try {
   const failures = [];
   if (report.stats.nan) failures.push('non-finite physics state');
   if (report.stuck.length) failures.push(`stuck movers: ${JSON.stringify(report.stuck)}`);
+  if (report.doorLoop.length) failures.push(`door loop: ${JSON.stringify(report.doorLoop)}`);
+  if (report.recoveryLoop.length) failures.push(`repeated stall recovery: ${JSON.stringify(report.recoveryLoop)}`);
   if (report.map.beforeMap !== 'field' || report.map.studioMap !== 'studio' || report.map.afterMap !== 'field') {
     failures.push(`map round trip failed: ${JSON.stringify(report.map)}`);
   }

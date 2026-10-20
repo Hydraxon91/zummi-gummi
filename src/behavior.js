@@ -184,6 +184,23 @@ export function createBehavior({
       lastX: actor.cx,
       lastZ: actor.cz,
       stuckT: 0,
+      progressX: actor.cx,
+      progressZ: actor.cz,
+      progressTargetX: null,
+      progressTargetZ: null,
+      progressDist: Infinity,
+      progressPathIndex: 0,
+      noProgressT: 0,
+      recoveries: 0,
+      lastStuck: null,
+      avoidSourceId: null,
+      avoidSourceT: 0,
+      restCooldown: 0,
+      clock: 0,
+      doorEntries: 0,
+      doorExits: 0,
+      doorFirstAt: 0,
+      doorWarned: false,
       directives: [],
       directive: null,
       directiveStatus: null,
@@ -303,6 +320,13 @@ export function createBehavior({
     return setPath(actor, path || [{ x: tx, z: tz }]);
   }
 
+  // A path can be present but already exhausted, or an approach can have been
+  // stopped by a failed hop. In both cases the next think must replan instead
+  // of leaving the actor parked forever in a seek state.
+  function needsReplan(ai) {
+    return !!ai && (!ai.moving || !ai.path || !ai.path.length);
+  }
+
   function face(actor, x, z) {
     if (!actor || !actor.ai) return;
     actor.ai.faceYaw = Math.atan2(x - actor.cx, z - actor.cz);
@@ -385,6 +409,7 @@ export function createBehavior({
       });
       if (!source) break;
       exclude.add(source.id);
+      if (source.id === actor.ai.avoidSourceId && actor.ai.avoidSourceT > 0) continue;
       if (!field.food.claim(source, actor)) continue;
       const path = pathTo(actor, source.approachX, source.approachZ);
       if (!path && Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz) > 1.25) {
@@ -447,6 +472,7 @@ export function createBehavior({
       });
       if (!source) break;
       exclude.add(source.id);
+      if (source.id === actor.ai.avoidSourceId && actor.ai.avoidSourceT > 0) continue;
       if (!field.food.claim(source, actor)) continue;
       const path = pathTo(actor, source.approachX, source.approachZ);
       if (!path && Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz) > 1.25) {
@@ -476,7 +502,7 @@ export function createBehavior({
     }
     const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
     if (d <= hive.dist) { startHiveRaid(actor); return; }
-    if (!actor.ai.path || !actor.ai.path.length) {
+    if (needsReplan(actor.ai)) {
       if (!setDestination(actor, source.approachX, source.approachZ)) {
         releaseFood(actor);
         actor.ai.state = 'seekFood';
@@ -612,7 +638,7 @@ export function createBehavior({
     }
     actor.ai.target = { x: source.approachX, z: source.approachZ };
     face(actor, source.approachX, source.approachZ);
-    if (!actor.ai.path || !actor.ai.path.length) {
+    if (needsReplan(actor.ai)) {
       if (!setDestination(actor, source.approachX, source.approachZ)) {
         actor.ai.contestSource = null;
         actor.ai.contestBear = null;
@@ -719,6 +745,7 @@ export function createBehavior({
   function tickNeeds(actor, dt) {
     const p = profile(actor);
     const n = p.needs;
+    actor.ai.clock = finite(actor.ai.clock, 0) + dt;
     actor.hunger = Math.min(1, finite(actor.hunger, .3) +
       n.hungerRate * (actor.pregnant ? finite(n.pregnancyHunger, PREGNANCY_HUNGER) : 1) * dt);
     actor.thirst = Math.min(1, finite(actor.thirst, .3) + n.thirstRate * dt);
@@ -739,6 +766,7 @@ export function createBehavior({
   function needsRest(actor) {
     const p = profile(actor);
     if (p.rest.mode !== 'night') return false;
+    if (actor.ai && actor.ai.restCooldown > 0) return false;
     if (!homeFor(actor)) return false;
     if (actor.health < p.thresholds.healthWoozy) return true;
     if (actor.hunger >= p.thresholds.criticalHunger || actor.thirst >= p.thresholds.criticalThirst) return false;
@@ -754,6 +782,208 @@ export function createBehavior({
     const p = profile(actor);
     return !isNightFor(actor) && actor.health >= p.thresholds.healthHurt &&
       actor.energy >= p.thresholds.energyTired;
+  }
+
+  function movementIntent(actor) {
+    const ai = actor && actor.ai;
+    if (!ai) return false;
+    if (ai.state === 'follow') {
+      const parent = ai.follow;
+      if (!parent) return false;
+      const target = parentTarget(parent);
+      if (!target) return false;
+      return Math.hypot(target.x - actor.cx, target.z - actor.cz) > profile(actor).mate.followDist + .2;
+    }
+    if (['seekFood', 'seekHive', 'seekWater', 'seekHome', 'seekConflict',
+      'seekMate', 'seekCompany'].includes(ai.state)) return true;
+    if (ai.state === 'familyTask' && ai.familyTask && ai.familyTask.phase === 'travel') {
+      const anchor = ai.familyTask.anchor;
+      return !anchor || Math.hypot(anchor.x - actor.cx, anchor.z - actor.cz) > 1.5;
+    }
+    if (ai.state === 'visit' && ai.visitPhase !== 'hangout') {
+      const target = ai.target;
+      return !target || Math.hypot(target.x - actor.cx, target.z - actor.cz) > 1.7;
+    }
+    return false;
+  }
+
+  function noteStall(actor, reason) {
+    const ai = actor.ai;
+    const source = ai.source || ai.contestSource || null;
+    const detail = {
+      uid: actor.uid,
+      name: actor.name,
+      species: actor.species,
+      state: ai.state,
+      reason,
+      moving: !!ai.moving,
+      path: ai.path ? ai.path.length : 0,
+      pathIndex: ai.pathIndex | 0,
+      target: ai.target ? { x: +ai.target.x.toFixed(2), z: +ai.target.z.toFixed(2) } : null,
+      source: source ? source.id : null,
+      contacts: actor.contacts,
+      airborne: !!actor.airborne,
+      rMat4: +(actor.rMat?.[4] || 0).toFixed(2),
+      interrupted: !!ai.interrupted,
+      familyTask: ai.familyTask ? ai.familyTask.id : null,
+      visitPhase: ai.visitPhase || null,
+      restKind: ai.restKind || null,
+    };
+    ai.lastStuck = detail;
+    ai.recoveries = (ai.recoveries || 0) + 1;
+    if (typeof console !== 'undefined' && console.warn) console.warn('AI STUCK', JSON.stringify(detail));
+  }
+
+  function recoverStall(actor) {
+    const ai = actor.ai;
+    const source = ai.source || ai.contestSource || null;
+    const sourceId = source ? source.id : null;
+    noteStall(actor, 'no-progress');
+    if (ai.state === 'visit') {
+      finishVisitPair(actor);
+    } else if (ai.state === 'familyTask') {
+      cancelTask(actor, { stop });
+      ai.taskCooldown = Math.max(ai.taskCooldown || 0, 2);
+      ai.familyPlayCooldown = Math.max(ai.familyPlayCooldown || 0, 12);
+    } else {
+      if (ai.state === 'seekFood' || ai.state === 'seekHive' || ai.state === 'seekConflict') {
+        releaseFood(actor);
+        ai.source = null;
+        ai.contestSource = null;
+        ai.contestBear = null;
+      }
+      ai.waterSpot = null;
+      if (ai.state === 'follow') ai.followRetryT = Math.max(ai.followRetryT || 0, 8);
+      ai.follow = null;
+      ai.target = null;
+      ai.path = null;
+      ai.pathIndex = 0;
+      ai.moving = false;
+      if (ai.state === 'seekHome') {
+        ai.restCooldown = Math.max(ai.restCooldown || 0, 4);
+        ai.restKind = null;
+      }
+      ai.state = 'wander';
+      ai.idleT = .6;
+      ai.nextThink = 0;
+      ai.taskCooldown = Math.max(ai.taskCooldown || 0, 1.5);
+      stop(actor);
+    }
+    if (sourceId) {
+      ai.avoidSourceId = sourceId;
+      ai.avoidSourceT = 6;
+    }
+    actor.ai.progressX = actor.cx;
+    actor.ai.progressZ = actor.cz;
+    actor.ai.progressTargetX = null;
+    actor.ai.progressTargetZ = null;
+    actor.ai.progressDist = Infinity;
+    actor.ai.progressPathIndex = 0;
+    actor.ai.noProgressT = 0;
+  }
+
+  function tickStall(actor, dt, ready) {
+    const ai = actor.ai;
+    if (!ai) return;
+    if (ai.avoidSourceT > 0) ai.avoidSourceT = Math.max(0, ai.avoidSourceT - dt);
+    if (ai.restCooldown > 0) ai.restCooldown = Math.max(0, ai.restCooldown - dt);
+    const blocked = !ready || !movementIntent(actor) || actor.inside || actor.sleeping ||
+      actor.grabs > 0 || actor.inPond || ai.possessed || ai.interrupted;
+    if (blocked) {
+      ai.progressX = actor.cx;
+      ai.progressZ = actor.cz;
+      ai.progressTargetX = null;
+      ai.progressTargetZ = null;
+      ai.progressDist = Infinity;
+      ai.progressPathIndex = 0;
+      ai.noProgressT = 0;
+      return;
+    }
+    const target = ai.target || (ai.familyTask && ai.familyTask.anchor) || null;
+    if (!target || !Number.isFinite(target.x) || !Number.isFinite(target.z)) {
+      ai.progressX = actor.cx;
+      ai.progressZ = actor.cz;
+      ai.progressTargetX = null;
+      ai.progressTargetZ = null;
+      ai.progressDist = Infinity;
+      ai.progressPathIndex = 0;
+      ai.noProgressT = 0;
+      return;
+    }
+    const targetMoved = !Number.isFinite(ai.progressTargetX) ||
+      !Number.isFinite(ai.progressTargetZ) ||
+      Math.hypot(target.x - ai.progressTargetX, target.z - ai.progressTargetZ) > .25;
+    const dist = Math.hypot(target.x - actor.cx, target.z - actor.cz);
+    if (targetMoved) {
+      ai.progressTargetX = target.x;
+      ai.progressTargetZ = target.z;
+      ai.progressDist = dist;
+      ai.progressPathIndex = ai.pathIndex | 0;
+      ai.noProgressT = 0;
+      return;
+    }
+    const pathIndex = ai.pathIndex | 0;
+    if (pathIndex !== (ai.progressPathIndex | 0)) {
+      ai.progressPathIndex = pathIndex;
+      ai.progressDist = dist;
+      ai.noProgressT = 0;
+      return;
+    }
+    // Use approach to the target, not raw displacement: a crowd can push a
+    // stationary actor around without making any route progress.
+    if (dist < ai.progressDist - .08) {
+      ai.progressDist = dist;
+      ai.noProgressT = 0;
+      return;
+    }
+    ai.noProgressT = finite(ai.noProgressT, 0) + dt;
+    if (ai.noProgressT >= 6.0) recoverStall(actor);
+  }
+
+  function noteDoorTransition(actor, kind) {
+    const ai = actor.ai;
+    if (!ai) return;
+    const now = finite(ai.clock, 0);
+    if (!ai.doorFirstAt || now - ai.doorFirstAt > 20) {
+      ai.doorFirstAt = now;
+      ai.doorEntries = 0;
+      ai.doorExits = 0;
+      ai.doorWarned = false;
+    }
+    if (kind === 'enter') ai.doorEntries += 1;
+    else ai.doorExits += 1;
+    const total = ai.doorEntries + ai.doorExits;
+    if (total < 3 || ai.doorWarned) return;
+    ai.doorWarned = true;
+    const p = profile(actor);
+    const detail = {
+      uid: actor.uid,
+      name: actor.name,
+      species: actor.species,
+      entries: ai.doorEntries,
+      exits: ai.doorExits,
+      signal: `${ai.doorEntries}/${ai.doorExits}`,
+      inside: !!actor.inside,
+      sleeping: !!actor.sleeping,
+      state: ai.state,
+      restKind: ai.restKind || null,
+      insideT: +(ai.insideT || 0).toFixed(1),
+      shelteredToday: !!actor.shelteredToday,
+      home: actor.home || '',
+      familyTask: ai.familyTask ? ai.familyTask.id : null,
+      follow: ai.follow ? (ai.follow.name || 'parent') : null,
+      hours: +hoursNow().toFixed(1),
+      energy: +finite(actor.energy, 0).toFixed(2),
+      hunger: +finite(actor.hunger, 0).toFixed(2),
+      thirst: +finite(actor.thirst, 0).toFixed(2),
+    };
+    if (typeof console !== 'undefined' && console.warn) console.warn('DOOR LOOP', JSON.stringify(detail));
+    if (p.rest.mode === 'dayShelter') {
+      actor.shelteredToday = true;
+      ai.shelterCheckT = Math.max(ai.shelterCheckT || 0, 30);
+    } else {
+      ai.restCooldown = Math.max(ai.restCooldown || 0, 8);
+    }
   }
 
   /* ---------------------------------------------------------- state change */
@@ -785,6 +1015,7 @@ export function createBehavior({
     actor.sleeping = true;
     const adapter = adapterOf(actor);
     if (adapter && typeof adapter.onSleep === 'function') adapter.onSleep(actor, home, restKind);
+    noteDoorTransition(actor, 'enter');
     return true;
   }
 
@@ -800,6 +1031,7 @@ export function createBehavior({
     actor.ai.nextThink = 0;
     const adapter = adapterOf(actor);
     if (adapter && typeof adapter.onWake === 'function') adapter.onWake(actor);
+    noteDoorTransition(actor, 'exit');
   }
 
   function finishFood(actor) {
@@ -937,7 +1169,7 @@ export function createBehavior({
     }
     const d = dist(actor, partner);
     if (d <= p.social.dist) { startInvite(actor, partner); return; }
-    if (!actor.ai.path || !actor.ai.path.length) {
+    if (needsReplan(actor.ai)) {
       if (!setDestination(actor, partner.cx, partner.cz) && d > 2.2) {
         cancelPair(actor);
         actor.ai.state = 'wander';
@@ -1172,7 +1404,7 @@ export function createBehavior({
       }
       return;
     }
-    if (!actor.ai.path || !actor.ai.path.length) {
+    if (needsReplan(actor.ai)) {
       if (!setDestination(actor, target.x, target.z) && d > 2.2) finishVisitPair(actor);
     }
   }
@@ -1191,6 +1423,7 @@ export function createBehavior({
 
   function startFollow(actor, parent) {
     if (!actor || !actor.ai || !parent || !parent.ai) return false;
+    if (actor.ai.followRetryT > 0) return false;
     const target = parentTarget(parent);
     if (!target) return false;
     releaseFood(actor);
@@ -1225,7 +1458,16 @@ export function createBehavior({
       face(actor, parent.cx, parent.cz);
       return;
     }
-    if (!actor.ai.path || !actor.ai.path.length) setDestination(actor, target.x, target.z);
+    if (!actor.ai.path || !actor.ai.path.length || !actor.ai.moving) {
+      if (!setDestination(actor, target.x, target.z)) {
+        actor.ai.follow = null;
+        actor.ai.state = 'wander';
+        actor.ai.idleT = .6;
+        actor.ai.taskCooldown = Math.max(actor.ai.taskCooldown || 0, 1.0);
+        actor.ai.followRetryT = 8;
+        stop(actor);
+      }
+    }
   }
 
   /* ----------------------------------------------------------------- mate */
@@ -1279,7 +1521,7 @@ export function createBehavior({
     }
     const d = dist(actor, partner);
     if (d <= profile(actor).mate.dist) { startMatePair(actor, partner); return; }
-    if (!actor.ai.path || !actor.ai.path.length) setDestination(actor, partner.cx, partner.cz);
+    if (needsReplan(actor.ai)) setDestination(actor, partner.cx, partner.cz);
   }
 
   function startMatePair(actor, partner) {
@@ -1713,7 +1955,7 @@ export function createBehavior({
     }
     const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
     if (d <= p.food.eatDist) { startEat(actor); return; }
-    if (!actor.ai.path || !actor.ai.path.length) {
+    if (needsReplan(actor.ai)) {
       if (!setDestination(actor, source.approachX, source.approachZ)) {
         field.food.release(source, actor);
         actor.ai.source = null;
@@ -1742,7 +1984,7 @@ export function createBehavior({
     if (!spot) return;
     const d = Math.hypot(spot.x - actor.cx, spot.z - actor.cz);
     if (d <= p.food.drinkDist) { startDrink(actor); return; }
-    if (!actor.ai.path || !actor.ai.path.length) {
+    if (needsReplan(actor.ai)) {
       if (!setDestination(actor, spot.x, spot.z)) {
         actor.ai.waterSpot = null;
         actor.ai.state = 'wander';
@@ -1770,7 +2012,7 @@ export function createBehavior({
       startSleep(actor, home, actor.ai.restKind || 'night');
       return;
     }
-    if (!actor.ai.path || !actor.ai.path.length) {
+    if (needsReplan(actor.ai)) {
       if (!setDestination(actor, home.door.x, home.door.z)) {
         actor.ai.state = 'wander';
         actor.ai.idleT = .8;
@@ -1789,6 +2031,7 @@ export function createBehavior({
     tickNeeds(actor, dt);
     const adapter = adapterOf(actor);
     if (adapter && typeof adapter.preTick === 'function') adapter.preTick(actor, dt, api);
+    tickStall(actor, dt, ready);
     if (ai.state === 'sleep') {
       if (sleepDone(actor)) wake(actor);
       return;
@@ -1796,6 +2039,7 @@ export function createBehavior({
     if (!ready || ai.possessed) return;
 
     if (ai.taskCooldown > 0) ai.taskCooldown = Math.max(0, ai.taskCooldown - dt);
+    if (ai.followRetryT > 0) ai.followRetryT = Math.max(0, ai.followRetryT - dt);
     if (ai.familyPlayCooldown > 0) ai.familyPlayCooldown = Math.max(0, ai.familyPlayCooldown - dt);
     if (ai.idleT > 0) ai.idleT = Math.max(0, ai.idleT - dt);
     if (ai.stungT > 0) ai.stungT = Math.max(0, ai.stungT - dt);
@@ -1894,7 +2138,12 @@ export function createBehavior({
             ai.moving = false;
             ai.path = null;
           } else if (!ai.moving || !ai.path || !ai.path.length) {
-            setDestination(actor, task.anchor.x, task.anchor.z);
+            if (!setDestination(actor, task.anchor.x, task.anchor.z)) {
+              cancelTask(actor, { stop });
+              ai.idleT = .6;
+              ai.taskCooldown = Math.max(ai.taskCooldown || 0, 2);
+              ai.familyPlayCooldown = Math.max(ai.familyPlayCooldown || 0, 12);
+            }
           }
         }
       }
@@ -2019,11 +2268,17 @@ export function createBehavior({
       sleeping: !!actor.sleeping,
       interrupted: !!actor.ai.interrupted,
       moving: !!actor.ai.moving,
+      noProgressT: +finite(actor.ai.noProgressT, 0).toFixed(2),
+      recoveries: actor.ai.recoveries | 0,
+      restCooldown: +finite(actor.ai.restCooldown, 0).toFixed(2),
+      doorEntries: actor.ai.doorEntries | 0,
+      doorExits: actor.ai.doorExits | 0,
       faceYaw: actor.ai.faceYaw === null || actor.ai.faceYaw === undefined ? null : +actor.ai.faceYaw.toFixed(3),
       animT: +finite(actor.ai.animT, 0).toFixed(3),
       source: actor.ai.source ? actor.ai.source.id : null,
       target: actor.ai.target ? { x: +actor.ai.target.x.toFixed(2), z: +actor.ai.target.z.toFixed(2) } : null,
       path: actor.ai.path ? actor.ai.path.map(p => ({ x: +p.x.toFixed(2), z: +p.z.toFixed(2) })) : [],
+      lastStuck: actor.ai.lastStuck || null,
       familyTask: actor.ai.familyTask ? { id: actor.ai.familyTask.id, phase: actor.ai.familyTask.phase } : null,
       skills: { ...skillsFor(actor) },
       history: (actor.history || []).slice(-4),

@@ -1253,6 +1253,23 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   This is the Phase 3b approximation; revisit with the 6b-1 occupancy/window
   polish.
 
+**Stall and door-loop safeguards (fixed):**
+- Movement-intent seek states now replan when `moving` is false even if a stale
+  path remains. A shared watchdog measures approach to the current target, path
+  index progress and target changes; after 6 s without progress it releases the
+  claim, blacklists that source for 6 s, cancels the active task/pair and returns
+  the actor to wander with a short cooldown. It logs one `AI STUCK` diagnostic.
+- Follow retries use an 8 s cooldown when the parent target is unreachable, and
+  family-task travel cancels with a cooldown when its anchor has no path. This
+  prevents a recover/cancel/restart loop.
+- Door entries and exits are counted in a 20 s window. A third transition logs
+  `DOOR LOOP` with inside/state/timer/shelter/task data; bears get an 8 s rest
+  cooldown, Glass gets `shelteredToday` suppression for the rest of the day.
+- Core regression injects a stopped seek state and asserts recovery; the full
+  regression forces one Glass shelter cycle and asserts at most two transitions;
+  soak now flags stationary movement-intent actors, repeated recoveries and door
+  loops.
+
 **Known follow-ups after Phase 4** — recorded for later, not current blockers:
 
 - **Home visits stop at the door.** The host/guest pair uses the validated door
