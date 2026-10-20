@@ -1018,6 +1018,15 @@ can proceed with the current runtime and assets.
   times are discarded and recorded only as a contended run in `PERFORMANCE.md`;
   the earlier 22.0–22.7 ms clean Phase F result remains the last valid reference.
   Re-profile in a fresh session before changing grass density or quality defaults.
+- **Long-run soak (pass).** `scripts/soak-test.mjs` grew the Meadow to 16 soft-body
+  actors plus 3 Glass and ran 60 simulated seconds: no NaNs, no stuck movers, map
+  round trip field→studio→field, and Glass count preserved. The shorter CI job still
+  uses the targeted browser regression; soak is a deep/local pass.
+- **Glass reset cleanup (fixed).** `resetActor` now clears `familyTask`, playdate,
+  visit and directive state, cached food/water/rest targets and locomotion fields,
+  so tests and debug resets no longer inherit a previous interaction.
+- **Glass lifecycle in CI (added).** The browser job now runs `glass-test.mjs` after
+  the Studio browser regression, with a 15-minute job timeout for SwiftShader.
 - **Citizen panel (fixed).** The two refresh signatures now share one helper, and rows
   are keyed by actor uid and updated in place instead of rebuilding the whole list.
   Browser checks keep an original row connected after idle and complete 10/10 CDP

@@ -1280,12 +1280,36 @@ export function createGlassColony({
     a.ai.follow = null;
     a.ai.moving = false;
     a.ai.path = null;
+    a.ai.pathIndex = 0;
     a.ai.target = null;
+    a.ai.familyTask = null;
     a.ai.familyPlay = false;
     a.ai.playmateKind = null;
     a.ai.playdate = false;
     a.ai.playdateTarget = null;
     a.ai.playdateHome = null;
+    a.ai.visitHome = null;
+    a.ai.visitRole = null;
+    a.ai.visitPhase = null;
+    a.ai.visitT = 0;
+    a.ai.visitArrived = false;
+    a.ai.waitForPartner = false;
+    a.ai.source = null;
+    a.ai.waterSpot = null;
+    a.ai.restKind = null;
+    a.ai.sleepHome = null;
+    a.ai.directive = null;
+    a.ai.directives.length = 0;
+    a.ai.directiveStatus = null;
+    a.ai.directiveHome = false;
+    a.ai.taskCooldown = 0;
+    a.ai.familyPlayCooldown = 0;
+    a.walkDesired = null;
+    a.bodyVx = 0;
+    a.bodyVz = 0;
+    a.leanX = 0;
+    a.leanZ = 0;
+    a.visualYaw = a.yaw;
     return true;
   }
 

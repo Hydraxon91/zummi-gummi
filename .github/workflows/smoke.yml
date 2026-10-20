@@ -58,7 +58,7 @@ jobs:
     name: Browser regression
     needs: serve-and-load
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -109,6 +109,9 @@ jobs:
           WIDTH: "900"
           HEIGHT: "600"
         run: STUDIO=1 node scripts/browser-regression.mjs
+
+      - name: Run the Glass lifecycle regression
+        run: node scripts/glass-test.mjs
 
       - name: Show server log on failure
         if: failure()
