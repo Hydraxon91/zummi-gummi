@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0.0",
+  "asset_id": "example.opaque_prop",
+  "source": {
+    "path": "assets/example/source.blend",
+    "sha256": null,
+    "is_dirty": false,
+    "units": "metres",
+    "axes": "Blender +Z up",
+    "author": "Example Author",
+    "licence": "TBD",
+    "reference_rights": "TBD"
+  },
+  "tool": {
+    "name": "asset-pipeline-audit",
+    "version": "0.1.0",
+    "blender_version": "5.2.2",
+    "helper_versions": {}
+  },
+  "created_at": "2026-10-20T00:00:00Z",
+  "status": "audit_only",
+  "generation": null,
+  "processing": {
+    "blender_version": "5.2.2",
+    "operations": [],
+    "bake_settings": null
+  },
+  "export": {
+    "path": null,
+    "sha256": null,
+    "size_bytes": null,
+    "format": "glb",
+    "extensions": [],
+    "validator": {
+      "name": "gltf-validator",
+      "version": null,
+      "errors": 0,
+      "warnings": 0,
+      "hints": 0,
+      "report": null
+    }
+  },
+  "verification": {
+    "status": "not_run",
+    "evidence": [],
+    "warnings": [],
+    "limitations": [
+      "Audit only; no export or visual verification performed."
+    ]
+  }
+}

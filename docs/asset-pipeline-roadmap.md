@@ -1,6 +1,6 @@
 # Asset Pipeline Roadmap
 
-Status: **planning only** — no implementation started.
+Status: **Phase 1a implemented**; Phase 1b next.
 Date: 2026-10-20
 Owner: Hydraxon
 
@@ -139,6 +139,17 @@ Repairs, automatic routing, texturing and export.
 ### Decision gate
 
 Approve profile/schema fields and representative assets. No generation or house modeling.
+
+### Implementation (2026-10-20)
+
+- Added `tools/asset-pipeline/` with profiles, JSON Schemas, provenance example,
+  read-only Blender audit and validation/tests.
+- Profiles: opaque prop, transparent MSN buddy, provisional mixed architecture.
+- Audit composes existing project helpers plus UV island/overlap checks.
+- Pure tests and a Blender fixture pass: valid cube, bad out-of-bounds UV/no material
+  cube, and no-UV cube.
+- Crate audit verified with and without the opaque profile; source SHA-256 is unchanged.
+- No texel-density policy, routing, export, Qwen generation or house modeling yet.
 
 ---
 
@@ -687,7 +698,7 @@ authorize game integration, dependency changes, commits or pushes.
 
 ## Next action
 
-Begin **Phase 1a** only: inventory existing helpers, define profile/provenance schemas,
-and compose a tested read-only geometry/UV/material audit.
+Phase 1a is implemented under `tools/asset-pipeline/`. Begin **Phase 1b** next:
+texel-density policy, failing fixtures and documented warning semantics.
 
-No implementation has started yet.
+No texel-density gate, export, generation or house modeling has started yet.

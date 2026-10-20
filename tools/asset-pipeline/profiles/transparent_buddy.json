@@ -1,0 +1,106 @@
+{
+  "schema_version": "1.0.0",
+  "profile_id": "transparent_buddy",
+  "status": "draft",
+  "description": "Existing MSN buddy asset delivered for export correctness and runtime performance. Texturing and UV changes are out of scope for this profile.",
+  "scope": {
+    "asset_types": ["msn_buddy", "transparent_character"],
+    "usage": ["distance", "close_up", "gameplay"],
+    "first_target": "Gummy Bears / three.js",
+    "notes": [
+      "Preserve the existing visual appearance unless a material change is explicitly approved.",
+      "Do not treat alpha blending and transmission as interchangeable."
+    ]
+  },
+  "requirements": {
+    "units": "metres",
+    "axes": "Blender +Z up; glTF conversion and destination orientation verified",
+    "uv": "Preserve existing UVs; no texturing changes",
+    "geometry": "Preserve silhouette and deformation; no material-driven geometry changes",
+    "source": "Authoritative MSN source remains unchanged"
+  },
+  "materials": {
+    "model": "existing_transparent_material",
+    "required_channels": ["base_color", "alpha", "roughness"],
+    "optional_channels": ["normal", "emissive"],
+    "alpha": "existing alpha or transmission; selection requires measurement",
+    "double_sided": "preserve_existing",
+    "extensions": [],
+    "runtime_checks": [
+      "alpha_blend",
+      "transmission",
+      "depth_write",
+      "sort_order",
+      "double_sided_faces",
+      "overdraw",
+      "overlapping_buddies"
+    ]
+  },
+  "textures": {
+    "source": "existing asset textures only",
+    "resolution_policy": "preserve existing",
+    "color_spaces": {
+      "base_color": "sRGB",
+      "alpha": "Non-Color",
+      "normal": "Non-Color"
+    },
+    "tiling": "not applicable"
+  },
+  "web_delivery": {
+    "format": "glb",
+    "compression": {
+      "ktx2": "optional_measured_variant",
+      "meshopt": "optional_measured_variant",
+      "draco": "optional_measured_variant"
+    },
+    "report": [
+      "download_bytes",
+      "estimated_gpu_memory",
+      "material_count",
+      "draw_call_count",
+      "extensions",
+      "overdraw_notes"
+    ],
+    "required_extensions": [],
+    "loader_changes": "Separate approval required"
+  },
+  "verification": {
+    "structural": [
+      "pinned_gltf_validator",
+      "clean_import",
+      "material_slot_preservation",
+      "alpha_mode_inventory"
+    ],
+    "visual": [
+      "bright_background_capture",
+      "dark_background_capture",
+      "front_back_capture",
+      "overlapping_buddies_capture",
+      "near_far_capture"
+    ],
+    "performance": [
+      "headless_relative_only",
+      "real_gpu_check",
+      "representative_instance_count"
+    ],
+    "evidence": [
+      "glb_hash",
+      "inventory",
+      "captures",
+      "validator_report",
+      "transparency_variant_notes",
+      "provenance_record"
+    ]
+  },
+  "limits": [
+    "No texturing, UV or material replacement is authorized by this profile.",
+    "Transmission may add a render pass in three.js and is not assumed to be cheaper than alpha blending.",
+    "Headless performance is relative only."
+  ],
+  "deferred": [
+    "Qwen textures",
+    "UV changes",
+    "Material replacement",
+    "Game integration"
+  ]
+}

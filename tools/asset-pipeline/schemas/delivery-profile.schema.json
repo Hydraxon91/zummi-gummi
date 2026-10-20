@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gummybears.local/schemas/delivery-profile.schema.json",
+  "title": "Gummy Bears asset delivery profile",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "profile_id",
+    "status",
+    "description",
+    "scope",
+    "materials",
+    "web_delivery",
+    "verification",
+    "limits",
+    "deferred"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "status": {
+      "enum": ["draft", "provisional", "active", "deprecated"]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "object",
+      "required": ["asset_types", "first_target"],
+      "properties": {
+        "asset_types": {"type": "array", "items": {"type": "string"}},
+        "usage": {"type": "array", "items": {"type": "string"}},
+        "first_target": {"type": "string"},
+        "notes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "materials": {
+      "type": "object",
+      "required": ["model"],
+      "properties": {
+        "model": {"type": "string"},
+        "required_channels": {"type": "array", "items": {"type": "string"}},
+        "optional_channels": {"type": "array", "items": {"type": "string"}},
+        "alpha": {"type": "string"},
+        "double_sided": {},
+        "extensions": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "textures": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "web_delivery": {
+      "type": "object",
+      "required": ["format", "compression", "report"],
+      "properties": {
+        "format": {"type": "string"},
+        "compression": {"type": "object", "additionalProperties": true},
+        "report": {"type": "array", "items": {"type": "string"}},
+        "required_extensions": {"type": "array", "items": {"type": "string"}},
+        "loader_changes": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "verification": {
+      "type": "object",
+      "required": ["structural", "visual", "performance", "evidence"],
+      "properties": {
+        "structural": {"type": "array", "items": {"type": "string"}},
+        "visual": {"type": "array", "items": {"type": "string"}},
+        "performance": {"type": "array", "items": {"type": "string"}},
+        "evidence": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "limits": {"type": "array", "items": {"type": "string"}},
+    "deferred": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

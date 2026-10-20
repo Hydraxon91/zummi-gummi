@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0.0",
+  "profile_id": "mixed_architecture",
+  "status": "provisional",
+  "description": "Provisional profile for the Frutiger Aero bubble house: mixed opaque shell, glass and emissive trim, exterior-only for the first delivery.",
+  "scope": {
+    "asset_types": ["architecture", "building_exterior"],
+    "usage": ["distance", "close_up", "gameplay"],
+    "first_target": "Gummy Bears / three.js",
+    "notes": [
+      "First house is exterior-only with shallow interior backing.",
+      "Shell, glass, trim and emission use procedural Blender materials unless painted detail is specifically approved."
+    ]
+  },
+  "requirements": {
+    "units": "metres",
+    "axes": "Blender +Z up; glTF conversion and destination orientation verified",
+    "uv": "UVs only where required by the chosen materials or bake path",
+    "geometry": "Closed intended solids, real window/door openings and wall thickness",
+    "source": "Editable Blender source preserved; bake/export processing happens on a copy"
+  },
+  "materials": {
+    "model": "gltf_pbr_metallic_roughness",
+    "required_channels": ["base_color", "roughness", "metallic", "normal"],
+    "optional_channels": ["occlusion", "emissive"],
+    "alpha": "opaque_shell_plus_separate_glass",
+    "double_sided": false,
+    "extensions": ["KHR_materials_emissive_strength"],
+    "submaterials": {
+      "shell": "procedural pearl-white material",
+      "glass": "alpha_blend_or_transmission_pending_measurement",
+      "trim": "pale metallic material",
+      "emission": "cyan emissive trim; support and fallback recorded"
+    },
+    "notes": [
+      "Test one representative glass window before replicating it.",
+      "Do not bake reflections, lighting or shadows into base color.",
+      "Verify emissive strength extension support and provide a documented fallback."
+    ]
+  },
+  "textures": {
+    "source": "procedural Blender materials; bake/convert for glTF",
+    "resolution_policy": "camera-derived density policy is Phase 1b",
+    "color_spaces": {
+      "base_color": "sRGB",
+      "normal": "Non-Color",
+      "roughness": "Non-Color",
+      "metallic": "Non-Color",
+      "occlusion": "Non-Color",
+      "emissive": "sRGB"
+    },
+    "tiling": "not assumed for architecture"
+  },
+  "web_delivery": {
+    "format": "glb",
+    "compression": {
+      "ktx2": "optional_measured_variant",
+      "meshopt": "optional_measured_variant",
+      "draco": "optional_measured_variant"
+    },
+    "report": [
+      "download_bytes",
+      "estimated_gpu_memory",
+      "material_count",
+      "draw_call_count",
+      "extensions",
+      "glass_mode",
+      "emissive_extension_state"
+    ],
+    "required_extensions": ["KHR_materials_emissive_strength"],
+    "loader_changes": "Separate approval required"
+  },
+  "verification": {
+    "structural": [
+      "pinned_gltf_validator",
+      "clean_import",
+      "extension_support",
+      "correct_scale_axes_normals"
+    ],
+    "visual": [
+      "day_capture",
+      "night_capture",
+      "glass_vs_emission_capture",
+      "near_far_capture",
+      "seam_and_reveal_inspection"
+    ],
+    "performance": [
+      "headless_relative_only",
+      "real_gpu_check",
+      "glass_overdraw_check"
+    ],
+    "evidence": [
+      "glb_hash",
+      "inventory",
+      "captures",
+      "validator_report",
+      "emissive_fallback_record",
+      "provenance_record"
+    ]
+  },
+  "limits": [
+    "Provisional until the bubble house is modeled and tested.",
+    "Reference image 3 is copyrighted night-lit inspiration only; never a generation, projection or texture input.",
+    "No UDIM assumption in glTF delivery.",
+    "Exterior-only first scope; interiors, aquarium, animated bubbles, landscaping and spiral staircase are deferred."
+  ],
+  "deferred": [
+    "Furnished interiors",
+    "Spiral staircase",
+    "Aquarium contents",
+    "Animated bubbles",
+    "Landscaping set",
+    "Extensive transmission effects",
+    "Game registration and placement",
+    "Automatic collision/navigation integration"
+  ]
+}
