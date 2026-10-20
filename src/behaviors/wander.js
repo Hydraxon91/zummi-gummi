@@ -70,8 +70,7 @@ function think(ctx) {
   if (lesson && api.startLesson(actor, lesson.student)) return true;
   const due = api.findDuePlaydate(actor);
   if (due && api.startPlaydate(actor, due.other, 'friend')) return true;
-  if (actor.stage === 'adult' && actor.mateCooldown <= 0 &&
-      (p.mate.chance >= 1 || rng() < p.mate.chance) && api.acquireMate(actor)) return true;
+  if (api.runOpportunity(actor, 'mate.seek')) return true;
   if (actor.stage === 'baby') {
     const parent = api.parentFor(actor);
     if (parent && !parent.inPond && parent.grabs === 0 &&

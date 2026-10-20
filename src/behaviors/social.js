@@ -425,9 +425,11 @@ export const socialModule = defineBehaviorModule({
   isTraveling(ctx) {
     const ai = ctx.ai;
     if (!ai) return false;
-    if (ai.state === 'seekCompany' || ai.state === 'visit') {
-      if (ai.state === 'visit' && ai.visitPhase === 'hangout') return false;
-      return true;
+    if (ai.state === 'seekCompany') return true;
+    if (ai.state === 'visit') {
+      if (ai.visitPhase === 'hangout') return false;
+      const target = ai.target;
+      return !target || Math.hypot(target.x - ctx.actor.cx, target.z - ctx.actor.cz) > 1.7;
     }
     return false;
   },

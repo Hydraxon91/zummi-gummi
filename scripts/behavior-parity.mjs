@@ -147,7 +147,7 @@ const RACE_SPECIES = {
   glass: { species: 'glass', kind: 'glass' },
 };
 
-export function createRoster(race, perturb = 0, { seedBonds = false, social = false } = {}) {
+export function createRoster(race, perturb = 0, { seedBonds = false, social = false, allAdults = false } = {}) {
   const def = RACE_SPECIES[race] || RACE_SPECIES.bear;
   const rows = [
     { uid: 1, sex: 'F', stage: 'adult', age: 700, home: 'Home 1', parents: [] },
@@ -172,9 +172,9 @@ export function createRoster(race, perturb = 0, { seedBonds = false, social = fa
       cz: start[index].z,
       cy: 1,
       sex: row.sex,
-      stage: row.stage,
-      age: row.age,
-      scale: row.stage === 'baby' ? .58 : row.stage === 'teen' ? .78 : 1,
+      stage: allAdults ? 'adult' : row.stage,
+      age: allAdults ? 700 : row.age,
+      scale: allAdults ? 1 : row.stage === 'baby' ? .58 : row.stage === 'teen' ? .78 : 1,
       home: row.home,
       parentUids: row.parents.slice(),
       fatherUid: 0,
@@ -505,9 +505,9 @@ function firstDiffPath(left, right, path = [], out = []) {
 
 /* ------------------------------------------------------------------ runs */
 
-function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR }) {
+function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false }) {
   const world = createWorld({ flowers });
-  const roster = createRoster(race, perturb, { social, seedBonds });
+  const roster = createRoster(race, perturb, { social, seedBonds, allAdults });
   const traced = tracedRng(seed);
   const clock = { seconds: 0 };
   const engineApi = createBehavior({
@@ -589,9 +589,10 @@ export function runParity({
   seedBonds = false,
   hooks = [],
   startHour = START_HOUR,
+  allAdults = false,
 } = {}) {
-  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour });
-  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour });
+  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults });
+  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults });
   const ticks = Math.round(days * daySeconds / dt);
   const started = Date.now();
   const originalWarn = console.warn;
@@ -815,6 +816,24 @@ function resetMating(run) {
   }
 }
 
+// Alternate critical hunger/thirst while moving so both critical-need
+// opportunities are exercised (water.critical at order 10, forage.critical at 11).
+function criticalNeeds(run) {
+  const actor = run.roster[0];
+  if (!actor || !actor.ai) return;
+  actor.sleeping = false;
+  actor.ai.state = 'wander';
+  actor.ai.taskCooldown = 0;
+  actor.ai.idleT = 0;
+  actor.ai.moving = true;
+  actor.ai.target = { x: actor.cx + 2, z: actor.cz };
+  actor.ai.path = [{ x: actor.cx + 2, z: actor.cz }];
+  actor.ai.pathIndex = 0;
+  run.scenarioFlip = !run.scenarioFlip;
+  if (run.scenarioFlip) actor.thirst = .95;
+  else actor.hunger = .95;
+}
+
 // Dedicated packs for branches the open-world long run does not reach often.
 // Mate needs a rich larder (MATE_FOOD_MIN is 18 safe sources); the fixture world
 // starts with 8 flowers, so mate is unreachable without this pack.
@@ -863,13 +882,19 @@ export const SCENARIOS = Object.freeze({
       { at: 300, run: rebuildRun },
     ]),
   }),
+  criticalNeeds: Object.freeze({
+    id: 'criticalNeeds', label: 'critical hunger/thirst while moving', days: 1,
+    seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    hooks: Object.freeze([{ every: 200, run: criticalNeeds }]),
+    requireOpportunities: ['water.critical', 'forage.critical'],
+  }),
   social: Object.freeze({
     id: 'social', label: 'social chain and visits', days: 10, seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     social: true, seedBonds: true, startHour: 10, require: 'visit',
   }),
   mate: Object.freeze({
     id: 'mate', label: 'mate (rich food, rested adults)', days: 10, seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    flowers: 28, require: 'mate',
+    flowers: 28, require: 'mate', allAdults: true,
     hooks: Object.freeze([{ every: 1800, run: resetMating }]),
   }),
 });
@@ -885,7 +910,7 @@ function parseArgs(argv) {
     sampleEvery: 1, validate: false, long: false, json: false, verbose: false,
     coverage: false, scenario: null, flowers: 0, seedProvided: false,
     social: false, seedBonds: false, hooks: [], scenarioRequire: null,
-    startHour: 6,
+    startHour: 6, allAdults: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -929,6 +954,7 @@ function parseArgs(argv) {
       options.flowers = scenario.flowers || 0;
       options.social = !!scenario.social;
       options.seedBonds = !!scenario.seedBonds;
+      options.allAdults = !!scenario.allAdults;
       options.hooks = scenario.hooks ? scenario.hooks.slice() : [];
       options.scenarioRequire = scenario.require || null;
       options.startHour = Number.isFinite(scenario.startHour) ? scenario.startHour : 6;
@@ -999,7 +1025,7 @@ async function main(argv) {
         daySeconds: options.daySeconds, sampleEvery: options.sampleEvery,
         verbose: options.verbose, flowers: options.flowers,
         social: options.social, seedBonds: options.seedBonds, hooks: options.hooks,
-        startHour: options.startHour,
+        startHour: options.startHour, allAdults: options.allAdults,
       });
       results.push(result);
       if (!options.json) {
@@ -1016,20 +1042,23 @@ async function main(argv) {
   const coverage = (options.coverage || options.scenario) ? formatCoverage(results) : null;
   if (options.scenario) {
     const scenario = SCENARIOS[options.scenario];
-    const required = options.scenarioRequire;
     let scenarioOk = true;
-    if (required) {
+    const check = (kind, key) => {
       const hits = {};
       for (const race of options.races) {
-        hits[race] = (coverage.byRace[race] && coverage.byRace[race].entries[required]) || 0;
+        const merged = coverage.byRace[race] || {};
+        hits[race] = (kind === 'state' ? merged.entries : merged.opportunities)?.[key] || 0;
         if (hits[race] < LOW_COVERAGE) scenarioOk = false;
       }
-      console.log(`SCENARIO ${scenario.id} (${scenario.label}) required ${required} entries: ` +
+      console.log(`SCENARIO ${scenario.id} required ${key}: ` +
         Object.entries(hits).map(([race, n]) => `${race} ${n}`).join(', '));
-      if (!scenarioOk) console.log(`SCENARIO COVERAGE FAIL: ${required} under ${LOW_COVERAGE} for a race`);
-    } else {
+    };
+    if (scenario.require) check('state', scenario.require);
+    for (const key of scenario.requireOpportunities || []) check('opportunity', key);
+    if (!scenario.require && !scenario.requireOpportunities) {
       console.log(`SCENARIO ${scenario.id} (${scenario.label}) parity pack`);
     }
+    if (!scenarioOk) console.log('SCENARIO COVERAGE FAIL: a required branch is under ' + LOW_COVERAGE);
     options.scenarioOk = scenarioOk;
   }
   const ok = parityOk && (options.scenarioOk !== false);

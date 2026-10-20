@@ -9,19 +9,16 @@
 // The engine works on actor fields (cx/cz, hunger, bonds, ...) and never on
 // Box3D bodies or three.js objects.
 
-import {
-  canMate, GESTATION_TIME, MATE_COOLDOWN, MATE_TIME, MATE_FOOD_MIN, PREGNANCY_HUNGER, HOME_CAPACITY,
-} from '../life.js';
-import { canSpeciesBreed } from '../dna.js';
+import { PREGNANCY_HUNGER, HOME_CAPACITY } from '../life.js';
 import { isSafeFood } from '../foodtypes.js';
 import {
   familyRelation, addBond, pairBond, skillsFor,
-  socialAcceptBonus, pushHistory, playdateDue, schedulePlaydate,
+  pushHistory, playdateDue, schedulePlaydate,
   nextPlaydateDay, teachSkill, strongestSkill, skillValue, PLAYDATE_WINDOW, routineWindowFor,
 } from '../family.js';
 import {
   INTERACTIONS, interactionFor, startTask, cancelTask,
-  pairAvailable, actorAvailable, beginPair, endPair, breakPair as breakSharedPair,
+  pairAvailable, beginPair, endPair, breakPair as breakSharedPair,
 } from '../interactions.js';
 import { createBehaviorConfig } from './config.js';
 import { hiveModule } from './hive.js';
@@ -30,6 +27,7 @@ import { forageModule } from './forage.js';
 import { waterModule } from './water.js';
 import { wanderModule } from './wander.js';
 import { socialModule } from './social.js';
+import { mateModule } from './mate.js';
 
 const STUCK_DIST2 = .04;
 
@@ -765,7 +763,7 @@ export function createBehaviorModules({
     if (owner && typeof owner.isTraveling === 'function') {
       return owner.isTraveling(contextFor(actor));
     }
-    if (['seekConflict', 'seekMate'].includes(ai.state)) return true;
+    if (ai.state === 'seekConflict') return true;
     if (ai.state === 'familyTask' && ai.familyTask && ai.familyTask.phase === 'travel') {
       const anchor = ai.familyTask.anchor;
       return !anchor || Math.hypot(anchor.x - actor.cx, anchor.z - actor.cz) > 1.5;
@@ -1086,108 +1084,20 @@ export function createBehaviorModules({
 
   /* ----------------------------------------------------------------- mate */
 
-  // TEMPORARY(port): mate
   function canMatePair(actor, other) {
-    if (!actorAvailable(actor) || !actorAvailable(other)) return false;
-    if (actor === other) return false;
-    if (actor.inside || other.inside) return false;
-    if (!['wander', 'seekMate', 'stargaze', 'seekCompany'].includes(other.ai?.state)) return false;
-    const gate = canSpeciesBreed(actor.species, other.species, { current: true });
-    if (!gate.ok) return false;
-    const p = profile(actor);
-    const softCount = actors().filter(a => a.active && a.kind !== 'glass').length;
-    const room = p.mate.requiresRoom !== false ? softCount < populationCap() : true;
-    return canMate(actor, other, { room, food: safeFoodCount() >= MATE_FOOD_MIN });
+    return mateModule.canMatePair(contextFor(actor), other);
   }
 
   function acquireMate(actor) {
-    if (!actor || actor.pregnant || actor.stage !== 'adult' || actor.mateCooldown > 0) return null;
-    const p = profile(actor);
-    if (actor.health < 70 || actor.hunger > .40 || actor.thirst > .60 || actor.energy < .30) return null;
-    if (safeFoodCount() < MATE_FOOD_MIN) return null;
-    let best = null;
-    let bestScore = -Infinity;
-    for (const other of actors()) {
-      if (!canMatePair(actor, other)) continue;
-      const d = dist(actor, other);
-      if (d > p.mate.radius) continue;
-      const score = pairBond(actor, other) * .4 - d * .02 + (rng() - .5) * .05;
-      if (score > bestScore) { bestScore = score; best = other; }
-    }
-    if (!best) return null;
-    return startSeekMate(actor, best) ? best : null;
+    return mateModule.acquireMate(contextFor(actor));
   }
 
   function startSeekMate(actor, partner) {
-    if (!actor || !partner || !actor.ai || !partner.ai) return false;
-    beginPair(actor, partner, 'seekMate', { stop, face });
-    actor.ai.target = { x: partner.cx, z: partner.cz };
-    if (setDestination(actor, partner.cx, partner.cz)) return true;
-    // Quirk flag: today the pair stays set when pathing fails.
-    if (features.matePairOnPathFailure) {
-      actor.ai.partner = null;
-      if (partner.ai.partner === actor) partner.ai.partner = null;
-      actor.ai.state = 'wander';
-      partner.ai.state = 'wander';
-      actor.ai.idleT = .4;
-      partner.ai.idleT = .4;
-    }
-    return false;
-  }
-
-  function thinkSeekMate(actor) {
-    if (!actor || !actor.ai) return;
-    const partner = actor.ai.partner;
-    if (!partner || !partner.ai || !partner.active || partner.ai.partner !== actor) {
-      actor.ai.partner = null;
-      actor.ai.state = 'wander';
-      stop(actor);
-      return;
-    }
-    const d = dist(actor, partner);
-    if (d <= profile(actor).mate.dist) { startMatePair(actor, partner); return; }
-    if (needsReplan(actor.ai)) setDestination(actor, partner.cx, partner.cz);
+    return mateModule.startSeekMate(contextFor(actor), partner);
   }
 
   function startMatePair(actor, partner) {
-    if (!actor || !partner || !actor.ai || !partner.ai) return false;
-    beginPair(actor, partner, 'mate', { stop, face });
-    actor.ai.mateT = MATE_TIME;
-    partner.ai.mateT = MATE_TIME;
-    actor.ai.waitForPartner = false;
-    partner.ai.waitForPartner = false;
-    emit(actor, 'heart', 1.0);
-    emit(partner, 'heart', 1.0);
-    return true;
-  }
-
-  function finishMatePair(actor) {
-    if (!actor || !actor.ai || actor.ai.state !== 'mate') return;
-    const partner = actor.ai.partner;
-    if (!partner || !partner.ai) {
-      actor.ai.state = 'wander';
-      actor.ai.partner = null;
-      actor.ai.mateT = 0;
-      stop(actor);
-      return;
-    }
-    const female = actor.sex === 'F' ? actor : partner;
-    const male = female === actor ? partner : actor;
-    if (!female.pregnant) {
-      female.pregnant = true;
-      female.gestation = GESTATION_TIME;
-      female.fatherUid = male.uid;
-      female.birthRetryT = 0;
-    }
-    actor.mateCooldown = MATE_COOLDOWN;
-    partner.mateCooldown = MATE_COOLDOWN;
-    addBond(actor, partner, .12);
-    pushHistory(actor, { kind: 'mated', uid: partner.uid, day: dayNow(), hour: hoursNow() });
-    pushHistory(partner, { kind: 'mated', uid: actor.uid, day: dayNow(), hour: hoursNow() });
-    endPair(actor, { stop, next: 'wander', idleT: .7, taskCooldown: 2.0 });
-    actor.ai.mateT = 0;
-    partner.ai.mateT = 0;
-    emit(female, 'heart', 1.1);
+    return mateModule.startMatePair(contextFor(actor), partner);
   }
 
   /* -------------------------------------------------------------- playdate */
@@ -1484,7 +1394,6 @@ export function createBehaviorModules({
     const owner = moduleStateOwner(state);
     if (owner && typeof owner.think === 'function') owner.think(contextFor(actor));
     else if (state === 'seekConflict') thinkSeekConflict(actor);
-    else if (state === 'seekMate') thinkSeekMate(actor);
     else if (state === 'follow') thinkFollow(actor);
     else if (adapter && typeof adapter.think === 'function') adapter.think(actor, api);
   }
@@ -1532,12 +1441,6 @@ export function createBehaviorModules({
       return;
     }
 
-    if (ai.state === 'mate') {
-      ai.animT += dt;
-      ai.mateT -= dt;
-      if (ai.mateT <= 0) finishMatePair(actor);
-      return;
-    }
     const stateOwner = moduleStateOwner(ai.state);
     if (stateOwner && typeof stateOwner.tick === 'function') {
       if (stateOwner.tick(contextFor(actor, { dt }), dt) !== false) return;
@@ -1924,6 +1827,7 @@ export function createBehaviorModules({
   registerModule(waterModule);
   registerModule(wanderModule);
   registerModule(socialModule);
+  registerModule(mateModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -1960,7 +1864,7 @@ export function createBehaviorModules({
   const api = {
     field, profile, actors, hoursNow, dayNow, rng,
     pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
-    homeFor, assignHome, parentFor, safeFoodCount, needsReplan,
+    homeFor, assignHome, parentFor, safeFoodCount, needsReplan, populationCap,
     acquireFood, acquireWater, acquireHive, acquireContest, acquireFamilyPlaymate,
     acquireMate, acquireCompany, startFollow, parentFor,
     mealWindow, startFamilyMeal, lessonCandidate, startLesson, findDuePlaydate,
