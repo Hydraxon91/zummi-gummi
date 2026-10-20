@@ -17,6 +17,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TAG = process.env.TAG || 'current';
 const LOW_QUALITY = process.env.LOW_QUALITY === '1';
 const THOUGHTS = process.env.THOUGHTS === '1';
+const MOOD = process.env.MOOD === '1';
 const WIDTH = Number(process.env.WIDTH || (LOW_QUALITY ? 900 : 1440));
 const HEIGHT = Number(process.env.HEIGHT || (LOW_QUALITY ? 600 : 900));
 const base = process.env.GAME_URL || 'http://localhost:8000/';
@@ -51,6 +52,7 @@ try {
       ? "g.setProfile('performance'); g.setAdaptive(false); g.setRenderScale(0.6); g.setQuality(3); g.setEffects('off');"
       : "g.setAdaptive(false); g.setQuality(2); g.setEffects('off'); g.setNature({ canopy: 1, leafSize: 1, coverage: 1, drawDistance: 56 });"}
     g.setSkyLook('day');
+    if (${MOOD ? 'true' : 'false'}) g.setBehaviorFeature('mood', true);
     g.sim(6, 8);
     let thought = null;
     if (${THOUGHTS ? 'true' : 'false'}) {
@@ -67,7 +69,10 @@ try {
     g.freeze(true);
     g.freezeCamera(true);
     g.renderProbe(120);
-    return { stats: g.stats(), ai: g.ai(), field: g.fieldInfo(), settings: g.settings(), map: g.map(), thought };
+    return {
+      stats: g.stats(), ai: g.ai(), field: g.fieldInfo(), settings: g.settings(), map: g.map(),
+      thought, features: g.behaviorConfig()?.features || null,
+    };
   })()`);
 
   const probe = async (name) => {
@@ -126,6 +131,7 @@ try {
     tris: setup.stats.tris, nature: setup.field?.nature || null, settings: setup.settings,
     aiMs: setup.ai?.ms ?? null,
     thought: setup.thought,
+    mood: setup.features?.mood ?? false,
   }, rows: report, pageErrors: browser.pageErrors }, null, 2));
 
   if (browser.pageErrors.length) failure = `page errors: ${browser.pageErrors.slice(0, 3).join(' | ')}`;

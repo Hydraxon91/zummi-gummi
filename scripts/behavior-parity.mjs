@@ -645,12 +645,14 @@ function firstDiffPath(left, right, path = [], out = []) {
 
 /* ------------------------------------------------------------------ runs */
 
-function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false, rngValue = null, populationCap = POPULATION_CAP, traits = null, personality = false }) {
+function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false, rngValue = null, populationCap = POPULATION_CAP, traits = null, personality = false, mood = false }) {
   const world = createWorld({ flowers });
   const roster = createRoster(race, perturb, { social, seedBonds, allAdults, traits });
   const traced = tracedRng(seed);
   const clock = { seconds: 0 };
-  const config = personality ? createBehaviorConfig({ features: { personality: true } }) : null;
+  const config = (personality || mood)
+    ? createBehaviorConfig({ features: { personality, mood } })
+    : null;
   const engineApi = createBehavior({
     engine,
     config,
@@ -932,6 +934,100 @@ export function runPersonalityBaseline({ race = 'bear', days = 20, seed = 1 } = 
     console.warn = warn;
   }
   return { race, seed, days, actors: [...rows.values()] };
+}
+
+export function runMoodScenario({ race = 'bear', mode = 'content', days = 2, seed = 1 } = {}) {
+  const run = createRun({ race, seed, engine: 'modules', mood: true, allAdults: true });
+  const ticks = Math.round(days * DAY_SECONDS / DT);
+  const per = new Map(run.roster.map(actor => [actor.uid, {
+    uid: actor.uid,
+    distance: 0,
+    social: 0,
+    seekFood: 0,
+    stargaze: 0,
+    mood: 0,
+  }]));
+  const previous = new Map();
+  const positions = new Map();
+  const reset = () => {
+    for (const actor of run.roster) {
+      const ai = actor.ai;
+      if (!ai) continue;
+      ai.state = 'wander';
+      ai.familyTask = null;
+      ai.partner = null;
+      ai.follow = null;
+      ai.directives.length = 0;
+      ai.directive = null;
+      ai.target = null;
+      ai.path = null;
+      ai.moving = false;
+      ai.source = null;
+      ai.taskCooldown = 0;
+      ai.familyPlayCooldown = 0;
+      ai.socialCooldown = 0;
+      ai.conflictCooldown = 0;
+      ai.nextThink = 0;
+      actor.sleeping = false;
+      actor.inside = false;
+      actor.grabs = 0;
+      actor.inPond = false;
+      if (mode === 'unhappy') {
+        actor.hunger = .92;
+        actor.thirst = .90;
+        actor.health = 20;
+        actor.energy = .15;
+        actor.social = .10;
+        actor.affection = .10;
+        actor.bonds = {};
+      } else {
+        actor.hunger = .20;
+        actor.thirst = .20;
+        actor.health = 100;
+        actor.energy = 1;
+        actor.social = .90;
+        actor.affection = .85;
+        actor.bonds = {};
+        for (const other of run.roster) {
+          if (other.uid !== actor.uid) actor.bonds[String(other.uid)] = .70;
+        }
+      }
+    }
+  };
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (let tick = 0; tick < ticks; tick++) {
+      if (tick % 100 === 0) reset();
+      hostTick(run, DT);
+      for (const actor of run.roster) {
+        if (!actor.active || !actor.ai) continue;
+        const row = per.get(actor.uid);
+        if (!row) continue;
+        const state = actor.ai.state;
+        const [x, z] = positions.get(actor.uid) || [actor.cx, actor.cz];
+        if (state === 'wander') row.distance += Math.hypot(actor.cx - x, actor.cz - z);
+        if (state === 'social' && previous.get(actor.uid) !== 'social') row.social += 1;
+        if (state === 'seekFood' && previous.get(actor.uid) !== 'seekFood') row.seekFood += 1;
+        if (state === 'stargaze' && previous.get(actor.uid) !== 'stargaze') row.stargaze += 1;
+        row.mood = actor.ai.mood || 0;
+        positions.set(actor.uid, [actor.cx, actor.cz]);
+        previous.set(actor.uid, state);
+      }
+    }
+  } finally {
+    console.warn = warn;
+  }
+  return {
+    race, seed, days, mode,
+    actors: [...per.values()],
+    distance: +[...per.values()].reduce((sum, row) => sum + row.distance, 0).toFixed(2),
+    social: [...per.values()].reduce((sum, row) => sum + row.social, 0),
+    seekFood: [...per.values()].reduce((sum, row) => sum + row.seekFood, 0),
+    stargaze: [...per.values()].reduce((sum, row) => sum + row.stargaze, 0),
+    mood: +([...per.values()].reduce((sum, row) => sum + row.mood, 0) /
+      Math.max(1, per.size)).toFixed(3),
+  };
 }
 
 /* --------------------------------------------------------------- validate */

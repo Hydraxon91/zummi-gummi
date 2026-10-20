@@ -6942,6 +6942,21 @@ window.__gummy = {
   },
   aiPlan(i){ const b = bears[i]; return b && ai ? ai.plan(b) : null; },
   personalityTraits(i){ const b = bears[i]; return b && b.traits ? { ...b.traits } : null; },
+  mood(i){
+    const b = bears[i];
+    return b && behavior && behavior.api && typeof behavior.api.mood === 'function'
+      ? behavior.api.mood(b) : null;
+  },
+  setMood(i, value){
+    const b = bears[i];
+    if (!b || !b.ai || !behavior || !behavior.api || !behavior.api.features?.mood) return null;
+    const v = clamp(Number(value) || 0, -1, 1);
+    b.ai.mood = v;
+    b.ai.moodBucket = Math.round(v / .05) * .05;
+    b.ai.moodAt = 0;
+    behavior.api.invalidateActor(b);
+    return this.mood(i);
+  },
   thoughts(on){
     if (on !== undefined && behavior && typeof behavior.setFeature === 'function') {
       behavior.setFeature('thoughtBubbles', !!on);

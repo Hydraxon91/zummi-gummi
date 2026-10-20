@@ -32,6 +32,7 @@ import { familyTaskModule } from './family.js';
 import { fleeModule } from './flee.js';
 import { planReason } from './reason.js';
 import { ensureTraits } from './traits.js';
+import { moodFor, moodLabel, MOOD_BUCKET, MOOD_TAU, MOOD_UPDATE_INTERVAL } from './mood.js';
 
 const STUCK_DIST2 = .04;
 
@@ -389,6 +390,12 @@ export function createBehaviorModules({
       turnWait: 0,
       rippleT: 0,
     };
+    if (features.mood) {
+      actor.ai.mood = 0;
+      actor.ai.moodBucket = 0;
+      actor.ai.moodClock = 0;
+      actor.ai.moodAt = 0;
+    }
     if (actor._directiveSave) {
       const saved = actor._directiveSave;
       const clean = (d) => (d && Number.isFinite(d.ttl) ? { ...d } : null);
@@ -914,11 +921,33 @@ export function createBehaviorModules({
 
   /* ------------------------------------------------------------- per tick */
 
+  function updateMood(actor, dt) {
+    if (!features.mood || !actor || !actor.ai) return;
+    const ai = actor.ai;
+    if (!Number.isFinite(ai.mood)) ai.mood = 0;
+    if (!Number.isFinite(ai.moodBucket)) ai.moodBucket = 0;
+    if (!Number.isFinite(ai.moodClock)) ai.moodClock = 0;
+    ai.moodClock += dt;
+    if (ai.moodClock < MOOD_UPDATE_INTERVAL) return;
+    const elapsed = ai.moodClock;
+    ai.moodClock = 0;
+    const target = moodFor(actor, { day: dayNow(), hours: hoursNow() });
+    const alpha = 1 - Math.exp(-elapsed / MOOD_TAU);
+    ai.mood = clamp(ai.mood + (target - ai.mood) * alpha, -1, 1);
+    const bucket = Math.round(ai.mood / MOOD_BUCKET) * MOOD_BUCKET;
+    ai.moodAt = dayNow() + hoursNow() / 24;
+    if (bucket !== ai.moodBucket) {
+      ai.moodBucket = bucket;
+      config.invalidateActor(actor);
+    }
+  }
+
   function tick(actor, dt, { ready = true } = {}) {
     if (!enabled || !actor || !actor.active) return;
     if (!actor.ai) attach(actor);
     if (!actor.ai) return;
     noteCoverage(actor);
+    updateMood(actor, dt);
     const p = profile(actor);
     const ai = actor.ai;
     tickNeeds(actor, dt);
@@ -1083,6 +1112,26 @@ export function createBehaviorModules({
         return reasonText;
       },
     });
+    if (features.mood) {
+      let moodValue = null;
+      let moodKey = null;
+      Object.defineProperty(out, 'mood', {
+        enumerable: true,
+        configurable: true,
+        get() {
+          if (moodValue === null) moodValue = finite(actor.ai?.mood, 0);
+          return +moodValue.toFixed(3);
+        },
+      });
+      Object.defineProperty(out, 'moodLabel', {
+        enumerable: true,
+        configurable: true,
+        get() {
+          if (moodKey === null) moodKey = moodLabel(finite(actor.ai?.mood, 0)).key;
+          return moodKey;
+        },
+      });
+    }
     return out;
   }
 
@@ -1356,6 +1405,13 @@ export function createBehaviorModules({
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
     ensureTraits, invalidateActor: (actor) => config.invalidateActor(actor),
+    mood: (actor) => actor && actor.ai ? {
+      value: finite(actor.ai.mood, 0),
+      bucket: finite(actor.ai.moodBucket, 0),
+      at: finite(actor.ai.moodAt, 0),
+      label: moodLabel(finite(actor.ai.mood, 0)).key,
+      target: moodFor(actor, { day: dayNow(), hours: hoursNow() }),
+    } : null,
     coverSlot, coverConflictOutcome, coverHour, coverFlee,
     adapterSleepDone, adapterOnSleep, adapterOnWake, adapterHungerOpportunity,
     noteDoorTransition,

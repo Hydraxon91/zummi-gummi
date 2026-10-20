@@ -15,6 +15,7 @@ import { directivesModule } from './directives.js';
 import { conflictModule } from './conflict.js';
 import { stargazeModule } from './stargaze.js';
 import { applyTraitOffsets, founderTraits, normalizeTraits } from './traits.js';
+import { applyMoodOffsets } from './mood.js';
 
 // Feature flags for known quirks. Every flag is off by default, so the engine
 // behaves exactly like the legacy path until a flag is deliberately enabled.
@@ -27,6 +28,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
   glassEngineRng: false,       // glass.js insideT uses the engine RNG
   thoughtBubbles: false,       // UI-only plan().reason overlay; no simulation reads
   personality: false,          // trait offsets; modules engine only, no reads while off
+  mood: false,                 // derived mood offsets; modules engine only, runtime-only
 });
 
 const MODULE_DEFAULTS = Object.freeze({
@@ -73,6 +75,7 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
   const cache = new WeakMap();        // actor -> { version, value }
   let version = 1;
   let hasUnknown = false;
+  let invalidations = 0;
 
   function bump() {
     version++;
@@ -138,18 +141,24 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
       }
     }
     resolved.behaviorModules = modules;
+    let out = resolved;
     if (features.personality && actor) {
       const traits = actor.traits
         ? normalizeTraits(actor.traits)
         : founderTraits(actor.uid, actor.species);
-      return applyTraitOffsets(resolved, traits);
+      out = applyTraitOffsets(out, traits);
     }
-    return resolved;
+    if (features.mood && actor) {
+      const mood = Number.isFinite(actor.ai?.moodBucket) ? actor.ai.moodBucket : 0;
+      out = applyMoodOffsets(out, mood);
+    }
+    return out;
   }
 
   function invalidateActor(actor) {
     if (!actor) return false;
     cache.delete(actor);
+    invalidations += 1;
     return true;
   }
 
@@ -240,6 +249,7 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
 
   function setFeature(name, value) {
     if (!(name in FEATURE_DEFAULTS)) return false;
+    if (features[name] !== !!value) bump();
     features[name] = !!value;
     return true;
   }
@@ -264,6 +274,8 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
     invalidateActor,
     reset,
     getVersion: () => version,
+    getInvalidations: () => invalidations,
+    resetInvalidations: () => { invalidations = 0; },
     get hasUnknownSpecies() { return hasUnknown; },
     defaults: MODULE_DEFAULTS,
   };

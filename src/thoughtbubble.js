@@ -18,6 +18,8 @@ export function thoughtBubbleRows(actors, getPlan, project, maxBubbles = 12) {
     rows.push({
       uid: actor.uid, text: plan.reason, x: screen.x, y: screen.y,
       width: screen.width, height: screen.height,
+      mood: Number.isFinite(plan.mood) ? plan.mood : null,
+      moodLabel: plan.moodLabel || null,
     });
     if (rows.length >= maxBubbles) break;
   }
@@ -115,6 +117,8 @@ export function createThoughtBubbleOverlay({
         bubbles.set(key, el);
       }
       if (el.textContent !== row.text) el.textContent = row.text;
+      if (row.moodLabel) el.dataset.mood = row.moodLabel;
+      else delete el.dataset.mood;
       el.style.display = 'block';
       el.style.left = `${row.x.toFixed(1)}px`;
       el.style.top = `${row.y.toFixed(1)}px`;

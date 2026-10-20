@@ -1275,12 +1275,21 @@ playdates and RNG draws; the module default only changes which implementation ru
 **Personality (Oct 2026, off by default):** modules-only `personality` flag with
 `bold`/`greed`/`curiosity` axes. Founders use a deterministic uid/species/axis hash (no
 RNG); children use `blendTraits` after the existing birth draws. Offsets are bounded and
-Glass long-wander chance stays 0. Actor records without traits remain `actorVersion: 2`
-and stay loadable by older builds; records with traits use `actorVersion: 3`, and old
-saves hash on first enabled attach. **Enabling the flag changes existing actors' behavior;
-hashed founders are not neutral.** `?behaviors=legacy` ignores the flag. Scenario pack:
+Glass long-wander chance stays 0; Glass curiosity uses a 2× short-wander step so it is not
+inert. Actor records without traits remain `actorVersion: 2` and stay loadable by older
+builds; records with traits use `actorVersion: 3`, and old saves hash on first enabled
+attach. **Enabling the flag changes existing actors' behavior; hashed founders are not
+neutral.** `?behaviors=legacy` ignores the flag. Scenario pack:
 `node scripts/personality-scenario.mjs` (all-bold/shy, greedy/generous, curious/homebody
-with direction checks).
+with direction checks). The natural-needs 20-day × 3-seed report
+(`scripts/personality-baseline.mjs`) shows small and noisy effect sizes; it is not a
+scale claim. The controlled pack proves direction only.
+
+**Mood (Oct 2026, off by default):** derived needs/bonds/history mood, 4 Hz target,
+8 s smoothing, 0.05 buckets, bounded offsets stacked after traits, runtime-only
+`ai.mood` fields with no save change, mood-tinted thought bubbles. Config invalidations
+measured at **106 per sim-hour for 40 actors**. Controlled unhappy/content pack passes
+per race. Mood has no RNG and no death/mourning behavior.
 
 **`glass-test.mjs` family-follow flake (pre-existing, fixed 2026-10-20):** the original
 20-run samples measured 5/20 failures at `b7f5fea` (before the modular refactor) and 6/20

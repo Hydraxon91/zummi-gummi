@@ -150,13 +150,15 @@ test('ensureTraits during attach invalidates the cached actor config', () => {
 });
 
 test('personality off leaves profile and attach behavior untouched', () => {
+  for (const [race, base] of Object.entries(PROFILES)) {
+    const config = createBehaviorConfig();
+    const a = actor(race, { bold: 1, greed: 1, curiosity: 1 });
+    const resolved = config.forActor(a);
+    assert.deepEqual(resolved.wander, base.wander, `${race}.wander`);
+    assert.deepEqual(resolved.thresholds, base.thresholds, `${race}.thresholds`);
+    assert.equal(resolved.traits, undefined, `${race}.traits`);
+  }
   const config = createBehaviorConfig();
-  const a = actor('bear', { bold: 1, greed: 1, curiosity: 1 });
-  const resolved = config.forActor(a);
-  assert.deepEqual(resolved.wander, BEAR_PROFILE.wander);
-  assert.deepEqual(resolved.thresholds, BEAR_PROFILE.thresholds);
-  assert.equal(resolved.traits, undefined);
-
   const plain = { uid: 1, species: 'bear', kind: 'bear', hunger: .3, thirst: .3 };
   const offEngine = createBehavior({ engine: 'modules', config, field: {}, getActors: () => [],
     getHours: () => 12, getDay: () => 1, getPopulationCap: () => 40, rng: () => .5 });

@@ -90,6 +90,21 @@ Trait-free actor records stay `actorVersion: 2` for older-build compatibility;
 records with traits use `actorVersion: 3`. Old saves load without traits and
 get the same hashed founder values once personality is enabled.
 
+## Mood (off by default)
+
+`mood` is a modules-only, **off-by-default** derived layer. It is not stored in
+actor saves. `ai.mood`/`ai.moodBucket`/`ai.moodAt` are runtime-only and are
+rebuilt from needs/bonds/history after load or map switch. The engine computes a
+target at 4 Hz, smooths it with an 8 s time constant, quantizes to 0.05, and
+invalidates the actor's config only when that bucket changes. No RNG is used.
+
+Mood offsets stack after trait offsets and share the same clamps. Neutral mood
+is an exact no-op; Glass long wanders stay disabled. Only existing history
+kinds contribute (born, mated, child, meal, lesson, taught, playdate, visit,
+stage, home, moved, bond); there are no conflict/sting history kinds. Thought
+bubbles use the derived mood for a tint only, via a lazy `plan().mood` field.
+`?behaviors=legacy` ignores mood.
+
 ## Config layers
 
 Later layers win:
@@ -151,6 +166,9 @@ stay empty; any `TEMPORARY(port)` marker fails CI.
   founders, inherited children, bounded profile offsets, actorVersion 2/3 save
   split, trait-extreme scenario pack. Enabling it intentionally changes
   existing actors' behavior; hashed founders are not neutral.
+- **Mood (Oct 2026):** off-by-default, derived, runtime-only mood with smoothing,
+  bounded profile nudges stacked after traits, config-bucket invalidation, and
+  mood-tinted thought bubbles. No save fields, no RNG, no death system.
 - **Open follow-up:** `interactions.js` is not yet the only writer of
   `ai.partner`/`ai.familyTask`; direct assignments remain in `social.js`,
   `mate.js`, `conflict.js`, `glass.js`, `ai.js` and legacy `behavior.js`.

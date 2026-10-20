@@ -63,6 +63,15 @@
     border-right:1px solid rgba(25,24,23,.12);border-bottom:1px solid rgba(25,24,23,.12);
     background:rgba(255,253,247,.93);
   }
+  .thoughtBubble[data-mood="cheerful"]{background:rgba(255,238,181,.97);border-color:rgba(176,138,62,.42);box-shadow:0 8px 22px -14px rgba(176,138,62,.65),inset 0 1px rgba(255,255,255,.9)}
+  .thoughtBubble[data-mood="cheerful"]::after{background:rgba(255,238,181,.97);border-color:rgba(176,138,62,.42)}
+  .thoughtBubble[data-mood="content"]{background:rgba(240,255,228,.97);border-color:rgba(94,146,78,.34)}
+  .thoughtBubble[data-mood="content"]::after{background:rgba(240,255,228,.97);border-color:rgba(94,146,78,.34)}
+  .thoughtBubble[data-mood="settled"]{background:rgba(255,253,247,.93)}
+  .thoughtBubble[data-mood="low"]{background:rgba(226,235,250,.97);border-color:rgba(82,104,148,.40)}
+  .thoughtBubble[data-mood="low"]::after{background:rgba(226,235,250,.97);border-color:rgba(82,104,148,.40)}
+  .thoughtBubble[data-mood="miserable"]{background:rgba(211,221,239,.98);border-color:rgba(61,75,108,.50);color:#2e3442;box-shadow:0 8px 22px -14px rgba(61,75,108,.75),inset 0 1px rgba(255,255,255,.8)}
+  .thoughtBubble[data-mood="miserable"]::after{background:rgba(211,221,239,.98);border-color:rgba(61,75,108,.50)}
   @media (max-width:640px){
     .thoughtBubble{max-width:150px;font-size:10px;padding:4px 7px 5px}
   }

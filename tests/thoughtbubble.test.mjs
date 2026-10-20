@@ -141,7 +141,7 @@ test('thought layout separates overlapping labels deterministically', () => {
 
 function fakeElement() {
   return {
-    style: {}, textContent: '', className: '', hidden: false, children: [], attrs: {},
+    style: {}, dataset: {}, textContent: '', className: '', hidden: false, children: [], attrs: {},
     classList: { add() {}, remove() {} },
     setAttribute(key, value) { this.attrs[key] = value; },
     append(child) { this.children.push(child); },
