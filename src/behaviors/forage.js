@@ -148,6 +148,12 @@ export const forageModule = defineBehaviorModule({
     order: 50,
     canRun: (ctx) => !!ctx.actor && ctx.actor.hunger >= ctx.p.thresholds.seekHunger,
     enter: (ctx) => !!acquire(ctx),
+  }, {
+    id: 'forage.critical',
+    order: 11,
+    canRun: (ctx) => !!ctx.ai && !!ctx.ai.moving &&
+      ctx.actor.hunger >= ctx.p.thresholds.criticalHunger,
+    enter: (ctx) => !!acquire(ctx),
   }],
   acquire,
   startEat,

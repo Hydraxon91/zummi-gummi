@@ -147,7 +147,7 @@ const RACE_SPECIES = {
   glass: { species: 'glass', kind: 'glass' },
 };
 
-export function createRoster(race, perturb = 0) {
+export function createRoster(race, perturb = 0, { seedBonds = false, social = false } = {}) {
   const def = RACE_SPECIES[race] || RACE_SPECIES.bear;
   const rows = [
     { uid: 1, sex: 'F', stage: 'adult', age: 700, home: 'Home 1', parents: [] },
@@ -158,10 +158,10 @@ export function createRoster(race, perturb = 0) {
     { uid: 6, sex: 'M', stage: 'baby', age: 60, home: 'Home 1', parents: [1, 2] },
   ];
   const start = [
-    { x: 1, z: 1 }, { x: -1, z: 1 }, { x: 2, z: 2 },
-    { x: -2, z: 2 }, { x: 1, z: -2 }, { x: -1, z: -2 },
+    { x: 8.5, z: 7.0 }, { x: 9.5, z: 8.6 }, { x: 8.5, z: -7.0 },
+    { x: 9.5, z: -8.6 }, { x: 7.8, z: 8.2 }, { x: 10.2, z: 7.2 },
   ];
-  return rows.map((row, index) => {
+  const roster = rows.map((row, index) => {
     const actor = {
       uid: row.uid,
       active: true,
@@ -202,9 +202,22 @@ export function createRoster(race, perturb = 0) {
       hopSpeedMin: .8,
       hopSpeedMax: 1.65,
     };
+    if (social) {
+      actor.social = .90;
+      actor.affection = .90;
+    }
     if (perturb) actor.hunger += perturb;
     return actor;
   });
+  if (seedBonds) {
+    for (const a of roster) {
+      for (const b of roster) {
+        if (a === b) continue;
+        a.bonds[String(b.uid)] = .55;
+      }
+    }
+  }
+  return roster;
 }
 
 /* --------------------------------------------------------------- adapters */
@@ -250,8 +263,8 @@ function createGlassAdapter() {
 
 /* ------------------------------------------------------------- host loop */
 
-function clockAt(seconds, daySeconds = DAY_SECONDS) {
-  const totalHours = START_HOUR + seconds / (daySeconds / 24);
+function clockAt(seconds, daySeconds = DAY_SECONDS, startHour = START_HOUR) {
+  const totalHours = startHour + seconds / (daySeconds / 24);
   return {
     hours: totalHours % 24,
     day: Math.floor(totalHours / 24),
@@ -259,12 +272,35 @@ function clockAt(seconds, daySeconds = DAY_SECONDS) {
 }
 
 function hostTick(run, dt) {
-  const clock = clockAt(run.clock.seconds, run.daySeconds);
+  const clock = clockAt(run.clock.seconds, run.daySeconds, run.startHour);
   for (const actor of run.roster) {
     const ai = actor.ai;
     if (!ai) continue;
     if (Number.isFinite(actor.mateCooldown) && actor.mateCooldown > 0) {
       actor.mateCooldown = Math.max(0, actor.mateCooldown - dt);
+    }
+    if (ai.possessed) {
+      run.engineApi.tick(actor, dt, { ready: false });
+      continue;
+    }
+    if (actor.grabs > 0 || actor.inPond) {
+      if (!ai.interrupted) {
+        ai.interrupted = true;
+        ai.moving = false;
+        ai.hopState = null;
+        run.engineApi.api.releaseFood(actor);
+      }
+      run.grabHold.set(actor, true);
+      run.engineApi.tick(actor, dt, { ready: false });
+      continue;
+    }
+    if (run.grabHold.get(actor)) {
+      run.grabHold.delete(actor);
+      ai.interrupted = false;
+      ai.nextThink = 0;
+      ai.hopState = null;
+      ai.path = null;
+      run.engineApi.resumeTask(actor);
     }
     if (actor.kind === 'glass') {
       actor.shelteredToday = glassDay(clock.hours) ? !!actor.shelteredToday : false;
@@ -335,7 +371,7 @@ function driveMovement(run, dt) {
         }
         continue;
       }
-      const step = Math.min(d, 1.35 * dt);
+      const step = Math.min(d, 2.0 * dt);
       actor.cx += dx / d * step;
       actor.cz += dz / d * step;
       continue;
@@ -346,7 +382,7 @@ function driveMovement(run, dt) {
       if (ai.state === 'wander') ai.arrived = true;
       continue;
     }
-    const step = Math.min(d, 1.2 * dt);
+    const step = Math.min(d, 2.0 * dt);
     actor.cx += dx / d * step;
     actor.cz += dz / d * step;
   }
@@ -469,17 +505,17 @@ function firstDiffPath(left, right, path = [], out = []) {
 
 /* ------------------------------------------------------------------ runs */
 
-function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0 }) {
+function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR }) {
   const world = createWorld({ flowers });
-  const roster = createRoster(race, perturb);
+  const roster = createRoster(race, perturb, { social, seedBonds });
   const traced = tracedRng(seed);
   const clock = { seconds: 0 };
   const engineApi = createBehavior({
     engine,
     field: world,
     getActors: () => roster,
-    getHours: () => clockAt(clock.seconds, daySeconds).hours,
-    getDay: () => clockAt(clock.seconds, daySeconds).day,
+    getHours: () => clockAt(clock.seconds, daySeconds, startHour).hours,
+    getDay: () => clockAt(clock.seconds, daySeconds, startHour).day,
     getPopulationCap: () => POPULATION_CAP,
     rng: traced.rng,
   });
@@ -487,8 +523,8 @@ function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DA
   engineApi.registerAdapter('skinned', createGlassAdapter());
   for (const actor of roster) engineApi.attach(actor);
   const run = {
-    race, seed, engine, world, roster, engineApi, traced, daySeconds, collectSamples, clock,
-    transitions: [], samples: [], warnings: [], lastState: new Map(),
+    race, seed, engine, world, roster, engineApi, traced, daySeconds, collectSamples, clock, startHour,
+    transitions: [], samples: [], warnings: [], lastState: new Map(), grabHold: new Map(),
   };
   for (const actor of roster) run.lastState.set(actor.uid, actor.ai ? actor.ai.state : null);
   return run;
@@ -549,9 +585,13 @@ export function runParity({
   engineA = 'legacy',
   engineB = 'modules',
   flowers = 0,
+  social = false,
+  seedBonds = false,
+  hooks = [],
+  startHour = START_HOUR,
 } = {}) {
-  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers });
-  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers });
+  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour });
+  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour });
   const ticks = Math.round(days * daySeconds / dt);
   const started = Date.now();
   const originalWarn = console.warn;
@@ -563,6 +603,12 @@ export function runParity({
       const sampleAcc = tick % sampleEvery;
       stepRun(a, { dt, sampleEvery, sampleAcc });
       stepRun(b, { dt, sampleEvery, sampleAcc });
+      for (const hook of hooks) {
+        const hit = hook.every ? (tick + 1) % hook.every === 0 : hook.at === tick + 1;
+        if (!hit) continue;
+        hook.run(a);
+        hook.run(b);
+      }
       const left = snapshot(a);
       const right = snapshot(b);
       if (left !== right) {
@@ -634,63 +680,197 @@ export const KNOWN_STATES = Object.freeze([
   'familyTask', 'stargaze', 'seekSocial', 'exit',
 ]);
 
+const BEAR_STATES = Object.freeze(['wander', 'seekFood', 'eat', 'seekWater', 'drink', 'seekHive',
+  'raidHive', 'flee', 'seekHome', 'sleep', 'seekCompany', 'invite', 'social', 'decline', 'visit',
+  'seekConflict', 'conflict', 'seekMate', 'mate', 'follow', 'familyTask', 'seekSocial']);
+const ALL_RACE_STATES = Object.freeze({
+  bear: BEAR_STATES,
+  gummy: BEAR_STATES,
+  glass: Object.freeze(['wander', 'seekFood', 'eat', 'seekWater', 'drink', 'seekHome', 'sleep',
+    'seekCompany', 'invite', 'social', 'decline', 'visit', 'seekMate', 'mate', 'follow',
+    'familyTask', 'stargaze', 'seekSocial', 'exit']),
+});
+
+function raceStates(race) {
+  return ALL_RACE_STATES[race] || ALL_RACE_STATES.bear;
+}
+
 export function mergeCoverage(results) {
   const states = {};
   const entries = {};
   const opportunities = {};
+  const taskPhases = {};
+  const tasks = {};
+  const taskEntries = {};
+  const add = (target, source) => {
+    for (const [key, value] of Object.entries(source || {})) {
+      target[key] = (target[key] || 0) + value;
+    }
+  };
   for (const result of results) {
     const coverage = result && result.coverage;
     if (!coverage) continue;
-    for (const [key, value] of Object.entries(coverage.states || {})) {
-      states[key] = (states[key] || 0) + value;
-    }
-    for (const [key, value] of Object.entries(coverage.entries || {})) {
-      entries[key] = (entries[key] || 0) + value;
-    }
-    for (const [key, value] of Object.entries(coverage.opportunities || {})) {
-      opportunities[key] = (opportunities[key] || 0) + value;
-    }
+    add(states, coverage.states);
+    add(entries, coverage.entries);
+    add(opportunities, coverage.opportunities);
+    add(taskPhases, coverage.taskPhases);
+    add(tasks, coverage.tasks);
+    add(taskEntries, coverage.taskEntries);
   }
-  return { states, entries, opportunities };
+  return { states, entries, opportunities, taskPhases, tasks, taskEntries };
 }
 
-export function formatCoverage(results) {
-  const merged = mergeCoverage(results);
-  const stateNames = [...new Set([...KNOWN_STATES, ...Object.keys(merged.entries)])].sort();
+function coverageSection(merged, title, race = null) {
+  const named = race ? raceStates(race) : KNOWN_STATES;
+  const stateNames = [...new Set([...named, ...Object.keys(merged.entries)])]
+    .filter(state => !race || named.includes(state))
+    .sort();
   const lowStates = stateNames
     .filter(state => (merged.entries[state] || 0) < LOW_COVERAGE);
   const lowOpportunities = Object.entries(merged.opportunities)
     .filter(([, hits]) => hits < LOW_COVERAGE).map(([id]) => id);
-  const lines = ['COVERAGE (module engine; entries/ticks per state)'];
+  const lines = [title];
   for (const state of stateNames) {
     const entries = merged.entries[state] || 0;
     const ticks = merged.states[state] || 0;
     lines.push(`  ${state.padEnd(14)} ${String(entries).padStart(7)} entries ${String(ticks).padStart(9)} ticks${entries < LOW_COVERAGE ? '  LOW' : ''}`);
   }
-  lines.push('COVERAGE opportunities (times selected)');
+  lines.push('  opportunities (times selected)');
   for (const id of Object.keys(merged.opportunities).sort()) {
     const hits = merged.opportunities[id] || 0;
-    lines.push(`  ${id.padEnd(18)} ${String(hits).padStart(7)}${hits < LOW_COVERAGE ? '  LOW' : ''}`);
+    lines.push(`    ${id.padEnd(18)} ${String(hits).padStart(7)}${hits < LOW_COVERAGE ? '  LOW' : ''}`);
   }
-  lines.push(`LOW (<${LOW_COVERAGE}) states: ${lowStates.join(', ') || 'none'}`);
-  lines.push(`LOW (<${LOW_COVERAGE}) opportunities: ${lowOpportunities.join(', ') || 'none'}`);
-  return { merged, lowStates, lowOpportunities, text: lines.join('\n') };
+  const travel = merged.taskPhases.travel || 0;
+  const act = merged.taskPhases.act || 0;
+  lines.push(`  familyTask time: travel ${travel} ticks, act ${act} ticks`);
+  const taskNames = [...new Set([...Object.keys(merged.tasks), ...Object.keys(merged.taskEntries)])].sort();
+  for (const id of taskNames) {
+    lines.push(`    ${id.padEnd(18)} ${String(merged.taskEntries[id] || 0).padStart(6)} entries ${String(merged.tasks[id] || 0).padStart(8)} ticks`);
+  }
+  lines.push(`  LOW (<${LOW_COVERAGE}) states: ${lowStates.join(', ') || 'none'}`);
+  lines.push(`  LOW (<${LOW_COVERAGE}) opportunities: ${lowOpportunities.join(', ') || 'none'}`);
+  return { text: lines.join('\n'), lowStates, lowOpportunities };
+}
+
+export function formatCoverage(results) {
+  const grouped = new Map();
+  for (const result of results) {
+    const race = result && result.race ? result.race : 'unknown';
+    if (!grouped.has(race)) grouped.set(race, []);
+    grouped.get(race).push(result);
+  }
+  const byRace = {};
+  const sections = [];
+  for (const race of [...grouped.keys()].sort()) {
+    const merged = mergeCoverage(grouped.get(race));
+    const section = coverageSection(merged, `COVERAGE ${race} (module engine; entries/ticks per state)`, race);
+    byRace[race] = merged;
+    sections.push(section.text);
+  }
+  const merged = mergeCoverage(results);
+  const aggregate = coverageSection(merged, 'COVERAGE all races');
+  return {
+    merged,
+    byRace,
+    lowStates: aggregate.lowStates,
+    lowOpportunities: aggregate.lowOpportunities,
+    text: [...sections, aggregate.text].join('\n\n'),
+  };
 }
 
 /* -------------------------------------------------------------------- cli */
 
 const RACES = ['bear', 'gummy', 'glass'];
 
+// Engine-level save/rebuild: detach clears ai and releases claims; actor fields
+// (needs, bonds, history, playdates, pregnancy) survive. A fresh engine attaches
+// over the same roster, standing in for a save -> load -> continue.
+function rebuildRun(run) {
+  for (const actor of run.roster) run.engineApi.detach(actor);
+  const clock = run.clock;
+  const engineApi = createBehavior({
+    engine: run.engine,
+    field: run.world,
+    getActors: () => run.roster,
+    getHours: () => clockAt(clock.seconds, run.daySeconds, run.startHour).hours,
+    getDay: () => clockAt(clock.seconds, run.daySeconds, run.startHour).day,
+    getPopulationCap: () => POPULATION_CAP,
+    rng: run.traced.rng,
+  });
+  engineApi.registerAdapter('softbody', createSoftAdapter());
+  engineApi.registerAdapter('skinned', createGlassAdapter());
+  for (const actor of run.roster) engineApi.attach(actor);
+  run.engineApi = engineApi;
+}
+
+// The open world never produces this many mating cycles (pregnancy blocks the
+// only adult pair), so the mate pack restores eligibility on a fixed cadence.
+function resetMating(run) {
+  for (const actor of run.roster) {
+    if (actor.stage !== 'adult') continue;
+    actor.pregnant = false;
+    actor.gestation = 0;
+    actor.mateCooldown = 0;
+    actor.birthRetryT = 0;
+  }
+}
+
 // Dedicated packs for branches the open-world long run does not reach often.
 // Mate needs a rich larder (MATE_FOOD_MIN is 18 safe sources); the fixture world
 // starts with 8 flowers, so mate is unreachable without this pack.
 export const SCENARIOS = Object.freeze({
+  grab: Object.freeze({
+    id: 'grab', label: 'grab and resume', days: 1,
+    hooks: Object.freeze([
+      { at: 300, run: (run) => run.engineApi.onGrab(run.roster[0]) },
+      { at: 340, run: (run) => run.engineApi.onRelease(run.roster[0]) },
+    ]),
+  }),
+  pond: Object.freeze({
+    id: 'pond', label: 'pond interrupt and resume', days: 1,
+    hooks: Object.freeze([
+      { at: 300, run: (run) => { run.roster[0].inPond = true; } },
+      { at: 340, run: (run) => { run.roster[0].inPond = false; } },
+    ]),
+  }),
+  disable: Object.freeze({
+    id: 'disable', label: 'AI disable and enable', days: 1,
+    hooks: Object.freeze([
+      { at: 300, run: (run) => run.engineApi.setEnabled(false) },
+      { at: 340, run: (run) => run.engineApi.setEnabled(true) },
+    ]),
+  }),
+  possess: Object.freeze({
+    id: 'possess', label: 'possession suspend and resume', days: 1,
+    hooks: Object.freeze([
+      { at: 300, run: (run) => { run.roster[0].ai.possessed = true; } },
+      { at: 340, run: (run) => { run.roster[0].ai.possessed = false; } },
+    ]),
+  }),
+  critical: Object.freeze({
+    id: 'critical', label: 'critical need interrupts social', days: 1,
+    hooks: Object.freeze([
+      { at: 300, run: (run) => {
+        run.engineApi.forceSocial(run.roster[0], run.roster[1], true);
+        run.roster[0].hunger = .95;
+        run.roster[1].hunger = .95;
+      } },
+    ]),
+  }),
+  save: Object.freeze({
+    id: 'save', label: 'detach, rebuild engine and continue', days: 1,
+    hooks: Object.freeze([
+      { at: 300, run: rebuildRun },
+    ]),
+  }),
+  social: Object.freeze({
+    id: 'social', label: 'social chain and visits', days: 10, seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    social: true, seedBonds: true, startHour: 10, require: 'visit',
+  }),
   mate: Object.freeze({
-    id: 'mate',
-    label: 'mate (rich food, rested adults)',
-    days: 5,
-    seeds: [1, 2, 3, 4, 5],
-    flowers: 28,
+    id: 'mate', label: 'mate (rich food, rested adults)', days: 10, seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    flowers: 28, require: 'mate',
+    hooks: Object.freeze([{ every: 1800, run: resetMating }]),
   }),
 });
 
@@ -704,6 +884,8 @@ function parseArgs(argv) {
     races: RACES.slice(), seeds: [1], days: 3, dt: DT, daySeconds: DAY_SECONDS,
     sampleEvery: 1, validate: false, long: false, json: false, verbose: false,
     coverage: false, scenario: null, flowers: 0, seedProvided: false,
+    social: false, seedBonds: false, hooks: [], scenarioRequire: null,
+    startHour: 6,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -744,7 +926,12 @@ function parseArgs(argv) {
       options.unknownScenario = options.scenario;
     } else {
       options.days = scenario.days;
-      options.flowers = scenario.flowers;
+      options.flowers = scenario.flowers || 0;
+      options.social = !!scenario.social;
+      options.seedBonds = !!scenario.seedBonds;
+      options.hooks = scenario.hooks ? scenario.hooks.slice() : [];
+      options.scenarioRequire = scenario.require || null;
+      options.startHour = Number.isFinite(scenario.startHour) ? scenario.startHour : 6;
       if (!options.seedProvided && Array.isArray(scenario.seeds)) options.seeds = scenario.seeds.slice();
       options.coverage = true;
     }
@@ -811,6 +998,8 @@ async function main(argv) {
         race, seed, days: options.days, dt: options.dt,
         daySeconds: options.daySeconds, sampleEvery: options.sampleEvery,
         verbose: options.verbose, flowers: options.flowers,
+        social: options.social, seedBonds: options.seedBonds, hooks: options.hooks,
+        startHour: options.startHour,
       });
       results.push(result);
       if (!options.json) {
@@ -827,13 +1016,21 @@ async function main(argv) {
   const coverage = (options.coverage || options.scenario) ? formatCoverage(results) : null;
   if (options.scenario) {
     const scenario = SCENARIOS[options.scenario];
-    const hits = coverage.merged.entries[options.scenario] || 0;
-    console.log(`SCENARIO ${scenario.id} (${scenario.label}): ${hits} ${options.scenario} entries across ` +
-      `${options.races.length} races x ${options.seeds.length} seeds x ${options.days} days`);
-    if (hits < LOW_COVERAGE) {
-      console.log(`SCENARIO COVERAGE FAIL: ${options.scenario} remained under ${LOW_COVERAGE}`);
+    const required = options.scenarioRequire;
+    let scenarioOk = true;
+    if (required) {
+      const hits = {};
+      for (const race of options.races) {
+        hits[race] = (coverage.byRace[race] && coverage.byRace[race].entries[required]) || 0;
+        if (hits[race] < LOW_COVERAGE) scenarioOk = false;
+      }
+      console.log(`SCENARIO ${scenario.id} (${scenario.label}) required ${required} entries: ` +
+        Object.entries(hits).map(([race, n]) => `${race} ${n}`).join(', '));
+      if (!scenarioOk) console.log(`SCENARIO COVERAGE FAIL: ${required} under ${LOW_COVERAGE} for a race`);
+    } else {
+      console.log(`SCENARIO ${scenario.id} (${scenario.label}) parity pack`);
     }
-    options.scenarioOk = hits >= LOW_COVERAGE;
+    options.scenarioOk = scenarioOk;
   }
   const ok = parityOk && (options.scenarioOk !== false);
   if (coverage) {

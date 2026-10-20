@@ -28,6 +28,7 @@ import { hiveModule } from './hive.js';
 import { restModule } from './rest.js';
 import { forageModule } from './forage.js';
 import { waterModule } from './water.js';
+import { wanderModule } from './wander.js';
 
 const STUCK_DIST2 = .04;
 const HEART_INTERVAL = .72;
@@ -95,13 +96,28 @@ export function createBehaviorModules({
       lastCoverState.set(actor, state);
       coverage.entries.set(state, (coverage.entries.get(state) || 0) + 1);
     }
+    const task = actor.ai.familyTask;
+    if (state === 'familyTask' && task) {
+      coverage.taskPhases.set(task.phase, (coverage.taskPhases.get(task.phase) || 0) + 1);
+      coverage.tasks.set(task.id, (coverage.tasks.get(task.id) || 0) + 1);
+      if (lastCoverTask.get(actor) !== task.id) {
+        lastCoverTask.set(actor, task.id);
+        coverage.taskEntries.set(task.id, (coverage.taskEntries.get(task.id) || 0) + 1);
+      }
+    } else {
+      lastCoverTask.delete(actor);
+    }
   }
 
   function coverageSnapshot() {
+    const map = (source) => Object.fromEntries([...source.entries()].sort(([a], [b]) => a.localeCompare(b)));
     return {
-      states: Object.fromEntries([...coverage.states.entries()].sort(([a], [b]) => a.localeCompare(b))),
-      entries: Object.fromEntries([...coverage.entries.entries()].sort(([a], [b]) => a.localeCompare(b))),
-      opportunities: Object.fromEntries([...coverage.opportunities.entries()].sort(([a], [b]) => a.localeCompare(b))),
+      states: map(coverage.states),
+      entries: map(coverage.entries),
+      opportunities: map(coverage.opportunities),
+      taskPhases: map(coverage.taskPhases),
+      tasks: map(coverage.tasks),
+      taskEntries: map(coverage.taskEntries),
     };
   }
 
@@ -196,8 +212,12 @@ export function createBehaviorModules({
   const populationCap = () => Math.max(1, Number(typeof getPopulationCap === 'function'
     ? getPopulationCap() : getPopulationCap) || 40);
   const stats = { ticks: 0, ms: 0 };
-  const coverage = { states: new Map(), entries: new Map(), opportunities: new Map() };
+  const coverage = {
+    states: new Map(), entries: new Map(), opportunities: new Map(),
+    taskPhases: new Map(), tasks: new Map(), taskEntries: new Map(),
+  };
   const lastCoverState = new WeakMap();
+  const lastCoverTask = new WeakMap();
   let enabled = true;
 
   function profile(actor) {
@@ -494,43 +514,6 @@ export function createBehaviorModules({
   function safeFoodCount() {
     return field && field.food && field.food.allRipe
       ? field.food.allRipe({ safe: true }).length : 0;
-  }
-
-  // TEMPORARY(port): wander
-  function wanderCandidate(actor, minR, maxR, maxShift, requireDistance) {
-    if (!field || !field.nav) return null;
-    const p = profile(actor);
-    for (let i = 0; i < 12; i++) {
-      const angle = rng() * Math.PI * 2;
-      const r = minR + rng() * (maxR - minR);
-      const x = actor.cx + Math.cos(angle) * r;
-      const z = actor.cz + Math.sin(angle) * r;
-      const near = field.nav.nearestWalkable(x, z);
-      if (!near) continue;
-      if (Math.hypot(near.x - x, near.z - z) > maxShift) continue;
-      if (field.pond && field.pond.contains && field.pond.contains(near.x, near.z)) continue;
-      if (Math.hypot(near.x - actor.cx, near.z - actor.cz) < requireDistance) continue;
-      const path = pathTo(actor, near.x, near.z);
-      if (!path) continue;
-      return { x: near.x, z: near.z, path };
-    }
-    return null;
-  }
-
-  function pickWanderTarget(actor) {
-    if (!field || !field.nav) return null;
-    const p = profile(actor);
-    const w = p.wander;
-    let target = null;
-    if (w.longChance > 0 && rng() < w.longChance) {
-      target = wanderCandidate(actor, w.longMin, w.longMax, w.longShift, w.longMin * w.longSnapFloor);
-    }
-    if (!target) target = wanderCandidate(actor, w.min, w.max, w.shortShift, 0);
-    if (!target) return null;
-    actor.ai.target = { x: target.x, z: target.z };
-    face(actor, target.x, target.z);
-    setPath(actor, target.path);
-    return actor.ai.target;
   }
 
   function acquireFood(actor) {
@@ -1771,73 +1754,6 @@ export function createBehaviorModules({
 
   /* -------------------------------------------------------------- thinking */
 
-  // TEMPORARY(port): wander (opportunity pipeline remains in the engine)
-  function thinkWander(actor) {
-    if (!actor || !actor.ai || actor.ai.state !== 'wander') return;
-    const p = profile(actor);
-    if (actor.ai.moving) {
-      if (actor.thirst >= p.thresholds.criticalThirst && acquireWater(actor)) return;
-      if (actor.hunger >= p.thresholds.criticalHunger && acquireFood(actor)) return;
-      if (actor.ai.target && Math.hypot(actor.ai.target.x - actor.cx, actor.ai.target.z - actor.cz) < .58) {
-        actor.ai.moving = false;
-        actor.ai.target = null;
-        actor.ai.faceYaw = null;
-        actor.ai.idleT = .9 + rng() * 1.9;
-      }
-      return;
-    }
-    if (actor.ai.taskCooldown > 0) return;
-    if (runOpportunity(actor, 'water.seek')) return;
-    const meal = mealWindow(actor);
-    if (meal && startFamilyMeal(actor, meal)) return;
-    if (runOpportunity(actor, 'hive.seek')) return;
-    if (p.conflict && actor.hunger >= p.thresholds.criticalHunger && acquireContest(actor)) return;
-    if (actor.hunger >= p.thresholds.seekHunger) {
-      if (runOpportunity(actor, 'forage.seek')) return;
-      if (p.conflict && acquireContest(actor)) return;
-    }
-    const lesson = lessonCandidate(actor);
-    if (lesson && startLesson(actor, lesson.student)) return;
-    const due = findDuePlaydate(actor);
-    if (due && startPlaydate(actor, due.other, 'friend')) return;
-    if (actor.stage === 'adult' && actor.mateCooldown <= 0 &&
-        (p.mate.chance >= 1 || rng() < p.mate.chance) && acquireMate(actor)) return;
-    if (actor.stage === 'baby') {
-      const parent = parentFor(actor);
-      if (parent && !parent.inPond && parent.grabs === 0 &&
-          Math.hypot(parent.cx - actor.cx, parent.cz - actor.cz) > p.mate.followDist) {
-        if (startFollow(actor, parent)) return;
-      }
-    }
-    const family = acquireFamilyPlaymate(actor);
-    if (family && startPlaydate(actor, family.actor, family.kind)) return;
-    if (actor.social >= p.thresholds.seekSocial || actor.affection >= p.thresholds.seekAffection) {
-      if (acquireCompany(actor)) return;
-    }
-    // TEMPORARY(port): stargaze
-    // Quirk flag: today "not day" for Glass also covers 06:00-09:00 and
-    // 16:00-18:00. The flag uses actual night hours instead.
-    let stargazeWindow = !isDayFor(actor);
-    if (features.glassNightWindow) {
-      const nightStart = finite(p.rest.nightStart, 18);
-      const nightEnd = finite(p.rest.nightEnd, 6);
-      const h = hoursNow();
-      stargazeWindow = h >= nightStart || h < nightEnd;
-    }
-    if (p.stargaze && stargazeWindow && rng() < p.stargaze.chance) {
-      actor.ai.state = 'stargaze';
-      actor.ai.idleT = p.stargaze.min + rng() * (p.stargaze.max - p.stargaze.min);
-      stop(actor);
-      return;
-    }
-    if (actor.ai.arrived) {
-      actor.ai.arrived = false;
-      actor.ai.idleT = .9 + rng() * 1.9;
-    }
-    if (actor.ai.idleT > 0) return;
-    if (!pickWanderTarget(actor)) actor.ai.idleT = .7;
-  }
-
   function dayShelterCheck(actor) {
     return restModule.dayShelterCheck(contextFor(actor));
   }
@@ -1859,7 +1775,6 @@ export function createBehaviorModules({
     if (actor.ai.directive) return;
     const owner = moduleStateOwner(state);
     if (owner && typeof owner.think === 'function') owner.think(contextFor(actor));
-    else if (state === 'wander') thinkWander(actor);
     else if (state === 'seekConflict') thinkSeekConflict(actor);
     else if (state === 'seekCompany') thinkSeekCompany(actor);
     else if (state === 'seekMate') thinkSeekMate(actor);
@@ -2336,6 +2251,7 @@ export function createBehaviorModules({
   registerModule(restModule);
   registerModule(forageModule);
   registerModule(waterModule);
+  registerModule(wanderModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -2374,6 +2290,8 @@ export function createBehaviorModules({
     pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
     homeFor, assignHome, parentFor, safeFoodCount, needsReplan,
     acquireFood, acquireWater, acquireHive, acquireContest, acquireFamilyPlaymate,
+    acquireMate, acquireCompany, startFollow, parentFor,
+    mealWindow, startFamilyMeal, lessonCandidate, startLesson, findDuePlaydate,
     startSeekHome, startSleep, wake, cancelPair, startInvite,
     canMatePair, startMatePair, startSeekMate, startFlee,
     startVisit, startPlaydate, startConflict,

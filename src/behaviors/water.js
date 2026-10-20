@@ -114,6 +114,12 @@ export const waterModule = defineBehaviorModule({
     order: 20,
     canRun: (ctx) => !!ctx.actor && ctx.actor.thirst >= ctx.p.thresholds.seekThirst,
     enter: (ctx) => !!acquire(ctx),
+  }, {
+    id: 'water.critical',
+    order: 10,
+    canRun: (ctx) => !!ctx.ai && !!ctx.ai.moving &&
+      ctx.actor.thirst >= ctx.p.thresholds.criticalThirst,
+    enter: (ctx) => !!acquire(ctx),
   }],
   acquire,
   startDrink,
