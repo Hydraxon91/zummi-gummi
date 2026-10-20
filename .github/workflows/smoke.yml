@@ -55,10 +55,10 @@ jobs:
         run: cat server.log
 
   browser-regression:
-    name: Browser regression
+    name: Browser regression (core)
     needs: serve-and-load
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v7
 
@@ -105,10 +105,11 @@ jobs:
 
       - name: Run the seeded browser regression
         env:
+          BROWSER_SCOPE: core
           LOW_QUALITY: "1"
           WIDTH: "900"
           HEIGHT: "600"
-        run: STUDIO=1 node scripts/browser-regression.mjs
+        run: node scripts/browser-regression.mjs
 
       - name: Show server log on failure
         if: failure()

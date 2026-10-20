@@ -1,18 +1,23 @@
 // Headless browser regression for the current Meadow/species build.
 //
-// Start launch.py first, then:
-//   node scripts/browser-regression.mjs
-// or point GAME_URL at a served build. BROWSER_BIN/CHROME_BIN selects a
-// Chromium-family browser; the harness uses a temporary profile and cleans up.
+//   node scripts/browser-regression.mjs                  # full Meadow + Glass
+//   BROWSER_SCOPE=core node scripts/browser-regression.mjs  # bear-only CI lane
+//
+// Start launch.py first, or point GAME_URL at a served build. BROWSER_BIN/CHROME_BIN
+// selects a Chromium-family browser; the harness uses a temporary profile and cleans up.
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { launchBrowser, connectBrowser } from './browser-harness.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TAG = process.env.TAG || 'current';
+const SCOPE = process.env.BROWSER_SCOPE === 'core' ? 'core' : 'full';
+const CORE = SCOPE === 'core';
+const STUDIO = !CORE && process.env.STUDIO === '1';
 const base = process.env.GAME_URL || 'http://localhost:8000/';
 const target = new URL(base);
 target.searchParams.set('autostart', '1');
+if (CORE) target.searchParams.set('race', 'off');
 const lowQuality = process.env.LOW_QUALITY === '1';
 const initScript = lowQuality ? `(() => {
   try {
@@ -38,16 +43,20 @@ try {
     initScript,
   });
   await page.waitFor('!!window.__gummy?.booted', 90000);
-  console.log('STEP glass ready');
-  try {
-    await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 150000);
-  } catch (error) {
-    console.log('STEP glass reload');
-    await page.evaluate('location.reload()').catch(() => {});
-    await page.waitFor('!!window.__gummy?.booted', 120000);
-    await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 150000);
+  if (!CORE) {
+    console.log('STEP glass ready');
+    try {
+      await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 150000);
+    } catch (error) {
+      console.log('STEP glass reload');
+      await page.evaluate('location.reload()').catch(() => {});
+      await page.waitFor('!!window.__gummy?.booted', 120000);
+      await page.waitFor('window.__gummy.glass().actors.every(actor => actor.ready)', 150000);
+    }
+    console.log('STEP glass done');
+  } else {
+    console.log('STEP glass skipped (core)');
   }
-  console.log('STEP glass done');
 
   console.log('STEP base');
   const result = await page.evaluate(`(async () => {
@@ -155,9 +164,9 @@ try {
     console.log('STEP social');
     const social = await page.evaluate(`(async () => {
       const g = window.__gummy;
-      const cross = g.bearGlassSocial(0, 0);
-      g.sim(1, 0);
-      const crossState = g.ai().bears[0]?.state || null;
+      const cross = ${CORE ? 'null' : 'g.bearGlassSocial(0, 0)'};
+      ${CORE ? '' : 'g.sim(1, 0);'}
+      const crossState = ${CORE ? 'null' : 'g.ai().bears[0]?.state || null'};
       const childIndex = g.bears.findIndex(bear => bear.uid === ${JSON.stringify(childUid)});
       if (childIndex >= 0) g.selectBear(childIndex);
       const lineage = g.lineage(${JSON.stringify(childUid)});
@@ -188,13 +197,16 @@ try {
 
   const failures = [];
   if (!result.booted) failures.push('not booted');
-  if (result.before.length !== 10) failures.push(`roster ${result.before.length}, expected 10`);
+  const expectedRoster = CORE ? 6 : 10;
+  const expectedBears = CORE ? 6 : 8;
+  const expectedGlass = CORE ? 0 : 2;
+  if (result.before.length !== expectedRoster) failures.push(`roster ${result.before.length}, expected ${expectedRoster}`);
   if (result.after.length !== result.before.length) failures.push('roster changed across save/load');
-  if (result.beforeMap.bears !== 8) failures.push(`soft-body count ${result.beforeMap.bears}, expected 8`);
-  if (result.beforeMap.glass !== 2) failures.push(`Glass count ${result.beforeMap.glass}, expected 2`);
+  if (result.beforeMap.bears !== expectedBears) failures.push(`soft-body count ${result.beforeMap.bears}, expected ${expectedBears}`);
+  if (result.beforeMap.glass !== expectedGlass) failures.push(`Glass count ${result.beforeMap.glass}, expected ${expectedGlass}`);
   if (!result.family || !result.family.parents.length) failures.push('starter family has no parents');
   if (!result.family || !result.family.siblings.length) failures.push('starter family has no sibling');
-  if (!result.species.find(item => item.id === 'glass' && item.assetManifest)) {
+  if (!CORE && !result.species.find(item => item.id === 'glass' && item.assetManifest)) {
     failures.push('Glass species has no asset manifest');
   }
   if (!result.familyPlay?.ok || result.familyPlay.kind !== 'sibling') {
@@ -216,7 +228,7 @@ try {
     if (!deep.mealAfter?.history.some(event => event.kind === 'meal')) {
       failures.push('meal history missing');
     }
-    if (!deep.cross?.ok || deep.crossState !== 'social') {
+    if (!CORE && (!deep.cross?.ok || deep.crossState !== 'social')) {
       failures.push(`cross-species social failed: ${JSON.stringify(deep.cross)} ${deep.crossState}`);
     }
     if (!deep.lineage?.history.some(event => event.kind === 'taught')) {
@@ -288,16 +300,18 @@ try {
       growthCheck.air || growthCheck.moved < .02) {
     failures.push(`stage growth did not resume locomotion: ${JSON.stringify(growthCheck)}`);
   }
-  const collisionCheck = await page.evaluate(`(() => {
-    const g = window.__gummy;
-    const bear = g.bears[0];
-    g.glassSetPosition(0, bear.cx, bear.cz);
-    g.sim(.6, 0);
-    const a = g.glass().actors[0], b = g.bears[0];
-    return { distance: Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz), free: a.freeBody };
-  })()`, 180000);
-  if (collisionCheck.distance < .25 || collisionCheck.free) {
-    failures.push(`Glass did not collide with a bear: ${JSON.stringify(collisionCheck)}`);
+  if (!CORE) {
+    const collisionCheck = await page.evaluate(`(() => {
+      const g = window.__gummy;
+      const bear = g.bears[0];
+      g.glassSetPosition(0, bear.cx, bear.cz);
+      g.sim(.6, 0);
+      const a = g.glass().actors[0], b = g.bears[0];
+      return { distance: Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz), free: a.freeBody };
+    })()`, 180000);
+    if (collisionCheck.distance < .25 || collisionCheck.free) {
+      failures.push(`Glass did not collide with a bear: ${JSON.stringify(collisionCheck)}`);
+    }
   }
   const sleepCheck = await page.evaluate(`(() => {
     const g = window.__gummy;
@@ -321,7 +335,7 @@ try {
   if (browser.pageErrors.length) failures.push(`page errors: ${browser.pageErrors.slice(0, 3).join(' | ')}`);
   if (failures.length) throw new Error(failures.join('; '));
 
-  if (process.env.STUDIO === '1') {
+  if (STUDIO) {
     await page.evaluate("window.__gummy.setMap('studio')");
     await page.waitFor("window.__gummy.map().id === 'studio'", 15000);
     await page.waitFor("window.__gummy.msn.state().ready", 90000);
@@ -388,6 +402,7 @@ try {
   }
   console.log('INFO', JSON.stringify({
     tag: TAG,
+    scope: SCOPE,
     url: target.href,
     roster: result.after.length,
     bears: result.beforeMap.bears,

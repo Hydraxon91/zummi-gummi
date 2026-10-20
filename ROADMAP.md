@@ -1020,16 +1020,19 @@ can proceed with the current runtime and assets.
   Re-profile in a fresh session before changing grass density or quality defaults.
 - **Long-run soak (pass).** `scripts/soak-test.mjs` grew the Meadow to 16 soft-body
   actors plus 3 Glass and ran 60 simulated seconds: no NaNs, no stuck movers, map
-  round trip field→studio→field, and Glass count preserved. The shorter CI job still
-  uses the targeted browser regression; soak is a deep/local pass.
+  round trip field→studio→field, and Glass count preserved. It runs in the nightly
+  deep workflow, not the blocking per-push job.
 - **Glass reset cleanup (fixed).** `resetActor` now clears `familyTask`, playdate,
   visit and directive state, cached food/water/rest targets and locomotion fields,
   so tests and debug resets no longer inherit a previous interaction.
-- **Glass lifecycle CI (reverted, not feasible under SwiftShader).** Adding
-  `glass-test.mjs` to CI exceeded the job budget: the second browser waited minutes
-  for each Glass asset and the long simulations plus screenshots pushed a fresh job
-  past 15 minutes. The Studio browser regression remains the CI Glass check; run the
-  full lifecycle locally. `glass-test` still supports `SHOTS=0` and longer asset waits.
+- **CI split: core push check, deep nightly (added).** Every push and PR runs the
+  unit tests, HTTP smoke test and a core browser regression (`BROWSER_SCOPE=core`,
+  `?race=off`: six bears, no Glass asset load) that keeps the bear family, save/load,
+  command interruption, panel, growth and sleep checks. The full Studio browser
+  regression, full Glass lifecycle and soak run in `.github/workflows/nightly.yml`
+  on a schedule, a `v*` tag or manual dispatch. The full Glass lifecycle remains too
+  slow for the blocking job under SwiftShader; `glass-test` supports `SHOTS=0` and
+  longer asset waits for the deep lane.
 - **Citizen panel (fixed).** The two refresh signatures now share one helper, and rows
   are keyed by actor uid and updated in place instead of rebuilding the whole list.
   Browser checks keep an original row connected after idle and complete 10/10 CDP
