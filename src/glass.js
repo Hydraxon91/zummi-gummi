@@ -11,6 +11,7 @@ import { defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { assetStore, disposeInstanceSkeletons } from './assetstore.js';
 import { snapshotActor } from './actorrecord.js';
 import { pushHistory } from './family.js';
+import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 import {
   advanceAge, advanceGestation, ageForStage, scaleForStage,
   HOME_CAPACITY, GESTATION_TIME,
@@ -234,24 +235,6 @@ export function createGlassColony({
     return path[i] || a.ai.target;
   }
 
-  function avoidanceYaw(a, wantYaw) {
-    const fx = Math.sin(wantYaw), fz = Math.cos(wantYaw);
-    let offset = 0;
-    const consider = (other) => {
-      if (!other || other === a || !other.active || other.grabs > 0 || other.inPond) return;
-      const dx = other.cx - a.cx, dz = other.cz - a.cz;
-      const d2 = dx * dx + dz * dz;
-      if (d2 > 1.35 * 1.35 || d2 < 1e-4) return;
-      if (dx * fx + dz * fz <= .12) return;
-      const d = Math.sqrt(d2);
-      const side = dx * fz - dz * fx;
-      offset += (side >= 0 ? -1 : 1) * (1 - d / 1.35);
-    };
-    for (const other of bearList()) consider(other);
-    for (const other of actors) consider(other);
-    return wantYaw + clamp(offset, -1, 1) * .55;
-  }
-
   function move(a, dt) {
     if (!a.ai.moving) { a.walkDesired = null; return; }
     const p = routePoint(a);
@@ -269,7 +252,7 @@ export function createGlassColony({
       }
       return;
     }
-    const yaw = avoidanceYaw(a, Math.atan2(dx, dz));
+    const yaw = steerAvoidance(a, Math.atan2(dx, dz), bearList().concat(actors));
     const ux = Math.sin(yaw);
     const uz = Math.cos(yaw);
     a.walkDesired = { x: ux * MOVE_SPEED, z: uz * MOVE_SPEED };

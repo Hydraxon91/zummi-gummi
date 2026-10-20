@@ -265,6 +265,59 @@ try {
       originalPairRestarted) {
     failures.push(`command did not interrupt family task: ${JSON.stringify(commandCheck)}`);
   }
+  const growthCheck = await page.evaluate(`(() => {
+    const g = window.__gummy;
+    const i = g.bears.findIndex(b => b.active && b.stage === 'adult' && b.grabs === 0);
+    if (i < 0) return { ok: false, note: 'no adult bear' };
+    g.setStage(i, 'baby');
+    g.setHunger(i, .9);
+    g.setThirst(i, .9);
+    g.setBearState(i, 'wander');
+    g.sim(1, 0);
+    g.setAge(i, 900);
+    g.sim(3, 0);
+    const b = g.bears[i];
+    const pos = [b.cx, b.cz];
+    g.sim(2, 0);
+    return {
+      ok: true, stage: b.stage, contacts: b.contacts, air: b.airborne,
+      state: b.ai.state, moved: Math.hypot(b.cx - pos[0], b.cz - pos[1]),
+    };
+  })()`, 180000);
+  if (!growthCheck.ok || growthCheck.stage !== 'adult' || growthCheck.contacts < 1 ||
+      growthCheck.air || growthCheck.moved < .02) {
+    failures.push(`stage growth did not resume locomotion: ${JSON.stringify(growthCheck)}`);
+  }
+  const collisionCheck = await page.evaluate(`(() => {
+    const g = window.__gummy;
+    const bear = g.bears[0];
+    g.glassSetPosition(0, bear.cx, bear.cz);
+    g.sim(.6, 0);
+    const a = g.glass().actors[0], b = g.bears[0];
+    return { distance: Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz), free: a.freeBody };
+  })()`, 180000);
+  if (collisionCheck.distance < .25 || collisionCheck.free) {
+    failures.push(`Glass did not collide with a bear: ${JSON.stringify(collisionCheck)}`);
+  }
+  const sleepCheck = await page.evaluate(`(() => {
+    const g = window.__gummy;
+    g.setTime(23.5);
+    g.sim(1, 0);
+    const flips = g.bears.map(() => 0);
+    const previous = g.bears.map(b => !!b.sleeping);
+    for (let n = 0; n < 16; n++) {
+      g.sim(.5, 0);
+      for (let i = 0; i < g.bears.length; i++) {
+        const now = !!g.bears[i].sleeping;
+        if (now !== previous[i]) flips[i]++;
+        previous[i] = now;
+      }
+    }
+    return { maxFlips: Math.max(...flips), flips };
+  })()`, 180000);
+  if (sleepCheck.maxFlips > 2) {
+    failures.push(`repeated sleep/wake cycling: ${JSON.stringify(sleepCheck)}`);
+  }
   if (browser.pageErrors.length) failures.push(`page errors: ${browser.pageErrors.slice(0, 3).join(' | ')}`);
   if (failures.length) throw new Error(failures.join('; '));
 
@@ -298,8 +351,9 @@ try {
     await page.waitFor("window.__gummy.map().id === 'field' && window.__gummy.glass().actors.every(a => a.ready)", 90000);
     await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
     const restoredAssets = await page.evaluate('window.__gummy.assets()');
-    if (restoredAssets[0].loads !== 1 || restoredAssets[0].refs !== 3) {
-      throw new Error(`Meadow asset reuse failed: ${JSON.stringify(restoredAssets)}`);
+    const meadowGlass = await page.evaluate('window.__gummy.glass().count');
+    if (restoredAssets[0].loads !== 1 || restoredAssets[0].refs !== 1 + meadowGlass) {
+      throw new Error(`Meadow asset reuse failed: ${JSON.stringify({ restoredAssets, meadowGlass })}`);
     }
     console.log('ASSETS', JSON.stringify(restoredAssets));
     if (familyDeep?.childUid !== null && familyDeep?.childUid !== undefined) {

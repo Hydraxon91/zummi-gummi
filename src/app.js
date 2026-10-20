@@ -25,6 +25,7 @@ import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readS
 import { snapshotActor, applyCommonActorState } from './actorrecord.js';
 import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
+import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 
 const nativeRandom = Math.random;
 let launcher = null;
@@ -4515,26 +4516,6 @@ const AI_WOOZY_SPEED = 0.65;
 const AI_FACE_RATE_GROUND = 9.0;
 const AI_FACE_RATE_AIR = 4.0;
 const AI_TURN_WAIT = 0.75;
-const AI_AVOID_RADIUS = 1.35;
-const AI_AVOID_STRENGTH = 0.55;
-
-function avoidanceYaw(b, wantYaw) {
-  const fx = Math.sin(wantYaw), fz = Math.cos(wantYaw);
-  let offset = 0;
-  const consider = (other) => {
-    if (!other || other === b || !other.active || other.grabs > 0 || other.inPond) return;
-    const dx = other.cx - b.cx, dz = other.cz - b.cz;
-    const d2 = dx * dx + dz * dz;
-    if (d2 > AI_AVOID_RADIUS * AI_AVOID_RADIUS || d2 < 1e-4) return;
-    if (dx * fx + dz * fz <= 0.12) return;
-    const d = Math.sqrt(d2);
-    const side = dx * fz - dz * fx;
-    offset += (side >= 0 ? -1 : 1) * (1 - d / AI_AVOID_RADIUS);
-  };
-  for (const other of bears) consider(other);
-  if (glassColony) for (const other of glassColony.actors) consider(other);
-  return wantYaw + clamp(offset, -1, 1) * AI_AVOID_STRENGTH;
-}
 
 function aiRoutePoint(b) {
   const a = b.ai;
@@ -4597,7 +4578,8 @@ function updateAiLocomotion(dt) {
       if (a.state === 'wander') a.arrived = true;
       continue;
     }
-    const wantYaw = avoidanceYaw(b, Math.atan2(dx, dz));
+    const wantYaw = steerAvoidance(b, Math.atan2(dx, dz),
+      glassColony ? bears.concat(glassColony.actors) : bears);
     a.faceYaw = wantYaw;
     const visualYaw = yawOfQuat(b.q);
     const dyaw = Math.atan2(Math.sin(wantYaw - visualYaw),
@@ -6591,6 +6573,10 @@ window.__gummy = {
     if (!field) return null;
     field.splash(Number(x) || 0, Number(z) || 0, Number.isFinite(strength) ? strength : 1);
     return { x:field.pond.x, z:field.pond.z, waterY:field.pond.waterY };
+  },
+  emote(kind, x, z, y = 1.3){
+    if (!field || typeof field.emote !== 'function') return false;
+    return field.emote(Number(x) || 0, Number(y) || 1.3, Number(z) || 0, kind || 'heart');
   },
   setMist(v){ if (!sky) return null; sky.setMistOverride(v); return sky.mist; },
   setGrassVisible(v){ if (!field) return null; field.setGrassVisible(v); return v; },

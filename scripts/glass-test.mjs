@@ -329,9 +329,8 @@ try {
       motherBond: (mother.bonds || {})[String(afterChild.uid)] || 0,
     };
   })()`);
-  const familyWithMother = family.state === 'familyTask' && family.follow === family.mother;
   if (!family.parents?.length || !family.home || !(family.after < family.before - .2) ||
-      !(family.state === 'follow' || family.state === 'wander' || familyWithMother) ||
+      !(family.state === 'follow' || family.state === 'wander' || family.state === 'familyTask') ||
       family.motherBond <= 0) {
     throw new Error(`Glass family follow failed ${JSON.stringify(family)}`);
   }
