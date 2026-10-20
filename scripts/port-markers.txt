@@ -1,4 +1,2 @@
-# Behavior modules still running through the step-3 temporary scaffold.
-# Step 4 removes one marker from engine.js and one line here per ported module.
-# When this list is empty, any remaining TEMPORARY(port) marker fails CI.
-directives
+# Behavior modules still running through the temporary scaffold.
+# Step 4 is complete: this list must stay empty; any TEMPORARY(port) marker fails CI.

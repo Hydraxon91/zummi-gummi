@@ -14,6 +14,7 @@ const BASE = process.env.GAME_URL || 'http://localhost:8000/';
 const SEED = Number(process.env.SEED || 1234) >>> 0;
 const STEPS = Math.max(1, Number(process.env.STEPS || 180));
 const GLASS_HEAVY = process.env.GLASS_HEAVY === '1';
+const DIRECTIVE_HEAVY = process.env.DIRECTIVE_HEAVY === '1';
 
 function initScript(seed) {
   return `(() => {
@@ -28,13 +29,32 @@ function initScript(seed) {
   })();`;
 }
 
-function traceExpression(steps, seed, glassHeavy) {
+function traceExpression(steps, seed, glassHeavy, directiveHeavy) {
   return `(() => {
     const g = window.__gummy;
     g.pause(false);
     g.seed(${seed});
     if (${glassHeavy} && typeof g.spawnGlass === 'function') {
       for (let i = 0; i < 4; i++) g.spawnGlass({ stage: 'adult' });
+    }
+    const directives = [];
+    if (${directiveHeavy}) {
+      g.directive(0, 'go', { x: 2, z: 2 });
+      g.directive(0, 'eat');
+      g.directive(0, 'drink');
+      g.directive(0, 'home');
+      g.directive(0, 'social');
+      g.sim(2);
+      directives.push(g.directives(0));
+      g.setHealth(0, 10);
+      g.directive(0, 'eat');
+      g.sim(1);
+      directives.push(g.directives(0));
+      g.setHealth(0, 100);
+      g.possess(0);
+      g.sim(1);
+      g.exitPossession();
+      directives.push(g.directives(0));
     }
     const trace = [];
     for (let step = 0; step < ${steps}; step++) {
@@ -55,7 +75,7 @@ function traceExpression(steps, seed, glassHeavy) {
       ]));
     }
     g.pause(true);
-    return { engine: g.behaviorEngine ? g.behaviorEngine() : null, trace };
+    return { engine: g.behaviorEngine ? g.behaviorEngine() : null, trace, directives };
   })()`;
 }
 
@@ -105,7 +125,7 @@ async function runEngine(browser, engine) {
   const page = await browser.openPage({ url: url.toString(), initScript: initScript(SEED) });
   try {
     await page.waitFor('window.__gummy && window.__gummy.booted === true', 60000);
-    const result = await page.evaluate(traceExpression(STEPS, SEED, GLASS_HEAVY), 180000);
+    const result = await page.evaluate(traceExpression(STEPS, SEED, GLASS_HEAVY, DIRECTIVE_HEAVY), 180000);
     if (!result || !Array.isArray(result.trace)) throw new Error(`no trace from ${engine}`);
     return result;
   } finally {
@@ -120,12 +140,19 @@ async function main() {
     const legacy = await runEngine(browser, 'legacy');
     const modules = await runEngine(browser, 'modules');
     const diff = firstTraceDiff(legacy.trace, modules.trace);
+    const directiveDiff = JSON.stringify(legacy.directives) === JSON.stringify(modules.directives)
+      ? null : { legacy: legacy.directives, modules: modules.directives };
     const actors = legacy.trace[0] ? legacy.trace[0].length : 0;
     console.log(`browser parity: ${STEPS} steps, ${actors} actors, seed ${SEED}`);
     console.log(`  legacy transitions ${transitions(legacy.trace)}, modules transitions ${transitions(modules.trace)}`);
+    if (DIRECTIVE_HEAVY) console.log(`  directive-heavy: ${legacy.directives.length} checkpoints compared`);
     console.log(`  engine flags: legacy=${legacy.engine}, modules=${modules.engine}`);
     if (browser.pageErrors.length) {
       console.log(`  page errors: ${browser.pageErrors.slice(0, 5).join(' | ')}`);
+    }
+    if (directiveDiff) {
+      console.error(`  DIRECTIVE DIFF: ${JSON.stringify(directiveDiff).slice(0, 1200)}`);
+      return 1;
     }
     if (diff) {
       console.error(`  DIFF ${diff.path}: ${JSON.stringify(diff.left)} != ${JSON.stringify(diff.right)}`);

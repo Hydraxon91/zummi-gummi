@@ -5,6 +5,7 @@
 // player directive system and the bear-only debug/status surface.
 
 import { profileFor } from './behaviorprofiles.js';
+import { createDirectiveSystem } from './behaviors/directives.js';
 import { pairBond } from './family.js';
 
 const DIRECTIVE_TTL = 45;
@@ -30,6 +31,9 @@ export function createBearAI({
     const list = typeof getCompanions === 'function' ? getCompanions() : bears;
     return Array.isArray(list) ? list : bears;
   };
+  const directives = createDirectiveSystem({
+    behavior: shared, field, getCompanions: companions, rng,
+  });
   let enabled = true;
   const stats = { ticks: 0, ms: 0 };
 
@@ -54,20 +58,10 @@ export function createBearAI({
       b.sleeping = false;
     },
     preTick(b, dt) {
-      if (!b || !b.ai) return;
-      if (b.ai.directive) {
-        b.ai.directive.ttl = Math.max(0, b.ai.directive.ttl - dt);
-        if (b.ai.directive.ttl <= 0) finishDirective(b, 'expired');
-      }
-      if (b.ai.directiveStatus && b.ai.directiveStatus.t > 0) {
-        b.ai.directiveStatus.t = Math.max(0, b.ai.directiveStatus.t - dt);
-      }
+      directives.preTick(b, dt);
     },
     preNeeds(b) {
-      if (!b || !b.ai) return false;
-      if (b.ai.directive) checkDirective(b);
-      if (!b.ai.directive && b.ai.directives.length && startNextDirective(b)) return true;
-      return false;
+      return directives.preNeeds(b);
     },
   };
   shared.registerAdapter('softbody', bearAdapter);
@@ -535,13 +529,31 @@ export function createBearAI({
     };
   }
 
+  function moduleDirectiveState(index) {
+    const b = bears[index];
+    if (!b || !b.active || !b.ai) return null;
+    return {
+      index, name: b.name || '',
+      ...directives.state(b),
+      state: b.ai.state,
+      hunger: +b.hunger.toFixed(2),
+      thirst: +b.thirst.toFixed(2),
+      energy: +b.energy.toFixed(2),
+      health: +b.health.toFixed(1),
+    };
+  }
+
   return {
     update, onGrab, onRelease, detach, setEnabled,
     setNeed, setBond, debugState, debugSocial, debugInvite, debugVisit, debugConflict, debugMate,
     debugFamilyPlay,
     beginMatePair, canMatePair: (a, b) => shared.api.canMatePair(a, b), matePairDebug,
     plan, stats: statsNow,
-    issueDirective, cancelDirectives, directiveState, setPossessed,
+    issueDirective: directives.issueDirective,
+    cancelDirectives: directives.cancel,
+    directiveState: moduleDirectiveState,
+    setPossessed,
+    preNeeds: directives.preNeeds,
     get enabled() { return enabled; },
   };
 }

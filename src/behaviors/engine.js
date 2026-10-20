@@ -1170,7 +1170,6 @@ export function createBehaviorModules({
     if (dayShelterCheck(actor)) return;
     const adapter = adapterOf(actor);
     if (adapter && typeof adapter.preNeeds === 'function' && adapter.preNeeds(actor, api)) return;
-    // TEMPORARY(port): directives (lives in ai.js; engine only observes it)
     if (actor.ai.directive) return;
     const owner = moduleStateOwner(state);
     if (owner && typeof owner.think === 'function') owner.think(contextFor(actor));

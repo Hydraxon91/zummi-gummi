@@ -11,6 +11,7 @@
 import { profileFor } from '../behaviorprofiles.js';
 import { listSpecies } from '../species.js';
 import { hiveModule } from './hive.js';
+import { directivesModule } from './directives.js';
 
 // Feature flags for known quirks. Every flag is off by default, so the engine
 // behaves exactly like the legacy path until a flag is deliberately enabled.
@@ -25,6 +26,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
 
 const MODULE_DEFAULTS = Object.freeze({
   hive: hiveModule.defaults,
+  directives: directivesModule.defaults,
 });
 
 // Legacy profile sections that act as capability flags today. A null section
