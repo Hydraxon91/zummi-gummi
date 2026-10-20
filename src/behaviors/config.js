@@ -29,6 +29,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
   thoughtBubbles: false,       // UI-only plan().reason overlay; no simulation reads
   personality: false,          // trait offsets; modules engine only, no reads while off
   mood: false,                 // derived mood offsets; modules engine only, runtime-only
+  departures: false,           // runtime-only departure capture; no mourning or save fields
 });
 
 const MODULE_DEFAULTS = Object.freeze({

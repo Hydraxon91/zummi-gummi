@@ -105,6 +105,19 @@ stage, home, moved, bond); there are no conflict/sting history kinds. Thought
 bubbles use the derived mood for a tint only, via a lazy `plan().mood` field.
 `?behaviors=legacy` ignores mood.
 
+## Departure hook (off by default)
+
+`departures` is a modules-only, runtime-only capture layer. It records a
+departure before the actor is detached and before `pruneActorRefs` runs, using
+`bondOf` for every active survivor. Causes are `removed` and `stars`; `stars`
+requires `oldAge`, `starvation` or `sting`. Ceiling culling reports `removed`
+but does not mourn until a later module is approved. Map switches, new games
+and save restoration are teardown, not departures.
+
+Snapshots live in a `WeakMap` keyed by survivor and contain no save fields.
+The hook consumes no RNG. `?behaviors=legacy` and the default off state are
+inert.
+
 ## Config layers
 
 Later layers win:

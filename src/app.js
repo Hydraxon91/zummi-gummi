@@ -6,6 +6,7 @@ import { createBearAI } from './ai.js';
 import { createBehavior, behaviorEngineFromSearch } from './behaviors/index.js';
 import { createAIDebug } from './aidebug.js';
 import { createThoughtBubbleOverlay } from './thoughtbubble.js';
+import { createDepartureHook } from './departures.js';
 import { createEffects } from './effects.js';
 import { GRAPHICS_GROUPS, GRAPHICS_DEFAULTS, normalizeGraphics, readGraphics, createGraphicsPanel } from './graphics.js';
 import {
@@ -37,6 +38,7 @@ let ai = null;
 let behavior = null;
 let aiDebug = null;
 let thoughtBubbles = null;
+let departures = null;
 let selectedBear = null;
 let directivePick = false;
 let clickMode = 'grab';
@@ -515,7 +517,7 @@ let bounces = 0;
 const lifeStats = { births: 0, stageUps: 0, blockedBirths: 0 };
 
 function spawn(x, z, y, flavor, opts={}){
-  if (bears.length >= bearCeiling) removeBear(bears[0]);
+  if (bears.length >= bearCeiling) removeBear(bears[0], { departure: 'removed' });
   const requestedSpecies = opts.species ? getSpecies(opts.species) : null;
   if (requestedSpecies && !requestedSpecies.rig) return null;
   const rigCfg = opts.rig || (requestedSpecies && requestedSpecies.rig) || RIGCFG;
@@ -610,8 +612,9 @@ function spawn(x, z, y, flavor, opts={}){
   buildBear(b);
   return b;
 }
-function removeBear(b){
+function removeBear(b, opts = {}){
   const i = bears.indexOf(b); if (i<0) return;
+  if (opts.departure) departures?.snapshot(b, opts.departure, opts);
   if (ai) ai.detach(b);
   if (field && field.food) field.food.releaseBear(b);
   b.ai = null;
@@ -3339,7 +3342,7 @@ function setCeiling(n, persist){
   limitEl.value = String(bearCeiling);
   limitValEl.textContent = String(bearCeiling);
   document.getElementById('pfBearsMax').textContent = '/ ' + bearCeiling;
-  while (bears.length > bearCeiling) removeBear(bears[0]);
+  while (bears.length > bearCeiling) removeBear(bears[0], { departure: 'removed' });
   if (persist){ try { localStorage.setItem('gummy.limit', String(bearCeiling)); } catch(err){} }
 }
 limitEl.addEventListener('input', ()=>setCeiling(+limitEl.value, true));
@@ -6060,6 +6063,13 @@ async function bootGame(){
     // Read Math.random at call time so __gummy.seed() also drives the engine.
     rng: () => Math.random(),
   });
+  departures = createDepartureHook({
+    isEnabled: () => BEHAVIOR_ENGINE === 'modules' && !!(behavior && behavior.api &&
+      behavior.api.features && behavior.api.features.departures),
+    getActors: () => actorView.all(),
+    getMapId: () => activeWorld.mapId,
+    getTime: () => ({ day: sky ? sky.day : 0, hours: sky ? sky.hours : 0 }),
+  });
   ai = createBearAI({
     field,
     getBears: () => bears,
@@ -6421,6 +6431,8 @@ window.__gummy = {
     return behavior && typeof behavior.setFeature === 'function'
       ? behavior.setFeature(name, value) : false;
   },
+  departures(){ return departures ? departures.list() : []; },
+  clearDepartures(){ if (departures) departures.clear(); return true; },
   routines(uid){
     const actor = uid === undefined || uid === null
       ? selectedBear

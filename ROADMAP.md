@@ -1285,6 +1285,12 @@ with direction checks). The natural-needs 20-day × 3-seed report
 (`scripts/personality-baseline.mjs`) shows small and noisy effect sizes; it is not a
 scale claim. The controlled pack proves direction only.
 
+**Departure hook (Oct 2026, off by default):** runtime-only capture of
+`removed`/`stars` departures, with `stars` reasons `oldAge`, `starvation` or
+`sting`. Survivor bonds come from `bondOf` before detach/prune. Ceiling culling
+is `removed` and does not mourn; map switches, new games and loads are teardown.
+No save fields, no RNG, no stars implementation yet.
+
 **Mood (Oct 2026, off by default):** derived needs/bonds/history mood, 4 Hz target,
 8 s smoothing, 0.05 buckets, bounded offsets stacked after traits, runtime-only
 `ai.mood` fields with no save change, mood-tinted thought bubbles. Config invalidations
