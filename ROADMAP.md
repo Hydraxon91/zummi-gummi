@@ -319,6 +319,109 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   42–68 m. Sectoring without culling is slower, so the split ships with per-pass
   frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
 
+**Known follow-ups — UV verification (fixed/untested):**
+Source provenance blocker resolved: `raptor_rc_166_body_glass_chassis.blend1` exactly matches
+historical SHA `8355741d...`. Read-only inventories of current 166 and that backup show identical
+422 meshes (vertex/edge/loop/polygon data, UV arrays, face material indices), 464 objects
+(transforms, parent/slot assignments, modifier/constraint settings), 47 materials and 17 image
+records (including packed bytes). Extended comparison also matches checked scene settings,
+collections, cameras and lights. The only observed difference is the Layout 3D viewport's
+saved rotation quaternion. The trim copy's embedded historical source meshes/materials match.
+No basis for a model-change accusation or a rebuild from the hash alone; save attribution
+remains unknown. Inventory is not animation or export validation. Evidence: RaptorRC
+`.dev-shots/source_provenance_001/`. The earlier hash-only blocker below is superseded.
+Source provenance blocker discovered during the material-policy pass: source 166 now hashes
+`04a728d6...` (mtime 2026-10-20 00:12), versus historical category baseline `8355741d...`.
+No save to the source was performed by this pass. Current material inventory supports the
+seven policy assignments, but the paint-mapping result applies only to the older trim copy.
+Reconcile current source and category copies before claiming current-source delivery or export.
+Approved material-only decision: preserve `Grille_HorizontalMesh_Final` on `RC_FittingDark`
+and all six `Hood_Louvre_{L,R}_{0,1,2}` on `RC_Fitting_Dark`, excluding them from paint-atlas
+requirements, not model delivery. Read-only source-166 inventory confirms both materials have
+no image textures or linked Base Color/Roughness/Metallic/Normal inputs. RaptorRC
+`paint_material_policy.json` records the seven exact objects/material slots and constraints.
+The checker accepts `--material-policy`, verifies exact assignments and records exclusions
+as MATERIAL_ONLY_NOT_TESTED, never as passing mappings. Existing category sheets are not rebuilt.
+4096 zero-margin trim rerun under the approved policy: 39/39 tested objects PASS; p95 0.0217%,
+max 0.0388%, zero uncovered/resolution-limited triangles; 24 subpixel triangles remain explicitly
+listed (sampled world-area fraction reports 1.0). Evidence: `.dev-shots/trim_material_policy_001/`
+in RaptorRC. All 46 trim objects accounted for (39 tested + 7 preserved); this does not certify
+delivery padding, semantic tags, original material-channel transfer or export.
+Pixel-centre sampling defect fixed: requested barycentric points were rounded to texels,
+but expected source UVs were evaluated at the unrounded point; thin triangles often sampled
+outside their own raster footprint. Read-only grille pixel audit found 2,539/3,384 requested
+samples outside their triangles; 845 valid centres had max error 0.044%. The checker now
+uses `transfer_sampling.py` to reject out-of-triangle centres and interpolate the expected
+source UV at the actual centre, uses the maximum valid sample error instead of the median,
+and records uncovered triangles without promoting them to PASS. Four pure fixtures and all
+five Blender fixtures pass. Corrected isolated grille result: 196 sampled triangles, p95
+0.0315%, max 0.0381%, 768 resolution-limited and 164 uncovered triangles. It remains FAIL;
+the sampling fix does not solve insufficient texture resolution. Evidence: RaptorRC
+`.dev-shots/pixel_centre_verification_001/` and the previous margin diagnosis pixel audit.
+No model, UV or packing changes were made; whole categories need later re-verification.
+Controlled trim margin diagnosis: RaptorRC `.dev-shots/trim_margin_diagnosis_001/` holds
+skid-only zero-margin, full-sheet zero-margin and 46 separate-object zero-margin bakes at
+4096, using unchanged UVs and identical sampling. Every object's isolated report is exactly
+equal to its full-sheet zero-margin report (`individual_comparison.json`: 46/46). The skid
+plate p95 is 0.067% in both (versus 29.40% in the earlier margin-4 batch); trim pooled p95
+drops from 0.227% to 0.070%. This establishes bake-margin contamination as the batch-only
+failure cause, not material replacement or a necessary skid-plate geometry repair.
+At zero margin: 39 objects PASS, one grille object FAIL, six louvres INCONCLUSIVE. Grille
+has 768 below-pixel resolution losses plus high sampled errors; louvres each have 16 source-
+subpixel triangles and 12 sampled triangles. All persist in isolation. Do not waive them or
+call the sheet accepted. Zero margin is a diagnostic control, not a delivery padding solution;
+packing gutters, dilation and mip-safe padding remain unverified. The checker now exposes
+`--margin` and records margin/resolution in reports. No geometry/UV edits or category rebuilds.
+Corrected Emission category rerun: RaptorRC `.dev-shots/category_emission_001/` contains
+4096 gradient bakes, complete per-object JSON reports and logs (no checker renders).
+Wheels: PASS, p95 0.014%, sampled world area 100%. Interior: FAIL, p95 50.34%, area
+99.87%, 164 below-pixel resolution losses and 116 source-subpixel triangles. Glass/lights:
+FAIL despite p95 0.051%, area 82.86%, 23 resolution losses and 159 subpixel triangles.
+Chassis: FAIL, p95 61.33%, area 99.77%, 2,950 resolution losses and 68 subpixel triangles.
+Trim: FAIL, p95 0.227%, area 99.997%, 768 resolution losses and 120 subpixel triangles;
+33 objects PASS, 7 FAIL, 6 INCONCLUSIVE. Category failures were not repaired or waived.
+Crucially, the skid plate passes alone (p95 0.067%) but fails in the trim batch (29.40%).
+Investigate shared bake interactions, margins, raster sampling and cross-object coverage
+before treating this as evidence for geometry/UV repair. No captures were produced in this
+numeric rerun, so visual acceptance remains outstanding. Some objects labelled PASS by p95
+still have large maxima (roof-light lens max 23%); percentile-only acceptance is insufficient
+for complete surface verification. Thresholds have not been relaxed.
+Mixed-object fixture completed: RaptorRC `.dev-shots/emission_fixtures_003/` contains 200
+correct triangles plus four on a small object with stacked target UVs. Pooled p95 is only
+0.199%, but that object's p95 is 50.04%; the category correctly reports FAIL. All five
+fixtures pass their expected verdicts. The earlier missing mixed-object test is now covered;
+this does not certify unsampled surfaces or original PBR transfer. Truck categories remain
+pending re-verification with the corrected checker.
+Edge-case verification: `.dev-shots/emission_fixtures_002/` in RaptorRC passes four Blender
+fixtures: rotated metallic mapping PASS, stacked UVs FAIL, all-subpixel input INCONCLUSIVE
+without crashing, and formerly resolved UVs squeezed below one pixel FAIL. Empty sampled sets
+now yield null statistics instead of an indexing error. Reports add sampled world-area
+coverage and area-weighted mean error; failures/inconclusive objects block a category PASS
+instead of being hidden by pooled percentiles. Mixed-object aggregation still needs its own
+fixture. The legacy `collapsed_faces` counter denotes below-pixel resolution loss, not proof
+of zero-area UVs; limits are recorded in every report. No truck category was rerun here.
+2026-10-20 verification update: the Emission checker passes a fully metallic rotated-UV
+fixture (p95 0.205% at 256) and rejects deliberately stacked target UVs (p95 50%). On
+`ATLAS__Front_SkidPlate_Final` alone at 4096, all 156 loop triangles are sampled, none are
+sub-pixel/flagged collapsed, and p95/max errors are 0.067%/0.078%. No UV or geometry repair
+was needed. This supports a material-dependent false failure in the old Diffuse test, not a
+verified failure of this part's layout. The viewed capture has neighboring trim occlusion;
+hidden surfaces remain visually unverified. Evidence: RaptorRC `.dev-shots/emission_fixtures_001/`
+and `.dev-shots/skid_emission_001/`. Remaining categories have not been rerun. Sub-pixel
+classification, all-unsampled inputs, per-object acceptance and area-weighted reporting still
+need dedicated fixtures; do not extend this single-object result into full delivery acceptance.
+- `--atlas-resolution` was recorded as metadata only; every guide image/mask is written at
+  `--guide-resolution` (1280). Manifests now expose `atlas_images_written` (true only when the
+  atlas and guide resolutions match) and the docs state the limit. A real 4096 render pass is
+  still unimplemented.
+- The repacked transfer checker baked Diffuse Color, which is black on metallic and
+  transmissive materials, and compared a single centroid. It now bakes an Emission gradient,
+  samples three interior points, excludes genuine sub-pixel faces, separately flags faces
+  squeezed below one pixel, validates material replacement and the active UV layer, and reports
+  per-object conclusive coverage. Earlier category failures may therefore be checker artifacts.
+- These fixes are CPU-reviewed only; Blender is paused. Re-test one failing object before
+  rerunning the categories, and update the saved reports afterward.
+
 **Known follow-ups — UV guide delivery (fixed):** the Raptor body template was exported
 before the final body/hood unwrap, and its PNG declared RGB with a grayscale-sized payload.
 `body_uv_template_2048.png` and the old wireframe are not current paint guides. Corrected
@@ -326,6 +429,148 @@ checkpoint-166 `body_uv_166_2048_v2_*` guides preserve geometry/UVs and carry so
 both authoring packages now require saved-byte validation and inspected UV/albedo overlays.
 The PNG regression fixtures explicitly reject this channel/payload mismatch. Structural
 validity is not a padding/overlap or bake-quality verdict.
+
+**Known follow-ups — semantic UV tooling (prototype/deferred):**
+Exporter audit: ID colours previously collided (5,593 ids, only 1,014 RGB values).
+Fixed with a 24-bit permutation and a reserved-background swap; four pure fixtures cover
+uniqueness, range, background and actual face-slot lookup. Face materials now use their
+resolved object slot, not slot zero. Mixed-material islands fail explicitly until per-face
+zone coverage is supported. Existing atlas files are not regenerated by these repairs.
+Global positive-area overlap checks (including same-island overlaps), fail-before-publish
+staging and selectable atlas/guide resolutions are now implemented and pass pure/Blender
+fixtures. The atlas-copy trial is **blocked after two failed layouts**: Smart projection
+failed, and seam-derived Angle-Based unwrap still has 24 self-overlapping islands and 48
+degenerate UV triangles (no out-of-bounds UVs). Affected examples include Body_Shell,
+Coils, Dashboard_Main, Interior_Firewall and hood vents/louvres. Geometry and original UV
+hashes are preserved. Both `RaptorRC/out/atlas_delivery_00{1,2}/` checkpoints are explicitly
+FAILED recovery states, not deliveries; `guides_1280.staging/FAILED.txt` prevents publication.
+See `.dev-shots/atlas_failure_002/` for the viewed diagnostic and source-face inventory.
+Attempt 3 applied per-face charts to the 13 failing objects and repacked globally. It repaired
+Body_Shell, Coils, Interior_Firewall, the cowl/louvres and Chassis_Frame, but 8 objects still
+fail: Dashboard_PassengerInset, RearLamp_Housing_R, RearLamp_Lens_R and Reservoirs self-overlap;
+72 collapsed UV triangles remain across those plus RearLamp_Housing_L/Lens_L and Body_Shell.
+`out/atlas_delivery_003/` is also explicitly FAILED; no guides were published. Three layout
+strategies have failed, so the stop rule is active: the remaining chart-specific repair needs
+approval, not a fourth blanket unwrap.
+Unit-consistent audit correction: with normalized UV area and world-space 3D area, attempt 002
+has **0 collapsed UV triangles** and 46 genuinely source-zero triangles; its defect is overlaps
+(12 objects, largest about 9 px² at 1280). Attempt 003 has **3 collapsed UVs** (Body_Shell) and
+71 source-zero, and introduced sub-pixel overlaps in five objects that were clean in 002
+(Dashboard_PassengerInset, Glass_Windshield, RearLamp_Housing_R/Lens_R, Reservoirs). Re-unwrapping
+healthy objects therefore caused regressions, so 002 is the better baseline. Independent
+hull-based verification (not the clipping helper) found 64 intersections in 003, 15 within one
+face, so per-face charts do not guarantee fold-free non-planar faces.
+Two chart-local repairs of the 44-face Firewall chart were tried on 002: best-fit-plane
+reprojection left 187 pairs (the chart is a thin shell with opposed normals), and a seamed
+unwrap produced 4,248 pairs with 167 same-face overlaps (Blender's pack step also moved other
+charts). Both are FAILED diagnostic checkpoints in `RaptorRC/out/atlas_repair_004/` and `005/`;
+no guides were published. The stop rule is active: the next chart repair needs a controlled
+approach and approval, not another automatic reprojection or chart-local pack.
+Texture transfer, final atlas/export validation and unattended vision integration remain
+unexecuted.
+
+Single-component proof on evaluated `Dashboard_Main` (192 verts/194 polys, authored seams +
+open boundaries + >60° angles, Angle-Based unwrap and pack): 7 islands, bounds OK, median
+relative texel density 1.008 (p05 0.973, p95 1.106), geometry and source `UVMap` hashes
+unchanged, checker renders regular, and a constant-base-colour albedo bake transfers within
+1.5% per face. **Exact acceptance still fails:** 30 positive-area overlaps, dominated by one
+real band overlap (faces 192/68, 1.3e-4, same 54-face island, coincident split edges); 11 of the
+smaller pairs involve near-degenerate source triangles (<1e-8 m²). Checkpoint:
+`RaptorRC/out/component_proof_004/` with `README_FAILED.md`. Earlier proof runs are tooling
+failures (no pack, wrong seam threshold, shared-mesh material loss). Next: add a deliberate
+seam that separates the offending band, then re-run this same proof; do not reproject the whole
+component again.
+
+Prototype-3 correspondence and body transfer check (approved milestone):
+- `out/uv_semantic_prototype_003/semantic_overlay.png` was drawn from the saved `Body_Shell`
+  `UVMap`; the saved fingerprint matches `f095ee9...`, and the label skips are identical on
+  regeneration. Current naming code differs for **islands 6 and 66 only** (bed-floor names became
+  `unknown`), giving 22/24 instead of 24/24 on the same development benchmark. That is a naming
+  regression, not a layout change.
+- Body texture round trip on the authored layout: 4,528 triangles, median per-face max-channel
+  delta 1.4%, mean 1.5%, p95 3.5%, max 31% (seam/margin outlier); baked atlas and original/baked
+  renders visually match. The source JPG must be decoded from sRGB to linear before comparison;
+  comparing raw byte-image values falsely reports ~26% mean error.
+- Conclusion: prototype 3 is a readable **body-paint guide**, not a whole-truck atlas; 76 body
+  islands remain unnamed and 5 labels are skipped for space. Evidence:
+  `RaptorRC/out/body_transfer_check_003/` and `out/uv_semantic_prototype_003_verify/`.
+
+Body guide delivered (body-only): 98/98 islands named, 24/24 development benchmark, 4096 atlas /
+1280 guide, masks, island manifest, ID sheet, full legend and `id_crosswalk.json` in
+`RaptorRC/out/body_guide_004/`. Six authored self-overlaps remain (≈64 px² at 1280; islands 32,
+35, 43 carry almost all of it) and are explicitly recorded with `overlaps_allowed: true`; 63
+long labels are legend-only and 3 masks are below 16 px². The sheet is readable but not
+overlap-free, and the overlay uses semantic ids while the manifest uses exporter ids; the
+crosswalk maps them.
+
+Shared whole-truck atlas, new strategy: evaluate all 194 delivery meshes, copy their authored
+`UVMap` into `UV_AI_Atlas`, and globally repack without unwrapping (`atlas_shared_repack.py`).
+This preserved chart shapes and used 5,657 islands, but still fails: 28 positive-area overlap
+pairs (same-island source folds) and **86 collapsed UV triangles** with non-zero source area,
+concentrated in Interior_Firewall (75) and glass (12); 7 further triangles are sub-visible
+source slivers (<1e-9 m²). No guide was published from `RaptorRC/out/atlas_shared_001/`.
+The 6–7 attempt budget is active; the next choice is between category sheets, an explicit
+collapsed-UV exception, or accepting the body-only guide.
+
+Category delivery (recommended path): the body guide plus five repacked category sheets cover
+all 194 meshes — wheels 5 objects/2,678 islands, glass+lights 36/328, interior 61/431, chassis
+45/1,737, trim 46/385 — at 4096 atlas / 1280 guide with masks and manifests in
+`RaptorRC/out/category_guides_001/`. Explicit exceptions: interior has 2 allowed collapsed
+triangles; overlaps are allowed and counted (interior 3, glass 6, chassis 13); 912 tiny masks
+are skipped and most labels are legend-only. 379 source-UV degenerate triangles are inherited
+from the authored layouts and reported separately, not introduced by repacking.
+**Delivery correction:** these guides contain 1280² images and masks only. `--atlas-resolution`
+was recorded as `atlas_resolution` metadata but no 4096 image was written; manifests now state
+`atlas_images_written: false`. A real 4096 render pass remains to be implemented.
+**Transfer-checker fix (untested in Blender):** the checker baked Diffuse Color, which is black
+on metallic/transmissive materials; it now bakes an Emission gradient so the test measures UV
+mapping rather than material response. It also excludes sub-pixel faces, samples three interior
+points, records material/UV preflight failures, and reports per-object conclusive coverage.
+Re-run one failing object before trusting the earlier category failures.
+
+Repacked-category transfer verification (wheels): a UV-space gradient baked through the authored
+`UVMap` into `UV_AI_Atlas` at 4096 matches expected UVs on all 15,400 faces within 2.3% (median
+1.29%, p95 2.20%, max 2.27%); the checker render is regular. At 1024 the same test fails
+(p95 55%) because the 2,678 tread islands are sub-pixel, so this sheet requires 4096 bake/sample
+resolution. Evidence: `RaptorRC/out/repacked_transfer_wheels_002/`.
+
+The same test **fails on the other four sheets**: interior median 2.4% / p95 65.7%, glass+lights
+3.3% / 50.7%, chassis 3.1% / 88.1%, trim 3.9% / 65.2%. Failures concentrate in a subset of
+objects (e.g. trim `Front_SkidPlate_Final` median 55%, `Front_Valance` 54%, grille p95 94%).
+Only wheels is transfer-verified; the other sheets must not be described as complete. Evidence:
+`RaptorRC/out/repacked_transfer_summary_001/README.md` and the per-sheet JSON reports.
+
+The old
+`uv_label_review.py` can place 2048px annotations on a reused 1280px wireframe, reads PNG
+scanlines as if all filters were zero, and guesses semantic confidence from average normals.
+`uv_island_export.py` flattens UV edge endpoint coordinates when finding islands and uses
+fan triangulation for concave faces; connectivity/overlap results can therefore be wrong.
+The exporter connectivity and concave-triangulation defects are now fixed with synthetic
+seam and concave-U regression fixtures. Old generated outputs have not been replaced;
+regeneration can change island ordering and overlap results and needs revisioned manifests.
+The legacy label-review image-reader/resolution problems remain deferred. The experimental
+`uv_surface_probe.py` uses endpoint-associated UVs and actual loop
+triangles, refuses differing legacy memberships and records sampled thickness/visibility.
+`uv_semantic_vehicle.py` makes profile-based proposals on 24 visually assessed development
+islands, with other islands unknown; no general or unattended vision-model accuracy is claimed.
+The first frozen same-asset holdout selected 12 other islands (all cabin-floor patches).
+Exact semantic names scored **0/12**: the then-current `uv_semantic_vehicle.py` assigned every low horizontal
+surface ahead of the rear window to front floor and had no cabin-floor class. Upper versus
+underside was correct, but the semantic location was not. **Deferred**, with sealed predictions,
+numbered host/isolation evidence and separate annotations in RaptorRC's
+`out/semantic_holdout_001/`; no classifier tuning or atlas replacement was done after scoring.
+`uv_semantic_holdout.py` and its pure scoring fixtures preserve this failed result and reject
+missing annotations, development-id leakage and changed frozen/classifier/profile artifacts.
+The subsequent floor-rule repair adds conservative front/cab/bed intervals and abstains when
+island bounds cross a landmark transition; synthetic region/boundary tests pass.
+Sampled coverage is now implemented (three barycentric points per loop triangle, world-area
+weighting, explicit component fractions, abstention below 90% dominant rule support).
+The second frozen holdout excludes all 36 previously annotated ids and selects 16 varied
+geometry strata. **2/14 exact**, with 6 wrong names, 6 abstentions and 2 visually unresolved
+cases. RaptorRC's `out/semantic_holdout_002/` preserves predictions/annotations/report; no
+post-freeze tuning was done. Thin edges/reveals are still mistaken for their broad parent
+panels, sometimes with 100% rule coverage: coverage is not semantic confidence. This naming
+limitation is **deferred**, not fixed by the mixed-surface sampler. No accepted atlas replaced.
 
 **Known follow-ups — texture inventory (deferred):** Blender 5.2.2 background fixtures
 emit two colour-space enum warnings when inventorying all image datablocks (including
@@ -722,6 +967,66 @@ can proceed with the current runtime and assets.
 
 **Known follow-ups from A/B:**
 
+- **Glass grab (implemented, targeted checks pass):** `glass.js` now pulls the
+  rigid proxy with a damped spring instead of teleporting it to navmesh samples.
+  Normal drag follows a camera-depth target; Shift-drag adjusts height. Held Glass
+  follows physical position without hover bob and tilts visually; release preserves
+  body velocity. Shared grab/release hooks cancel paired tasks. Rotation remains
+  visual because the sphere proxy is rotation-locked. Target-update/no-teleport,
+  lift, Shift-lift, tilt and release probes pass, as do 74 pure tests, 57 smoke
+  checks and the Studio browser regression. The full Glass lifecycle passes;
+  obstacle-interface coverage remains outstanding.
+- **Bear growth locomotion (fixed).** `applyBearStage` now clears stale hop/stuck/contact
+  state and rearms thinking after the body/rig rebuild. A browser probe forced baby→adult
+  while seeking water and observed the bear reach `drink`/`eat` without a nudge.
+- **Glass dynamic walking and hover motion (implemented, checks pass).** Normal Glass
+  travel now steers its existing Box3D sphere with forces instead of `setPositions`
+  teleporting it; the sphere collides with bears and reads back its position/velocity.
+  Hover motion leans into travel, eases its facing, adds a small bob and a faint wind
+  sway. Grab/free-body springs are unchanged. The full Glass lifecycle and Studio
+  browser regression pass; a collision probe against a bear separated the bodies to
+  ~0.48 m instead of overlapping.
+- **Local actor avoidance (implemented, checks pass).** Soft-body hop steering and
+  Glass walking both bias their heading away from nearby actors ahead of them. The
+  bias is local and cheap (radius 1.35 m, no replanning); collisions remain the
+  fallback. Full Glass lifecycle, Studio browser regression, 74 pure tests and smoke
+  pass. A deterministic two-actor avoidance capture is still outstanding.
+- **Emote backing (checked, safeguard added).** The refusal sprite was captured at
+  day and night and cropped at its actual size; the transparent canvas has clean
+  corners and no square backing in the inspected captures. The canvas is explicitly
+  cleared, mipmaps are disabled and the sprite uses `alphaTest` to reject transparent
+  texels. Other emote kinds were not individually re-captured.
+- **Citizen panel (fixed).** The two refresh signatures now share one helper, and rows
+  are keyed by actor uid and updated in place instead of rebuilding the whole list.
+  Browser checks keep an original row connected after idle and complete 10/10 CDP
+  clicks; the Studio browser regression covers the same stability after save/load.
+- **Glass rocket blasts (fixed).** `applyBlastImpulse` now calls the Glass adapter,
+  which enters dynamic mode and applies a mass-scaled impulse plus visual tumble, so
+  the hover sync cannot erase the blast. A probe confirmed a burst moves Glass from
+  hover to `freeBody`.
+- **AI inactivity / refusals (fixed for command/travel stalls).** Family-task travel
+  now restarts when `moving` is false even if a stale path remains. Commands can
+  preempt a family task, cancel both partners, and block autonomous tasks while the
+  directive is active; lesson candidates skip students with a queued/active directive.
+  A probe confirms the lesson pair is cleared and the command reaches its target
+  after the designed willingness roll. Commands can still be refused by the existing
+  needs/boldness probability; changing that is a separate balance decision.
+- **Critical needs interrupt optional interactions (fixed).** Ordinary hunger and
+  thirst still wait for a short invite/social/visit/mate/family task to finish. At the
+  profile's critical thresholds, the pair is canceled cleanly and the actor claims
+  food or water instead. Unit tests cover ordinary patience, critical hunger, critical
+  thirst during a visit, and bounded visit completion; the Glass lifecycle needs
+  check now passes, and the full Glass lifecycle completes.
+- **House entry/exit loop (reported, not reproduced):** a 150-second deterministic
+  night run at 23:30 put actors to sleep normally; no enter/leave cycle appeared.
+  Family tasks near a home door can look like repeated house visits, so capture the
+  specific pair/time before changing schedules. The family-task travel restart above
+  removes one cause of repeated task churn.
+- **Refusal emoji background (checked, safeguard added):** `AGENTS.md` now requires
+  close-up light/dark checks for square backing, halos, matte fringes and blend seams.
+  Day/night crops show clean transparent corners; the canvas is explicitly cleared,
+  mipmaps are disabled and the sprite rejects transparent texels with `alphaTest`.
+  Other emote kinds were not individually re-captured.
 - **Legacy fallback code removed (C).** `ai.js` is a thin hop adapter plus directives;
   `glass.js` is a hover/GLB adapter. The old decision helpers and unreachable state
   dispatch are gone.
