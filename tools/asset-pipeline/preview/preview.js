@@ -194,6 +194,12 @@ function materialRecord(material) {
     transparent: !!material.transparent,
     opacity: material.opacity,
     alphaTest: material.alphaTest,
+    side: material.side,
+    depthWrite: material.depthWrite,
+    depthTest: material.depthTest,
+    blending: material.blending,
+    premultipliedAlpha: material.premultipliedAlpha,
+    forceSinglePass: material.forceSinglePass ?? null,
     roughness: material.roughness,
     metalness: material.metalness,
     transmission: material.transmission ?? null,
@@ -209,12 +215,28 @@ function report() {
   const materials = [];
   const seen = new Set();
   const textures = new Set();
+  const geometries = new Set();
+  const skeletons = new Set();
   let meshCount = 0;
+  let skinnedMeshCount = 0;
   let boneCount = 0;
+  const instanceSkeletons = [];
   if (model) {
+    for (const instance of model.children) {
+      const skeletonIds = new Set();
+      const boneIds = new Set();
+      instance.traverse(object => {
+        if (object.isSkinnedMesh && object.skeleton) {
+          skeletonIds.add(object.skeleton.uuid);
+          for (const bone of object.skeleton.bones) boneIds.add(bone.uuid);
+        }
+      });
+      instanceSkeletons.push({ skeletonIds, boneIds });
+    }
     model.traverse(object => {
       if (object.isMesh) {
         meshCount += 1;
+        if (object.geometry) geometries.add(object.geometry.uuid);
         const list = Array.isArray(object.material) ? object.material : [object.material];
         for (const material of list) {
           if (material && !seen.has(material.uuid)) {
@@ -227,11 +249,44 @@ function report() {
           }
         }
       }
+      if (object.isSkinnedMesh) {
+        skinnedMeshCount += 1;
+        if (object.skeleton) skeletons.add(object.skeleton.uuid);
+      }
       if (object.isSkinnedMesh && object.skeleton?.bones) {
         boneCount = Math.max(boneCount, object.skeleton.bones.length);
       }
     });
   }
+  const skeletonOwners = new Map();
+  const boneOwners = new Map();
+  for (const [index, instance] of instanceSkeletons.entries()) {
+    for (const id of instance.skeletonIds) {
+      if (!skeletonOwners.has(id)) skeletonOwners.set(id, new Set());
+      skeletonOwners.get(id).add(index);
+    }
+    for (const id of instance.boneIds) {
+      if (!boneOwners.has(id)) boneOwners.set(id, new Set());
+      boneOwners.get(id).add(index);
+    }
+  }
+  const sharedSkeletonCount = [...skeletonOwners.values()]
+    .filter(owners => owners.size > 1).length;
+  const sharedBoneCount = [...boneOwners.values()]
+    .filter(owners => owners.size > 1).length;
+  const instancesWithSkeletons = instanceSkeletons
+    .filter(instance => instance.skeletonIds.size > 0).length;
+  const skeletonIndependence = {
+    ok: instancesWithSkeletons === instanceCount
+      && sharedSkeletonCount === 0
+      && sharedBoneCount === 0,
+    instances: instanceCount,
+    instancesWithSkeletons,
+    uniqueSkeletonCount: skeletonOwners.size,
+    sharedSkeletonCount,
+    sharedBoneCount,
+    boneCounts: instanceSkeletons.map(instance => instance.boneIds.size),
+  };
   const context = renderer.getContext();
   return {
     ready,
@@ -251,7 +306,15 @@ function report() {
     },
     inventory: {
       meshCount,
+      skinnedMeshCount,
       materialCount: materials.length,
+      uniqueGeometryCount: geometries.size,
+      uniqueMaterialCount: seen.size,
+      uniqueSkeletonCount: skeletons.size,
+      skeletonIndependence,
+      sharedGeometry: meshCount > geometries.size,
+      sharedMaterials: meshCount > materials.length,
+      skeletonsPerInstance: instanceCount ? skeletons.size / instanceCount : 0,
       boneCount,
       animationCount: clips.length,
       animationNames: clips.map(clip => clip.name),
@@ -269,6 +332,8 @@ function report() {
       textures: renderer.info.memory.textures,
       geometries: renderer.info.memory.geometries,
       glError: context.getError(),
+      gpuTimerQuery: !!(context.getExtension('EXT_disjoint_timer_query_webgl2')
+        || context.getExtension('EXT_disjoint_timer_query')),
       vendor: context.getParameter(context.VENDOR),
       renderer: context.getParameter(context.RENDERER),
       outputColorSpace: renderer.outputColorSpace,

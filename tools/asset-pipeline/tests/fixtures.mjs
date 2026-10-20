@@ -99,6 +99,38 @@ export function emissiveTriangleGlb() {
   return buildGlb(document, bin);
 }
 
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64');
+
+function embeddedImageDocument(binLength) {
+  const document = triangleDocument();
+  document.buffers[0].byteLength = binLength;
+  document.bufferViews.push({
+    buffer: 0,
+    byteOffset: 44,
+    byteLength: ONE_PIXEL_PNG.length,
+  });
+  document.images = [{ bufferView: 2 }];
+  document.textures = [{ source: 0 }];
+  document.materials[0].pbrMetallicRoughness.baseColorTexture = { index: 0 };
+  return document;
+}
+
+export function embeddedImageGlb() {
+  const { bin } = triangleBuffer();
+  const combined = Buffer.concat([bin, ONE_PIXEL_PNG]);
+  return buildGlb(embeddedImageDocument(combined.length), combined);
+}
+
+export function sharedImageBufferViewGlb() {
+  const { bin } = triangleBuffer();
+  const combined = Buffer.concat([bin, ONE_PIXEL_PNG]);
+  const document = embeddedImageDocument(combined.length);
+  document.images.push({ bufferView: 2 });
+  return buildGlb(document, combined);
+}
+
 export function externalImageGlb() {
   const { bin } = triangleBuffer();
   const document = triangleDocument({

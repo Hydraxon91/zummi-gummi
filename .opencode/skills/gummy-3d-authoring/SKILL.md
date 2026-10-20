@@ -57,7 +57,15 @@ the preview does not modify the game loader or authorize integration.
 
 Phase 3 synthetic crate/curved bake fixtures live under
 `tools/asset-pipeline/tests/phase3/`. They exercise the pipeline; they are not house
-assets, reference-fidelity evidence or game integration.
+assets, reference-fidelity evidence or game integration. Their seam diagnostics, channel
+re-sampling, negative controls and reproducibility commands are documented in that
+directory's `README.md`.
+
+The Phase 4 crate material-zone trial lives under
+`tools/asset-pipeline/tests/phase4/`. It uses ordinary Blender slots and a preserved
+source checkpoint; it is a crate-only pattern, not a house zone map or game integration.
+Its build, export-zone verification, Blender render and preview-review commands are in
+that directory's `README.md`.
 
 For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
 [references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are

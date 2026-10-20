@@ -16,8 +16,9 @@ The canonical upstream is maintained separately. See
 ## asset-pipeline
 
 Phase 1a/1b read-only audit, delivery profiles, provenance schema and advisory
-camera-projected texel-density policy, plus Phase 2 unified export verification for the
-Blender → AI-assisted materials → glTF pipeline.
+camera-projected texel-density policy, plus Phase 2 unified export verification, Phase 3
+bake fixtures and a Phase 4 crate material-zone trial for the Blender → AI-assisted
+materials → glTF pipeline.
 
 - Roadmap: `docs/asset-pipeline-roadmap.md`
 - Entry point: `tools/asset-pipeline/README.md`
@@ -30,6 +31,7 @@ Blender → AI-assisted materials → glTF pipeline.
 - Python tests: `python3 -m unittest discover -s tools/asset-pipeline/tests -p 'test_*.py'`
 - Phase 2 tests: `tools/asset-pipeline/tests/phase2/run.sh`
 - Phase 3 fixtures: `tools/asset-pipeline/tests/phase3/`
+- Phase 4 crate zone trial: `tools/asset-pipeline/tests/phase4/`
 - Blender fixtures: `BLENDER=/path/to/blender tools/asset-pipeline/tests/blender/run.sh`
 
 This tooling is read-only and does not export, repair, generate textures, modify the game

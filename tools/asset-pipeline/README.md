@@ -1,7 +1,8 @@
 # Asset pipeline tools
 
 Phase 1a, Phase 1b and Phase 2 of
-[`docs/asset-pipeline-roadmap.md`](../../docs/asset-pipeline-roadmap.md).
+[`docs/asset-pipeline-roadmap.md`](../../docs/asset-pipeline-roadmap.md), with Phase 3
+bake fixtures and a Phase 4 crate material-zone trial under `tests/`.
 
 This directory contains the **read-only asset audit**, delivery profiles, provenance
 schema, advisory texel-density policy and unified export verification. It does not
@@ -26,7 +27,8 @@ anything into Gummy Bears.
 - `scripts/verify_asset.mjs` — unified structural/validator/import/preview coordinator.
 - `scripts/clean_import.py` — disposable Blender clean-import check.
 - `scripts/preview_capture.mjs` and `preview/` — standalone three.js preview harness.
-- `tests/` — pure document/policy/report tests, Blender fixtures and synthetic GLBs.
+- `tests/` — pure document/policy/report tests, Blender fixtures, synthetic GLBs,
+  Phase 3 bake fixtures and the Phase 4 crate material-zone trial.
 
 ## Audit
 
@@ -227,14 +229,21 @@ The Phase 3 scripts are under `tests/phase3/`:
 
 - `build_crate.py` — copies the existing crate into a new checkpoint, applies an
   asymmetric checker material and exports `crate_001.glb`.
-- `build_curved.py` — builds a 1 m × 1 m cylinder, bevels a high copy, bakes
-  albedo/roughness/normal at 1024² and 2048², triangulates the low for tangent export and
-  writes `curved_1024.glb` / `curved_2048.glb`.
+- `build_curved.py` — builds a 1 m × 1 m cylinder, preserves the n-gon source,
+  triangulates the low before baking/export, bevels a high copy, bakes
+  albedo/roughness/normal at 1024² and 2048² and writes `curved_1024.glb` /
+  `curved_2048.glb`.
+- `inspect_curved.py` — reports seam, UV-island, topology, sharp-edge and split-normal
+  diagnostics.
+- `verify_bake_channels.py` — re-samples source/baked channels, validates colours spaces,
+  normal reference hashes, UV border padding and negative controls.
+- `make_inverted_normal.py` — creates a deliberate bad-normal fixture.
+- `export_flat_variants.py` — exports flat-colour and flat-plus-normal seam diagnostics.
 - `make_manifest.mjs` — generates `asset.json` and `provenance.json` from an exported GLB.
 - `add_review_camera.py` — adds a review-only side camera to a copy of a checkpoint for
   density evaluation.
 - `run_msn_baseline.mjs` — captures 1/8/32 shared-geometry MSN instances against a checker
-  backdrop and records relative headless timings.
+  backdrop at 1920×1080 and records relative headless timings.
 
 Build examples:
 
@@ -251,13 +260,15 @@ Build examples:
 /Applications/Blender.app/Contents/MacOS/Blender \
   --background --factory-startup --python-exit-code 1 \
   --python tools/asset-pipeline/tests/phase3/build_curved.py -- \
-  --out-dir .dev-shots/asset-pipeline/phase3/curved
+  --out-dir .dev-shots/asset-pipeline/phase3/curved_final
 ```
 
 The Phase 3 run is evidence, not game readiness. The crate passed validator and preview
-checks with a 1024² embedded checker; the curved asset passed validator and preview checks
-at both resolutions but retained a faint seam line for review. MSN remains a review result
-because of its three validator warnings and because headless timings are only relative.
+checks with a 1024² embedded checker. The curved asset passed validator, clean-import and
+preview checks at both resolutions; its earlier line was diagnosed as flat-shading plus
+environment specular, not a UV/normal seam. The final 1024² bake uses a 16 px margin and
+the 2048² bake uses 32 px. MSN remains a review result because of its three validator
+warnings and because the headless timings are CPU-submission only.
 
 ## Documents
 
@@ -308,14 +319,22 @@ directory is relocated; the extractor path is derived from the repository root.
 - Modifiers and UVs are observed through the current depsgraph; nothing is applied.
 - Node groups are not traversed by the texture inventory.
 - Density thresholds are advisory until calibrated; they do not establish acceptance.
-- No texture-pixel, bake-quality or rendered-appearance validation.
+- Bake channel checks cover this fixture's source/baked albedo, roughness and normal
+  images; they do not establish universal bake correctness or rendered appearance.
 - Phase 2 does not export or repair assets, change the loader or integrate into the game.
 - Validator conformance is not appearance, gameplay or universal extension support.
 - Preview captures are standalone three.js evidence, not full-game performance.
 - The preview uses the pinned three.js CDN import map; offline loading is unverified.
-- Phase 3 headless timings are relative and highly variable; no real-GPU baseline was
-  recorded on the RX 9070 XT or in the full game.
-- Decoded texture-memory and transfer-cost estimates remain unverified.
+- Phase 3 browser timings are headless CPU-submission/relative numbers; no GPU completion
+  timing or full-game FPS is claimed. The RX 9070 XT PC is ComfyUI-only and is not a
+  rendering test target.
+- Decoded texture-memory estimates are reported, but renderer allocation, compression
+  ratios and transfer cost remain unverified.
+- Resource estimate ranges are deduplicated accessor/image storage; the geometry/image
+  split is not a GPU-buffer budget.
 - `gltf-transform inspect` is intentionally not added; existing inventories cover the
   current fields, and a new dependency needs a demonstrated gap.
+- The Phase 4 crate trial validates ordinary material slots, exported surface assignment
+  and evaluated mesh health. It does not establish house zone boundaries, automatic
+  segmentation, texture baking or game integration.
 - No compression variant, house modeling, Qwen generation or game integration.

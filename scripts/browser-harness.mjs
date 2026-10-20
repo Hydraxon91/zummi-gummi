@@ -52,21 +52,24 @@ export async function getFreePort() {
   });
 }
 
-export async function launchBrowser({ browser = resolveBrowser(), port, profile, args = [] } = {}) {
+export async function launchBrowser({
+  browser = resolveBrowser(), port, profile, args = [],
+  headless = true, swiftshader = true,
+} = {}) {
   if (!browser) {
     throw new Error('No Chromium-family browser found. Set BROWSER_BIN or CHROME_BIN.');
   }
   if (!port) port = await getFreePort();
   if (!profile) profile = await mkdtemp(join(tmpdir(), 'gummy-browser-'));
   const child = spawn(browser, [
-    '--headless=new',
+    ...(headless ? ['--headless=new'] : []),
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profile}`,
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-background-timer-throttling',
     '--disable-renderer-backgrounding',
-    '--enable-unsafe-swiftshader',
+    ...(swiftshader ? ['--enable-unsafe-swiftshader'] : []),
     '--window-size=1440,900',
     ...args,
     'about:blank',
@@ -132,7 +135,10 @@ export async function connectBrowser(launched) {
     });
   }
 
-  async function openPage({ url, width = 1440, height = 900, mobile = false, initScript = null } = {}) {
+  async function openPage({
+    url, width = 1440, height = 900, mobile = false,
+    deviceScaleFactor = 1, initScript = null,
+  } = {}) {
     const created = await send('Target.createTarget', { url: 'about:blank' });
     const attached = await send('Target.attachToTarget', { targetId: created.targetId, flatten: true });
     const sessionId = attached.sessionId;
@@ -143,7 +149,7 @@ export async function connectBrowser(launched) {
     }
     if (width && height) {
       await send('Emulation.setDeviceMetricsOverride', {
-        width, height, deviceScaleFactor: 1, mobile,
+        width, height, deviceScaleFactor, mobile,
       }, sessionId);
     }
     await send('Page.navigate', { url }, sessionId);

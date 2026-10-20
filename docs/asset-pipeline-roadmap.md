@@ -1,7 +1,8 @@
 # Asset Pipeline Roadmap
 
-Status: **Phase 3 implemented with residual curved-seam review**; Phase 4 next after
-acceptance.
+Status: **Phase 3 implemented and verified**, with resource/density checks still advisory;
+**Phase 4 crate material-zone trial implemented**; house application and Phase 5 remain
+separately gated.
 Date: 2026-10-20
 Owner: Hydraxon
 
@@ -366,7 +367,8 @@ Do not switch between alpha blending and transmission as an unapproved optimizat
 ### Performance policy
 
 - Headless timings support **relative comparisons only**.
-- Add a real-GPU browser check on an agreed machine.
+- Add a hardware-accelerated browser check on the Mac when GPU timing is required; the
+  ComfyUI PC is not a render target.
 - Record viewport, DPR, renderer settings and representative instance counts.
 - Distinguish standalone preview verification from full-game integration.
 
@@ -389,26 +391,48 @@ Qwen, advanced materials, compression optimization and game integration.
 
 ### Decision gate
 
-Approve captures, curved-surface results, intended instance counts and real-GPU test
-environment.
+Approve captures, curved-surface results and intended instance counts. Blender, bakes and
+browser verification stay on the Mac; the RX 9070 XT PC is reserved for ComfyUI generation.
 
 ### Implementation (2026-10-20)
 
 - Built a new crate checkpoint with an asymmetric 1024² checker, embedded it in a
   self-contained GLB, generated manifest/provenance, and verified it through validator,
   clean import, preview and all-side captures. Source hash remains unchanged.
-- Built a 1 m diameter × 1 m high cylinder fixture with a deliberate UV seam, a beveled
-  high copy, and baked 1024²/2048² albedo, roughness and tangent-space normal maps.
-  Triangulated the low for portable tangents. Both GLBs pass the validator with no warnings.
-- Recorded a residual faint vertical seam line in the curved captures. It remains a review
-  item, not an accepted clean pass.
+- Built a 1 m diameter × 1 m high cylinder fixture with a deliberate UV seam, a preserved
+  n-gon source, a triangulated low for both baking and export, a beveled high copy, and
+  baked 1024²/2048² albedo, roughness and tangent-space normal maps. Both GLBs pass the
+  validator with no warnings.
+- Diagnosed the earlier “faint seam” as flat shading plus environment specular. The mesh is
+  closed and manifold with no loose vertices, no coincident-vertex groups, no custom
+  normals and a zero-normal-delta longitudinal seam. Smooth-by-angle shading and
+  front-face culling remove the faceting; flat-colour seam diagnostics are clean.
+- Added bake channel checks and negative controls. Albedo/roughness re-sampled errors are
+  below threshold at both resolutions; colours spaces and normal reference hashes are
+  checked. The source→baked→exported path is matched at the UV samples and at the decoded
+  GLB images (albedo/roughness/normal MAE `0.0`). A blue-flipped normal is rejected for
+  negative tangent-space Z, and a normal image treated as sRGB is rejected for the wrong
+  data colour space.
+- Added UV-island connectivity and segment-distance padding checks. The 3-island layout
+  has a minimum inter-island gap of `0.054574` UV (55.88 px at 1024², 111.77 px at
+  2048²), separate from the image-border margin.
+- Scaled bake margins to 16 px at 1024² and 32 px at 2048² so padding no longer fills the
+  image edge. The 1024² texture now has a clean black border; the 2048² texture is clean.
+- Reproducibility: crate and curved GLBs are byte-identical across independent builds;
+  only `.blend` container hashes differ. Geometry, UVs, channel hashes and inventories
+  match.
 - Density review: the crate is under target at 1024² and mixed at 2048²; the curved
   cylinder shows side/cap density spread and seam anisotropy. Thresholds remain advisory.
-- MSN baseline: existing GLB only, with 1/8/32 shared-geometry instances and checker
-  backgrounds. Transmission, overlap and sorting remain visually reviewable; the three
-  `NODE_SKINNED_MESH_NON_ROOT` validator warnings remain open.
-- Headless relative timings were recorded, but no real-GPU/RX 9070 XT or full-game
-  benchmark was performed.
+- MSN baseline: existing GLB only, headless at 1920×1080 DPR 1, with 1/8/32
+  shared-geometry instances, checker backgrounds and day/night views. Geometry
+  deduplicates to 3, material to 1, and skeleton counts are 1/22/94. Skeleton independence
+  is checked directly: every instance has its own skeletons and no skeleton UUID or bone
+  UUID is shared across instances. Transmission, overlap and sorting remain visual review
+  items; the three `NODE_SKINNED_MESH_NON_ROOT` validator warnings remain open.
+- Browser timings are headless CPU-submission/relative only; no GPU completion or
+  full-game FPS is claimed. The RX 9070 XT is ComfyUI-only, not a render target.
+- Resource estimates now deduplicate accessor/image storage ranges and separate encoded
+  image bytes from decoded RGBA estimates.
 - Phase 2 evidence handling was tightened: visual review hashes are required, empty
   captures cannot pass, explicit camera settings are recorded, and decoded texture
   estimates are reported.
@@ -457,9 +481,37 @@ Approximately **1–2 days** plus per-asset review.
 
 Automatic segmentation and semantic naming.
 
+### Implementation (2026-10-20)
+
+- Opened the accepted Phase 3 crate checkpoint read-only and wrote a new
+  `crate_zones_001.blend` / `.glb` pair. Geometry, UVs, dimensions and the source
+  checkpoint hash are unchanged.
+- Used ordinary Blender material slots: slot 0 keeps the existing checker
+  `Crate_Pilot_Mat` on 48 bevel/edge faces; slot 1 adds `Crate_Main_Mat` on the 6 planar
+  main faces. No custom face-map storage or runtime system was introduced.
+- Validated zone coverage and export preservation: 54 polygons / 108 triangles total,
+  6 main polygons (12 triangles) and 48 edge polygons (96 triangles). The GLB contains two
+  materials and two primitives with those exact counts.
+- Checked the exported surfaces, not only the counts: all 12 main triangles are
+  axis-aligned and touch one bounding-box face; none of the 96 edge triangles are
+  axis-aligned and all touch at least two bounding-box faces.
+- Evaluated slot/mesh checks pass: two valid non-empty slots, all polygon indices valid,
+  no zone mismatches, 0 loose vertices, 0 non-manifold edges and 0 flipped faces.
+- A deliberately invalid bevel-to-main assignment is rejected by both the Blender mesh
+  check (`zone_mismatches [0]`) and the export check (`mainSurface false`, main 14
+  triangles, edge 94); both negative controls exit non-zero.
+- Validator passes with zero errors/warnings; one informational `UNUSED_OBJECT` for
+  `TEXCOORD_0` on the untextured main primitive remains. Clean import, preview and
+  hash-linked visual review pass. Resource estimates remain advisory.
+- A second independent build produced the same zone GLB hash and the same geometry/UV
+  fingerprints; only the `.blend` container differs.
+- Crate-only trial. No house geometry, palette, UV, loader, game registry or runtime
+  integration changed.
+
 ### Decision gate
 
-Approve zone boundaries and material intent.
+Crate trial ready for review; house zone boundaries and material intent still require a
+separate approval before applying this to architecture.
 
 ---
 
@@ -554,7 +606,7 @@ compatible PBR channels on an export copy.
 - camera-derived texture density;
 - near/far inspection;
 - clean import and validator;
-- three.js rendering and real-GPU checks;
+- three.js rendering checks on the Mac; GPU timing only when measured;
 - day/night captures distinguishing glass and emission.
 
 ### Web delivery experiments
@@ -740,7 +792,8 @@ Inspect close/distant day/night views and transparent overlaps. Report bytes, GP
 estimates, materials and geometry. Include a night capture that distinguishes glass from
 emission.
 
-**Gate:** inspected captures, validator, clean import and real-GPU check.
+**Gate:** inspected captures, validator, clean import and a documented Mac browser check;
+GPU timing is reported only when actually measured.
 
 ## Explicitly deferred from the first house
 
@@ -767,7 +820,10 @@ authorize game integration, dependency changes, commits or pushes.
 
 # Approval gates and deferred work
 
-- **Phase 4** is the next implementation step after curved-seam acceptance.
+- **Phase 4** is implemented for the crate only; house application remains a separate
+  decision.
+- **Phase 5** is the next optional implementation step after accepting the Phase 3 and
+  Phase 4 crate results.
 - No house modeling, Qwen generation or game integration at this stage.
 - No commit or push without explicit approval.
 - Validator provisioning is approved; loader/runtime changes remain separate.
@@ -777,8 +833,10 @@ authorize game integration, dependency changes, commits or pushes.
 
 ## Next action
 
-Phase 3 is implemented under `tools/asset-pipeline/tests/phase3/`. Review the curved
-seam/density result and the MSN validator warnings, then begin **Phase 4** if accepted.
+Phase 3 is implemented under `tools/asset-pipeline/tests/phase3/`; the crate-only Phase 4
+trial is under `tools/asset-pipeline/tests/phase4/`. Review the final curved captures,
+density result, MSN validator warnings and crate zone evidence. Phase 5 remains optional
+and separately gated.
 
 Density thresholds remain advisory; no compression variant, loader change, generation
 or house modeling has started.

@@ -70,30 +70,110 @@ function imageDimensions(data) {
   return null;
 }
 
+function viewRange(view, binLength) {
+  if (!view) return { error: 'missing bufferView' };
+  const offset = Number.isInteger(view.byteOffset) ? view.byteOffset : 0;
+  const length = Number.isInteger(view.byteLength) ? view.byteLength : null;
+  if (length === null || length < 0 || offset < 0 || offset + length > binLength) {
+    return { error: 'bufferView range is outside the binary chunk' };
+  }
+  return { start: offset, end: offset + length };
+}
+
+function mergeRanges(ranges) {
+  const sorted = ranges
+    .map(range => ({ start: range.start, end: range.end }))
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged = [];
+  for (const range of sorted) {
+    const previous = merged[merged.length - 1];
+    if (!previous || range.start > previous.end) {
+      merged.push({ start: range.start, end: range.end });
+    } else if (range.end > previous.end) {
+      previous.end = range.end;
+    }
+  }
+  return merged;
+}
+
+function rangeBytes(ranges) {
+  return ranges.reduce((total, range) => total + range.end - range.start, 0);
+}
+
+function intersectionBytes(left, right) {
+  const merged = mergeRanges([...left, ...right]);
+  return rangeBytes(merged)
+    - rangeBytes(mergeRanges(left))
+    - rangeBytes(mergeRanges(right));
+}
+
 export function estimateGlbResources(bytes) {
   const { doc, bin } = readGlb(bytes);
-  const images = [];
-  let decodedTextureBytes = 0;
   const unknown = [];
+  const viewRanges = (doc.bufferViews || []).map((view, index) => {
+    if (view.buffer !== undefined && view.buffer !== 0) {
+      unknown.push({
+        index,
+        kind: 'bufferView',
+        reason: 'bufferView references a non-GLB buffer',
+      });
+      return { index, external: true };
+    }
+    const range = viewRange(view, bin.length);
+    if (range.error) {
+      unknown.push({ index, kind: 'bufferView', reason: range.error });
+      return { index, error: range.error };
+    }
+    return { index, ...range };
+  });
+  const viewRangeByIndex = new Map(viewRanges.map(entry => [entry.index, entry]));
+  const accessorMissing = [];
+  const geometryRanges = [];
+  for (const [index, accessor] of (doc.accessors || []).entries()) {
+    if (!Number.isInteger(accessor.bufferView)) {
+      accessorMissing.push(index);
+      continue;
+    }
+    const range = viewRangeByIndex.get(accessor.bufferView);
+    if (!range || range.error || range.external) {
+      unknown.push({
+        index,
+        kind: 'accessor',
+        reason: 'accessor bufferView is missing, external or invalid',
+      });
+      continue;
+    }
+    geometryRanges.push(range);
+  }
+  const images = [];
+  const imageRanges = [];
+  let decodedTextureBytes = 0;
   for (const [index, image] of (doc.images || []).entries()) {
     let data = null;
+    let encodedBytes = null;
     if (Number.isInteger(image.bufferView)) {
-      const view = doc.bufferViews?.[image.bufferView];
-      if (view && Number.isInteger(view.byteOffset) && Number.isInteger(view.byteLength)) {
-        data = bin.subarray(view.byteOffset, view.byteOffset + view.byteLength);
-      } else if (view && Number.isInteger(view.byteLength)) {
-        data = bin.subarray(0, view.byteLength);
+      const range = viewRangeByIndex.get(image.bufferView);
+      if (range && !range.error && !range.external) {
+        data = bin.subarray(range.start, range.end);
+        encodedBytes = range.end - range.start;
+        imageRanges.push(range);
       }
     }
     const dimensions = imageDimensions(data);
     if (!dimensions) {
       unknown.push({
         index,
+        kind: 'image',
         name: image.name || null,
         uri: image.uri || null,
         reason: data ? 'unsupported image header' : 'external or missing image data',
       });
-      images.push({ index, name: image.name || null, ...dimensions, bytes: null });
+      images.push({
+        index,
+        name: image.name || null,
+        encodedBytes,
+        bytes: null,
+      });
       continue;
     }
     const rgba = dimensions.width * dimensions.height * 4;
@@ -102,18 +182,46 @@ export function estimateGlbResources(bytes) {
       index,
       name: image.name || null,
       ...dimensions,
+      encodedBytes,
       bytes: rgba,
       mipEstimateBytes: Math.ceil(rgba * 4 / 3),
     });
   }
+  const geometry = mergeRanges(geometryRanges);
+  const image = mergeRanges(imageRanges);
+  const allViews = viewRanges
+    .filter(entry => !entry.error && !entry.external)
+    .map(entry => ({ start: entry.start, end: entry.end }));
+  const all = mergeRanges(allViews);
+  const sharedGeometryImageBytes = intersectionBytes(geometry, image);
+  const combinedGeometryImage = mergeRanges([...geometry, ...image]);
+  const allViewBytes = rangeBytes(all);
+  const otherBufferViewBytes = allViewBytes - rangeBytes(combinedGeometryImage);
+  const binChunkBytes = bin.length;
+  const unmappedBinBytes = Math.max(0, binChunkBytes - allViewBytes);
+  const complete = unknown.length === 0
+    && accessorMissing.length === 0;
   return {
-    geometryBufferBytes: bin.length,
+    binChunkBytes,
+    geometryBufferBytes: rangeBytes(geometry),
+    geometryStorageBytes: rangeBytes(geometry),
+    imageStorageBytes: rangeBytes(image),
+    sharedGeometryImageBytes,
+    otherBufferViewBytes,
+    unmappedBinBytes,
+    accountedBytes: rangeBytes(geometry) + rangeBytes(image)
+      - sharedGeometryImageBytes + otherBufferViewBytes + unmappedBinBytes,
+    complete,
+    accessorWithoutBufferView: accessorMissing,
     imageCount: images.length,
     decodedTextureBytes,
     decodedTextureMipEstimateBytes: Math.ceil(decodedTextureBytes * 4 / 3),
-    images,
+    images: images.map(image => ({
+      ...image,
+      storageNote: 'encodedBytes is per image view; imageStorageBytes deduplicates shared ranges.',
+    })),
     unknown,
-    note: 'Decoded RGBA texture estimates assume 8-bit uncompressed channels; encoded/compressed formats and renderer allocation remain unverified.',
+    note: 'Encoded image bytes and geometry/accessor view unions are deduplicated. Decoded RGBA texture estimates assume 8-bit uncompressed channels; compressed formats and renderer allocation remain unverified.',
   };
 }
 

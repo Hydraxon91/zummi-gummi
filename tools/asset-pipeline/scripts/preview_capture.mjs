@@ -24,6 +24,9 @@ function parseArgs(argv) {
     margin: 1.15,
     instances: 1,
     backdrop: 'solid',
+    headless: true,
+    swiftshader: true,
+    deviceScaleFactor: 1,
     timeout: 90000,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -33,8 +36,10 @@ function parseArgs(argv) {
     const name = key.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
     if (name === 'clip') args.clip = value || '';
     else if (['width', 'height', 'timeout', 'fov', 'nearFactor',
-      'farFactor', 'margin', 'instances'].includes(name)) {
+      'farFactor', 'margin', 'instances', 'deviceScaleFactor'].includes(name)) {
       args[name] = Number(value);
+    } else if (name === 'headless' || name === 'swiftshader') {
+      args[name] = value !== 'false';
     } else if (name in args) args[name] = value;
     index += 1;
   }
@@ -45,7 +50,11 @@ export async function capturePreview(options) {
   const args = { ...parseArgs([]), ...options };
   const out = args.out;
   mkdirSync(out, { recursive: true });
-  const launched = await launchBrowser();
+  const launched = await launchBrowser({
+    headless: args.headless,
+    swiftshader: args.swiftshader,
+    args: [`--window-size=${args.width},${args.height}`],
+  });
   const browser = await connectBrowser(launched);
   let page = null;
   const captures = [];
@@ -64,6 +73,7 @@ export async function capturePreview(options) {
       url: url.href,
       width: args.width,
       height: args.height,
+      deviceScaleFactor: args.deviceScaleFactor,
     });
     await page.waitFor(
       'window.__preview && (window.__preview.report().ready || !!window.__preview.report().error)',

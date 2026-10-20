@@ -12,6 +12,7 @@ import {
 } from '../scripts/validator.mjs';
 import {
   validTriangleGlb, emissiveTriangleGlb, externalImageGlb,
+  embeddedImageGlb, sharedImageBufferViewGlb,
   unsupportedExtensionGlb, invalidAccessorGlb, malformedGlb,
 } from './fixtures.mjs';
 import { visualSection } from '../scripts/verify_asset.mjs';
@@ -120,10 +121,27 @@ test('resource estimates distinguish known and unknown texture data', () => {
   const valid = estimateGlbResources(validTriangleGlb());
   assert.equal(valid.imageCount, 0);
   assert.equal(valid.decodedTextureBytes, 0);
+  assert.equal(valid.geometryStorageBytes, 42);
+  assert.equal(valid.imageStorageBytes, 0);
+  assert.equal(valid.binChunkBytes, 44);
+  assert.equal(valid.unmappedBinBytes, 2);
+  assert.equal(valid.complete, true);
+  const embedded = estimateGlbResources(embeddedImageGlb());
+  assert.equal(embedded.imageCount, 1);
+  assert.equal(embedded.decodedTextureBytes, 4);
+  assert.equal(embedded.geometryStorageBytes, 42);
+  assert.ok(embedded.imageStorageBytes > 0);
+  assert.equal(embedded.complete, true);
+  assert.equal(embedded.accountedBytes, embedded.binChunkBytes);
+  const shared = estimateGlbResources(sharedImageBufferViewGlb());
+  assert.equal(shared.imageCount, 2);
+  assert.equal(shared.imageStorageBytes, embedded.imageStorageBytes);
+  assert.equal(shared.decodedTextureBytes, 8);
   const external = estimateGlbResources(externalImageGlb());
   assert.equal(external.imageCount, 1);
   assert.equal(external.unknown.length, 1);
   assert.equal(external.decodedTextureBytes, 0);
+  assert.equal(external.complete, false);
 });
 
 test('GLB fixtures expose expected identity and dependency signals', () => {
