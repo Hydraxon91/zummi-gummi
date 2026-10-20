@@ -3,7 +3,7 @@ import { createLauncher } from './launcher.js';
 import { createSky } from './sky.js';
 import { buildField, POND_HOLE, POND } from './field.js';
 import { createBearAI } from './ai.js';
-import { createBehavior } from './behavior.js';
+import { createBehavior, behaviorEngineFromSearch } from './behaviors/index.js';
 import { createAIDebug } from './aidebug.js';
 import { createEffects } from './effects.js';
 import { GRAPHICS_GROUPS, GRAPHICS_DEFAULTS, normalizeGraphics, readGraphics, createGraphicsPanel } from './graphics.js';
@@ -6009,6 +6009,8 @@ function fitWallsToTable(){
     buildWorldBounds();
   }
 }
+const BEHAVIOR_ENGINE = behaviorEngineFromSearch(typeof location !== 'undefined' ? location.search : '');
+
 async function bootGame(){
   try {
     effects = createEffects({
@@ -6031,6 +6033,7 @@ async function bootGame(){
   ensureMeadow();
   applyGraphics();
   behavior = createBehavior({
+    engine: BEHAVIOR_ENGINE,
     field,
     getActors: () => actorView.all(),
     getHours: () => (sky ? sky.hours : 12),
@@ -6359,6 +6362,25 @@ window.__gummy = {
     };
   },
   behavior(){ return behavior ? behavior.stats() : null; },
+  behaviorEngine(){ return BEHAVIOR_ENGINE; },
+  behaviorConfig(){
+    const api = behavior && behavior.api;
+    if (!api || !api.config) return null;
+    return {
+      engine: BEHAVIOR_ENGINE,
+      version: api.config.getVersion(),
+      features: { ...api.features },
+      modules: [...api.modules.keys()],
+    };
+  },
+  setBehaviorModule(id, enabled, scope){
+    return behavior && typeof behavior.setModuleEnabled === 'function'
+      ? behavior.setModuleEnabled(id, enabled, scope || null) : false;
+  },
+  setBehaviorFeature(name, value){
+    return behavior && typeof behavior.setFeature === 'function'
+      ? behavior.setFeature(name, value) : false;
+  },
   routines(uid){
     const actor = uid === undefined || uid === null
       ? selectedBear

@@ -31,6 +31,9 @@ jobs:
       - name: Check species, DNA, save and asset manifests
         run: node --test tests
 
+      - name: Check behavior port markers
+        run: node scripts/check-port-markers.mjs --expected scripts/port-markers.txt
+
       - name: Start the launcher
         run: |
           set -euo pipefail

@@ -2181,3 +2181,19 @@ These are must-have Studio requirements. The references are saved locally in
   shells, trees, food, decor) on validated footprints, not player-drawn
   walls/floors/roofs. Interiors stay implied (door entry + window glow), not
   modeled walk-in rooms.
+**Step 3 result (Oct 2026):** `node scripts/behavior-parity.mjs --long` passes with zero
+diffs for Bear, Gummy and Glass across 5 seeds × 20 days (96,000 ticks per run; transition,
+need, target, task, bond/history and RNG-draw counts identical). `--validate` passes
+legacy-vs-legacy determinism, legacy-vs-modules parity and catches a 0.001 need
+perturbation for all three races. The new engine mirrors the follow/playdate stall
+changes in `b7f5fea`; the legacy file itself was not edited by this pass. 94 pure tests,
+the 64-check smoke test and the core browser regression pass with both
+`?behaviors=modules` and the legacy default. The behavior files are committed as one
+scoped change; unrelated UV-guide/skill edits in the same working tree remain unstaged.
+
+**Behavioral changelog:** none. The default engine is still `legacy`; `modules` produces
+the same transitions, needs, targets, tasks, bonds, history, playdates and RNG draw count.
+Hive is the only extracted module in this pass; every other region remains in the explicit
+step-4 scaffold. Step 5 owns the `src/behaviors/README.md` authoring guide and the
+`AGENTS.md` module-ownership update; they are not in this pass.
+

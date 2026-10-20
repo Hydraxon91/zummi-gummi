@@ -315,7 +315,12 @@ export function createGlassColony({
     a.doorFade = 1;
     a.doorTarget = 0;
     a.ai.state = 'inside';
-    a.ai.insideT = 34 + Math.random() * 58;
+    // Quirk flag: route this draw through the engine RNG when enabled. The
+    // default keeps the legacy Math.random stream.
+    const engineRng = shared && shared.api && typeof shared.api.feature === 'function' &&
+      shared.api.feature('glassEngineRng') && typeof shared.api.rng === 'function'
+      ? shared.api.rng : Math.random;
+    a.ai.insideT = 34 + engineRng() * 58;
     a.ai.moving = false;
     a.ai.shelter = false;
     clearPath(a);
