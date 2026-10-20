@@ -191,7 +191,11 @@ export function createRoster(race, perturb = 0, { seedBonds = false, social = fa
       bedtime: 20,
       wakeTime: 6,
       bonds: {},
-      skills: { forage: .30, courage: .30, social: .30 },
+      skills: row.stage === 'adult'
+        ? { forage: .55, courage: .40, social: .50 }
+        : row.stage === 'teen'
+          ? { forage: .20, courage: .20, social: .20 }
+          : { forage: 0, courage: 0, social: 0 },
       playdates: {},
       history: [],
       grabs: 0,
