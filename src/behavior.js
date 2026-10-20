@@ -1804,6 +1804,18 @@ export function createBehavior({
     if (actor.shelterCheckT > 0) actor.shelterCheckT = Math.max(0, actor.shelterCheckT - dt);
     if (p.rest.mode === 'dayShelter' && !isDayFor(actor)) actor.shelteredToday = false;
 
+    // Ordinary hunger/thirst waits for a short interaction to finish. At the
+    // critical thresholds an optional interaction must yield to survival.
+    const criticalNeed = actor.thirst >= p.thresholds.criticalThirst ? 'water'
+      : actor.hunger >= p.thresholds.criticalHunger ? 'food' : null;
+    if (criticalNeed && ['invite', 'social', 'decline', 'mate', 'visit', 'familyTask', 'stargaze'].includes(ai.state)) {
+      cancelPair(actor);
+      if (criticalNeed === 'water') acquireWater(actor);
+      else if (!acquireFood(actor) && p.conflict) acquireContest(actor);
+      if (ai.state === 'wander') { ai.idleT = .3; ai.nextThink = 0; }
+      return;
+    }
+
     if (ai.state === 'invite') {
       ai.animT += dt;
       ai.inviteT -= dt;

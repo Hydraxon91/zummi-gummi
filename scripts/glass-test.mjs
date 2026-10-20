@@ -211,6 +211,10 @@ try {
     g.glassReset(1);
     g.glassSetPregnant(0, false);
     g.glassSetPregnant(1, false);
+    g.glassSetNeed(0, 'hunger', .2);
+    g.glassSetNeed(0, 'thirst', .2);
+    g.glassSetNeed(1, 'hunger', .2);
+    g.glassSetNeed(1, 'thirst', .2);
     const a = before[0], b = before[1];
     const f = a.sex === 'F' ? 0 : 1;
     const m = 1 - f;
@@ -251,6 +255,10 @@ try {
     const g = window.__gummy;
     g.glassReset(2);
     g.glassReset(3);
+    g.glassSetNeed(2, 'hunger', .2);
+    g.glassSetNeed(2, 'thirst', .2);
+    g.glassSetNeed(3, 'hunger', .2);
+    g.glassSetNeed(3, 'thirst', .2);
     const before = g.glass().actors[2]?.bonds?.[String(g.glass().actors[3]?.uid)] || 0;
     const started = g.glassFamilyPlay(2);
     g.sim(20.0, 8);

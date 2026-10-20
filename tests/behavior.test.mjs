@@ -168,6 +168,57 @@ test('invite and social use the shared pair protocol and raise the bond', () => 
   assert.ok(Number(a.bonds['2'] || 0) > 0);
 });
 
+test('ordinary hunger waits for a short social interaction, critical hunger interrupts it', () => {
+  const { actors, engine } = setup({ rng: () => 1 });
+  const a = actor(1, { social: .8, hunger: .75 });
+  const b = actor(2, { social: .8, hunger: .75, cx: .5 });
+  actors.push(a, b);
+  engine.attach(a); engine.attach(b);
+  engine.forceSocial(a, b, true);
+  engine.tick(a, .1, { ready: true });
+  assert.equal(a.ai.state, 'social');
+  assert.equal(b.ai.state, 'social');
+
+  a.hunger = .95;
+  engine.tick(a, .01, { ready: true });
+  assert.equal(a.ai.state, 'seekFood');
+  assert.equal(a.ai.partner, null);
+  assert.equal(b.ai.state, 'wander');
+  assert.equal(b.ai.partner, null);
+  assert.equal(a.ai.source?.claim, a);
+});
+
+test('critical thirst interrupts a visit and releases both participants', () => {
+  const { actors, engine } = setup({ rng: () => 1 });
+  const a = actor(1, { social: .8 });
+  const b = actor(2, { social: .8, cx: .5 });
+  actors.push(a, b);
+  engine.attach(a); engine.attach(b);
+  assert.equal(engine.forceVisit(a, b).ok, true);
+  assert.equal(a.ai.state, 'visit');
+  a.thirst = .95;
+  engine.tick(a, .01, { ready: true });
+  assert.equal(a.ai.state, 'seekWater');
+  assert.equal(a.ai.partner, null);
+  assert.equal(b.ai.state, 'wander');
+  assert.equal(b.ai.partner, null);
+});
+
+test('a visit completes within its bounded interaction window', () => {
+  const { actors, engine } = setup({ rng: () => 1 });
+  const a = actor(1, { social: .8 });
+  const b = actor(2, { social: .8, cx: .5 });
+  actors.push(a, b);
+  engine.attach(a); engine.attach(b);
+  assert.equal(engine.forceVisit(a, b).ok, true);
+  for (let i = 0; i < 20; i++) {
+    engine.tick(a, 1, { ready: true });
+    engine.tick(b, 1, { ready: true });
+  }
+  assert.notEqual(a.ai.state, 'visit');
+  assert.notEqual(b.ai.state, 'visit');
+});
+
 test('mate produces a pregnancy shared by both representations', () => {
   const { actors, engine } = setup({ rng: () => 1 });
   const a = actor(1, { sex: 'F' });
