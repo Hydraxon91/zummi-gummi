@@ -48,6 +48,10 @@ and binary masks with dilation; deterministic ids, non-zero exit on failed valid
 `scripts/uv_label_review.py` (numbered review sheet plus a proposed-name JSON template; a human
 must review it before `--names` is used).
 
+For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
+[references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are
+external and do not authorize game integration, material transfer or a bake.
+
 Read [references/asset-workflows.md](references/asset-workflows.md) for hard-surface
 modifier/shading choices, UV preparation, asset budgets and the local reporting tools.
 Load the focused references when the task needs them:
@@ -332,10 +336,23 @@ a confident semantic label to obtain zero unknowns, or apply a tool already judg
 - Preserve recognisable, contiguous main-panel charts. Thousands of fragments are not a
   substitute for the requested painting template. Keep small mechanical detail on separate
   sheets where approved, and distinguish artist outlines from triangulation diagnostics.
-- Every island needs a stable ID and evidence-backed part name, or an explicitly unresolved
-  tag. Put readable names inside major islands and use numbered leader-line callouts for tiny
-  islands. No silently skipped tags; verify correspondence with the manifest, maps and masks.
-  A populated name field or a rule-coverage score does not establish semantic correctness.
+- Every island needs a stable ID for the delivered layout and an evidence-backed part name,
+  or an explicitly unresolved tag. Put readable names inside major islands and use numbered
+  leader-line callouts for tiny islands. No silently skipped tags; verify correspondence with
+  the manifest, maps and masks. A populated name field or a rule-coverage score does not
+  establish semantic correctness.
+- Treat IDs as layout-derived. A repack or re-unwrap can reorder them; store island face
+  sets and rebind names by exact face set after the layout changes. Preserve prior review
+  state rather than silently reusing ID-keyed names.
+- Report geometric overlaps and raster pixel conflicts separately. Adjacent-face sub-pixel
+  slivers are not the same as texture collisions; do not call a guide clean from a triangle
+  test alone, or generation-ready from a render alone.
+- When both are requested, deliver the line guide and colored sheet as two views of the same
+  layout. The colored sheet is a layout visualization, not an albedo, bake or material-
+  transfer proof.
+- Repair charts on a disposable copy with isolated operands fitted back into their original
+  footprint. A full-sheet repack can improve coverage but will move labels and IDs; recheck
+  label placement and rebind names afterward.
 - Validate helper units, coordinate mapping, selection isolation and failure detection on
   known-good and deliberately failing fixtures before using results to accept or alter assets.
   One-off scripts remain experimental until their assumptions and limitations are tested.
@@ -380,6 +397,14 @@ unrelated lighting or cameras to conceal shape defects.
 - Scripts are not transactions: an exception can follow successful earlier edits. Inspect
   the actual scene before retrying, avoid double-applying changes, and restore temporary
   selection, visibility, material overrides and render/bake settings in `finally`.
+- A UV layer reference captured before a UV add-on operator can become stale. Re-fetch
+  `ob.data.uv_layers[name]` before copying or auditing; otherwise reads can raise
+  `IndexError` or return old data.
+- `uv.pack_islands` can reorder islands. Treat IDs, label placement and names as invalid
+  after a pack; recompute islands and rebind names by face set.
+- `autounwrap.smart_uv` has a blocking `execute` path for scripts, but the organic
+  `autounwrap.unwrap` path is modal/panel-only. Do not fake a scripted call to a panel-only
+  operator; report it and use a supported fallback.
 - `bmesh.ops.create_cube(size=s)` has full side length `s` and spans ±s/2; object `scale`
   multiplies that. Decide the intended span, then verify evaluated world dimensions after
   updating the view layer/depsgraph before building anything on top of it.
@@ -498,6 +523,13 @@ Treat a new species/variant as a rig and delivery contract, not only a new silho
 - Reusable guidance is a separate copied/generalized deliverable. Keep this project's adapted
   skill, instructions and local resources intact unless replacing them or adding an external
   dependency is explicitly requested and approved.
+- When extracting tooling, remove project object names, material-zone maps, evidence
+  fingerprints, absolute paths and project `.blend` assets; keep a small shared core and
+  thin CLIs rather than shipping the project-specific exporter.
+- Ship generic clean and deliberately failing fixtures, including a gate PASS/FAIL case,
+  PNG structural checks and name-rebinding coverage.
+- Decide the licence after provenance review. Do not bundle GPL or paid add-on code;
+  optional tools such as Mio3 remain external and documented as optional.
 
 ## Step report format
 
@@ -505,6 +537,8 @@ Keep each step report short and in the same shape:
 
 1. What changed (objects, modifiers) and what was deliberately left untouched.
 2. Health: non-manifold edges, loose vertices, flipped faces, evaluated tri/vertex counts.
+   For UV work, also report geometric overlaps, raster pixel conflicts, out-of-bounds UVs
+   and degenerate triangles; name residual slivers instead of saying only "clean".
 3. Dimensions versus reference in mm, with the measurement noise.
 4. Files: saved path and dirty state, or "live scene only", or exported path.
 5. Captures viewed (paths), and anything that could not be verified.

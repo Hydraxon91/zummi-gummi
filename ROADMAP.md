@@ -320,6 +320,100 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
 
 **Known follow-ups — UV verification (fixed/untested):**
+Painting-guide delivery (2026-10-20, prototype-003 layout preserved): `paint_reference_guides.py`
+exports clean, labelled and legend PNGs at actual 1280² and 4096² from the unchanged authored
+`UVMap`, fingerprint-bound to the 98-island surface evidence. All 98 islands have a numeric ID;
+24 carry the previously reviewed development names and 74 are explicitly `UNRESOLVED`.
+Named charts now use a full name inside (wrapped to 2–3 lines where needed) or a leader callout;
+they never silently fall back to ID-only. Unresolved labels on the guide are ID-only. Validation
+asserts both rules for every island. Reviewed after feedback: 53/63 were originally ID-only due
+to the fallback; 53 is named in both resolutions and 63 remains ID-only because it is unresolved.
+41 callouts at 1280 and 40 at 4096. Both labelled sets and legends were visually inspected at
+1280; the 4096 set was inspected downscaled plus native crops of 53/63, PNG structural decode
+and per-island label manifest. All six outputs decode at their declared dimensions; source file
+hash remained unchanged. Limits: names beyond the 24-island development subset are not newly
+verified; existing UV overlaps (six charts) remain in the layout and are neither repaired nor
+waived; clean guide is UV outlines, not generated albedo; no bake, padding, material-transfer
+or export certification. Outputs: RaptorRC `out/body_paint_reference_008/`.
+Layout-tool bake-off (2026-10-20, Mio3 UV + Auto Unwrap 2): the six actual self-overlapping
+charts are the named panels 6, 7, 31, 45, 62 and 66, not the thin strips implied by the
+unsorted chart-order audit. Selective repair used isolated per-chart operands, Mio3
+`uv.mio3_unwrap` MINIMUM_STRETCH, refit into each chart's original footprint, then one
+full-sheet repack at `8/1280`. It preserved all 98 face sets, so the 24 reviewed names and
+stable IDs were rebound by exact face set (fingerprint `96cf9bdc…`). Residual: 26
+triangle-pair intersections at 1280 in two charts, max normalised UV area 2.1e-5, plus three
+zero-area UV triangles from source slivers; no out-of-bounds, truncated or shifted charts.
+Auto Unwrap 2.0.0 hard-surface Smart UV at 8/16/30 parts gave 55/80/68 groups but retained
+10–15 self-overlapping chart IDs, so it was not selected. Its `smart_uv` blocking `execute`
+path can be scripted; the organic `unwrap` path is panel-only. Guide callouts now avoid
+both chart fills and drawn outlines. Output: `out/body_paint_reference_011_mio3/` (98 IDs,
+24 names, 74 unresolved, 42/43 callouts). This is the preferred guide, but it is not
+generation-ready until the residual slivers are accepted or deliberately repaired.
+Read-only `tools/uv-layout-extractor/scripts/uv_layout_gate.py` reports geometric overlaps
+`10/17/37`, three zero-area UV triangles, no out-of-bounds or truncation, and **zero raster
+pixel conflicts** at 4096; it PASSes with warnings by default and FAILs under
+`--strict-geometric`. Flipped-face orientation is not covered.
+`tools/uv-layout-extractor/scripts/uv_color_layout.py` adds the dark full-bleed colored sheet
+(1280/4096) with deterministic per-island colors and a green 0-1 frame, no title/labels/stats;
+011 reports 46.1% UV space used. Auto Unwrap repack reached 58.0% but moved charts enough to
+break label placement, so it stays an optional density experiment. Colours follow guide-ID
+order, matching `labels.json`. Outputs: `out/body_paint_reference_011_mio3/color_final/`.
+Evidence: `out/body_paint_reference_011_mio3/evidence/`.
+Approved triangle-copy test (2026-10-20, selective body attempt 2) freezes exact evaluated
+loop triangles and authored corner UVs; folded-chart and warped-quad fixtures pass.
+Actual body trial reduces overlap to one chart but retains one zero-area UV triangle
+and introduces seven non-manifold edges, already present in its triangulated baseline.
+Independent face-incidence counting confirms each affected diagonal has four incident
+triangles from two original n-gons. Stopped the branch; source/live original untouched.
+Failed artifact: RaptorRC `.dev-shots/body_paint_copy_003/` (NOT accepted).
+Mechanical safety guard now rejects newly non-manifold triangle diagonals before unwrap
+or checkpoint save. Broad/warped/folded and deliberately duplicated-face conflict fixtures
+pass in `.dev-shots/paint_unwrap_fixtures_004/`; first conflict fixture used opposite
+quad diagonals and was corrected after inspecting that diagnostic, not weakening the gate.
+Guard recheck on the original body rejects all seven conflicts as expected. Next repair
+is a topology/seam design decision; no clean paint unwrap or complete tagged guide claimed.
+Texture-generation goal clarified (2026-10-20): original material transfer is not a
+prerequisite for a new paint unwrap. Source materials stay protected, but a separate
+working copy can use neutral preview shaders. Every guide chart requires a stable ID
+and verified name or explicit unresolved tag; clean generation images stay label-free.
+Body selective-unwrap attempt 1: evaluated copy retains 98 authored charts; six have
+self-overlaps. Isolated conformal operands pass a deliberately folded two-panel fixture,
+but repair/repack of the six actual charts still fails (five self-overlapping charts,
+one zero-area UV triangle, including new failures on two previously clean single-face
+charts). Stopped this edit chain; source/live file unchanged and pre-edit baseline saved.
+Source inspection finds n-gons in every affected chart (up to 18 corners); some deviate
+from their face plane by ~9.8 mm. This is evidence for investigating triangulation,
+not proof of the unwrap failure's cause. A triangle-preserving evaluated copy is a
+proposed topology decision, not yet implemented; no failed unwrap accepted or labelled
+as final. Source evaluated topology checks: zero boundary/nonmanifold-nonboundary edges,
+loose vertices and inconsistent-winding edges; visual outward orientation unverified.
+Evidence: RaptorRC `.dev-shots/paint_unwrap_fixtures_001/`,
+`.dev-shots/body_paint_copy_001/` and failed `.dev-shots/body_paint_copy_002/`.
+Model-independent allocation tooling added (experimental): `uv_allocation_report.py`
+accounts for all scene meshes, flags per-chart thin/subpixel/zero-area/bounds risks and
+missing UVs, writes a PNG overview, local HTML object/chart picker and all-pending
+treatment template. `uv_allocation_trial.py` requires complete fingerprint-bound
+object-level choices (main/additional/material-only), repacks independent copies only,
+refuses modifier-bearing paint objects and saves diagnostic checkpoints, never source.
+Four pure tests and disposable Blender broad/thin/zero/missing-UV plus two-sheet policy
+fixtures pass. Chassis report accounts for 45/45 objects, all pending; no truck treatment
+choices applied. PNG overview inspected; HTML browser interaction remains unverified.
+Chart-level treatment execution, overlap/padding/bake/PBR acceptance remain deferred.
+Evidence: RaptorRC `.dev-shots/uv_allocation_generic_fixtures_002/` and
+`.dev-shots/uv_allocation_generic_chassis_002/`. Model-specific coil helpers remain
+experimental historical probes, not the generic workflow.
+Coil-only allocation trial (2026-10-20, one targeted attempt): authored Coils has 483
+charts, no zero-area triangles and minimum triangle altitude 1.760 pixels at 4096;
+chassis-packed charts retain that count but minimum altitude falls to 0.351 pixels,
+with 3,399 triangles below one pixel wide. Repacking existing charts onto a separate
+diagnostic coil sheet, without unwrap, gives mapping PASS: all 16,088 triangles sampled,
+zero subpixel/resolution-loss/uncovered triangles, maximum sampled UV error 0.00502%.
+Fingerprint assertions preserve geometry, authored UVs, transform, material slots and
+the input chassis file. This supports allocation loss as a repairable mapping problem;
+does not certify topology, visual guide readability, padding, overlap or original PBR transfer.
+Saved diagnostic only, not a replacement delivery:
+RaptorRC `.dev-shots/coil_sheet_trial_001/coil_only_trial_001.blend`, with manifest and
+`mapping/transfer_check.json`. Other failed sheets remain unresolved; no automatic rollout.
 Corrected 4096 zero-margin rerun (2026-10-20): five diagnostic fixtures pass; wheels
 PASS with all 15,400 triangles sampled, trim checker PASS with 24 subpixel triangles and
 seven approved material-only exclusions. Glass/lights, interior and chassis FAIL on

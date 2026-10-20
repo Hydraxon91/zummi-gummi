@@ -4,6 +4,97 @@ Work only on an approved disposable delivery copy. Preserve the editable scene, 
 layers, resolved materials, transforms and source checkpoint. A combined drawing of independent
 0–1 layouts is not a shared atlas. No source cleanup or semantic name guessing is implied.
 
+For new texture-generation guides, transferring the old materials is not a prerequisite.
+With approval, use neutral preview materials on a separate copy; preserve the original
+graphs in the source. Each final chart still needs a stable ID, an evidence-backed name
+or unresolved tag, and readable callouts; deliver labels separately from clean images.
+`paint_reference_guides.py` exports an unchanged, fingerprint-bound layout as clean,
+labelled and legend PNGs at two real resolutions. It copies names only from a supplied
+reviewed evaluation; every other island is marked unresolved in the legend and labelled
+with its ID only. Named charts use a full-name label inside (wrapped up to three lines)
+or a leader callout; they never silently fall back to ID-only. The legend retains the
+explicit `UNRESOLVED` status. It asserts both labelling rules for every island.
+Structural PNG decode and viewed images are required: it does not repair or waive
+overlaps, generate albedo, validate padding or certify material transfer.
+Raptor body: 98/98 IDs, 24 reviewed development names, 74 unresolved, 41 callouts at
+1280 and 40 at 4096. All six 1280/4096 outputs decoded; the 1280 sets and native 4096
+crops of 53/63 were inspected. The full 4096 sets were inspected downscaled, not at
+native 1:1 zoom.
+
+Layout-tool bake-off (2026-10-20): the authored body layout had six self-overlapping
+named panels (guide IDs 6, 7, 31, 45, 62, 66). Each chart was rebuilt as an isolated
+operand, unwrapped with Mio3 UV `uv.mio3_unwrap(method='MINIMUM_STRETCH', keep_position=False,
+keep_scale=False, keep_rotate=False)`, fitted back to its original UV footprint, and the
+sheet was repacked at `8/1280`. All 98 face sets were preserved, so the 24 names and IDs
+were rebound by exact face set rather than re-guessed. Residual: 26 triangle-pair
+intersections at 1280 in two charts (max normalised UV area 2.1e-5) and three zero-area
+UV triangles whose source 3D triangles are already slivers; no out-of-bounds or truncated
+charts. Auto Unwrap 2.0.0 hard-surface Smart UV at 8/16/30 parts produced 55/80/68 chart
+groups but retained 10–15 self-overlapping chart IDs, so it was not selected. Its blocking
+`autounwrap.smart_uv` `execute` path can be scripted; the organic `autounwrap.unwrap` is
+panel-only. Leader callouts now avoid both chart fills and drawn outlines. Output:
+`out/body_paint_reference_011_mio3/`; still not generation-ready until the residual
+slivers are accepted or deliberately repaired. The vendored read-only gate at
+`tools/uv-layout-extractor/scripts/uv_layout_gate.py` reports geometric overlaps
+`[10, 10], [17, 17], [37, 37]` and three zero-area UV triangles, but **zero raster pixel
+conflicts** at 4096; it PASSes with warnings by default and FAILs under
+`--strict-geometric`. It does not check flipped-face orientation. The gate was validated
+by PASSing a clean cube fixture and FAILing an overlapping fixture. Evidence moved to
+`out/body_paint_reference_011_mio3/evidence/`.
+`tools/uv-layout-extractor/scripts/uv_color_layout.py` exports the visual companion: a
+dark full-bleed colored sheet with deterministic per-island colors, a green 0-1 frame and
+no title, labels or statistics.
+It writes real 1280/4096 PNGs and a manifest; the 011 layout reports 46.1% UV space used.
+Auto Unwrap's repack raised that to 58.0% but moved charts enough to break the labelled
+guide, so it remains an optional density experiment, not the delivered simple guide.
+Colours follow the guide-ID sort, so the manifest keys match `labels.json`.
+Outputs: `out/body_paint_reference_011_mio3/color_final/`.
+`paint_unwrap_copy.py` is an experimental isolated-chart conformal trial, not a supported
+automatic repair pipeline. `--triangulated-copy` freezes existing evaluated triangles
+and asserts corner-coordinate/UV preservation, but rejects newly non-manifold diagonals
+before unwrapping or saving. Exact surface coordinates alone do not prove safe topology.
+Raptor body fails this gate on seven internal diagonal conflicts; do not rerun blindly.
+`test_paint_unwrap_copy.py` tests a folded chart, warped-quad triangle preservation and
+a deliberately duplicated-face internal-diagonal conflict in disposable Blender.
+
+## Model-independent allocation review (experimental)
+
+Do not silently ignore small objects or detach geometry to solve texture allocation.
+Physical size alone is not a resolution diagnostic. Use `uv_allocation_report.py` in
+disposable background Blender with `-- --out <unused-directory> --target-uv <layer>
+--source-uv <authored-layer> --resolution 4096`. It accounts for all scene meshes by
+default; repeat `--object <exact-name>` to explicitly scope a report. Missing UV layers
+remain flagged objects, not skipped parts. Stored meshes are measured, not modifiers.
+
+Outputs: `allocation_report.json` (per-object/chart risks and face indices),
+`chart_overview.png` (diagnostic edge contact sheet), `review.html` (local dependency-free
+object/chart picker, auto-framed UV view), and `treatment_template.json`. All treatments
+start `pending`; there are no automatic exclusions or semantic chart names.
+
+Review the report and explicitly choose one treatment per object:
+- `main_sheet`: include on the main trial sheet.
+- `additional_sheet`: set a distinct nonempty `sheet` ID; preserve geometry connectivity.
+- `preserve_existing_material`: exclude from paint-sheet trials only, preserving exact
+  ordered material slots and accounting for the object in the source/model inventory.
+
+`uv_allocation_trial.py -- --out <unused-directory> --policy <reviewed-policy.json>
+--target-uv <layer> --source-uv <authored-layer> --resolution 4096 --padding 2`
+reanalyses the whole scene and rejects missing/stale/pending decisions. It repacks only
+independent object/mesh copies into new diagnostic scenes/checkpoints; it never unwraps,
+detaches or overwrites the source. No auto-generated names are used for filesystem paths.
+Modifier-bearing paint objects are refused rather than silently evaluated/applied. This
+initial runner is object-level only: chart-level treatment/splitting is not implemented.
+Material-only parts remain in source scenes, not necessarily in each trial's active scene;
+trial checkpoints are not full-vehicle export scenes. Failed preflight reports may remain.
+
+Thin/subpixel flags predict risk; they do not prove a bake failure or prescribe a treatment.
+The HTML viewer requires a browser usability check; PNG overview inspection is not that check.
+Every trial still needs mapping, overlap, padding, visual and original-material verification.
+`uv_allocation.py` provides pure metrics/policy checks; run `test_uv_allocation.py` in Python
+and `test_uv_allocation_blender.py -- --out <unused-directory>` in disposable Blender.
+Fixtures cover known broad, thin, zero-area and missing-UV cases, complete accounting,
+two explicit sheet assignments, material-only preservation and saved preview decoding.
+
 ## Resolution controls
 
 Material-only details are a separate approved delivery treatment, not discarded geometry.
