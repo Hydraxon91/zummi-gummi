@@ -19,7 +19,10 @@ const send = (method, params = {}, timeout = 120000) =>
   browser.send(method, params, page.sessionId, timeout);
 const evaluate = expression => page.evaluate(expression, 120000);
 const waitFor = (expression, timeout = 30000) => page.waitFor(expression, timeout);
-const shot = name => page.screenshot(`${ROOT}/.dev-shots/glass_${TAG}_${name}.png`);
+const capture = process.env.SHOTS !== '0';
+const shot = name => capture
+  ? page.screenshot(`${ROOT}/.dev-shots/glass_${TAG}_${name}.png`)
+  : Promise.resolve(null);
 const pageErrors = browser.pageErrors;
 const report = { tag: TAG, pageErrors };
 try {

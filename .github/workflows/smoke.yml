@@ -111,6 +111,8 @@ jobs:
         run: STUDIO=1 node scripts/browser-regression.mjs
 
       - name: Run the Glass lifecycle regression
+        env:
+          SHOTS: "0"
         run: node scripts/glass-test.mjs
 
       - name: Show server log on failure
