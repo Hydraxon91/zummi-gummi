@@ -67,6 +67,23 @@ source checkpoint; it is a crate-only pattern, not a house zone map or game inte
 Its build, export-zone verification, Blender render and preview-review commands are in
 that directory's `README.md`.
 
+The Phase 5 material pilot lives under `tools/asset-pipeline/tests/phase5/`. It covers
+Qwen, StableMaterials and SDXL-seamless candidates, with tiling/offset checks and an
+approved palette plus documented colour correction. Colour correction is post-processing,
+not pure generation; raw maps and rejected candidates remain review evidence.
+
+The Phase 6 crate delivery trial lives under `tools/asset-pipeline/tests/phase6/`. It
+normalizes six UV islands for repeated tileable mapping, uses approved StableMaterials
+image maps, and verifies a self-contained GLB. Embedded channels match the sources with
+MAE 0.0. V4 512 px silver is selected: it cuts download bytes by 34.9% and decoded
+texture storage by 37.5% while keeping visible grain and one UV set. A 256 px test is
+softer; a 512 + independent trim UV 0.8 test clears the advisory p95 but lowers the
+median and adds `TEXCOORD_1`. Camera-projected density still does not satisfy both
+advisory bounds, and the teal zone is under-sampled. For future assets, preserve
+high-resolution sources and choose delivery resolution per material from the closest
+intended views. It is crate-only; overlapping UVs are intentional, no new bake was
+performed, and game integration is not authorized.
+
 For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
 [references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are
 external and do not authorize game integration, material transfer or a bake.

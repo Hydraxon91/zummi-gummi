@@ -874,6 +874,15 @@ interpretation; the helper does not certify them. Affects
   `asset.json`, resolves the GLB beside it and checks mesh/bone/material/clip
   counts. `assets/README.md` documents the schema; `docs/species-template.md`
   is the copyable entry template for future authored assets and hybrids.
+- **Phase 6 crate v4 selected (2026-10-20, density review):** the crate GLB’s embedded
+  PBR channels match the source maps (MAE 0.0). V4 512 px silver is selected: it cuts
+  GLB bytes by 34.9% and trim density p95 from 4.813/4.276 to 2.407/2.138, with visible
+  grain and one UV set. V5 256 clears p95 but is visibly softer; V6 512 + independent
+  trim UV 0.8 clears p95 while keeping grain but lowers the median below the advisory
+  floor and adds `TEXCOORD_1`. Density remains a reviewed limitation, not a calibrated
+  pass. Future assets should preserve high-resolution sources, choose delivery resolution
+  per material from the closest gameplay views, prefer the simplest UV/material setup,
+  and validate all channels, seams, tiling and mips after downsampling.
 - **Species registry — first layer (Oct 2026, done):** `src/species.js` registers
   **bear**, **msn** (Gummy) and **glass** definitions with kind, cast group,
   rig/asset, material, studio/meadow/roster availability, grab/possession/

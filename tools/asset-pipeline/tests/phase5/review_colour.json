@@ -1,0 +1,70 @@
+{
+  "reviewer": "agent",
+  "inspected": true,
+  "method": "Visual inspection of the raw basecolour, 3x3 repeat and 50% offset previews; colour-only correction was approved. Residual surface-character findings are recorded separately and are not fixed by the colour script.",
+  "entries": [
+    {
+      "material": "painted_teal_panel",
+      "seed": 20261020,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling"],
+      "notes": "Raw mint/green surface; target is muted teal. No hard seam observed."
+    },
+    {
+      "material": "painted_teal_panel",
+      "seed": 20261021,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling"],
+      "notes": "Raw mint/green surface; target is muted teal. No hard seam observed."
+    },
+    {
+      "material": "painted_teal_panel",
+      "seed": 20261022,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling"],
+      "notes": "Raw mint/green surface; target is muted teal. No hard seam observed."
+    },
+    {
+      "material": "pale_ceramic",
+      "seed": 20261020,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling"],
+      "notes": "Raw warm off-white with cloudy variation; target is pale warm ceramic. No hard seam observed."
+    },
+    {
+      "material": "pale_ceramic",
+      "seed": 20261021,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling", "tiling_boundary_risk"],
+      "notes": "Raw warm beige with cloudy variation. Raw metric passed, but correction later measured 1.581 and showed visible tile boundaries; reject this candidate."
+    },
+    {
+      "material": "pale_ceramic",
+      "seed": 20261022,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling"],
+      "notes": "Raw near-white with cloudy variation; target is pale warm ceramic. No hard seam observed."
+    },
+    {
+      "material": "brushed_silver",
+      "seed": 20261020,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling", "brushed_grain_weak"],
+      "notes": "Raw beige-grey surface; target is neutral silver. Fine detail is present, but the brushed direction is weak. No hard seam observed."
+    },
+    {
+      "material": "brushed_silver",
+      "seed": 20261021,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling", "brushed_grain_weak"],
+      "notes": "Raw beige-grey surface; target is neutral silver. Fine detail is present, but the brushed direction is weak. No hard seam observed."
+    },
+    {
+      "material": "brushed_silver",
+      "seed": 20261022,
+      "classification": "colour_only",
+      "other_findings": ["residual_mottling", "brushed_grain_weak"],
+      "notes": "Raw beige-grey surface; target is neutral silver. Fine detail is present, but the brushed direction is weak. No hard seam observed."
+    }
+  ]
+}

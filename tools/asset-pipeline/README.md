@@ -2,7 +2,8 @@
 
 Phase 1a, Phase 1b and Phase 2 of
 [`docs/asset-pipeline-roadmap.md`](../../docs/asset-pipeline-roadmap.md), with Phase 3
-bake fixtures and a Phase 4 crate material-zone trial under `tests/`.
+bake fixtures, a Phase 4 crate material-zone trial, a Phase 5 material-generation pilot
+and a Phase 6 crate GLB-delivery trial under `tests/`.
 
 This directory contains the **read-only asset audit**, delivery profiles, provenance
 schema, advisory texel-density policy and unified export verification. It does not
@@ -337,4 +338,21 @@ directory is relocated; the extractor path is derived from the repository root.
 - The Phase 4 crate trial validates ordinary material slots, exported surface assignment
   and evaluated mesh health. It does not establish house zone boundaries, automatic
   segmentation, texture baking or game integration.
-- No compression variant, house modeling, Qwen generation or game integration.
+- The Phase 5 pilot’s colour correction is a documented post-process, not pure
+  generation. The palette and eight candidates are accepted; 2048² StableMaterials
+  generation exceeds the 16 GB test GPU.
+- The Phase 6 crate trial uses direct image-based UV mapping, not a new bake. Its
+  normalized UVs intentionally overlap for repeated tiling and are not an atlas.
+- Phase 6 embedded base colour, normal, packed roughness and packed metallic match the
+  source maps with MAE 0.0, and the sampler repeats. Camera-projected density remains a
+  review finding: thin silver trim is over the advisory range and the teal zone is
+  under-sampled; 2048 increases the trim over-density.
+- Phase 6 selected v4 512 px silver for the crate. It reduces download bytes by 34.9% and
+  decoded texture storage by 37.5%, but its trim density p95 remains `2.407` / `2.138`
+  against the advisory `2.0` ceiling. A 256 px candidate clears p95 but softens the
+  close-up; a 512 + independent trim UV 0.8 candidate clears p95 while retaining grain,
+  but lowers the median below the advisory floor and adds `TEXCOORD_1`. Visual grain and
+  close/far seams pass; density is still review.
+- Future assets should preserve high-resolution sources and choose delivery resolution
+  per material from the closest intended views, not one global resolution.
+- No compression variant, house modeling or game integration.

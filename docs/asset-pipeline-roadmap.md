@@ -1,8 +1,10 @@
 # Asset Pipeline Roadmap
 
 Status: **Phase 3 implemented and verified**, with resource/density checks still advisory;
-**Phase 4 crate material-zone trial implemented**; house application and Phase 5 remain
-separately gated.
+**Phase 4 crate material-zone trial implemented**; **Phase 5 pilot accepted** (8 candidates,
+with corrected ceramic seed `20261021` rejected); **Phase 6 crate-only mapping trial
+implemented and v4 512 px silver selected, with density still in review**; house/game
+integration remains gated.
 Date: 2026-10-20
 Owner: Hydraxon
 
@@ -515,7 +517,7 @@ separate approval before applying this to architecture.
 
 ---
 
-## Phase 5 — Reusable Qwen albedo materials (optional for the house)
+## Phase 5 — Reusable AI-generated materials (optional for the house)
 
 **Goal:** generate reusable material candidates with reproducible settings and verified
 tiling.
@@ -532,9 +534,9 @@ Use ordinary Blender materials when clean color, glass or emission is sufficient
 
 ### House applicability
 
-Optional. Qwen is used only for a specifically justified painted detail or surface
-graphic. The shell, glazing, cyan trim and emission remain procedural source materials,
-then converted for glTF.
+Optional. Qwen Image 2.1, StableMaterials or another approved material model is used
+only for a specifically justified painted detail or surface graphic. The shell, glazing,
+cyan trim and emission remain procedural source materials, then converted for glTF.
 
 ### Proposed numeric pilot criteria
 
@@ -562,8 +564,9 @@ Inspect tile continuity, material scale, style consistency and obvious baked lig
 
 ### Risks
 
-Qwen does not guarantee tiling. Image statistics cannot certify shadow-free physical
-albedo.
+Material models do not guarantee tiling or prompt colour. Image statistics cannot
+certify shadow-free physical albedo. A colour correction can preserve texture detail
+while still leaving non-colour defects; those require separate review.
 
 ### Effort
 
@@ -575,7 +578,42 @@ Automatic delighting and physically correct PBR recovery.
 
 ### Decision gate
 
-Approve style, pilot thresholds and acceptable intervention time.
+Approved 2026-10-20: palette, teal 3/3, ceramic 2/3 and silver 3/3. Ceramic seed
+`20261021` remains rejected; residual mottling and weak brushed direction are accepted
+for this pilot.
+
+### Implementation (2026-10-20)
+
+- Added StableMaterials Standard **50-step** generation at native **1024²**. The local
+  node was patched to expose `width`/`height`; 2048² exceeds the 16 GB card and is out of
+  scope. Nine native 1024 candidates (3 materials × 3 seeds) completed sequentially at
+  about 15 seconds each with no repeat of the earlier AIMDO cache-cleanup crash.
+- StableMaterials follows surface detail and tiling more reliably than prompt colour.
+  Raw teal, ceramic and silver samples all missed their target palettes; all nine were
+  corrected after the sRGB/orientation check.
+- Added a bounded **review → script correction** loop: structured appearance/colour
+  findings are separated into colour-only failures and non-colour failures. A
+  deterministic script applies bounded luminance modulation, replaces chroma with the
+  approved target, writes a new file and rechecks the colour delta and vertical
+  orientation. Raw maps are never overwritten; normal/height/roughness/metallic remain
+  unchanged and still require their own verification.
+- Approved colour targets: teal `#2FA7A0`, ceramic `#E8E1D4`, silver `#B9BEC2`.
+  Corrected means are within `0.012` RGB of target. This is labelled
+  **AI/agent-reviewed, script-corrected**, not pure-generation evidence.
+- A colour/orientation fixture established that Blender exposes byte-image pixels as
+  sRGB values in bottom-up rows; corrected PNG rows are flipped to top-down. The
+  corrected-to-source luminance correlation remains above `0.98` with direct
+  correlation, and below `0.18` when vertically flipped.
+- Corrected seam review: **8/9 pass** the self-validated `1.5` threshold; the ceramic
+  seed `20261021` fails at `1.581` and shows visible tile boundaries after correction.
+  It is rejected rather than accepted. The raw sample had passed the metric, so this is
+  a correction side effect and a reminder that statistics do not replace inspection.
+- 3×3 tiling and 50% offset previews were generated. Raw/corrected PBR sphere renders
+  show the intended colour shift, but residual mottling and repetition remain
+  visual-review items; no material is accepted.
+- SDXL with `SeamlessTile` + `MakeCircularVAE` generated at 1024², but the first seed
+  contained an unwanted object. It remains a comparison path, not an accepted result.
+- No house geometry, procedural palette, game loader or runtime integration changed.
 
 ---
 
@@ -632,9 +670,74 @@ Approximately **3–6 days** plus per-asset work.
 
 Automatic game integration and silent shader simplification.
 
+### Implementation (2026-10-20, crate-only trial)
+
+- Generated crate-specific StableMaterials at 1024², seed `20261020`: teal painted
+  shell and silver trim, both colour-corrected to the approved palette. Teal's
+  generated metallic map was treated as constant `0.0` because it is a painted coating;
+  silver keeps its metallic map. This simplification is recorded in the build report.
+- Normalized the six crate UV islands independently to 0–1 so each face samples the same
+  tileable texture. Geometry, transforms and dimensions are unchanged; UVs are
+  intentionally overlapping for repeated mapping. The audit reports that intentional
+  overlap plus an unverified camera-density warning.
+- Built `crate_phase6_001.blend` / `.glb` with two materials, two primitives, 108
+  triangles and six embedded 1024² images. Validator passes with zero errors/warnings;
+  clean import, preview and hash-linked visual review pass. Resource estimates remain
+  advisory.
+- Embedded base colour, normal, packed roughness and packed metallic channels match the
+  source maps with **MAE 0.0**; the base-colour sampler repeats. Teal metallic is
+  constant zero through `metallicFactor: 0.0`.
+- Camera-projected density is a **review finding**, not a pass. At a 3.0 m front view /
+  1024, the silver trim p95 is `4.813` and the teal zone has only two samples
+  (`unverified`, minimum four). At 3.2 m three-quarter, silver p05/p95 is
+  `0.893` / `4.276`, and teal still has three samples. At 2048 the silver p95 rises to
+  `9.626` / `8.552`, so resolution alone is not a fix. The 1.0–2.0 target remains
+  advisory and view-dependent.
+- Selected the 512 px silver candidate (`crate-delivery-v4-512silver`) on 2026-10-20,
+  recorded in `tools/asset-pipeline/tests/phase6/selection.json`; v3 remains the
+  baseline. Silver base colour, normal, roughness and metallic are downsampled;
+  normal vectors are renormalised. The GLB falls from `6,281,824` to `4,091,852` bytes
+  (−34.9%) and decoded texture estimate from `25,165,824` to `15,728,640` bytes
+  (−37.5%). Embedded channels still match the 512 sources with **MAE 0.0**; close-up
+  grain remains visible and far/seam captures stay clean. Silver density improves from
+  p95 `4.813` / `4.276` to `2.407` / `2.138` at 512, but remains above the advisory
+  `2.0` ceiling and its p05 falls below `1.0`, so density is still **review**.
+- Tested two further candidates. `crate-delivery-v5-256silver` uses 256 px silver maps:
+  `3,445,652` bytes, p95 `1.203` / `1.069`, but visibly softer bevel grain and a median
+  of `0.519` / `0.435`. `crate-delivery-v6-512silver-trimuv` keeps 512 px silver maps
+  and adds `UVMap_Silver`, scaled to `0.8`, used only by the silver material
+  (`TEXCOORD_1`): `4,093,332` bytes, p95 `1.925` / `1.710`, median `0.831` / `0.696`.
+  V6 is the only candidate with p95 inside the advisory ceiling while retaining 512
+  detail, but its median/p05 fall below the advisory floor and it adds a second UV set.
+  The validator reports two `UNUSED_OBJECT` infos for the per-primitive UV attributes
+  (`TEXCOORD_0` on silver, `TEXCOORD_1` on teal), with zero errors/warnings. V4 is the
+  selected candidate; V5 is rejected for visible softness; V6 is retained as a density
+  experiment. No candidate satisfies both p05 >= 1.0 and p95 <= 2.0.
+- Close-up (1.3 m, `margin 0.45`) and far (9.15 m, `farFactor 3.2`) day/night captures
+  show no clamp border, hard texture seam or visible mip bleed. Inter-island atlas
+  padding is not applicable because the six islands intentionally overlap; the UVs keep
+  a 0.005 texture-edge margin.
+- Rejected two earlier iterations: the original atlas UV mapping produced different face
+  colours, and the normalized version with the white teal metallic map was too reflective.
+- No additional bake was performed because the source materials are already image-based.
+  This trial validates direct mapping, export channel packing and GLB delivery, not bake
+  fidelity.
+- No house geometry, loader, species registry, asset catalog or game integration changed.
+
+### Delivery-resolution rule for future assets (selected 2026-10-20)
+
+- Preserve high-resolution generated source maps; deliver a separate evaluated copy.
+- Choose delivery resolution **per material** using the closest intended gameplay views,
+  not one global resolution for the whole asset.
+- Prefer the simplest UV/material setup that preserves the accepted appearance.
+- Validate base colour, normal, roughness, metallic, seams, tiling and mip behaviour after
+  downsampling; density ranges are guidance, not a score to optimize against visual quality.
+- Keep the unselected candidates and their evidence when they explain a rejected tradeoff.
+
 ### Decision gate
 
-Approve material fidelity, simplifications, delivery budgets and integration scope.
+V4 is selected for the crate. Density remains a reviewed limitation, not an accepted pass.
+House application and game integration remain separately gated.
 
 ---
 
@@ -822,9 +925,11 @@ authorize game integration, dependency changes, commits or pushes.
 
 - **Phase 4** is implemented for the crate only; house application remains a separate
   decision.
-- **Phase 5** is the next optional implementation step after accepting the Phase 3 and
-  Phase 4 crate results.
-- No house modeling, Qwen generation or game integration at this stage.
+- **Phase 5** is accepted; corrected ceramic seed `20261021` remains rejected.
+- **Phase 6** selected v4 512 px silver for the crate; channels are verified and density
+  remains a reviewed limitation. House application and game integration remain separate
+  decisions.
+- No house modeling or game integration at this stage.
 - No commit or push without explicit approval.
 - Validator provisioning is approved; loader/runtime changes remain separate.
 - Compression variants, automatic segmentation, projection texturing and UDIM are
@@ -834,9 +939,13 @@ authorize game integration, dependency changes, commits or pushes.
 ## Next action
 
 Phase 3 is implemented under `tools/asset-pipeline/tests/phase3/`; the crate-only Phase 4
-trial is under `tools/asset-pipeline/tests/phase4/`. Review the final curved captures,
-density result, MSN validator warnings and crate zone evidence. Phase 5 remains optional
-and separately gated.
+trial is under `tools/asset-pipeline/tests/phase4/`; the Phase 5 pilot is accepted under
+`tools/asset-pipeline/tests/phase5/`; the Phase 6 crate delivery trial is under
+`tools/asset-pipeline/tests/phase6/`. V4 512 px silver is selected; embedded channels
+pass with MAE 0.0 and density remains a reviewed limitation. V5 (256) is softer; V6
+(512 + independent trim UV 0.8) is retained as a density experiment. Review
+`selection.json`, `candidate-comparison.json`, close-ups, density audits and verification
+evidence. House application and game integration remain separately gated.
 
-Density thresholds remain advisory; no compression variant, loader change, generation
-or house modeling has started.
+Density thresholds remain advisory; no compression variant, loader change or house
+modeling has started.

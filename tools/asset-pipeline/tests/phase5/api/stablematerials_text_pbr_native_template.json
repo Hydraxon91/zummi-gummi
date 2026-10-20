@@ -1,0 +1,96 @@
+{
+  "1": {
+    "inputs": {
+      "mode": "Standard (50 steps, quality)"
+    },
+    "class_type": "LoadStableMaterials",
+    "_meta": {
+      "title": "Load StableMaterials"
+    }
+  },
+  "2": {
+    "inputs": {
+      "pipeline": [
+        "1",
+        0
+      ],
+      "prompt": "PROMPT",
+      "negative_prompt": "NEGATIVE",
+      "seed": 20261020,
+      "steps": 50,
+      "guidance_scale": 7.5,
+      "tileable": true,
+      "width": 1024,
+      "height": 1024
+    },
+    "class_type": "StableMaterialsGenerate",
+    "_meta": {
+      "title": "Generate PBR (Text)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "images": [
+        "2",
+        0
+      ],
+      "filename_prefix": "phase5_stablematerials_basecolor"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Base Color 1024"
+    }
+  },
+  "4": {
+    "inputs": {
+      "images": [
+        "2",
+        1
+      ],
+      "filename_prefix": "phase5_stablematerials_normal"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Normal"
+    }
+  },
+  "5": {
+    "inputs": {
+      "images": [
+        "2",
+        2
+      ],
+      "filename_prefix": "phase5_stablematerials_height"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Height"
+    }
+  },
+  "6": {
+    "inputs": {
+      "images": [
+        "2",
+        3
+      ],
+      "filename_prefix": "phase5_stablematerials_roughness"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Roughness"
+    }
+  },
+  "7": {
+    "inputs": {
+      "images": [
+        "2",
+        4
+      ],
+      "filename_prefix": "phase5_stablematerials_metallic"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Metallic"
+    }
+  }
+}
