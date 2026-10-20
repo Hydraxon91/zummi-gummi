@@ -2,7 +2,8 @@
 //
 // There is no Playwright/Puppeteer dependency. Point BROWSER_BIN at a
 // Chromium-family executable, or let the resolver find Brave/Chrome/Chromium.
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -10,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const exec = promisify(execFile);
 
 async function removeProfile(profile) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -117,6 +119,8 @@ export async function connectBrowser(launched) {
   let nextId = 1;
   const pending = new Map();
   const pageErrors = [];
+  const lifecycle = [];
+  const pausedStacks = new Map();
   let connectionClosed = null;
   ws.addEventListener('close', event => {
     connectionClosed = {
@@ -133,6 +137,17 @@ export async function connectBrowser(launched) {
   ws.addEventListener('message', event => {
     let message;
     try { message = JSON.parse(event.data); } catch (error) { return; }
+    if (message.method === 'Debugger.paused') {
+      pausedStacks.set(message.sessionId, message.params.callFrames.map(frame => ({
+        functionName: frame.functionName, url: frame.url, location: frame.location,
+      })));
+    }
+    if (['Inspector.targetCrashed', 'Inspector.detached', 'Target.targetCrashed',
+      'Target.detachedFromTarget', 'Network.loadingFailed', 'Log.entryAdded'].includes(message.method)) {
+      lifecycle.push({ at: Date.now(), method: message.method, sessionId: message.sessionId,
+        params: message.params });
+      if (lifecycle.length > 100) lifecycle.shift();
+    }
     if (message.method === 'Runtime.exceptionThrown') {
       const details = message.params?.exceptionDetails;
       pageErrors.push(details?.text || details?.exception?.description || 'Runtime exception');
@@ -173,6 +188,10 @@ export async function connectBrowser(launched) {
     const sessionId = attached.sessionId;
     await send('Page.enable', {}, sessionId);
     await send('Runtime.enable', {}, sessionId);
+    await send('Inspector.enable', {}, sessionId);
+    await send('Network.enable', {}, sessionId);
+    await send('Log.enable', {}, sessionId);
+    if (process.env.STALL_DIAGNOSTICS === '1') await send('Debugger.enable', {}, sessionId);
     if (initScript) {
       await send('Page.addScriptToEvaluateOnNewDocument', { source: initScript }, sessionId);
     }
@@ -185,13 +204,44 @@ export async function connectBrowser(launched) {
 
     let lastWaitError = null;
     let lastWaitExpression = null;
+    let stall = null;
+
+    async function captureStall(expression) {
+      stall = { at: Date.now(), expression, browserPid: launched.child.pid };
+      // Collect independent browser/process evidence before requesting a JS pause.
+      const probes = await Promise.allSettled([
+        send('SystemInfo.getProcessInfo', {}, null, 1000),
+        process.platform === 'darwin'
+          ? exec('/usr/bin/sample', [String(launched.child.pid), '1', '10'], { timeout: 3000, maxBuffer: 1024 * 1024 })
+          : Promise.resolve(null),
+        send('Debugger.enable', {}, sessionId, 1000),
+      ]);
+      stall.probes = probes.map(result => result.status === 'fulfilled'
+        ? result.value : { error: String(result.reason) });
+      try {
+        await send('Debugger.pause', {}, sessionId, 1000);
+        await sleep(100);
+        stall.stack = pausedStacks.get(sessionId) || null;
+      } catch (error) {
+        stall.pauseError = String(error);
+      } finally {
+        await send('Debugger.resume', {}, sessionId, 1000).catch(() => {});
+      }
+    }
 
     async function evaluate(expression, timeout = 60000) {
-      const result = await send('Runtime.evaluate', {
+      let result;
+      try {
+      result = await send('Runtime.evaluate', {
         expression,
         awaitPromise: true,
         returnByValue: true,
       }, sessionId, timeout);
+      } catch (error) {
+        if (process.env.STALL_DIAGNOSTICS === '1' && !stall &&
+            String(error).includes('CDP timeout: Runtime.evaluate')) await captureStall(expression);
+        throw error;
+      }
       if (result.exceptionDetails) {
         throw new Error(JSON.stringify(result.exceptionDetails).slice(0, 1800));
       }
@@ -219,10 +269,12 @@ export async function connectBrowser(launched) {
     function diagnostics() {
       return {
         targetId: created.targetId,
+        stall,
         sessionId,
         lastWaitExpression,
         lastWaitError,
         connectionClosed,
+        lifecycle: lifecycle.slice(),
         pageErrors: pageErrors.slice(),
         browserStderr: launched.stderr,
         browserExit: launched.exit,
@@ -250,6 +302,7 @@ export async function connectBrowser(launched) {
   function diagnostics() {
     return {
       connectionClosed,
+      lifecycle: lifecycle.slice(),
       pageErrors: pageErrors.slice(),
       browserStderr: launched.stderr,
       browserExit: launched.exit,

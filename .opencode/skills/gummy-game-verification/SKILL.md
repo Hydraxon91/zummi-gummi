@@ -133,6 +133,12 @@ fixed-step actor state/positions and RNG with rebuilds on/off; run for both
 Glass JSON reports contain per-evaluation `timings`. Use targeted checks during
 iteration, then the full suite once per engine; repeat reliability samples only
 when required and stop at the first failure rather than retrying for green.
+For a bounded stall investigation, set `STALL_DIAGNOSTICS=1`. On the first
+evaluation timeout the harness retains a debugger stack, process inventory and
+(on macOS) a one-second browser-process sample under `harness.stall`. This adds
+debugger instrumentation and bounded failure-only collection overhead, so keep it
+off for timing comparisons. A passing instrumented run does not establish the
+cause or resolution of an intermittent stall.
 
 Other one-off harnesses belong in the gitignored `.dev-shots/`; import the same helper
 instead of duplicating `spawn`/WebSocket setup.

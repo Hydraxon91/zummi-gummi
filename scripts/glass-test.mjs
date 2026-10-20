@@ -70,7 +70,7 @@ try {
   console.log(`PHASE ${phase}`);
   await waitFor('window.__gummy.glass().actors.every(a => a.ready)', 300000);
   await sleep(800);
-  phase = 'glass-body';
+  phase = 'boot-state';
   console.log(`PHASE ${phase}`);
 
   const boot = await evaluate(`(() => {
@@ -83,9 +83,12 @@ try {
         glassRows: [...document.querySelectorAll('#buddyList .buddyName')].filter(el => (el.textContent || '').includes('Glass ')).length,
         online: document.getElementById('onlineCount')?.textContent,
       },
-      gl: g.three().renderer.getContext().getError(),
     };
   })()`);
+  report.boot = boot;
+  phase = 'boot-gl';
+  boot.gl = await evaluate('window.__gummy.three().renderer.getContext().getError()', 5000);
+  if (boot.gl) throw new Error(`Glass boot WebGL error: ${boot.gl}`);
   if (boot.map.id !== 'field' || boot.glass.count !== 2 || boot.glass.actors.some(a => a.state === null)) {
     throw new Error(`Glass boot failed ${JSON.stringify(boot)}`);
   }

@@ -1342,6 +1342,18 @@ each selected scenario passes in modules. Evaluation time in the exploratory ful
 modules samples was 7.96 s normal versus 3.78 s fast (not an end-to-end benchmark).
 No physics timestep or app day-length change is made.
 Intermittent browser stalls remain unresolved, not certified fixed by this pass.
+Targeted stall investigation: boot-state and WebGL error reads are now separate
+phases; the harness retains the last 100 network failure, browser log and renderer
+crash/detachment events. A deliberately refused request and `Page.crash` fixture
+confirmed `Network.loadingFailed`, `Log.entryAdded` and `Inspector.targetCrashed`
+retention. Five fresh normal-rendering modules hover runs passed without reproducing
+the stall; this is non-reproduction, not a root-cause fix or reliability acceptance.
+`STALL_DIAGNOSTICS=1` additionally enables the debugger before navigation and,
+on the first evaluation timeout, records process inventory, a macOS browser-process
+sample and a paused JS stack before resuming. A forced infinite-loop fixture
+verified the exact blocking function is captured (enabling the debugger only after
+the hang failed and was corrected). Five additional targeted launches with this
+instrumentation did not reproduce the real stall; no speculative game fix applied.
 
 ## Content extensibility track (implemented, Oct 2026)
 
