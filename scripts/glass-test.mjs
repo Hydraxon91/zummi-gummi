@@ -4,6 +4,9 @@ import { launchBrowser, connectBrowser } from './browser-harness.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GAME = process.env.GAME_URL || 'http://localhost:8000/';
+const TARGET = new URL(GAME);
+TARGET.searchParams.set('autostart', '1');
+if (process.env.BEHAVIORS) TARGET.searchParams.set('behaviors', process.env.BEHAVIORS);
 const TAG = process.env.TAG || 'glass';
 const W = 1440, H = 900;
 
@@ -12,7 +15,7 @@ await mkdir(`${ROOT}/.dev-shots`, { recursive: true });
 const launched = await launchBrowser({ port: Number(process.env.PORT) || undefined });
 const browser = await connectBrowser(launched);
 const page = await browser.openPage({
-  url: `${GAME}?autostart=1`,
+  url: TARGET.href,
   width: W, height: H, mobile: false,
 });
 const send = (method, params = {}, timeout = 120000) =>

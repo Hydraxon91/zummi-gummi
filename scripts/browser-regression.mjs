@@ -17,6 +17,7 @@ const STUDIO = !CORE && process.env.STUDIO === '1';
 const base = process.env.GAME_URL || 'http://localhost:8000/';
 const target = new URL(base);
 target.searchParams.set('autostart', '1');
+if (process.env.BEHAVIORS) target.searchParams.set('behaviors', process.env.BEHAVIORS);
 if (CORE) target.searchParams.set('race', 'off');
 const lowQuality = process.env.LOW_QUALITY === '1';
 const initScript = lowQuality ? `(() => {

@@ -254,7 +254,7 @@ export function createRoster(race, perturb = 0, { seedBonds = false, social = fa
 // flavors and effects; the behavior engine only needs the actor fields.
 function birthChild(run, mother) {
   if (!mother || !mother.active || !mother.pregnant) return false;
-  if (run.roster.filter(actor => actor.active).length >= HARNESS_LIFECYCLE.populationCap) {
+  if (run.roster.filter(actor => actor.active).length >= (run.populationCap || HARNESS_LIFECYCLE.populationCap)) {
     run.life.blockedBirths++;
     return false;
   }
@@ -643,7 +643,7 @@ function firstDiffPath(left, right, path = [], out = []) {
 
 /* ------------------------------------------------------------------ runs */
 
-function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false, rngValue = null }) {
+function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false, rngValue = null, populationCap = POPULATION_CAP }) {
   const world = createWorld({ flowers });
   const roster = createRoster(race, perturb, { social, seedBonds, allAdults });
   const traced = tracedRng(seed);
@@ -654,7 +654,7 @@ function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DA
     getActors: () => roster,
     getHours: () => clockAt(clock.seconds, daySeconds, startHour).hours,
     getDay: () => clockAt(clock.seconds, daySeconds, startHour).day,
-    getPopulationCap: () => POPULATION_CAP,
+    getPopulationCap: () => populationCap,
     rng: Number.isFinite(rngValue) ? () => rngValue : traced.rng,
   });
   engineApi.registerAdapter('softbody', createSoftAdapter());
@@ -662,7 +662,7 @@ function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DA
   for (const actor of roster) engineApi.attach(actor);
   const run = {
     race, seed, engine, world, roster, engineApi, traced, daySeconds, collectSamples, clock, startHour,
-    rngValue,
+    rngValue, populationCap,
     transitions: [], samples: [], warnings: [], lastState: new Map(), grabHold: new Map(),
     life: { pregnancies: 0, births: 0, stageUps: 0, blockedBirths: 0 }, nextBirthUid: 1000,
     pregnancySeen: new Set(),
@@ -744,9 +744,10 @@ export function runParity({
   startHour = START_HOUR,
   allAdults = false,
   rngValue = null,
+  populationCap = POPULATION_CAP,
 } = {}) {
-  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults, rngValue });
-  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults, rngValue });
+  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults, rngValue, populationCap });
+  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults, rngValue, populationCap });
   const ticks = Math.round(days * daySeconds / dt);
   const started = Date.now();
   const originalWarn = console.warn;
@@ -1035,7 +1036,7 @@ function rebuildRun(run) {
     getActors: () => run.roster,
     getHours: () => clockAt(clock.seconds, run.daySeconds, run.startHour).hours,
     getDay: () => clockAt(clock.seconds, run.daySeconds, run.startHour).day,
-    getPopulationCap: () => POPULATION_CAP,
+    getPopulationCap: () => run.populationCap || POPULATION_CAP,
     rng: Number.isFinite(run.rngValue) ? () => run.rngValue : run.traced.rng,
   });
   engineApi.registerAdapter('softbody', createSoftAdapter());
@@ -1275,6 +1276,10 @@ export const SCENARIOS = Object.freeze({
     flowers: 28, require: 'mate', allAdults: true,
     hooks: Object.freeze([{ every: 1800, run: resetMating }]),
   }),
+  glassBaseline: Object.freeze({
+    id: 'glassBaseline', label: 'Glass without the 40-population cap', days: 5,
+    seeds: [1, 2, 3], populationCap: 80,
+  }),
 });
 
 function parseList(value) {
@@ -1288,7 +1293,7 @@ function parseArgs(argv) {
     sampleEvery: 1, validate: false, long: false, json: false, verbose: false,
     coverage: false, scenario: null, flowers: 0, seedProvided: false,
     social: false, seedBonds: false, hooks: [], scenarioRequire: null,
-    startHour: 6, allAdults: false, rngValue: null,
+    startHour: 6, allAdults: false, rngValue: null, populationCap: POPULATION_CAP,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -1315,6 +1320,8 @@ function parseArgs(argv) {
     else if (arg.startsWith('--scenario=')) options.scenario = arg.slice(11);
     else if (arg === '--json') options.json = true;
     else if (arg === '--verbose') options.verbose = true;
+    else if (arg === '--cap') options.populationCap = Math.max(1, Number(value()));
+    else if (arg.startsWith('--cap=')) options.populationCap = Math.max(1, Number(arg.slice(6)));
     else if (arg === '--help' || arg === '-h') options.help = true;
   }
   if (options.long) {
@@ -1337,6 +1344,7 @@ function parseArgs(argv) {
       options.hooks = scenario.hooks ? scenario.hooks.slice() : [];
       options.scenarioRequire = scenario.require || null;
       options.startHour = Number.isFinite(scenario.startHour) ? scenario.startHour : 6;
+      if (Number.isFinite(scenario.populationCap)) options.populationCap = scenario.populationCap;
       if (!options.seedProvided && Array.isArray(scenario.seeds)) options.seeds = scenario.seeds.slice();
       options.coverage = true;
     }
@@ -1359,6 +1367,7 @@ function printHelp() {
   --dt S                    fixed step (default 1/20)
   --day-seconds S           wall-clock seconds per in-game day (default 240)
   --sample N                snapshot every N ticks (default 1)
+  --cap N                   population cap (default 40; Glass baseline uses 80)
   --validate                legacy/legacy, legacy/modules, perturbation check
   --long                    20 days x 5 seeds, sampled every 5 ticks, coverage on
   --coverage                print per-state and per-opportunity hit counts
@@ -1405,7 +1414,7 @@ async function main(argv) {
         verbose: options.verbose, flowers: options.flowers,
         social: options.social, seedBonds: options.seedBonds, hooks: options.hooks,
         startHour: options.startHour, allAdults: options.allAdults,
-        rngValue: options.rngValue,
+        rngValue: options.rngValue, populationCap: options.populationCap,
       });
       results.push(result);
       if (!options.json) {
