@@ -1083,6 +1083,64 @@ can proceed with the current runtime and assets.
 - **Playdates are daytime-only.** Family acquisition and due playdates check the actor's
   day/night profile; forced debug hooks can still start one at night.
 
+## Modular NPC behavior system (step 3, Oct 2026)
+
+One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be
+enabled, disabled or tuned per race, per actor or at runtime. Parity with today's behavior
+is the acceptance gate; the legacy engine stays the default and untouched while modules
+are ported.
+
+**Approved decisions:**
+
+- **Facade layout, `behavior.js` untouched.** `src/behaviors/index.js` picks the engine:
+  `createBehavior({ engine: 'legacy' | 'modules' })`, default `legacy` until parity is
+  green. `src/behavior.js` remains the reference implementation; it is not moved until a
+  separate cleanup approval.
+- **Per-actor overrides are runtime-only.** They live in `behaviors/config.js`, not in the
+  actor save record, so no actor-save version bump is needed. Bonds, history, playdates,
+  directives and every existing actor field keep their current shape.
+- **Unknown species keep the BEAR fallback** with a one-time warning per species. The
+  fallback is not changed to an error.
+- **Temporary scaffold.** During step 3 the unported logic stays in
+  `src/behaviors/engine.js` under `// TEMPORARY(port): <module>` blocks. Step 4 moves them
+  out one module at a time. A CI check (`scripts/check-port-markers.mjs`) fails on any
+  remaining marker; until step 4 finishes it runs against the checked-in expected list in
+  `scripts/port-markers.txt`, which step 4 must empty.
+- **Step 5 cleanups approved:** delete the dead `directives: true` key, import the single
+  `HOME_CAPACITY`, document `PREGNANCY_HUNGER` as the profile fallback, remove the unused
+  `const p` locals, derive state lists from modules, and have `ai.js` read directive
+  `ttl`/`max` from config (still 45/3). **Not approved:** wiring `conflict.damage`,
+  `healthFloor` or `shove`; they stay reserved. `seekSocial` stays.
+
+**Layered config (later wins):** module defaults → race profile → per-actor override →
+runtime toggle. Resolved once per actor and cached by config version; modules never merge
+config per tick. `hive: null` / `conflict: null` / `directives: null` become `enabled`
+flags at step 5.
+
+**Arbitration:** the existing selection order becomes explicit opportunity `order` values.
+Rest stays above directives, scheduled meals stay above plain hunger, and conflict keeps its
+two positions (critical and fallback). Selection is first-match in `order`; `canRun` draws
+no RNG and only the winning `enter` runs, so the RNG sequence is unchanged. Utility scoring
+is available to modules for target ranking but eager scoring/arbitration ships off.
+
+**Quirk flags (all default off, so current behavior is preserved):**
+
+| Flag | Quirk |
+| --- | --- |
+| `glassNightWindow` | Glass stargaze currently treats "not day" as outside 09:00–16:00. |
+| `glassBedtimeMode` | Glass draws night `bedtime`/`wakeTime` despite `dayShelter`. |
+| `singleDayWindow` | Behavior uses a 09:00–16:00 Glass day; `glass.js` uses 08:00–18:00. |
+| `cancelPairStateReset` | `cancelPair` leaves non-listed states selected after cleanup. |
+| `matePairOnPathFailure` | `startSeekMate` pairs before the path succeeds. |
+| `glassEngineRng` | `glass.js` `insideT` uses `Math.random` instead of the engine RNG. |
+
+**Step 3 scope and acceptance (this pass):** core skeleton, module contract, layered
+config, `hive` module, facade and `?behaviors=` flag, parity harness (seeded RNG, fixed
+dt, 3 days per race, transition/need diff, RNG draw counts), legacy-vs-legacy and
+perturbation validation, scenario packs, and a `--long` mode (20 days × 5 seeds) for
+nightly runs. Acceptance: zero diffs for Bear, Gummy and Glass, existing tests and smoke
+green, no behavior change with the legacy default.
+
 ## Content extensibility track (implemented, Oct 2026)
 
 Extend the existing ES modules, not the engine stack. Stable definition IDs must

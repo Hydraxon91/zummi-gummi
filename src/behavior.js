@@ -820,6 +820,7 @@ export function createBehavior({
       path: ai.path ? ai.path.length : 0,
       pathIndex: ai.pathIndex | 0,
       target: ai.target ? { x: +ai.target.x.toFixed(2), z: +ai.target.z.toFixed(2) } : null,
+      at: [+actor.cx.toFixed(2), +actor.cz.toFixed(2)],
       source: source ? source.id : null,
       contacts: actor.contacts,
       airborne: !!actor.airborne,
@@ -830,6 +831,9 @@ export function createBehavior({
       restKind: ai.restKind || null,
     };
     ai.lastStuck = detail;
+    ai.recoveryLog = ai.recoveryLog || [];
+    ai.recoveryLog.push(detail);
+    if (ai.recoveryLog.length > 8) ai.recoveryLog.shift();
     ai.recoveries = (ai.recoveries || 0) + 1;
     if (typeof console !== 'undefined' && console.warn) console.warn('AI STUCK', JSON.stringify(detail));
   }
@@ -842,9 +846,14 @@ export function createBehavior({
     if (ai.state === 'visit') {
       finishVisitPair(actor);
     } else if (ai.state === 'familyTask') {
+      const partner = ai.partner;
       cancelTask(actor, { stop });
       ai.taskCooldown = Math.max(ai.taskCooldown || 0, 2);
-      ai.familyPlayCooldown = Math.max(ai.familyPlayCooldown || 0, 12);
+      ai.familyPlayCooldown = Math.max(ai.familyPlayCooldown || 0, 30);
+      if (partner && partner.ai) {
+        partner.ai.taskCooldown = Math.max(partner.ai.taskCooldown || 0, 2);
+        partner.ai.familyPlayCooldown = Math.max(partner.ai.familyPlayCooldown || 0, 30);
+      }
     } else {
       if (ai.state === 'seekFood' || ai.state === 'seekHive' || ai.state === 'seekConflict') {
         releaseFood(actor);
@@ -853,7 +862,7 @@ export function createBehavior({
         ai.contestBear = null;
       }
       ai.waterSpot = null;
-      if (ai.state === 'follow') ai.followRetryT = Math.max(ai.followRetryT || 0, 8);
+      if (ai.state === 'follow') ai.followRetryT = Math.max(ai.followRetryT || 0, 30);
       ai.follow = null;
       ai.target = null;
       ai.path = null;
@@ -1453,7 +1462,7 @@ export function createBehavior({
       actor.ai.follow = null;
       actor.ai.state = 'wander';
       actor.ai.idleT = .6;
-      actor.ai.followRetryT = 8;
+      actor.ai.followRetryT = 30;
       stop(actor);
       return;
     }
@@ -1473,7 +1482,7 @@ export function createBehavior({
         actor.ai.state = 'wander';
         actor.ai.idleT = .6;
         actor.ai.taskCooldown = Math.max(actor.ai.taskCooldown || 0, 1.0);
-        actor.ai.followRetryT = 8;
+        actor.ai.followRetryT = 30;
         stop(actor);
       }
     }
@@ -1593,6 +1602,7 @@ export function createBehavior({
     let bestScore = -Infinity;
     for (const other of actors()) {
       if (!pairAvailable(actor, other, { states: ['wander', 'seekCompany', 'stargaze', 'seekSocial'] })) continue;
+      if (other.ai && (other.ai.familyPlayCooldown > 0 || other.ai.socialCooldown > 0)) continue;
       const kind = familyRelation(actor, other);
       if (!kind || (kind !== 'sibling' && kind !== 'parent' && kind !== 'child')) continue;
       const d = dist(actor, other);
@@ -2148,10 +2158,15 @@ export function createBehavior({
             ai.path = null;
           } else if (!ai.moving || !ai.path || !ai.path.length) {
             if (!setDestination(actor, task.anchor.x, task.anchor.z)) {
+              const partner = ai.partner;
               cancelTask(actor, { stop });
               ai.idleT = .6;
               ai.taskCooldown = Math.max(ai.taskCooldown || 0, 2);
-              ai.familyPlayCooldown = Math.max(ai.familyPlayCooldown || 0, 12);
+              ai.familyPlayCooldown = Math.max(ai.familyPlayCooldown || 0, 30);
+              if (partner && partner.ai) {
+                partner.ai.taskCooldown = Math.max(partner.ai.taskCooldown || 0, 2);
+                partner.ai.familyPlayCooldown = Math.max(partner.ai.familyPlayCooldown || 0, 30);
+              }
             }
           }
         }

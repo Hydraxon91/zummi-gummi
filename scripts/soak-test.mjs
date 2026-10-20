@@ -96,10 +96,11 @@ try {
       })),
     ].filter(a => a.entries + a.exits > 2);
     const recoveryLoop = g.bears
-      .filter(b => (b.ai?.recoveries || 0) > 2)
+      .filter(b => (b.ai?.recoveries || 0) > 5)
       .map(b => ({
         uid: b.uid, name: b.name, state: b.ai?.state, recoveries: b.ai.recoveries,
         lastStuck: b.ai.lastStuck || null,
+        log: (b.ai.recoveryLog || []).map(s => ({ state: s.state, task: s.familyTask, target: s.target, at: s.at })),
       }));
     return {
       startBears,
