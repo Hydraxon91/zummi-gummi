@@ -1025,8 +1025,11 @@ can proceed with the current runtime and assets.
 - **Glass reset cleanup (fixed).** `resetActor` now clears `familyTask`, playdate,
   visit and directive state, cached food/water/rest targets and locomotion fields,
   so tests and debug resets no longer inherit a previous interaction.
-- **Glass lifecycle in CI (added).** The browser job now runs `glass-test.mjs` after
-  the Studio browser regression, with a 15-minute job timeout for SwiftShader.
+- **Glass lifecycle CI (reverted, not feasible under SwiftShader).** Adding
+  `glass-test.mjs` to CI exceeded the job budget: the second browser waited minutes
+  for each Glass asset and the long simulations plus screenshots pushed a fresh job
+  past 15 minutes. The Studio browser regression remains the CI Glass check; run the
+  full lifecycle locally. `glass-test` still supports `SHOTS=0` and longer asset waits.
 - **Citizen panel (fixed).** The two refresh signatures now share one helper, and rows
   are keyed by actor uid and updated in place instead of rebuilding the whole list.
   Browser checks keep an original row connected after idle and complete 10/10 CDP
