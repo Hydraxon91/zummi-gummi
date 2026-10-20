@@ -1306,13 +1306,23 @@ starvation at the unchanged health floor, sting acceleration only while fading,
 pregnancy/baby-household/population/last-species/stay safeguards, one-day retry,
 irreversible committed cleanup, additive actor glow, and transient queued night
 stars. App day is 600 s; harness day is 240 s. No save fields, new history kind,
-or RNG. Orphan adoption remains a later module.
+or RNG. Closeout (2026-10-21): 173 Node checks, the stars browser lifecycle and
+normal-rendering Glass **20/20 modules + 20/20 legacy**, both standard browser
+regressions and inspected fading/rise/night captures pass. The bear-mother forced
+birth fixture now resets safe food and waits for a grounded mother; the Glass/bear
+collision probe waits for measured separation instead of a fixed sample. Orphan
+adoption remains a later module.
 
 **Mood (Oct 2026, off by default):** derived needs/bonds/history mood, 4 Hz target,
 8 s smoothing, 0.05 buckets, bounded offsets stacked after traits, runtime-only
 `ai.mood` fields with no save change, mood-tinted thought bubbles. Config invalidations
 measured at **106 per sim-hour for 40 actors**. Controlled unhappy/content pack passes
-per race. Mood has no RNG and no death/mourning behavior.
+per race. Natural-needs 20-day × 3-seed samples (86,400 1 s samples and 18 actor-runs
+per race) give Bear/Gummy mean −0.143, p10 −0.385, p50 −0.110, p90 +0.053 and Glass
+mean +0.036, p10 −0.030, p50 +0.050, p90 +0.086. The off/on perf rerun was contended
+(load 3–10 on 8 cores): baseline medians 24.14 vs 24.54 ms and repeat 25.66 vs 24.19 ms,
+with no demonstrated frame-time effect. A genuinely quiet-machine comparison remains
+open; see `PERFORMANCE.md`. Mood has no RNG and no death/mourning behavior.
 
 **`glass-test.mjs` family-follow flake (pre-existing, fixed 2026-10-20):** the original
 20-run samples measured 5/20 failures at `b7f5fea` (before the modular refactor) and 6/20

@@ -357,11 +357,19 @@ try {
       const bearStart = g.bears[bi];
       const vertical = Math.abs(start.position[1] - bearStart.cy);
       const walking = g.glassWalkTo(gi, bearStart.cx + 1.5, bearStart.cz);
-      g.sim(1.2, 0);
-      const a = g.glass().actors[gi], b = g.bears[bi];
+      let distance = startDistance, steps = 0;
+      const samples = [];
+      for (; steps < 6; steps++) {
+        g.sim(.5, 0);
+        const a = g.glass().actors[gi], b = g.bears[bi];
+        distance = Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz);
+        samples.push(+distance.toFixed(3));
+        if (distance >= .25) break;
+      }
+      const a = g.glass().actors[gi];
       return {
-        ok: true, bi, gi, startDistance, vertical, walking,
-        distance: Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz),
+        ok: true, bi, gi, startDistance, vertical, walking, steps, samples,
+        distance,
         free: a.freeBody,
       };
     })()`, 180000);

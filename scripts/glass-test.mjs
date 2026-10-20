@@ -614,6 +614,7 @@ try {
     if (!glass || !bear) return { found: false };
     const gi = glass.index;
     const bi = g.bears.indexOf(bear);
+    for (let n = 0; n < 30 && g.bears[bi].airborne; n++) g.sim(.1, 0);
     g.glassSetNeed(gi, 'hunger', .2);
     g.glassSetNeed(gi, 'thirst', .2);
     g.glassSetNeed(gi, 'health', 100);
@@ -630,6 +631,10 @@ try {
     g.sim(3.8, 8);
     const pregnantBear = g.bears[bi];
     const wasPregnant = !!(pregnantBear && pregnantBear.pregnant);
+    for (let n = 0; n < 30 && g.bears[bi].airborne; n++) g.sim(.1, 0);
+    // Match the authored safe-food prerequisite without depending on how many
+    // sources earlier lifecycle scenarios consumed.
+    g.foodReset();
     const born = mate.ok ? g.forceBirth(bi) : false;
     const newBear = g.bears[g.bears.length - 1];
     const newGlass = g.glass().actors[g.glass().count - 1];
@@ -637,6 +642,9 @@ try {
     const child = bearBorn ? newBear : newGlass;
     return {
       found: true, gi, bi, mate, pregnant: wasPregnant, born,
+      mother: { airborne: g.bears[bi].airborne, inPond: g.bears[bi].inPond,
+        grabs: g.bears[bi].grabs, contacts: g.bears[bi].contacts },
+      safeFood: g.foodSources().filter(s => s.ripe).length,
       beforeBears, beforeGlass, afterBears: g.bears.length, afterGlass: g.glass().count,
       childSpecies: child && child.species,
       childStage: child && child.stage,

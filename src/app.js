@@ -6980,6 +6980,7 @@ window.__gummy = {
   },
   setAI(v){ return ai ? ai.setEnabled(v) : false; },
   food(){ return field && field.food ? field.food.stats() : null; },
+  foodReset(){ if (!field || !field.food) return false; field.food.reset(); return true; },
   foodSources(){ return field && field.food ? field.food.sources.map(s => ({
     id:s.id, kind:s.kind, x:s.x, z:s.z,
     approachX:s.approachX, approachZ:s.approachZ,

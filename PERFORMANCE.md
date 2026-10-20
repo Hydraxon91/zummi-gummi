@@ -505,6 +505,37 @@ Keep the earlier **22.0–22.7 ms** clean Phase F reading as the last valid
 reference. Re-profile in a fresh session with Blender and other GPU workloads
 closed before making a performance claim or changing defaults.
 
+## Mood gate (contended, no performance claim)
+
+Method: `scripts/perf-profile.mjs`, same seed/roster/camera as Phase F, mood
+enabled only for the second run. The machine was **not quiet**: load averaged
+3–10 on 8 cores with WindowServer, the agent process, Safari, Spotify and Blender
+active. These rows are matched within the pass but are not a quiet baseline.
+
+| Feature | Baseline median | Repeat median | AI |
+|---|---:|---:|---:|
+| Mood off | 24.14 ms | 25.66 ms | 0.072 ms |
+| Mood on | 24.54 ms | 24.19 ms | 0.084 ms |
+
+The frame-time ordering reverses between baseline and repeat, so mood has **no
+demonstrated frame-time cost or win**. The AI delta is about 0.012 ms in this
+sample. Re-run in a genuinely quiet session before using these numbers for a
+performance decision.
+
+Natural-needs distribution, 20 days × 3 seeds per race, 1 s samples, 86,400
+samples and 18 actor-runs per race:
+
+| Race | Mean | p10 | p50 | p90 | Range |
+|---|---:|---:|---:|---:|---:|
+| Bear | −0.143 | −0.385 | −0.110 | +0.053 | −0.634…+0.184 |
+| Gummy | −0.143 | −0.385 | −0.110 | +0.053 | −0.634…+0.184 |
+| Glass | +0.036 | −0.030 | +0.050 | +0.086 | −0.230…+0.230 |
+
+The bear/Gummy identity is expected from their shared profile. Glass sits
+slightly positive because its needs/bond sources differ. The founder cohort and
+the 600 s app day are part of this fixture; these are not population-wide
+long-session percentiles.
+
 ## Interpretation
 
 - The meadow remains **fill/overdraw and grass-geometry bound**.
