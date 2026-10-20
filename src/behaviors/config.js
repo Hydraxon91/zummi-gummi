@@ -24,6 +24,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
   cancelPairStateReset: false, // cancelPair also resets seek* states
   matePairOnPathFailure: false,// startSeekMate clears the pair when pathing fails
   glassEngineRng: false,       // glass.js insideT uses the engine RNG
+  thoughtBubbles: false,       // UI-only plan().reason overlay; no simulation reads
 });
 
 const MODULE_DEFAULTS = Object.freeze({

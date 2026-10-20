@@ -11,6 +11,7 @@ import {
   canMate, GESTATION_TIME, MATE_COOLDOWN, MATE_TIME, MATE_FOOD_MIN, PREGNANCY_HUNGER, HOME_CAPACITY,
 } from './life.js';
 import { profileFor } from './behaviorprofiles.js';
+import { planReason } from './behaviors/reason.js';
 import { canSpeciesBreed } from './dna.js';
 import { isSafeFood } from './foodtypes.js';
 import {
@@ -2271,6 +2272,7 @@ export function createBehavior({
     if (!actor || !actor.ai) return null;
     return {
       state: actor.ai.state,
+      reason: planReason(actor),
       hunger: +finite(actor.hunger, 0).toFixed(3),
       thirst: +finite(actor.thirst, 0).toFixed(3),
       health: +finite(actor.health, 0).toFixed(1),

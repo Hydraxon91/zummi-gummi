@@ -30,6 +30,7 @@ import { followModule } from './follow.js';
 import { stargazeModule } from './stargaze.js';
 import { familyTaskModule } from './family.js';
 import { fleeModule } from './flee.js';
+import { planReason } from './reason.js';
 
 const STUCK_DIST2 = .04;
 
@@ -1033,6 +1034,7 @@ export function createBehaviorModules({
     if (!actor || !actor.ai) return null;
     return {
       state: actor.ai.state,
+      reason: planReason(actor),
       hunger: +finite(actor.hunger, 0).toFixed(3),
       thirst: +finite(actor.thirst, 0).toFixed(3),
       health: +finite(actor.health, 0).toFixed(1),

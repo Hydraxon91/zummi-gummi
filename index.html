@@ -47,6 +47,25 @@
 
   /* ---------- editorial chrome ---------- */
   .hud{position:fixed;inset:0;pointer-events:none;z-index:4}
+  .thoughtLayer{position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .18s ease,visibility .18s ease}
+  .thoughtLayer.on{opacity:1;visibility:visible}
+  .thoughtBubble{
+    position:absolute;transform:translate(-50%,-100%);max-width:210px;padding:5px 9px 6px;
+    border-radius:11px;border:1px solid rgba(25,24,23,.12);
+    background:rgba(255,253,247,.93);color:var(--ink);font-family:var(--sans);
+    font-size:11px;font-weight:550;line-height:1.25;letter-spacing:.005em;white-space:nowrap;
+    box-shadow:0 8px 22px -14px rgba(25,24,23,.55),inset 0 1px rgba(255,255,255,.9);
+    -webkit-backdrop-filter:blur(8px) saturate(1.2);backdrop-filter:blur(8px) saturate(1.2);
+  }
+  .thoughtBubble::after{
+    content:"";position:absolute;left:50%;top:100%;width:7px;height:7px;
+    transform:translate(-50%,-4px) rotate(45deg);
+    border-right:1px solid rgba(25,24,23,.12);border-bottom:1px solid rgba(25,24,23,.12);
+    background:rgba(255,253,247,.93);
+  }
+  @media (max-width:640px){
+    .thoughtBubble{max-width:150px;font-size:10px;padding:4px 7px 5px}
+  }
   header{
     position:absolute;left:clamp(20px,3.4vw,56px);top:clamp(18px,4vh,52px);max-width:min(46vw,620px);
   }
@@ -1018,6 +1037,7 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
 </div>
 
 <div class="hud">
+  <div id="thoughtLayer" class="thoughtLayer" hidden aria-hidden="true"></div>
   <header class="fade studioHeader">
     <div class="kick"><i></i>Soft-body confection — No.&nbsp;01</div>
     <h1>Gummy <em>/</em><br>Bears.</h1>

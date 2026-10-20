@@ -5,6 +5,7 @@ import { buildField, POND_HOLE, POND } from './field.js';
 import { createBearAI } from './ai.js';
 import { createBehavior, behaviorEngineFromSearch } from './behaviors/index.js';
 import { createAIDebug } from './aidebug.js';
+import { createThoughtBubbleOverlay } from './thoughtbubble.js';
 import { createEffects } from './effects.js';
 import { GRAPHICS_GROUPS, GRAPHICS_DEFAULTS, normalizeGraphics, readGraphics, createGraphicsPanel } from './graphics.js';
 import {
@@ -34,6 +35,7 @@ let sky = null;
 let ai = null;
 let behavior = null;
 let aiDebug = null;
+let thoughtBubbles = null;
 let selectedBear = null;
 let directivePick = false;
 let clickMode = 'grab';
@@ -422,6 +424,7 @@ eyes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 eyes.layers.enable(3);   // meadow-only bear fill
 scene.add(eyes);
 const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v3 = new THREE.Vector3();
+const _thoughtPoint = new THREE.Vector3();
 
 /* -------------------------------- the bear -------------------------------- */
 class Bear{
@@ -5157,6 +5160,7 @@ function animate(now){
     calls: renderer.info.render.calls,
     tris: renderer.info.render.triangles,
   };
+  if (thoughtBubbles) thoughtBubbles.update(dt);
   perfLive.calls = renderStats.calls;
   perfLive.tris = renderStats.tris;
 
@@ -6056,6 +6060,26 @@ async function bootGame(){
     getField: () => field,
     isMeadow,
   });
+  thoughtBubbles = createThoughtBubbleOverlay({
+    container: document.getElementById('thoughtLayer'),
+    project: actor => {
+      camera.updateMatrixWorld(true);
+      _thoughtPoint.set(actor.cx, (actor.cy || 0) + 1.22, actor.cz).project(camera);
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (_thoughtPoint.x * .5 + .5) * rect.width + rect.left,
+        y: (-_thoughtPoint.y * .5 + .5) * rect.height + rect.top,
+        z: _thoughtPoint.z,
+        width: rect.width,
+        height: rect.height,
+      };
+    },
+    getActors: () => actorView.all(),
+    getPlan: actor => (behavior && typeof behavior.plan === 'function' ? behavior.plan(actor) : null),
+    isEnabled: () => isMeadow() && !!(behavior && behavior.api &&
+      behavior.api.features && behavior.api.features.thoughtBubbles),
+    maxBubbles: 8,
+  });
   launcher = createLauncher({
     scene, camera, canvas,
     getTable: () => TABLE,
@@ -6903,6 +6927,14 @@ window.__gummy = {
     return ai.debugState(b, state);
   },
   aiPlan(i){ const b = bears[i]; return b && ai ? ai.plan(b) : null; },
+  thoughts(on){
+    if (on !== undefined && behavior && typeof behavior.setFeature === 'function') {
+      behavior.setFeature('thoughtBubbles', !!on);
+    }
+    if (thoughtBubbles) thoughtBubbles.refresh();
+    return thoughtBubbles ? thoughtBubbles.state() : null;
+  },
+  thoughtState(){ return thoughtBubbles ? thoughtBubbles.state() : null; },
   aiRoute(i, on){
     if (!aiDebug || !isMeadow()) return null;
     if (i !== undefined) aiDebug.selectByIndex(i);
