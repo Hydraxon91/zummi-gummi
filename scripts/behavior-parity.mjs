@@ -254,7 +254,10 @@ export function createRoster(race, perturb = 0, { seedBonds = false, social = fa
 // flavors and effects; the behavior engine only needs the actor fields.
 function birthChild(run, mother) {
   if (!mother || !mother.active || !mother.pregnant) return false;
-  if (run.roster.filter(actor => actor.active).length >= HARNESS_LIFECYCLE.populationCap) return false;
+  if (run.roster.filter(actor => actor.active).length >= HARNESS_LIFECYCLE.populationCap) {
+    run.life.blockedBirths++;
+    return false;
+  }
   const father = run.roster.find(actor => actor.active && actor.uid === mother.fatherUid) || null;
   const uid = run.nextBirthUid++;
   const child = {
@@ -595,6 +598,23 @@ function snapshot(run) {
   });
 }
 
+function summarize(run) {
+  const history = {};
+  const skills = {};
+  for (const actor of run.roster) {
+    for (const event of actor.history || []) {
+      history[event.kind] = (history[event.kind] || 0) + 1;
+    }
+    const initial = run.initialSkills.get(actor.uid);
+    if (!initial || !actor.skills) continue;
+    for (const [key, value] of Object.entries(actor.skills)) {
+      const gain = Number(value) - Number(initial[key] || 0);
+      if (gain > 0) skills[key] = (skills[key] || 0) + gain;
+    }
+  }
+  return { history, skills };
+}
+
 function firstDiffPath(left, right, path = [], out = []) {
   if (out.length >= 3) return out;
   if (left === right) return out;
@@ -644,8 +664,9 @@ function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DA
     race, seed, engine, world, roster, engineApi, traced, daySeconds, collectSamples, clock, startHour,
     rngValue,
     transitions: [], samples: [], warnings: [], lastState: new Map(), grabHold: new Map(),
-    life: { pregnancies: 0, births: 0, stageUps: 0 }, nextBirthUid: 1000,
+    life: { pregnancies: 0, births: 0, stageUps: 0, blockedBirths: 0 }, nextBirthUid: 1000,
     pregnancySeen: new Set(),
+    initialSkills: new Map(roster.map(actor => [actor.uid, { ...(actor.skills || {}) }])),
   };
   for (const actor of roster) run.lastState.set(actor.uid, actor.ai ? actor.ai.state : null);
   return run;
@@ -680,7 +701,8 @@ function stepRun(run, { dt, sampleEvery, sampleAcc }) {
     const state = actor.ai ? actor.ai.state : null;
     const previous = before.get(actor.uid);
     if (state !== previous) {
-      run.transitions.push({ t, uid: actor.uid, from: previous, to: state });
+      run.transitions.push({ t, uid: actor.uid, from: previous, to: state,
+        task: actor.ai && actor.ai.familyTask ? actor.ai.familyTask.id : null });
     }
     run.lastState.set(actor.uid, state);
   }
@@ -756,6 +778,7 @@ export function runParity({
           warningsA: a.warnings.length, warningsB: b.warnings.length,
           coverage: typeof b.engineApi.coverage === 'function' ? b.engineApi.coverage() : null,
           life: b.life, roster: b.roster.length,
+          summary: summarize(b),
           diffs,
           firstTick: tick,
           durationMs: Date.now() - started,
@@ -777,6 +800,7 @@ export function runParity({
     warningsA: a.warnings.length, warningsB: b.warnings.length,
     coverage: typeof b.engineApi.coverage === 'function' ? b.engineApi.coverage() : null,
     life: b.life, roster: b.roster.length,
+    summary: summarize(b),
     diffs: [],
     durationMs: Date.now() - started,
     transitions: verbose ? b.transitions : undefined,
@@ -1353,7 +1377,12 @@ async function main(argv) {
           `${result.warningsA}/${result.warningsB} warnings, ${result.durationMs} ms`);
         if (result.life) {
           console.log(`  life: pregnancies ${result.life.pregnancies}, births ${result.life.births}, ` +
-            `stage-ups ${result.life.stageUps}, roster ${result.roster}`);
+            `blocked ${result.life.blockedBirths}, stage-ups ${result.life.stageUps}, roster ${result.roster}`);
+        }
+        if (result.summary) {
+          const history = Object.entries(result.summary.history).map(([k, v]) => `${k}=${v}`).join(', ');
+          const skills = Object.entries(result.summary.skills).map(([k, v]) => `${k}=${v.toFixed(3)}`).join(', ');
+          console.log(`  history: ${history || 'none'}; skills: ${skills || 'none'}`);
         }
         for (const diff of result.diffs.slice(0, 3)) console.log(`  ${formatDiff(diff)}`);
       }

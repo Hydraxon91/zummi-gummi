@@ -31,6 +31,7 @@ import { mateModule } from './mate.js';
 import { conflictModule } from './conflict.js';
 import { followModule } from './follow.js';
 import { stargazeModule } from './stargaze.js';
+import { familyTaskModule } from './family.js';
 
 const STUCK_DIST2 = .04;
 
@@ -896,7 +897,7 @@ export function createBehaviorModules({
 
   /* -------------------------------------------------------------- playdate */
 
-  // TEMPORARY(port): family (playdate/meal/lesson/familyTask)
+  /* ----------------------------------------------------------------- tasks */
   function playdateAnchor(actor, partner) {
     if (!field || !Array.isArray(field.homes)) return { x: (actor.cx + partner.cx) * .5, z: (actor.cz + partner.cz) * .5 };
     const names = [actor.home, partner.home].filter(Boolean);
@@ -1100,7 +1101,7 @@ export function createBehaviorModules({
     if (!teacher || !student || !teacher.ai || !student.ai) return { ok: false, note: 'no pair' };
     cancelPair(teacher);
     cancelPair(student);
-    return { ok: startLesson(teacher, student, true), state: teacher.ai.state };
+    return { ok: familyTaskModule.startLesson(contextFor(teacher), student, true), state: teacher.ai.state };
   }
 
   /* ----------------------------------------------------------- family task */
@@ -1234,7 +1235,7 @@ export function createBehaviorModules({
     }
 
     const stateOwner = moduleStateOwner(ai.state);
-    if (stateOwner && typeof stateOwner.tick === 'function') {
+    if (stateOwner && stateOwner.id !== 'family' && typeof stateOwner.tick === 'function') {
       if (stateOwner.tick(contextFor(actor, { dt }), dt) !== false) return;
     }
     if (ai.state === 'familyTask' && ai.directives.length) {
@@ -1242,37 +1243,7 @@ export function createBehaviorModules({
       if (adapter && typeof adapter.preNeeds === 'function' && adapter.preNeeds(actor, api)) return;
     }
     if (ai.state === 'familyTask') {
-      const task = ai.familyTask;
-      if (!task) { ai.state = 'wander'; return; }
-      const def = interactionFor(task.id);
-      const arriveDist = def ? def.arriveDist : 1.4;
-      if (task.phase === 'travel') {
-        if (!task.anchor) task.phase = 'act';
-        else {
-          const d = Math.hypot(task.anchor.x - actor.cx, task.anchor.z - actor.cz);
-          if (d <= arriveDist) {
-            task.phase = 'act';
-            ai.moving = false;
-            ai.path = null;
-          } else if (!ai.moving || !ai.path || !ai.path.length) {
-            if (!setDestination(actor, task.anchor.x, task.anchor.z)) {
-              const partner = ai.partner;
-              cancelTask(actor, { stop });
-              ai.idleT = .6;
-              ai.taskCooldown = Math.max(ai.taskCooldown || 0, 2);
-              ai.familyPlayCooldown = Math.max(ai.familyPlayCooldown || 0, 30);
-              if (partner && partner.ai) {
-                partner.ai.taskCooldown = Math.max(partner.ai.taskCooldown || 0, 2);
-                partner.ai.familyPlayCooldown = Math.max(partner.ai.familyPlayCooldown || 0, 30);
-              }
-            }
-          }
-        }
-      }
-      if (task.phase === 'act') {
-        task.t = Math.max(0, finite(task.t, 0) - dt);
-        if (task.t <= 0) finishFamilyTask(actor);
-      }
+      familyTaskModule.tick(contextFor(actor, { dt }), dt);
       return;
     }
     if (ai.state === 'flee') {
@@ -1581,7 +1552,7 @@ export function createBehaviorModules({
     if (!actor || !partner) return { ok: false, note: 'no pair' };
     cancelPair(actor);
     cancelPair(partner);
-    return { ok: startPlaydate(actor, partner, kind), state: actor.ai.state };
+    return { ok: familyTaskModule.startPlaydate(contextFor(actor), partner, kind), state: actor.ai.state };
   }
 
   function forceConflict(actor, partner, source = null) {
@@ -1594,7 +1565,7 @@ export function createBehaviorModules({
 
   function forceMeal(actor) {
     if (!actor || !actor.ai) return { ok: false, note: 'no actor' };
-    const ok = startFamilyMeal(actor, { window: { name: 'meal' }, key: `${dayNow()}:forced` }, true);
+    const ok = familyTaskModule.startFamilyMeal(contextFor(actor), { window: { name: 'meal' }, key: `${dayNow()}:forced` }, true);
     return { ok, state: actor.ai.state };
   }
 
@@ -1608,6 +1579,7 @@ export function createBehaviorModules({
   registerModule(conflictModule);
   registerModule(followModule);
   registerModule(stargazeModule);
+  registerModule(familyTaskModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -1646,12 +1618,17 @@ export function createBehaviorModules({
     pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
     homeFor, assignHome, parentFor, safeFoodCount, needsReplan, populationCap,
     startEat,
-    acquireFood, acquireWater, acquireHive, acquireContest, acquireFamilyPlaymate,
+    acquireFood, acquireWater, acquireHive, acquireContest,
+    acquireFamilyPlaymate: (actor) => familyTaskModule.acquireFamilyPlaymate(contextFor(actor)),
     acquireMate, acquireCompany, startFollow, parentFor,
-    mealWindow, startFamilyMeal, lessonCandidate, startLesson, findDuePlaydate,
+    mealWindow: (actor) => familyTaskModule.mealWindow(contextFor(actor)),
+    startFamilyMeal: (actor, meal, immediate) => familyTaskModule.startFamilyMeal(contextFor(actor), meal, immediate),
+    lessonCandidate: (actor) => familyTaskModule.lessonCandidate(contextFor(actor)),
+    startLesson: (actor, student, immediate) => familyTaskModule.startLesson(contextFor(actor), student, immediate),
+    findDuePlaydate: (actor) => familyTaskModule.findDuePlaydate(contextFor(actor)),
     startSeekHome, startSleep, wake, cancelPair, startInvite,
     canMatePair, startMatePair, startSeekMate, startFlee,
-    startVisit, startPlaydate, startConflict,
+    startVisit, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind), startConflict,
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
     coverSlot, coverConflictOutcome, coverHour,
@@ -1666,7 +1643,7 @@ export function createBehaviorModules({
     attach, tick, plan, stats: statsNow, registerAdapter,
     setEnabled, onGrab, onRelease, detach, resumeTask, debugState,
     setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal, forceLesson,
-    startSeekHome, startPlaydate,
+    startSeekHome, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind),
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
     get enabled() { return enabled; },
     get actors() { return actors(); },
