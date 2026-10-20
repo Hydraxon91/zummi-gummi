@@ -32,6 +32,7 @@ import { conflictModule } from './conflict.js';
 import { followModule } from './follow.js';
 import { stargazeModule } from './stargaze.js';
 import { familyTaskModule } from './family.js';
+import { fleeModule } from './flee.js';
 
 const STUCK_DIST2 = .04;
 
@@ -126,6 +127,11 @@ export function createBehaviorModules({
     coverage.stargazeHours.set(key, (coverage.stargazeHours.get(key) || 0) + 1);
   }
 
+  function coverFlee(id) {
+    if (!id) return;
+    coverage.fleeOutcomes.set(id, (coverage.fleeOutcomes.get(id) || 0) + 1);
+  }
+
   function coverageSnapshot() {
     const map = (source) => Object.fromEntries([...source.entries()].sort(([a], [b]) => a.localeCompare(b)));
     return {
@@ -138,6 +144,7 @@ export function createBehaviorModules({
       pipeline: map(coverage.pipeline),
       conflictOutcomes: map(coverage.conflictOutcomes),
       stargazeHours: map(coverage.stargazeHours),
+      fleeOutcomes: map(coverage.fleeOutcomes),
     };
   }
 
@@ -235,7 +242,7 @@ export function createBehaviorModules({
   const coverage = {
     states: new Map(), entries: new Map(), opportunities: new Map(),
     taskPhases: new Map(), tasks: new Map(), taskEntries: new Map(),
-    pipeline: new Map(), conflictOutcomes: new Map(), stargazeHours: new Map(),
+    pipeline: new Map(), conflictOutcomes: new Map(), stargazeHours: new Map(), fleeOutcomes: new Map(),
   };
   const lastCoverState = new WeakMap();
   const lastCoverTask = new WeakMap();
@@ -546,7 +553,6 @@ export function createBehaviorModules({
 
   /* ------------------------------------------------------------ hive/conflict */
 
-  // TEMPORARY(port): flee. Conflict is ported; flee stays shared by hive and conflict.
   function acquireHive(actor) {
     return hiveModule.acquire(contextFor(actor));
   }
@@ -556,27 +562,7 @@ export function createBehaviorModules({
   }
 
   function startFlee(actor, source) {
-    if (!actor || !actor.ai) return;
-    const hive = profile(actor).hive;
-    cancelPair(actor);
-    releaseFood(actor);
-    actor.ai.follow = null;
-    actor.ai.target = null;
-    actor.ai.faceYaw = null;
-    actor.ai.state = 'flee';
-    actor.ai.fleeT = hive ? hive.fleeTime : 1.4;
-    actor.ai.fleeFrom = source ? { x: source.x, z: source.z } : null;
-    if (!field || !field.nav) return;
-    const dx = actor.cx - (source ? source.x : actor.cx);
-    const dz = actor.cz - (source ? source.z : actor.cz);
-    const len = Math.hypot(dx, dz) || 1;
-    const p = field.nav.nearestWalkable(actor.cx + dx / len * 4.5, actor.cz + dz / len * 4.5);
-    if (!p) return;
-    actor.ai.target = { x: p.x, z: p.z };
-    face(actor, p.x, p.z);
-    const path = pathTo(actor, p.x, p.z);
-    if (path) setPath(actor, path);
-    else actor.ai.moving = false;
+    return fleeModule.startFlee(contextFor(actor), source);
   }
 
   function acquireContest(actor) {
@@ -1246,16 +1232,6 @@ export function createBehaviorModules({
       familyTaskModule.tick(contextFor(actor, { dt }), dt);
       return;
     }
-    if (ai.state === 'flee') {
-      ai.fleeT -= dt;
-      if (ai.fleeT <= 0) {
-        ai.state = 'seekFood';
-        ai.nextThink = 0;
-        ai.moving = false;
-        stop(actor);
-      }
-      return;
-    }
     if (ai.state === 'raidHive') {
       hiveModule.tick(contextFor(actor, { dt }), dt);
       return;
@@ -1580,6 +1556,7 @@ export function createBehaviorModules({
   registerModule(followModule);
   registerModule(stargazeModule);
   registerModule(familyTaskModule);
+  registerModule(fleeModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -1631,7 +1608,7 @@ export function createBehaviorModules({
     startVisit, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind), startConflict,
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
-    coverSlot, coverConflictOutcome, coverHour,
+    coverSlot, coverConflictOutcome, coverHour, coverFlee,
     adapterSleepDone, adapterOnSleep, adapterOnWake, adapterHungerOpportunity,
     noteDoorTransition,
     setModuleEnabled, setModuleParams, setActorConfig, setFeature,

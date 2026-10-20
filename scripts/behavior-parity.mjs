@@ -882,6 +882,7 @@ export function mergeCoverage(results) {
   const pipeline = {};
   const conflictOutcomes = {};
   const stargazeHours = {};
+  const fleeOutcomes = {};
   const add = (target, source) => {
     for (const [key, value] of Object.entries(source || {})) {
       target[key] = (target[key] || 0) + value;
@@ -899,8 +900,9 @@ export function mergeCoverage(results) {
     add(pipeline, coverage.pipeline);
     add(conflictOutcomes, coverage.conflictOutcomes);
     add(stargazeHours, coverage.stargazeHours);
+    add(fleeOutcomes, coverage.fleeOutcomes);
   }
-  return { states, entries, opportunities, taskPhases, tasks, taskEntries, pipeline, conflictOutcomes, stargazeHours };
+  return { states, entries, opportunities, taskPhases, tasks, taskEntries, pipeline, conflictOutcomes, stargazeHours, fleeOutcomes };
 }
 
 function coverageSection(merged, title, race = null) {
@@ -943,6 +945,10 @@ function coverageSection(merged, title, race = null) {
     lines.push('  stargaze by hour: ' +
       stargazeHours.map(([key, hits]) => `${key}=${hits}`).join(', '));
   }
+  if (merged.fleeOutcomes && Object.keys(merged.fleeOutcomes).length) {
+    lines.push('  flee outcomes: ' + Object.entries(merged.fleeOutcomes)
+      .map(([key, hits]) => `${key}=${hits}`).join(', '));
+  }
   const travel = merged.taskPhases.travel || 0;
   const act = merged.taskPhases.act || 0;
   lines.push(`  familyTask time: travel ${travel} ticks, act ${act} ticks`);
@@ -984,6 +990,36 @@ export function formatCoverage(results) {
 }
 
 /* -------------------------------------------------------------------- cli */
+
+function lessonPack(run) {
+  const teacher = run.roster[0];
+  const student = run.roster[4];
+  if (!teacher || !student || !teacher.ai || !student.ai) return;
+  teacher.stage = 'adult';
+  teacher.skills = { ...(teacher.skills || {}), forage: .90 };
+  student.stage = 'baby';
+  student.parentUids = [teacher.uid];
+  student.skills = { ...(student.skills || {}), forage: .10 };
+  teacher.cx = 0; teacher.cz = 0;
+  student.cx = .5; student.cz = 0;
+  teacher.sleeping = false;
+  student.sleeping = false;
+  teacher.inside = false;
+  student.inside = false;
+  teacher.grabs = 0;
+  student.grabs = 0;
+  teacher.hunger = .3;
+  student.hunger = .3;
+  teacher.health = 100;
+  student.health = 100;
+  teacher.ai.state = 'wander';
+  student.ai.state = 'wander';
+  teacher.ai.taskCooldown = 0;
+  teacher.ai.partner = null;
+  student.ai.partner = null;
+  student.ai.directive = null;
+  run.engineApi.forceLesson(teacher, student);
+}
 
 const RACES = ['bear', 'gummy', 'glass'];
 
@@ -1088,9 +1124,6 @@ function conflictNeeds(run) {
   actor.hunger = run.conflictFlip ? .95 : .80;
 }
 
-// Force each conflict outcome in turn. The scenario uses a constant RNG so the
-// equal-weight case is an exact tie. Health-floor targets findContest()'s
-// claimant check: other.health < profile(other).thresholds.healthWoozy.
 function conflictOutcomes(run) {
   const actor = run.roster[0];
   const other = run.roster[1];
@@ -1226,6 +1259,12 @@ export const SCENARIOS = Object.freeze({
     seeds: [1, 2, 3, 4, 5], startHour: 10, skipRaces: ['glass'], rngValue: .5,
     hooks: Object.freeze([{ every: 100, run: (run) => { run.scenarioTie = true; conflictOutcomes(run); } }]),
     requireConflictOutcomes: ['tie'],
+  }),
+  lessonPack: Object.freeze({
+    id: 'lessonPack', label: 'completed lessons and skill gain', days: 1,
+    seeds: [1, 2, 3, 4, 5], startHour: 10,
+    hooks: Object.freeze([{ every: 200, run: lessonPack }]),
+    requireHistory: { lesson: 20, taught: 20 },
   }),
   social: Object.freeze({
     id: 'social', label: 'social chain and visits', days: 10, seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -1413,8 +1452,21 @@ async function main(argv) {
     for (const key of scenario.requireOpportunities || []) check('opportunity', key);
     for (const key of scenario.requirePipeline || []) check('pipeline', key);
     for (const key of scenario.requireConflictOutcomes || []) check('conflictOutcome', key);
+    if (scenario.requireHistory) {
+      for (const [kind, minimum] of Object.entries(scenario.requireHistory)) {
+        const hits = {};
+        for (const race of options.races) {
+          hits[race] = results
+            .filter(result => result.race === race)
+            .reduce((sum, result) => sum + ((result.summary?.history?.[kind]) || 0), 0);
+          if (hits[race] < minimum) scenarioOk = false;
+        }
+        console.log(`SCENARIO ${scenario.id} completed ${kind}: ` +
+          Object.entries(hits).map(([race, n]) => `${race} ${n}`).join(', '));
+      }
+    }
     if (!scenario.require && !scenario.requireOpportunities && !scenario.requirePipeline &&
-        !scenario.requireConflictOutcomes) {
+        !scenario.requireConflictOutcomes && !scenario.requireHistory) {
       console.log(`SCENARIO ${scenario.id} (${scenario.label}) parity pack`);
     }
     if (!scenarioOk) console.log('SCENARIO COVERAGE FAIL: a required branch is under ' + LOW_COVERAGE);
