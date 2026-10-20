@@ -789,7 +789,7 @@ export function createBehavior({
     if (!ai) return false;
     if (ai.state === 'follow') {
       const parent = ai.follow;
-      if (!parent) return false;
+      if (!parent || parent.inside || parent.sleeping) return false;
       const target = parentTarget(parent);
       if (!target) return false;
       return Math.hypot(target.x - actor.cx, target.z - actor.cz) > profile(actor).mate.followDist + .2;
@@ -1423,6 +1423,7 @@ export function createBehavior({
 
   function startFollow(actor, parent) {
     if (!actor || !actor.ai || !parent || !parent.ai) return false;
+    if (parent.inside || parent.sleeping) return false;
     if (actor.ai.followRetryT > 0) return false;
     const target = parentTarget(parent);
     if (!target) return false;
@@ -1445,6 +1446,14 @@ export function createBehavior({
       actor.ai.follow = null;
       actor.ai.state = 'wander';
       actor.ai.idleT = .5;
+      stop(actor);
+      return;
+    }
+    if (parent.inside || parent.sleeping) {
+      actor.ai.follow = null;
+      actor.ai.state = 'wander';
+      actor.ai.idleT = .6;
+      actor.ai.followRetryT = 8;
       stop(actor);
       return;
     }

@@ -18,6 +18,7 @@ try {
   await page.waitFor('window.__gummy?.booted', 150000);
   const report = await page.evaluate(`(async () => {
     const g = window.__gummy;
+    g.seed(421337);
     g.setTime(12);
     g.setCeiling(24);
     g.sim(2, 0);
@@ -38,12 +39,8 @@ try {
       const ai = b.ai;
       if (!ai) return false;
       if (ai.state === 'follow') {
-        if (!ai.follow) return false;
-        let tx = ai.follow.cx, tz = ai.follow.cz;
-        if (ai.follow.inside || ai.follow.sleeping) {
-          const home = g.homes().find(h => h.name === ai.follow.home);
-          if (home) { tx = home.door.x; tz = home.door.z; }
-        }
+        if (!ai.follow || ai.follow.inside || ai.follow.sleeping) return false;
+        const tx = ai.follow.cx, tz = ai.follow.cz;
         return Math.hypot(tx - b.cx, tz - b.cz) > 2.35;
       }
       if (['seekFood', 'seekHive', 'seekWater', 'seekHome', 'seekConflict',

@@ -1259,9 +1259,10 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   index progress and target changes; after 6 s without progress it releases the
   claim, blacklists that source for 6 s, cancels the active task/pair and returns
   the actor to wander with a short cooldown. It logs one `AI STUCK` diagnostic.
-- Follow retries use an 8 s cooldown when the parent target is unreachable, and
-  family-task travel cancels with a cooldown when its anchor has no path. This
-  prevents a recover/cancel/restart loop.
+- Follow retries use an 8 s cooldown when the parent target is unreachable,
+  and a baby stops following a parent that is inside or sleeping instead of
+  pushing into the occupied door. Family-task travel cancels with a cooldown
+  when its anchor has no path. This prevents a recover/cancel/restart loop.
 - Door entries and exits are counted in a 20 s window. A third transition logs
   `DOOR LOOP` with inside/state/timer/shelter/task data; bears get an 8 s rest
   cooldown, Glass gets `shelteredToday` suppression for the rest of the day.
