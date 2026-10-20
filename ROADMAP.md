@@ -1325,6 +1325,16 @@ waits for the shelter fade in steps, and resets the pair before the reciprocal m
 Final 20-run samples: **20/20 legacy and 20/20 modules**, zero failures. The pre-refactor
 samples remain useful evidence that the flake was not introduced by the module refactor.
 
+**Known follow-ups — browser test latency (2026-10-21, partial):**
+`browser-harness.mjs` now caps each polling evaluation to the remaining wait deadline
+and rejects commands after connection closure/browser exit. Previously a short wait
+could spend 60 seconds in a single poll. Glass evaluations now record duration and
+use a 30-second default rather than 120 seconds; the post-simulation allowance is
+also 30 seconds rather than 180. One modules lifecycle pass and 173 Node checks pass.
+Scenario selection, rebuild-free behavior equivalence checks and paused nonvisual
+execution remain deferred; no physics timestep or app day-length change is made.
+Intermittent browser stalls remain unresolved, not certified fixed by this pass.
+
 ## Content extensibility track (implemented, Oct 2026)
 
 Extend the existing ES modules, not the engine stack. Stable definition IDs must

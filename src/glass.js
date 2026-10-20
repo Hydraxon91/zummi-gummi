@@ -1227,11 +1227,11 @@ export function createGlassColony({
     return applyStage(a, stage, { age: ageForStage(stage) });
   }
 
-  function setPosition(index, x, z) {
+  function setPosition(index, x, z, exact = false) {
     const a = actors[index];
     if (!a || !Number.isFinite(Number(x)) || !Number.isFinite(Number(z))) return false;
     const field = fieldNow();
-    const near = field && field.nav && field.nav.nearestWalkable
+    const near = !exact && field && field.nav && field.nav.nearestWalkable
       ? field.nav.nearestWalkable(Number(x), Number(z))
       : { x: Number(x), z: Number(z) };
     if (!near) return false;
@@ -1243,6 +1243,16 @@ export function createGlassColony({
     a.ai.nextThink = 0;
     updateVisual(a);
     syncBody(a);
+    return true;
+  }
+
+  function walkTo(index, x, z) {
+    const a = actors[index];
+    if (!a || !a.active || a.inside || a.grabbing || a.freeBody) return false;
+    if (!setMoving(a, Number(x), Number(z))) return false;
+    a.ai.state = 'wander';
+    a.ai.idleT = 0;
+    a.ai.nextThink = 999;
     return true;
   }
 
@@ -1436,6 +1446,7 @@ export function createGlassColony({
     setNeed,
     setStage,
     setPosition,
+    walkTo,
     setCooldown,
     setAge,
     setPregnant,

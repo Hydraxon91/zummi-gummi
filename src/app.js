@@ -7113,7 +7113,8 @@ window.__gummy = {
     return this.glassFading(i);
   },
   glassSetStage(i, stage){ return glassColony ? glassColony.setStage(i, stage) : false; },
-  glassSetPosition(i, x, z){ return glassColony ? glassColony.setPosition(i, x, z) : false; },
+  glassSetPosition(i, x, z, exact){ return glassColony ? glassColony.setPosition(i, x, z, !!exact) : false; },
+  glassWalkTo(i, x, z){ return glassColony ? glassColony.walkTo(i, x, z) : false; },
   glassSetCooldown(i, value){ return glassColony ? glassColony.setCooldown(i, value) : false; },
   glassSetAge(i, value){ return glassColony ? glassColony.setAge(i, value) : false; },
   glassSetPregnant(i, on, gestation){ return glassColony ? glassColony.setPregnant(i, on, gestation) : false; },

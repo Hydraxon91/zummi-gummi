@@ -117,6 +117,19 @@ export async function connectBrowser(launched) {
   let nextId = 1;
   const pending = new Map();
   const pageErrors = [];
+  let connectionClosed = null;
+  ws.addEventListener('close', event => {
+    connectionClosed = {
+      code: event.code,
+      reason: event.reason || '',
+      at: Date.now(),
+    };
+    for (const [id, request] of pending) {
+      clearTimeout(request.timer);
+      pending.delete(id);
+      request.reject(new Error('CDP connection closed'));
+    }
+  });
   ws.addEventListener('message', event => {
     let message;
     try { message = JSON.parse(event.data); } catch (error) { return; }
@@ -137,6 +150,10 @@ export async function connectBrowser(launched) {
 
   function send(method, params = {}, sessionId = null, timeout = 60000) {
     return new Promise((resolve, reject) => {
+      if (connectionClosed || launched.exit || ws.readyState !== WebSocket.OPEN) {
+        reject(new Error(`CDP unavailable: ${method}`));
+        return;
+      }
       const id = nextId++;
       const timer = setTimeout(() => {
         pending.delete(id);
@@ -184,13 +201,15 @@ export async function connectBrowser(launched) {
     async function waitFor(expression, timeout = 30000) {
       const deadline = Date.now() + timeout;
       lastWaitExpression = expression;
+      lastWaitError = null;
       while (Date.now() < deadline) {
         try {
-          if (await evaluate(expression)) return true;
+          if (await evaluate(expression, Math.min(5000, Math.max(1, deadline - Date.now())))) return true;
         } catch (error) {
           lastWaitError = String(error && error.stack || error);
+          if (connectionClosed || launched.exit) throw error;
         }
-        await sleep(200);
+        await sleep(Math.min(200, Math.max(0, deadline - Date.now())));
       }
       const error = new Error(`Wait timeout: ${expression}`);
       error.lastWaitError = lastWaitError;
@@ -203,6 +222,7 @@ export async function connectBrowser(launched) {
         sessionId,
         lastWaitExpression,
         lastWaitError,
+        connectionClosed,
         pageErrors: pageErrors.slice(),
         browserStderr: launched.stderr,
         browserExit: launched.exit,
@@ -229,6 +249,7 @@ export async function connectBrowser(launched) {
 
   function diagnostics() {
     return {
+      connectionClosed,
       pageErrors: pageErrors.slice(),
       browserStderr: launched.stderr,
       browserExit: launched.exit,

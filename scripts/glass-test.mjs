@@ -23,13 +23,17 @@ const page = await browser.openPage({
 });
 const send = (method, params = {}, timeout = 120000) =>
   browser.send(method, params, page.sessionId, timeout);
-const evaluate = async (expression, timeout = 120000) => {
+const timings = [];
+const evaluate = async (expression, timeout = 30000) => {
+  const start = performance.now();
   try {
     return await page.evaluate(expression, timeout);
   } catch (error) {
     error.phase = phase;
     error.expression = String(expression).slice(0, 240);
     throw error;
+  } finally {
+    timings.push({ phase, ms: +(performance.now() - start).toFixed(1), expression: String(expression).slice(0, 100) });
   }
 };
 const waitFor = (expression, timeout = 30000) => page.waitFor(expression, timeout);
@@ -118,15 +122,17 @@ try {
     throw new Error(`Glass drag/tumble failed ${JSON.stringify({ dragScreen, dragBefore, dragAfter, dragMoved })}`);
   }
   await sleep(700);
+  await evaluate('window.__gummy.freeze(true)');
   const liftScreen = await evaluate('window.__gummy.glassScreen(0)');
   const liftBefore = await evaluate('window.__gummy.glass().actors[0].position[1]');
   const afterPress = await evaluate(`window.__gummy.glassDragStart(0, ${liftScreen.x}, ${liftScreen.y})`);
   await evaluate(`window.__gummy.glassDragTo(0, ${liftScreen.x}, ${liftScreen.y - 55}, true)`);
-  await sleep(250);
+  await page.waitFor(`window.__gummy.glass().actors[0].position[1] > ${liftBefore + .08}`, 3000);
   const liftHeld = await evaluate('window.__gummy.glass().actors[0]');
   await evaluate('window.__gummy.glassDragEnd(0)');
   await sleep(250);
   const liftAfter = await evaluate('window.__gummy.glass().actors[0]');
+  await evaluate('window.__gummy.freeze(false)');
   if (!afterPress || !(liftHeld.position[1] > liftBefore + .08) || liftAfter.grabbing) {
     throw new Error(`Glass vertical drag failed ${JSON.stringify({ liftBefore, afterPress, liftHeld, liftAfter })}`);
   }
@@ -654,11 +660,24 @@ try {
   }
   report.reciprocalMate = reciprocalMate;
 
-  const after = await evaluate(`(() => {
+  phase = 'post-sim';
+  console.log(`PHASE ${phase}`);
+  const postSim = await evaluate(`(() => {
     const g = window.__gummy;
-    g.sim(1.0, 8);
-    return { stats: g.stats(), glass: g.glass(), gl: g.three().renderer.getContext().getError(), errors: 0 };
-  })()`);
+    const start = performance.now();
+    const built = g.sim(1.0, 8);
+    return { built, ms: +(performance.now() - start).toFixed(1) };
+  })()`, 30000);
+  phase = 'post-stats';
+  console.log(`PHASE ${phase}`);
+  const postStats = await evaluate('window.__gummy.stats()', 30000);
+  phase = 'post-glass';
+  console.log(`PHASE ${phase}`);
+  const postGlass = await evaluate('window.__gummy.glass()', 30000);
+  phase = 'post-gl';
+  console.log(`PHASE ${phase}`);
+  const postGl = await evaluate('window.__gummy.three().renderer.getContext().getError()', 30000);
+  const after = { ...postSim, stats: postStats, glass: postGlass, gl: postGl, errors: 0 };
   if (after.stats.nan || after.gl) throw new Error(`Glass post-sim failed ${JSON.stringify(after)}`);
   report.after = after;
   report.errors = pageErrors;
@@ -689,6 +708,7 @@ try {
   console.log('STOP', report.failure.slice(0, 2400));
   process.exitCode = 1;
 } finally {
+  report.timings = timings;
   report.phase = report.phase || phase;
   await writeFile(REPORT_PATH, JSON.stringify(report, null, 2));
   console.log('REPORT', REPORT_PATH);

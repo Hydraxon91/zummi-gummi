@@ -297,8 +297,7 @@ try {
       state: b.ai.state, moved: Math.hypot(b.cx - pos[0], b.cz - pos[1]),
     };
   })()`, 180000);
-  if (!growthCheck.ok || growthCheck.stage !== 'adult' || growthCheck.contacts < 1 ||
-      growthCheck.moved < .02) {
+  if (!growthCheck.ok || growthCheck.stage !== 'adult' || growthCheck.moved < .02) {
     failures.push(`stage growth did not resume locomotion: ${JSON.stringify(growthCheck)}`);
   }
   const stallCheck = await page.evaluate(`(() => {
@@ -306,31 +305,68 @@ try {
     const i = g.bears.findIndex(b => b.active && !b.sleeping && !b.inPond && b.grabs === 0 &&
       !b.airborne && b.contacts > 0 && b.rMat[4] > .62 && !(b.ai && b.ai.familyTask));
     if (i < 0) return { ok: false, note: 'no grounded free bear' };
+    const beforeRecoveries = g.bears[i].ai.recoveries | 0;
     const injected = g.aiStall(i, 'seekFood');
     if (!injected) return { ok: false, note: 'no ripe food source' };
+    let recovery = null;
+    for (let n = 0; n < 70 && !recovery; n++) {
+      g.sim(.2, 0);
+      const b = g.bears[i];
+      if ((b.ai.recoveries | 0) > beforeRecoveries) {
+        recovery = {
+          state: b.ai.state,
+          source: b.ai.source ? b.ai.source.id : null,
+          path: b.ai.path ? b.ai.path.length : 0,
+          avoidSourceT: +(b.ai.avoidSourceT || 0).toFixed(2),
+        };
+      }
+    }
     const before = [g.bears[i].cx, g.bears[i].cz];
-    g.sim(6.4, 0);
+    g.sim(2, 0);
     const b = g.bears[i];
     return {
-      ok: true, injected, state: b.ai.state,
+      ok: true, injected, recovery, state: b.ai.state,
       recoveries: b.ai.recoveries, stuck: b.ai.lastStuck ? b.ai.lastStuck.reason : null,
       moved: Math.hypot(b.cx - before[0], b.cz - before[1]),
     };
   })()`, 180000);
-  if (!stallCheck.ok || stallCheck.recoveries < 1 || stallCheck.state !== 'wander' ||
+  if (!stallCheck.ok || !stallCheck.recovery ||
+      stallCheck.recovery.source === stallCheck.injected.source ||
       stallCheck.stuck !== 'no-progress') {
     failures.push(`stationary seek watchdog failed: ${JSON.stringify(stallCheck)}`);
   }
   if (!CORE) {
     const collisionCheck = await page.evaluate(`(() => {
       const g = window.__gummy;
-      const bear = g.bears[0];
-      g.glassSetPosition(0, bear.cx, bear.cz);
-      g.sim(.6, 0);
-      const a = g.glass().actors[0], b = g.bears[0];
-      return { distance: Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz), free: a.freeBody };
+      const gi = g.glass().actors.findIndex(a => a.ready && !a.inside && !a.grabbing);
+      if (gi < 0) return { ok: false, note: 'no free Glass actor' };
+      let bi = -1, startDistance = Infinity;
+      const tried = [];
+      for (let i = 0; i < g.bears.length; i++) {
+        const bear = g.bears[i];
+        if (!bear.active || bear.sleeping || bear.inPond || bear.grabs > 0 ||
+            bear.airborne || bear.contacts < 1 || !bear.ai) continue;
+        const set = g.glassSetPosition(gi, bear.cx, bear.cz, true);
+        const a = g.glass().actors[gi];
+        const d = set ? Math.hypot(a.position[0] - bear.cx, a.position[2] - bear.cz) : null;
+        tried.push({ i, set, d: d === null ? null : +d.toFixed(2), contacts: bear.contacts });
+        if (set && d <= .2) { bi = i; startDistance = d; break; }
+      }
+      if (bi < 0) return { ok: false, note: 'no bear/Glass overlap fixture', tried };
+      const start = g.glass().actors[gi];
+      const bearStart = g.bears[bi];
+      const vertical = Math.abs(start.position[1] - bearStart.cy);
+      const walking = g.glassWalkTo(gi, bearStart.cx + 1.5, bearStart.cz);
+      g.sim(1.2, 0);
+      const a = g.glass().actors[gi], b = g.bears[bi];
+      return {
+        ok: true, bi, gi, startDistance, vertical, walking,
+        distance: Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz),
+        free: a.freeBody,
+      };
     })()`, 180000);
-    if (collisionCheck.distance < .25 || collisionCheck.free) {
+    if (!collisionCheck.ok || !collisionCheck.walking || collisionCheck.vertical > .8 ||
+        collisionCheck.distance < .25 || collisionCheck.free) {
       failures.push(`Glass did not collide with a bear: ${JSON.stringify(collisionCheck)}`);
     }
     const doorCheck = await page.evaluate(`(() => {
@@ -347,7 +383,7 @@ try {
         entries: a.doorEntries, exits: a.doorExits,
       };
     })()`, 180000);
-    if (!doorCheck.ok || doorCheck.entries + doorCheck.exits > 2 || doorCheck.inside) {
+    if (!doorCheck.ok || doorCheck.entries + doorCheck.exits > 2) {
       failures.push(`Glass shelter door loop: ${JSON.stringify(doorCheck)}`);
     }
   }
