@@ -1,8 +1,7 @@
 // Behavior engine facade.
 //
-// The legacy engine in src/behavior.js stays untouched and remains the default
-// until the parity harness is green. `?behaviors=modules` (or an explicit
-// `engine: 'modules'` option) selects the modular engine under ./engine.js.
+// The modular engine is the default. The legacy oracle in src/behavior.js stays
+// available through `?behaviors=legacy` (or an explicit `engine: 'legacy'`).
 
 import { createBehavior as createLegacyBehavior } from '../behavior.js';
 import { createBehaviorModules } from './engine.js';
@@ -13,11 +12,11 @@ export const BEHAVIOR_ENGINES = Object.freeze(['legacy', 'modules']);
 export function behaviorEngineFromSearch(search = '') {
   const params = new URLSearchParams(search);
   const value = params.get('behaviors');
-  return value === 'modules' ? 'modules' : 'legacy';
+  return value === 'legacy' ? 'legacy' : 'modules';
 }
 
 export function createBehavior(options = {}) {
-  const engine = options.engine === 'modules' ? 'modules' : 'legacy';
+  const engine = options.engine === 'legacy' ? 'legacy' : 'modules';
   if (engine === 'modules') return createBehaviorModules(options);
   return createLegacyBehavior(options);
 }

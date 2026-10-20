@@ -123,9 +123,10 @@ test('reset clears runtime overrides and cache version', () => {
   assert.ok(config.forActor(bear).hive);
 });
 
-test('the facade keeps legacy as the default engine', () => {
-  assert.equal(behaviorEngineFromSearch(''), 'legacy');
-  assert.equal(behaviorEngineFromSearch('?autostart=1'), 'legacy');
+test('the facade defaults to modules and keeps legacy selectable', () => {
+  assert.equal(behaviorEngineFromSearch(''), 'modules');
+  assert.equal(behaviorEngineFromSearch('?autostart=1'), 'modules');
   assert.equal(behaviorEngineFromSearch('?behaviors=modules'), 'modules');
-  assert.equal(behaviorEngineFromSearch('?behaviors=unknown'), 'legacy');
+  assert.equal(behaviorEngineFromSearch('?behaviors=legacy'), 'legacy');
+  assert.equal(behaviorEngineFromSearch('?behaviors=unknown'), 'modules');
 });
