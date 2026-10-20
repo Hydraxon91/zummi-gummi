@@ -1228,12 +1228,45 @@ is available to modules for target ranking but eager scoring/arbitration ships o
 | `matePairOnPathFailure` | `startSeekMate` pairs before the path succeeds. |
 | `glassEngineRng` | `glass.js` `insideT` uses `Math.random` instead of the engine RNG. |
 
+**Checkpoint C1 corrections (Oct 2026):**
+
+- Follow retry is **30 s**, not the older 8 s literal; the port preserves the current
+  `b7f5fea` throttle.
+- Stargaze uses the existing quirk-11 window: **outside 09:00–16:00**, which includes
+  16:00–24:00 and 00:00–09:00, not only 06:00–09:00/16:00–18:00. No gate change was made.
+- Conflict tie and health-floor outcomes are covered **only by the conflict scenario pack**;
+  open-world 20-day runs had 0 tie and 0 health-floor hits (179 actor / 171 opponent wins).
+- C2 ports family tasks; C3 ports `directives` and `flee`, leaving no temporary markers.
+
+**Step-5 follow-up — pair/task writer protocol:** `interactions.js` is **not** the only
+writer of `ai.partner`/`ai.familyTask`. A repo grep still finds direct assignments in
+`social.js`, `mate.js`, `conflict.js`, `glass.js`, `ai.js` and legacy `behavior.js`
+(`friend`-level code predates the module split). The family module itself only uses
+`startTask`/`cancelTask`/`endPair`. Defer the repo-wide refactor to step 5; it is not a
+C3 blocker.
+
 **Step 3 scope and acceptance (this pass):** core skeleton, module contract, layered
 config, `hive` module, facade and `?behaviors=` flag, parity harness (seeded RNG, fixed
 dt, 3 days per race, transition/need diff, RNG draw counts), legacy-vs-legacy and
 perturbation validation, scenario packs, and a `--long` mode (20 days × 5 seeds) for
 nightly runs. Acceptance: zero diffs for Bear, Gummy and Glass, existing tests and smoke
 green, no behavior change with the legacy default.
+
+**Step 3 result (Oct 2026):** `node scripts/behavior-parity.mjs --long` passes with zero
+diffs for Bear, Gummy and Glass across 5 seeds × 20 days (96,000 ticks per run; transition,
+need, target, task, bond/history and RNG-draw counts identical). `--validate` passes
+legacy-vs-legacy determinism, legacy-vs-modules parity and catches a 0.001 need
+perturbation for all three races. The new engine mirrors the follow/playdate stall
+changes in `b7f5fea`; the legacy file itself was not edited by this pass. 94 pure tests,
+the 64-check smoke test and the core browser regression pass with both
+`?behaviors=modules` and the legacy default. The behavior files are committed as one
+scoped change; unrelated UV-guide/skill edits in the same working tree remain unstaged.
+
+**Behavioral changelog:** none. The default engine is still `legacy`; `modules` produces
+the same transitions, needs, targets, tasks, bonds, history, playdates and RNG draw count.
+Hive is the only extracted module in this pass; every other region remains in the explicit
+step-4 scaffold. Step 5 owns the `src/behaviors/README.md` authoring guide and the
+`AGENTS.md` module-ownership update; they are not in this pass.
 
 ## Content extensibility track (implemented, Oct 2026)
 
@@ -1411,10 +1444,11 @@ rest of `.hud`. The performance overlay now intentionally survives Hide UI.
   index progress and target changes; after 6 s without progress it releases the
   claim, blacklists that source for 6 s, cancels the active task/pair and returns
   the actor to wander with a short cooldown. It logs one `AI STUCK` diagnostic.
-- Follow retries use an 8 s cooldown when the parent target is unreachable,
+- Follow retries use a 30 s cooldown when the parent target is unreachable,
   and a baby stops following a parent that is inside or sleeping instead of
-  pushing into the occupied door. Family-task travel cancels with a cooldown
-  when its anchor has no path. This prevents a recover/cancel/restart loop.
+  pushing into the occupied door. Family-task travel cancels with a shared
+  30 s cooldown for both partners when its anchor has no path. This prevents a
+  recover/cancel/restart loop.
 - Door entries and exits are counted in a 20 s window. A third transition logs
   `DOOR LOOP` with inside/state/timer/shelter/task data; bears get an 8 s rest
   cooldown, Glass gets `shelteredToday` suppression for the rest of the day.
@@ -2275,19 +2309,3 @@ These are must-have Studio requirements. The references are saved locally in
   shells, trees, food, decor) on validated footprints, not player-drawn
   walls/floors/roofs. Interiors stay implied (door entry + window glow), not
   modeled walk-in rooms.
-**Step 3 result (Oct 2026):** `node scripts/behavior-parity.mjs --long` passes with zero
-diffs for Bear, Gummy and Glass across 5 seeds × 20 days (96,000 ticks per run; transition,
-need, target, task, bond/history and RNG-draw counts identical). `--validate` passes
-legacy-vs-legacy determinism, legacy-vs-modules parity and catches a 0.001 need
-perturbation for all three races. The new engine mirrors the follow/playdate stall
-changes in `b7f5fea`; the legacy file itself was not edited by this pass. 94 pure tests,
-the 64-check smoke test and the core browser regression pass with both
-`?behaviors=modules` and the legacy default. The behavior files are committed as one
-scoped change; unrelated UV-guide/skill edits in the same working tree remain unstaged.
-
-**Behavioral changelog:** none. The default engine is still `legacy`; `modules` produces
-the same transitions, needs, targets, tasks, bonds, history, playdates and RNG draw count.
-Hive is the only extracted module in this pass; every other region remains in the explicit
-step-4 scaffold. Step 5 owns the `src/behaviors/README.md` authoring guide and the
-`AGENTS.md` module-ownership update; they are not in this pass.
-
