@@ -401,6 +401,12 @@ approved work chunk.
   based only on source inspection or passing checks. Name the inspected captures, timed
   assertions and quality/time-of-day conditions that passed, and state what remains
   unverified.
+- **Inspect emoji and icon sprites close up on both light and dark backgrounds.** Check for
+  an unintended square/rectangular backing, halo, matte fringe, opaque texel border or
+  blend-mode seam around the artwork; a transparent PNG or an `alphaTest` material does not
+  prove the visible edge is clean. Capture the icon at its actual UI size and at 2–3×
+  close-up with the game's real background behind it, including night/dark and bright
+  panels, then restore any temporary diagnostic backing before reporting.
 - **Write scratch captures to the gitignored `.dev-shots/` directory** in the project root
   so the user can watch progress. It is never committed; `/tmp` is not a substitute. Only
   curated, intentional captures belong under `screenshots/`, matching the existing set and
@@ -535,11 +541,15 @@ approved work chunk.
   and UV/albedo fingerprints, decode the saved PNG and view an aligned albedo overlay. Header
   recognition, filenames and successful writes do not prove validity or correspondence. Keep
   readable artist boundaries separate from topology overlays; preserve older files explicitly.
-- **Asset-library integrations are unvalidated.** Poly Haven, Sketchfab and Poly Pizza are
-  enabled in the Blender MCP addon but have not been exercised in this project. Treat them as
-  untrusted: record source, author and licence for every imported asset, verify scale, axis
-  and origin on import, and do not substitute a library asset for a reference-faithful part
-  without approval. A downloaded library item is not evidence of likeness.
+  Island manifests, id/zone maps and masks are per-object UV space: never merge separate
+  layouts into one map, never invent semantic island names, and treat a PASS as structural
+  validation only. See the skill's `uv-island-export` reference and `uv_island_export.py`.
+- **Asset-library coverage is asset-specific.** Poly Haven, Sketchfab and Poly Pizza were
+  exercised in the pond trials; this is not blanket validation. Follow `gummy-3d-authoring`'s
+  `references/asset-libraries.md`, preserve provenance and import transforms, and verify each
+  new asset independently. Record source, author and licence, verify scale, axis and origin,
+  and do not substitute a library asset for a reference-faithful part without approval.
+  A downloaded library item is not evidence of likeness.
 - **Inspect, don't infer success.** View front/back, both sides and three-quarter
   captures for shape changes; use neutral solid shading as well as material/rendered
   views. Check topology and, when applicable, rig weights/deformation. A successful

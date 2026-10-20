@@ -14,19 +14,39 @@ This procedure applies to any Blender asset in the project, not only bears. Char
 species-variant rig/export notes are in "Character and variant authoring" and
 "Deformation and export".
 
-Last reviewed: 2026-10-19. Update this line when the commands, scripts or delivery
+Last reviewed: 2026-10-20. Update this line when the commands, scripts or delivery
 contract below materially change; `AGENTS.md` remains the policy source.
 
 ## Supporting workflows and tools
+
+For shared-atlas delivery copies, selectable atlas/guide resolutions and staged publication,
+follow [references/atlas-delivery.md](references/atlas-delivery.md). Existing source UVs and
+materials stay protected; failed unwraps are diagnostics, not accepted deliveries. The default
+generation guide is 1280²; resolution changes do not authorize a different UV layout.
 
 For a paint template or UV wireframe delivery, follow
 [references/uv-template-delivery.md](references/uv-template-delivery.md): decode saved images,
 record the exact source/UV fingerprint and inspect a same-resolution albedo overlay. A PNG
 header or old filename is not evidence that a guide is valid or current.
+For island ids, zone/id maps, per-island masks and label manifests, follow
+[references/uv-island-export.md](references/uv-island-export.md): render per object, never
+merge separate UV spaces, and never invent island part names.
+
+For automatic semantic-naming experiments, use
+[references/semantic-uv-prototype.md](references/semantic-uv-prototype.md). The prototype
+prepares multi-view, face-grounded evidence and sampled shell pairing; its 24-island vehicle
+development benchmark is not a general naming guarantee or an unattended vision service.
+For same-asset held-out checks, `scripts/uv_semantic_holdout.py` separates prediction freezing,
+numbered capture and scoring; `scripts/test_uv_holdout.py` tests scoring in plain Python.
+Keep failed holdout results and do not retune or relabel them into a reported pass.
 
 Additional tools: `scripts/png_report.py` (read-only structural check),
-`scripts/test_png_report.py` (pure Python fixtures) and `scripts/uv_template_export.py`
-(explicit approved background export; creates new template/layer/overlay/manifest files).
+`scripts/test_png_report.py` (pure Python fixtures), `scripts/uv_template_export.py`
+(approved background export of template/layer/overlay/manifest) and
+`scripts/uv_island_export.py` (per-object id/zone maps, labelled overlay, island manifest
+and binary masks with dilation; deterministic ids, non-zero exit on failed validation) and
+`scripts/uv_label_review.py` (numbered review sheet plus a proposed-name JSON template; a human
+must review it before `--names` is used).
 
 Read [references/asset-workflows.md](references/asset-workflows.md) for hard-surface
 modifier/shading choices, UV preparation, asset budgets and the local reporting tools.
@@ -381,13 +401,18 @@ unrelated lighting or cameras to conceal shape defects.
 
 ## Asset libraries (Poly Haven, Sketchfab, Poly Pizza)
 
-Enabled in the Blender MCP addon but **not yet validated in this project**. Treat every
-library asset as untrusted until checked:
+Exercised in the pond-scene trials (2026-10-19–20, Blender 5.2.2, addon 1.8): Poly Haven
+models/HDRIs/textures, Sketchfab static and skinned animated models, and Poly Pizza static
+and animated models. This is sample coverage, not blanket asset or exporter certification.
+Follow [references/asset-libraries.md](references/asset-libraries.md) for provider-specific
+arguments, transform preservation, animation checks and resource safeguards. Treat each
+new library asset as untrusted until checked:
 
 - Record source, asset id, author and licence beside the import. Check compatibility and meet
   each asset's attribution/redistribution obligations; different licences may coexist when compatible.
-- Imported models arrive at arbitrary scale, axis and origin. Measure the bounding box, then
-  set scale, rotation and origin explicitly; do not assume metres or Z-up.
+- Inventory the exact objects created by each import. Measure evaluated descendant-mesh
+  bounds, not empty bounds; preserve imported scale and axis conversions under a placement
+  controller rather than overwriting them. Validate one instance before duplication.
 - A library asset is not evidence of reference fidelity. Do not substitute it for a part the
   user calibrated against a reference sheet without approval, and do not let a download
   stand in for a requested silhouette.

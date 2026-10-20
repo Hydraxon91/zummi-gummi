@@ -27,6 +27,9 @@ they are not copied from the upstream suite.
 The UV-template delivery reference, PNG checker/fixtures and template exporter are
 project-authored regression measures from the Raptor UV-guide round, not upstream copies.
 
+The atlas validator, staged-export fixtures and delivery-copy diagnostic scripts are
+project-authored; no external packer, generator, vision API or runtime dependency is bundled.
+
 ## MIT License
 
 Copyright (c) 2026 EL4CTEO
