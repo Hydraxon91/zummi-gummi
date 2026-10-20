@@ -5,10 +5,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inspectGlbBytes } from '../../../scripts/glb-inventory.mjs';
 import {
-  compareInventories, createReport, finding, hashBytes,
+  compareInventories, createReport, estimateGlbResources, finding, hashBytes,
   sectionWithStatus,
 } from './verification_report.mjs';
 import { VALIDATOR_PACKAGE, validateGlb } from './validator.mjs';
@@ -40,6 +40,12 @@ function parseArgs(argv) {
     clip: '',
     width: 1440,
     height: 900,
+    fov: 35,
+    nearFactor: 0.72,
+    farFactor: 2.4,
+    margin: 1.15,
+    instances: 1,
+    backdrop: 'solid',
     timeout: 90000,
     strict: false,
   };
@@ -49,7 +55,8 @@ function parseArgs(argv) {
     const name = key.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
     if (name === 'skipPreview' || name === 'skipCleanImport' || name === 'strict') {
       args[name] = true;
-    } else if (name === 'width' || name === 'height' || name === 'timeout') {
+    } else if (['width', 'height', 'timeout', 'fov', 'nearFactor',
+      'farFactor', 'margin', 'instances'].includes(name)) {
       args[name] = Number(argv[index + 1]);
       index += 1;
     } else if (name in args) {
@@ -172,6 +179,7 @@ function sectionFromPreview(preview, captures) {
     status: preview.status,
     details: {
       report: preview.report,
+      benchmark: preview.benchmark || null,
       pageErrors: preview.pageErrors || [],
       captures: captures.length,
     },
@@ -180,10 +188,23 @@ function sectionFromPreview(preview, captures) {
   });
 }
 
-function visualSection(captures, review) {
+export function visualSection(captures, review) {
+  if (!captures.length) {
+    return sectionWithStatus({
+      status: 'not_run',
+      details: {
+        inspection: 'not_performed',
+        captures: 0,
+        note: 'No captures exist to inspect.',
+      },
+      evidence: [],
+      findings: [finding('warning', 'visual_capture_missing',
+        'No captures exist, so visual inspection cannot pass.')],
+    });
+  }
   if (!review) {
     return sectionWithStatus({
-      status: captures.length ? 'review' : 'not_run',
+      status: 'review',
       details: {
         inspection: 'not_performed',
         captures: captures.length,
@@ -201,12 +222,22 @@ function visualSection(captures, review) {
     findings.push(finding('warning', 'visual_inspection_not_recorded',
       'Visual review did not declare that inspection was performed.'));
   }
+  if (review.status === 'review') {
+    findings.push(finding('warning', 'visual_review_flagged',
+      review.notes?.join(' ') || 'Visual review flagged residual issues.'));
+  } else if (review.status === 'fail') {
+    findings.push(finding('error', 'visual_review_failed',
+      review.notes?.join(' ') || 'Visual review failed.'));
+  }
   for (const entry of reviewed) {
     const capture = byPath.get(entry.path);
     if (!capture) {
       findings.push(finding('error', 'visual_capture_unknown',
         `Visual review references an unknown capture: ${entry.path}`));
-    } else if (entry.sha256 && entry.sha256 !== capture.sha256) {
+    } else if (!entry.sha256) {
+      findings.push(finding('error', 'visual_capture_hash_missing',
+        `Visual review entry lacks a SHA-256: ${entry.path}`));
+    } else if (entry.sha256 !== capture.sha256) {
       findings.push(finding('error', 'visual_capture_hash_mismatch',
         `Visual review hash for ${entry.path} does not match the capture.`));
     }
@@ -233,13 +264,14 @@ function visualSection(captures, review) {
   });
 }
 
-function resourceSection({ nodeInventory, pythonInventory, preview, bytes }) {
+function resourceSection({
+  nodeInventory, pythonInventory, preview, bytes, resourceEstimate,
+}) {
   const details = {
     downloadBytes: bytes,
     binChunkBytes: nodeInventory?.binChunkBytes ?? null,
     imageCount: nodeInventory?.imageCount ?? pythonInventory?.image_count ?? null,
-    textureDecodedEstimate: null,
-    textureEstimateNote: 'Decoded texture dimensions/formats are not estimated from GLB metadata.',
+    resourceEstimate: resourceEstimate || null,
     previewRenderer: preview?.report?.renderer || null,
     previewInventory: preview?.report?.inventory || null,
   };
@@ -354,6 +386,12 @@ async function main() {
   const comparison = nodeInventory && python.inventory
     ? compareInventories(nodeInventory, python.inventory)
     : null;
+  let resourceEstimate = null;
+  try {
+    resourceEstimate = estimateGlbResources(bytes);
+  } catch (error) {
+    resourceEstimate = { error: String(error) };
+  }
 
   const identityFindings = [];
   if (args.expectedSha256 && args.expectedSha256 !== sha256) {
@@ -462,6 +500,12 @@ async function main() {
       clip: args.clip,
       width: args.width,
       height: args.height,
+      fov: args.fov,
+      nearFactor: args.nearFactor,
+      farFactor: args.farFactor,
+      margin: args.margin,
+      instances: args.instances,
+      backdrop: args.backdrop,
       timeout: args.timeout,
     });
     captures = preview.captures || [];
@@ -554,6 +598,7 @@ async function main() {
     visual: visualSection(captures, visualReview),
     resources: resourceSection({
       nodeInventory, pythonInventory: python.inventory, preview, bytes: bytes.length,
+      resourceEstimate,
     }),
   };
 
@@ -603,7 +648,10 @@ async function main() {
   if (args.strict && report.disposition.status === 'fail') process.exitCode = 1;
 }
 
-main().catch(error => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1]
+    && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

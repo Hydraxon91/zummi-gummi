@@ -176,7 +176,8 @@ Useful options:
 - `--visual-review path/to/review.json` to link inspected captures and hashes;
 - `--skip-clean-import` and `--skip-preview` for structural-only passes;
 - `--validator-dir DIR` to point at an explicitly provisioned validator;
-- `--clip NAME` and `--width`/`--height` for preview framing;
+- `--clip NAME`, `--width`/`--height`, `--fov`, `--near-factor`, `--far-factor` and
+  `--margin` for explicit preview framing;
 - `--strict` to exit nonzero when the disposition is `fail`.
 
 The report is `report.json` in `--out`, with `node-inventory.json`,
@@ -192,10 +193,12 @@ and unverified sections prevent a clean pass. A capture being written does not p
 was inspected, so `visual` remains `review` until a separate human or approved visual
 check records its evidence.
 
-A visual review is a small JSON record with `inspected`, `reviewer`, `notes` and a
-`captures` list of `{path, sha256}` entries. Every listed hash must match a current
-capture; unknown or stale evidence fails. Omitting a current capture remains a review
-item rather than a pass.
+A visual review is a small JSON record with `inspected`, `reviewer`, `notes`, optional
+`status` (`pass`, `review` or `fail`) and a `captures` list of `{path, sha256}` entries.
+Every entry needs a hash, every hash must match a current capture, and an inspected review
+with no current captures is `not_run`. Unknown or stale evidence fails; omitting a current
+capture remains a review item rather than a pass. Use `status: "review"` to keep a real
+residual defect visible instead of recording a clean pass.
 
 The preview is a **standalone tool-only page** using the pinned three.js `0.186.1` and
 its stock `GLTFLoader`. It loads the GLB, records material/extension/inventory data and
@@ -217,6 +220,44 @@ The fixture suite checks valid, malformed, invalid-accessor, external-dependency
 unsupported-extension GLBs, the validator adapter and report dispositions. With
 `PREVIEW_BASE_URL=http://localhost:8123`, it also runs the MSN preview path and expects a
 `review` disposition.
+
+## Phase 3 fixture generation
+
+The Phase 3 scripts are under `tests/phase3/`:
+
+- `build_crate.py` — copies the existing crate into a new checkpoint, applies an
+  asymmetric checker material and exports `crate_001.glb`.
+- `build_curved.py` — builds a 1 m × 1 m cylinder, bevels a high copy, bakes
+  albedo/roughness/normal at 1024² and 2048², triangulates the low for tangent export and
+  writes `curved_1024.glb` / `curved_2048.glb`.
+- `make_manifest.mjs` — generates `asset.json` and `provenance.json` from an exported GLB.
+- `add_review_camera.py` — adds a review-only side camera to a copy of a checkpoint for
+  density evaluation.
+- `run_msn_baseline.mjs` — captures 1/8/32 shared-geometry MSN instances against a checker
+  backdrop and records relative headless timings.
+
+Build examples:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender \
+  --background .dev-shots/uv-texture-pilot/simple_crate_002_unwrapped.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/tests/phase3/build_crate.py -- \
+  --source .dev-shots/uv-texture-pilot/simple_crate_002_unwrapped.blend \
+  --out-dir .dev-shots/asset-pipeline/phase3/crate
+```
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender \
+  --background --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/tests/phase3/build_curved.py -- \
+  --out-dir .dev-shots/asset-pipeline/phase3/curved
+```
+
+The Phase 3 run is evidence, not game readiness. The crate passed validator and preview
+checks with a 1024² embedded checker; the curved asset passed validator and preview checks
+at both resolutions but retained a faint seam line for review. MSN remains a review result
+because of its three validator warnings and because headless timings are only relative.
 
 ## Documents
 
@@ -272,6 +313,8 @@ directory is relocated; the extractor path is derived from the repository root.
 - Validator conformance is not appearance, gameplay or universal extension support.
 - Preview captures are standalone three.js evidence, not full-game performance.
 - The preview uses the pinned three.js CDN import map; offline loading is unverified.
+- Phase 3 headless timings are relative and highly variable; no real-GPU baseline was
+  recorded on the RX 9070 XT or in the full game.
 - Decoded texture-memory and transfer-cost estimates remain unverified.
 - `gltf-transform inspect` is intentionally not added; existing inventories cover the
   current fields, and a new dependency needs a demonstrated gap.

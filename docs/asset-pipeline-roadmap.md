@@ -1,6 +1,7 @@
 # Asset Pipeline Roadmap
 
-Status: **Phase 2 implemented**; Phase 3 next.
+Status: **Phase 3 implemented with residual curved-seam review**; Phase 4 next after
+acceptance.
 Date: 2026-10-20
 Owner: Hydraxon
 
@@ -391,6 +392,28 @@ Qwen, advanced materials, compression optimization and game integration.
 Approve captures, curved-surface results, intended instance counts and real-GPU test
 environment.
 
+### Implementation (2026-10-20)
+
+- Built a new crate checkpoint with an asymmetric 1024² checker, embedded it in a
+  self-contained GLB, generated manifest/provenance, and verified it through validator,
+  clean import, preview and all-side captures. Source hash remains unchanged.
+- Built a 1 m diameter × 1 m high cylinder fixture with a deliberate UV seam, a beveled
+  high copy, and baked 1024²/2048² albedo, roughness and tangent-space normal maps.
+  Triangulated the low for portable tangents. Both GLBs pass the validator with no warnings.
+- Recorded a residual faint vertical seam line in the curved captures. It remains a review
+  item, not an accepted clean pass.
+- Density review: the crate is under target at 1024² and mixed at 2048²; the curved
+  cylinder shows side/cap density spread and seam anisotropy. Thresholds remain advisory.
+- MSN baseline: existing GLB only, with 1/8/32 shared-geometry instances and checker
+  backgrounds. Transmission, overlap and sorting remain visually reviewable; the three
+  `NODE_SKINNED_MESH_NON_ROOT` validator warnings remain open.
+- Headless relative timings were recorded, but no real-GPU/RX 9070 XT or full-game
+  benchmark was performed.
+- Phase 2 evidence handling was tightened: visual review hashes are required, empty
+  captures cannot pass, explicit camera settings are recorded, and decoded texture
+  estimates are reported.
+- No compression variant, loader change, production asset edit or game integration.
+
 ---
 
 ## Phase 4 — Manual material zones (optional for the house)
@@ -744,7 +767,7 @@ authorize game integration, dependency changes, commits or pushes.
 
 # Approval gates and deferred work
 
-- **Phase 3** is the next implementation step.
+- **Phase 4** is the next implementation step after curved-seam acceptance.
 - No house modeling, Qwen generation or game integration at this stage.
 - No commit or push without explicit approval.
 - Validator provisioning is approved; loader/runtime changes remain separate.
@@ -754,8 +777,8 @@ authorize game integration, dependency changes, commits or pushes.
 
 ## Next action
 
-Phase 2 is implemented under `tools/asset-pipeline/`. Begin **Phase 3** next:
-the crate end-to-end slice, curved-surface UV/bake test and MSN baseline.
+Phase 3 is implemented under `tools/asset-pipeline/tests/phase3/`. Review the curved
+seam/density result and the MSN validator warnings, then begin **Phase 4** if accepted.
 
 Density thresholds remain advisory; no compression variant, loader change, generation
 or house modeling has started.

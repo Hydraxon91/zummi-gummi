@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { inspectGlbBytes } from '../../../scripts/glb-inventory.mjs';
 import {
   createReport, sectionWithStatus, finding, statusFromFindings,
-  compareInventories, validateReport,
+  compareInventories, estimateGlbResources, validateReport,
 } from '../scripts/verification_report.mjs';
 import {
   findValidatorDir, validateGlb, VALIDATOR_PACKAGE,
@@ -14,6 +14,7 @@ import {
   validTriangleGlb, emissiveTriangleGlb, externalImageGlb,
   unsupportedExtensionGlb, invalidAccessorGlb, malformedGlb,
 } from './fixtures.mjs';
+import { visualSection } from '../scripts/verify_asset.mjs';
 
 const validatorDir = findValidatorDir();
 
@@ -72,6 +73,31 @@ test('captures require a hash-linked path', () => {
   }), /path and sha256/);
 });
 
+test('visual review cannot pass without captures or hashes', () => {
+  const empty = visualSection([], { inspected: true, captures: [] });
+  assert.equal(empty.status, 'not_run');
+  const capture = { path: 'front.png', sha256: 'b'.repeat(64), view: 'front', light: 'day' };
+  const noHash = visualSection([capture], {
+    inspected: true,
+    captures: [{ path: 'front.png' }],
+  });
+  assert.equal(noHash.status, 'fail');
+  const valid = visualSection([capture], {
+    inspected: true,
+    captures: [{ path: 'front.png', sha256: capture.sha256 }],
+  });
+  assert.equal(valid.status, 'pass');
+  const missing = visualSection([capture], { inspected: true, captures: [] });
+  assert.equal(missing.status, 'review');
+  const flagged = visualSection([capture], {
+    inspected: true,
+    status: 'review',
+    notes: ['visible seam'],
+    captures: [{ path: 'front.png', sha256: capture.sha256 }],
+  });
+  assert.equal(flagged.status, 'review');
+});
+
 test('node and python inventories compare by normalized fields', () => {
   const node = inspectGlbBytes(validTriangleGlb(), { file: 'valid.glb' });
   const python = {
@@ -88,6 +114,16 @@ test('node and python inventories compare by normalized fields', () => {
   assert.equal(compareInventories(node, python).agreement, true);
   python.material_count += 1;
   assert.equal(compareInventories(node, python).agreement, false);
+});
+
+test('resource estimates distinguish known and unknown texture data', () => {
+  const valid = estimateGlbResources(validTriangleGlb());
+  assert.equal(valid.imageCount, 0);
+  assert.equal(valid.decodedTextureBytes, 0);
+  const external = estimateGlbResources(externalImageGlb());
+  assert.equal(external.imageCount, 1);
+  assert.equal(external.unknown.length, 1);
+  assert.equal(external.decodedTextureBytes, 0);
 });
 
 test('GLB fixtures expose expected identity and dependency signals', () => {

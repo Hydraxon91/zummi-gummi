@@ -18,6 +18,12 @@ function parseArgs(argv) {
     width: 1440,
     height: 900,
     clip: '',
+    fov: 35,
+    nearFactor: 0.72,
+    farFactor: 2.4,
+    margin: 1.15,
+    instances: 1,
+    backdrop: 'solid',
     timeout: 90000,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -26,7 +32,8 @@ function parseArgs(argv) {
     if (!key.startsWith('--')) continue;
     const name = key.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
     if (name === 'clip') args.clip = value || '';
-    else if (name === 'width' || name === 'height' || name === 'timeout') {
+    else if (['width', 'height', 'timeout', 'fov', 'nearFactor',
+      'farFactor', 'margin', 'instances'].includes(name)) {
       args[name] = Number(value);
     } else if (name in args) args[name] = value;
     index += 1;
@@ -46,6 +53,12 @@ export async function capturePreview(options) {
   try {
     const url = new URL('/tools/asset-pipeline/preview/index.html', args.baseUrl);
     url.searchParams.set('asset', args.asset);
+    url.searchParams.set('fov', String(args.fov));
+    url.searchParams.set('nearFactor', String(args.nearFactor));
+    url.searchParams.set('farFactor', String(args.farFactor));
+    url.searchParams.set('margin', String(args.margin));
+    url.searchParams.set('instances', String(args.instances));
+    url.searchParams.set('backdrop', String(args.backdrop));
     if (args.clip) url.searchParams.set('clip', args.clip);
     page = await browser.openPage({
       url: url.href,
@@ -65,6 +78,7 @@ export async function capturePreview(options) {
         reason: report.error,
       };
     }
+    const benchmark = await page.evaluate('window.__preview.benchmark(20)');
     const views = String(args.views).split(',').map(item => item.trim()).filter(Boolean);
     const lights = String(args.lights).split(',').map(item => item.trim()).filter(Boolean);
     for (const light of lights) {
@@ -89,6 +103,7 @@ export async function capturePreview(options) {
     return {
       status,
       report,
+      benchmark,
       captures,
       pageErrors: browser.pageErrors,
       reason: report.error || null,

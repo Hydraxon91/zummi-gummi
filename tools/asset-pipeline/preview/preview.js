@@ -1,12 +1,20 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 const params = new URLSearchParams(location.search);
 const assetParam = params.get('asset') || 'assets/MSN_Figure/msn.glb';
 const asset = /^(?:https?:)?\//.test(assetParam) ? assetParam : `/${assetParam}`;
 const initialLight = params.get('light') === 'night' ? 'night' : 'day';
 const initialClip = params.get('clip') || '';
+const viewFov = Number(params.get('fov')) || 35;
+const nearFactor = Number(params.get('nearFactor')) || 0.72;
+const farFactor = Number(params.get('farFactor')) || 2.4;
+const viewMargin = Number(params.get('margin')) || 1.15;
+const backdropMode = params.get('backdrop') === 'checker' ? 'checker' : 'solid';
+const requestedInstances = Math.max(1, Math.min(64,
+  Number(params.get('instances')) || 1));
 const status = document.getElementById('status');
 const pageErrors = [];
 const resourceErrors = [];
@@ -38,7 +46,7 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
-  35, window.innerWidth / window.innerHeight, 0.01, 1000);
+  viewFov, window.innerWidth / window.innerHeight, 0.01, 1000);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environment = environment;
@@ -57,7 +65,7 @@ nightRim.position.set(0, 3, -4);
 scene.add(nightRim);
 
 let model = null;
-let mixer = null;
+let mixers = [];
 let clips = [];
 let bounds = null;
 let center = new THREE.Vector3();
@@ -66,11 +74,38 @@ let frameCount = 0;
 let loadError = null;
 let currentLight = initialLight;
 let ready = false;
+let instanceCount = 1;
+
+function makeBackdrop(night) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const context = canvas.getContext('2d');
+  const size = 32;
+  for (let y = 0; y < canvas.height; y += size) {
+    for (let x = 0; x < canvas.width; x += size) {
+      const dark = ((x / size) + (y / size)) % 2 === 0;
+      if (night) context.fillStyle = dark ? '#101a26' : '#24384a';
+      else context.fillStyle = dark ? '#d9e0e6' : '#f7f3e9';
+      context.fillRect(x, y, size, size);
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+
+const dayBackdrop = makeBackdrop(false);
+const nightBackdrop = makeBackdrop(true);
 
 function applyLighting(mode) {
   currentLight = mode === 'night' ? 'night' : 'day';
+  const backdrop = currentLight === 'night' ? nightBackdrop : dayBackdrop;
   if (currentLight === 'night') {
-    scene.background = new THREE.Color(0x071018);
+    scene.background = backdropMode === 'checker'
+      ? backdrop : new THREE.Color(0x071018);
     scene.environmentIntensity = 0.35;
     renderer.toneMappingExposure = 1.1;
     hemi.intensity = 0.18;
@@ -78,7 +113,8 @@ function applyLighting(mode) {
     fill.intensity = 0.12;
     nightRim.intensity = 2.2;
   } else {
-    scene.background = new THREE.Color(0xf2f0ea);
+    scene.background = backdropMode === 'checker'
+      ? backdrop : new THREE.Color(0xf2f0ea);
     scene.environmentIntensity = 1.0;
     renderer.toneMappingExposure = 1.0;
     hemi.intensity = 1.6;
@@ -114,7 +150,8 @@ function setView(name = 'front') {
     near: [0, 0.08, 1],
     far: [0, 0.12, 1],
   }[name] || [0, 0, 1];
-  const factor = name === 'near' ? 0.72 : name === 'far' ? 2.4 : 1.15;
+  const factor = name === 'near' ? nearFactor
+    : name === 'far' ? farFactor : viewMargin;
   const distance = (radius / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5)))
     * factor;
   const offset = new THREE.Vector3(...direction).normalize().multiplyScalar(distance);
@@ -127,15 +164,17 @@ function setView(name = 'front') {
 }
 
 function setClip(name) {
-  if (!mixer) return false;
-  mixer.stopAllAction();
+  if (!mixers.length) return false;
+  for (const mixer of mixers) mixer.stopAllAction();
   if (!name) return false;
   const clip = clips.find(item => item.name === name);
   if (!clip) return false;
-  const action = mixer.clipAction(clip);
-  action.reset().play();
-  mixer.setTime(0.5);
-  mixer.timeScale = 0;
+  for (const mixer of mixers) {
+    const action = mixer.clipAction(clip);
+    action.reset().play();
+    mixer.setTime(0.5);
+    mixer.timeScale = 0;
+  }
   renderer.render(scene, camera);
   return true;
 }
@@ -199,7 +238,17 @@ function report() {
     error: loadError,
     asset,
     light: currentLight,
+    backdrop: backdropMode,
+    instances: instanceCount,
     bounds,
+    camera: {
+      fov: camera.fov,
+      position: camera.position.toArray(),
+      target: center.toArray(),
+      near: camera.near,
+      far: camera.far,
+      viewport: [window.innerWidth, window.innerHeight],
+    },
     inventory: {
       meshCount,
       materialCount: materials.length,
@@ -220,8 +269,12 @@ function report() {
       textures: renderer.info.memory.textures,
       geometries: renderer.info.memory.geometries,
       glError: context.getError(),
+      vendor: context.getParameter(context.VENDOR),
+      renderer: context.getParameter(context.RENDERER),
       outputColorSpace: renderer.outputColorSpace,
       toneMapping: renderer.toneMapping,
+      devicePixelRatio: window.devicePixelRatio,
+      userAgent: navigator.userAgent,
     },
     pageErrors,
     resourceErrors,
@@ -230,11 +283,31 @@ function report() {
   };
 }
 
+function benchmark(frames = 20) {
+  const count = Math.max(1, Math.min(120, Number(frames) || 20));
+  const start = performance.now();
+  for (let index = 0; index < count; index += 1) {
+    renderer.render(scene, camera);
+  }
+  const elapsedMs = performance.now() - start;
+  return {
+    frames: count,
+    elapsedMs,
+    averageMs: elapsedMs / count,
+    note: 'CPU submission timing only; not a real frame rate or GPU completion time.',
+    calls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+    textures: renderer.info.memory.textures,
+    geometries: renderer.info.memory.geometries,
+  };
+}
+
 window.__preview = {
   setLighting: applyLighting,
   setView,
   setClip,
   renderNow,
+  benchmark,
   report,
 };
 
@@ -245,21 +318,35 @@ const manager = new THREE.LoadingManager();
 manager.onError = url => resourceErrors.push(String(url));
 const loader = new GLTFLoader(manager);
 loader.loadAsync(asset).then(gltf => {
-  model = gltf.scene;
   clips = gltf.animations || [];
   const extensions = gltf.parser?.json || {};
+  const source = gltf.scene;
+  const sourceBox = new THREE.Box3().setFromObject(source);
+  const sourceSize = sourceBox.getSize(new THREE.Vector3());
+  const spacing = Math.max(sourceSize.x, sourceSize.z, 0.5) * 1.4;
+  const columns = Math.ceil(Math.sqrt(requestedInstances));
+  model = new THREE.Group();
   model.userData.extensionsUsed = extensions.extensionsUsed || [];
   model.userData.extensionsRequired = extensions.extensionsRequired || [];
+  for (let index = 0; index < requestedInstances; index += 1) {
+    const instance = index === 0 ? source : cloneSkeleton(source);
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    instance.position.set(
+      (column - (columns - 1) / 2) * spacing,
+      0,
+      (row - (Math.ceil(requestedInstances / columns) - 1) / 2) * spacing);
+    model.add(instance);
+    if (clips.length) mixers.push(new THREE.AnimationMixer(instance));
+  }
+  instanceCount = requestedInstances;
   scene.add(model);
   computeBounds();
-  if (clips.length && initialClip) {
-    mixer = new THREE.AnimationMixer(model);
-    setClip(initialClip);
-  }
+  if (clips.length && initialClip) setClip(initialClip);
   setView(params.get('view') || 'three_quarter');
   renderer.render(scene, camera);
   ready = true;
-  status.textContent = `${asset}\n${meshCountText()} meshes, ${clips.length} clips`;
+  status.textContent = `${asset}\n${meshCountText()} meshes, ${clips.length} clips, ${instanceCount} instance(s)`;
 }).catch(error => {
   loadError = String(error?.message || error);
   pageErrors.push(loadError);
@@ -276,7 +363,9 @@ let last = performance.now();
 function animate(now) {
   const delta = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (mixer && mixer.timeScale !== 0) mixer.update(delta);
+  for (const mixer of mixers) {
+    if (mixer.timeScale !== 0) mixer.update(delta);
+  }
   renderer.render(scene, camera);
   frameCount += 1;
   requestAnimationFrame(animate);

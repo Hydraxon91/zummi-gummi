@@ -55,6 +55,10 @@ Khronos validator, a disposable clean import and a standalone three.js preview. 
 conformance, preview compatibility and human visual inspection remain separate claims;
 the preview does not modify the game loader or authorize integration.
 
+Phase 3 synthetic crate/curved bake fixtures live under
+`tools/asset-pipeline/tests/phase3/`. They exercise the pipeline; they are not house
+assets, reference-fidelity evidence or game integration.
+
 For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
 [references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are
 external and do not authorize game integration, material transfer or a bake.

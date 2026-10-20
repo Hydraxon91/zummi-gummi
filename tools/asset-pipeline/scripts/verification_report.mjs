@@ -18,6 +18,105 @@ export function hashBytes(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+const GLB_JSON = 0x4e4f534a;
+const GLB_BIN = 0x004e4942;
+
+function readGlb(bytes) {
+  if (!Buffer.isBuffer(bytes)) bytes = Buffer.from(bytes);
+  if (bytes.length < 20) throw new Error('GLB too short');
+  if (bytes.toString('ascii', 0, 4) !== 'glTF') throw new Error('Not a GLB');
+  if (bytes.readUInt32LE(4) !== 2) throw new Error('Expected GLB 2');
+  if (bytes.readUInt32LE(8) !== bytes.length) throw new Error('GLB length mismatch');
+  let offset = 12;
+  let doc = null;
+  let bin = null;
+  while (offset + 8 <= bytes.length) {
+    const size = bytes.readUInt32LE(offset);
+    const kind = bytes.readUInt32LE(offset + 4);
+    offset += 8;
+    if (offset + size > bytes.length) throw new Error('Truncated GLB chunk');
+    const chunk = bytes.subarray(offset, offset + size);
+    if (kind === GLB_JSON && !doc) doc = JSON.parse(chunk.toString('utf8'));
+    if (kind === GLB_BIN && !bin) bin = chunk;
+    offset += size;
+  }
+  if (!doc) throw new Error('GLB has no JSON chunk');
+  return { doc, bin: bin || Buffer.alloc(0) };
+}
+
+function imageDimensions(data) {
+  if (!data || data.length < 24) return null;
+  if (data.toString('ascii', 1, 4) === 'PNG'
+      && data[0] === 0x89 && data[12] === 0x49 && data[13] === 0x48) {
+    return { width: data.readUInt32BE(16), height: data.readUInt32BE(20), format: 'png' };
+  }
+  if (data[0] === 0xff && data[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < data.length) {
+      if (data[offset] !== 0xff) { offset += 1; continue; }
+      const marker = data[offset + 1];
+      if (marker >= 0xc0 && marker <= 0xc3) {
+        return {
+          height: data.readUInt16BE(offset + 5),
+          width: data.readUInt16BE(offset + 7),
+          format: 'jpeg',
+        };
+      }
+      if (marker === 0xd8 || marker === 0xd9) { offset += 2; continue; }
+      if (offset + 4 > data.length) break;
+      offset += 2 + data.readUInt16BE(offset + 2);
+    }
+  }
+  return null;
+}
+
+export function estimateGlbResources(bytes) {
+  const { doc, bin } = readGlb(bytes);
+  const images = [];
+  let decodedTextureBytes = 0;
+  const unknown = [];
+  for (const [index, image] of (doc.images || []).entries()) {
+    let data = null;
+    if (Number.isInteger(image.bufferView)) {
+      const view = doc.bufferViews?.[image.bufferView];
+      if (view && Number.isInteger(view.byteOffset) && Number.isInteger(view.byteLength)) {
+        data = bin.subarray(view.byteOffset, view.byteOffset + view.byteLength);
+      } else if (view && Number.isInteger(view.byteLength)) {
+        data = bin.subarray(0, view.byteLength);
+      }
+    }
+    const dimensions = imageDimensions(data);
+    if (!dimensions) {
+      unknown.push({
+        index,
+        name: image.name || null,
+        uri: image.uri || null,
+        reason: data ? 'unsupported image header' : 'external or missing image data',
+      });
+      images.push({ index, name: image.name || null, ...dimensions, bytes: null });
+      continue;
+    }
+    const rgba = dimensions.width * dimensions.height * 4;
+    decodedTextureBytes += rgba;
+    images.push({
+      index,
+      name: image.name || null,
+      ...dimensions,
+      bytes: rgba,
+      mipEstimateBytes: Math.ceil(rgba * 4 / 3),
+    });
+  }
+  return {
+    geometryBufferBytes: bin.length,
+    imageCount: images.length,
+    decodedTextureBytes,
+    decodedTextureMipEstimateBytes: Math.ceil(decodedTextureBytes * 4 / 3),
+    images,
+    unknown,
+    note: 'Decoded RGBA texture estimates assume 8-bit uncompressed channels; encoded/compressed formats and renderer allocation remain unverified.',
+  };
+}
+
 export function finding(severity, code, message, extra = {}) {
   if (!['error', 'warning', 'info'].includes(severity)) {
     throw new Error(`Invalid finding severity: ${severity}`);

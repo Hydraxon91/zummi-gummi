@@ -29,6 +29,7 @@ Blender → AI-assisted materials → glTF pipeline.
 - Profiles: `tools/asset-pipeline/profiles/`
 - Python tests: `python3 -m unittest discover -s tools/asset-pipeline/tests -p 'test_*.py'`
 - Phase 2 tests: `tools/asset-pipeline/tests/phase2/run.sh`
+- Phase 3 fixtures: `tools/asset-pipeline/tests/phase3/`
 - Blender fixtures: `BLENDER=/path/to/blender tools/asset-pipeline/tests/blender/run.sh`
 
 This tooling is read-only and does not export, repair, generate textures, modify the game
