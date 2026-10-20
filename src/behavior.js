@@ -1808,7 +1808,8 @@ export function createBehavior({
     // critical thresholds an optional interaction must yield to survival.
     const criticalNeed = actor.thirst >= p.thresholds.criticalThirst ? 'water'
       : actor.hunger >= p.thresholds.criticalHunger ? 'food' : null;
-    if (criticalNeed && ['invite', 'social', 'decline', 'mate', 'visit', 'familyTask', 'stargaze'].includes(ai.state)) {
+    if (criticalNeed && ['invite', 'social', 'decline', 'mate', 'visit', 'familyTask', 'stargaze',
+      'seekHome', 'seekMate', 'seekCompany', 'seekSocial', 'follow'].includes(ai.state)) {
       cancelPair(actor);
       if (criticalNeed === 'water') acquireWater(actor);
       else if (!acquireFood(actor) && p.conflict) acquireContest(actor);
@@ -2257,7 +2258,7 @@ export function createBehavior({
   }
 
   function forceMate(actor, partner) {
-    if (!actor || !partner) return { ok: false, note: 'no pair' };
+    if (!actor || !partner || !actor.ai || !partner.ai) return { ok: false, note: 'no pair' };
     cancelPair(actor);
     cancelPair(partner);
     startMatePair(actor, partner);

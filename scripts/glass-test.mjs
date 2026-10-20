@@ -259,15 +259,19 @@ try {
     g.glassSetNeed(2, 'thirst', .2);
     g.glassSetNeed(3, 'hunger', .2);
     g.glassSetNeed(3, 'thirst', .2);
-    const before = g.glass().actors[2]?.bonds?.[String(g.glass().actors[3]?.uid)] || 0;
     const started = g.glassFamilyPlay(2);
+    const actor = g.glass().actors[2];
+    const playmate = g.glass().actors.find(x => x.name === actor.partner);
+    const playmateUid = playmate ? String(playmate.uid) : null;
+    const before = playmateUid ? (actor.bonds?.[playmateUid] || 0) : 0;
     g.sim(20.0, 8);
     const a = g.glass().actors[2];
-    const b = g.glass().actors[3];
+    const b = playmateUid ? g.glass().actors.find(x => String(x.uid) === playmateUid) : null;
     return {
       started,
+      mate: actor.partner,
       before,
-      after: a && b ? (a.bonds?.[String(b.uid)] || 0) : 0,
+      after: a && playmateUid ? (a.bonds?.[playmateUid] || 0) : 0,
       state: a && a.state,
       familyPlay: !!(a && a.familyPlay),
       playmateKind: a && a.playmateKind,
@@ -303,26 +307,32 @@ try {
 
   const family = await evaluate(`(() => {
     const g = window.__gummy;
-    const mother = g.glass().actors[0];
+    g.setTime(8);
     const childIndex = g.glass().actors.length - 1;
+    const childBefore = g.glass().actors[childIndex];
+    const mother = g.glass().actors.find(a => (childBefore.parentUids || []).includes(a.uid));
+    if (!mother) return { childIndex, missingParent: childBefore.parentUids };
     g.glassSetPosition(childIndex, mother.position[0] + 5.5, mother.position[2] + 5.5);
     const placed = g.glass().actors[childIndex];
     const before = Math.hypot(placed.position[0] - mother.position[0], placed.position[2] - mother.position[2]);
     g.sim(3.0, 8);
     const afterChild = g.glass().actors[childIndex];
-    const afterMother = g.glass().actors[0];
+    const afterMother = g.glass().actors.find(a => a.uid === mother.uid);
     const after = Math.hypot(afterChild.position[0] - afterMother.position[0], afterChild.position[2] - afterMother.position[2]);
     return {
       childIndex, before, after, state: afterChild.state,
       parents: afterChild.parentUids,
       follow: afterChild.follow,
+      mother: mother.name,
       home: afterChild.home,
       motherHome: afterMother.home,
       motherBond: (mother.bonds || {})[String(afterChild.uid)] || 0,
     };
   })()`);
+  const familyWithMother = family.state === 'familyTask' && family.follow === family.mother;
   if (!family.parents?.length || !family.home || !(family.after < family.before - .2) ||
-      !(family.state === 'follow' || family.state === 'wander') || family.motherBond <= 0) {
+      !(family.state === 'follow' || family.state === 'wander' || familyWithMother) ||
+      family.motherBond <= 0) {
     throw new Error(`Glass family follow failed ${JSON.stringify(family)}`);
   }
   report.family = family;
@@ -357,7 +367,7 @@ try {
     const glass = actors.find(a => a.stage === 'adult' && !a.inside);
     const bear = g.bears.find(b => b.active && b.species === 'bear' && b.stage === 'adult' && !b.sleeping && !b.inPond && b.grabs === 0);
     if (!glass || !bear) return { found: false };
-    const gi = actors.indexOf(glass);
+    const gi = glass.index;
     const bi = g.bears.indexOf(bear);
     const started = g.glassVisitBear(gi, bi);
     g.sim(2.0, 8);
@@ -395,7 +405,7 @@ try {
     const actors = g.glass().actors;
     const glass = actors.find(a => a.stage === 'adult' && !a.pregnant);
     if (!glass) return { found: false, reason: 'no glass', actors: actors.map(a => ({ uid: a.uid, stage: a.stage, pregnant: a.pregnant, inside: a.inside })) };
-    const gi = actors.indexOf(glass);
+    const gi = glass.index;
     const setNeeds = [
       g.glassSetNeed(gi, 'hunger', .2),
       g.glassSetNeed(gi, 'thirst', .2),
@@ -458,7 +468,7 @@ try {
     const bear = g.bears.find(b => b.active && b.species === 'bear' && b.stage === 'adult' &&
       b.sex === 'F' && !b.pregnant && !b.sleeping && !b.inPond && b.grabs === 0);
     if (!glass || !bear) return { found: false };
-    const gi = actors.indexOf(glass);
+    const gi = glass.index;
     const bi = g.bears.indexOf(bear);
     g.glassSetNeed(gi, 'hunger', .2);
     g.glassSetNeed(gi, 'thirst', .2);
@@ -523,7 +533,7 @@ try {
       b.sex !== glass.sex && !b.pregnant && !b.sleeping);
     if (!glass || !bear) return { found: false };
     const bi = g.bears.indexOf(bear);
-    const gi = actors.indexOf(glass);
+    const gi = glass.index;
     g.glassSetNeed(gi, 'hunger', .2);
     g.glassSetNeed(gi, 'thirst', .2);
     g.glassSetNeed(gi, 'health', 100);

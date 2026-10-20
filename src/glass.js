@@ -862,6 +862,9 @@ export function createGlassColony({
         ? { x: +a.ai.playdateTarget.x.toFixed(2), z: +a.ai.playdateTarget.z.toFixed(2) }
         : null,
       moving: !!(a.ai && a.ai.moving),
+      path: a.ai && a.ai.path ? a.ai.path.slice(0, 6).map(p => [+p.x.toFixed(2), +p.z.toFixed(2)]) : null,
+      pathIndex: a.ai && a.ai.pathIndex || 0,
+      target: a.ai && a.ai.target ? [+a.ai.target.x.toFixed(2), +a.ai.target.z.toFixed(2)] : null,
       visitRole: a.ai ? a.ai.visitRole : null,
       visitPhase: a.ai ? a.ai.visitPhase : null,
       visitHome: a.ai ? a.ai.visitHome : null,
@@ -887,7 +890,7 @@ export function createGlassColony({
     return {
       meadow,
       count: actors.filter(a => a.active).length,
-      actors: actors.filter(a => a.active).map(stateFor),
+      actors: actors.filter(a => a.active).map(a => stateFor(a, actors.indexOf(a))),
       food: safeFoodCount(),
     };
   }
@@ -979,7 +982,10 @@ export function createGlassColony({
         a.ai.insideT = Math.max(0, (a.ai.insideT || 0) - dt);
         if (shared) shared.tick(a, dt, { ready: false });
         else a.energy = Math.min(1, a.energy + .008 * dt);
-        if (!shared && (a.ai.insideT <= 0 || !day)) emerge(a);
+        if (a.ai.insideT <= 0 || !day) {
+          if (shared) shared.api.wake(a);
+          else emerge(a);
+        }
         updateVisual(a);
         if (a.mixer) a.mixer.update(dt);
         continue;
