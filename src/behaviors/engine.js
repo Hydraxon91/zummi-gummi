@@ -10,15 +10,12 @@
 // Box3D bodies or three.js objects.
 
 import { PREGNANCY_HUNGER, HOME_CAPACITY } from '../life.js';
-import { isSafeFood } from '../foodtypes.js';
 import {
-  familyRelation, addBond, pairBond, skillsFor,
-  pushHistory, playdateDue, schedulePlaydate,
-  nextPlaydateDay, teachSkill, strongestSkill, skillValue, PLAYDATE_WINDOW, routineWindowFor,
+  addBond, pairBond, skillsFor,
 } from '../family.js';
 import {
-  INTERACTIONS, interactionFor, startTask, cancelTask,
-  pairAvailable, beginPair, endPair, breakPair as breakSharedPair,
+  cancelTask,
+  beginPair, endPair, breakPair as breakSharedPair,
 } from '../interactions.js';
 import { createBehaviorConfig } from './config.js';
 import { hiveModule } from './hive.js';
@@ -42,14 +39,6 @@ function finite(n, fallback) {
 
 function clamp(n, lo, hi) {
   return n < lo ? lo : (n > hi ? hi : n);
-}
-
-function unit(v) {
-  return clamp(finite(v, 0), 0, 1);
-}
-
-function dist(a, b) {
-  return Math.hypot(a.cx - b.cx, a.cz - b.cz);
 }
 
 export function createBehaviorModules({
@@ -884,271 +873,11 @@ export function createBehaviorModules({
   /* -------------------------------------------------------------- playdate */
 
   /* ----------------------------------------------------------------- tasks */
-  function playdateAnchor(actor, partner) {
-    if (!field || !Array.isArray(field.homes)) return { x: (actor.cx + partner.cx) * .5, z: (actor.cz + partner.cz) * .5 };
-    const names = [actor.home, partner.home].filter(Boolean);
-    const home = field.homes.find(candidate => names.includes(candidate.name));
-    if (home) return { x: home.door.x, z: home.door.z, home: home.name };
-    return { x: (actor.cx + partner.cx) * .5, z: (actor.cz + partner.cz) * .5 };
-  }
-
-  function acquireFamilyPlaymate(actor) {
-    if (!actor || !actor.ai || actor.ai.familyPlayCooldown > 0 || actor.ai.socialCooldown > 0) return null;
-    if (!actor.parentUids || !actor.parentUids.length) return null;
-    if (!isDayFor(actor)) return null;
-    const p = profile(actor);
-    let best = null;
-    let bestScore = -Infinity;
-    for (const other of actors()) {
-      if (!pairAvailable(actor, other, { states: ['wander', 'seekCompany', 'stargaze', 'seekSocial'] })) continue;
-      if (other.ai && (other.ai.familyPlayCooldown > 0 || other.ai.socialCooldown > 0)) continue;
-      const kind = familyRelation(actor, other);
-      if (!kind || (kind !== 'sibling' && kind !== 'parent' && kind !== 'child')) continue;
-      const d = dist(actor, other);
-      if (d > 12) continue;
-      const score = (kind === 'sibling' ? .35 : .2) + pairBond(actor, other) * .8 - d * .03;
-      if (score > bestScore) { bestScore = score; best = { actor: other, kind }; }
-    }
-    return best;
-  }
-
-  function startPlaydate(actor, partner, kind) {
-    if (!actor || !partner || !actor.ai || !partner.ai) return false;
-    releaseFood(actor);
-    releaseFood(partner);
-    const anchor = playdateAnchor(actor, partner);
-    const id = INTERACTIONS.familyPlaydate;
-    startTask(actor, id, { role: 'host', partner, anchor, phase: 'travel' });
-    actor.ai.familyPlay = true;
-    actor.ai.playmateKind = kind;
-    actor.ai.playdate = true;
-    actor.ai.playdateHome = anchor.home || null;
-    actor.ai.playdateTarget = { x: anchor.x, z: anchor.z };
-    startTask(partner, id, { role: 'guest', partner: actor, anchor, phase: 'travel' });
-    partner.ai.familyPlay = true;
-    partner.ai.playmateKind = kind;
-    partner.ai.playdate = true;
-    partner.ai.playdateHome = anchor.home || null;
-    partner.ai.playdateTarget = { x: anchor.x, z: anchor.z };
-    setDestination(actor, anchor.x, anchor.z);
-    setDestination(partner, anchor.x, anchor.z);
-    const next = { day: nextPlaydateDay(dayNow()), hour: PLAYDATE_WINDOW.start };
-    schedulePlaydate(actor, partner, next);
-    return true;
-  }
-
-  function findDuePlaydate(actor) {
-    if (!actor || !actor.playdates) return null;
-    if (!isDayFor(actor)) return null;
-    const day = dayNow();
-    const hour = hoursNow();
-    for (const [uid, record] of Object.entries(actor.playdates)) {
-      if (!playdateDue(record, day, hour)) continue;
-      const other = actors().find(candidate => candidate.active && String(candidate.uid) === String(uid));
-      if (!other) { delete actor.playdates[uid]; continue; }
-      if (!pairAvailable(actor, other, { states: ['wander', 'seekCompany', 'stargaze', 'seekSocial'] })) continue;
-      return { other, record };
-    }
-    return null;
-  }
-
-  function scheduleNextPlaydate(actor, partner) {
-    if (!actor || !partner) return;
-    const next = { day: nextPlaydateDay(dayNow()), hour: PLAYDATE_WINDOW.start };
-    schedulePlaydate(actor, partner, next);
-  }
-
-  /* -------------------------------------------------------------- family meal */
-  function mealAnchor(actor) {
-    const home = homeFor(actor);
-    if (!home) return null;
-    let best = null;
-    let bestD = 9;
-    if (field && field.food && typeof field.food.allRipe === 'function') {
-      for (const source of field.food.allRipe({ safe: true })) {
-        const d = Math.hypot(source.x - home.door.x, source.z - home.door.z);
-        if (d < bestD) { bestD = d; best = source; }
-      }
-    }
-    if (best) {
-      return { x: best.approachX, z: best.approachZ, home: home.name, foodId: best.id };
-    }
-    return { x: home.door.x, z: home.door.z, home: home.name };
-  }
-
-  function mealWindow(actor) {
-    if (!actor || !actor.ai) return null;
-    const window = routineWindowFor(actor, hoursNow());
-    if (!window || window.kind !== 'meal') return null;
-    const key = `${dayNow()}:${window.name}`;
-    if (actor.ai.lastMealWindow === key) return null;
-    const p = profile(actor);
-    if (actor.ai.taskCooldown > 0) return null;
-    if (actor.hunger >= p.thresholds.criticalHunger || actor.thirst >= p.thresholds.criticalThirst) return null;
-    if (actor.hunger < .08) return null;
-    return { window, key };
-  }
-
-  function startFamilyMeal(actor, meal, immediate = false) {
-    if (!actor || !actor.ai) return false;
-    const anchor = immediate
-      ? { x: actor.cx, z: actor.cz, home: (homeFor(actor) || {}).name || null }
-      : mealAnchor(actor);
-    if (!anchor) return false;
-    startTask(actor, INTERACTIONS.familyMeal, {
-      role: 'host',
-      anchor,
-      data: { routine: meal.window.name },
-      phase: 'travel',
-    });
-    actor.ai.lastMealWindow = meal.key;
-    if (immediate || actor.ai.familyTask.phase === 'act') {
-      actor.ai.familyTask.phase = 'act';
-      stop(actor);
-      return true;
-    }
-    if (!setDestination(actor, anchor.x, anchor.z)) {
-      cancelTask(actor, { stop });
-      return false;
-    }
-    return true;
-  }
-
-  /* ------------------------------------------------------------- family lesson */
-
-  function lessonAnchor(teacher, student) {
-    const home = homeFor(teacher) || homeFor(student);
-    if (home) return { x: home.door.x, z: home.door.z, home: home.name };
-    return { x: (teacher.cx + student.cx) * .5, z: (teacher.cz + student.cz) * .5 };
-  }
-
-  function taughtToday(teacher, student, day) {
-    const teacherHistory = teacher.history || [];
-    const studentHistory = student.history || [];
-    return teacherHistory.some(event => event.kind === 'lesson' && event.uid === student.uid && event.day === day) ||
-      studentHistory.some(event => event.kind === 'taught' && event.uid === teacher.uid && event.day === day);
-  }
-
-  function lessonCandidate(teacher) {
-    if (!teacher || !teacher.ai || teacher.stage !== 'adult') return null;
-    if (!isDayFor(teacher) || teacher.ai.taskCooldown > 0) return null;
-    const p = profile(teacher);
-    if (teacher.health < p.thresholds.healthHurt) return null;
-    const day = dayNow();
-    let best = null;
-    for (const student of actors()) {
-      if (!student || student === teacher || !student.active || !student.ai) continue;
-      if (student.stage !== 'baby' && student.stage !== 'teen') continue;
-      if (!(student.parentUids || []).includes(teacher.uid)) continue;
-      if (student.sleeping || student.inside || student.grabs > 0 || student.inPond) continue;
-      if (student.ai.partner || student.ai.directive) continue;
-      if (!['wander', 'follow'].includes(student.ai.state)) continue;
-      if (Math.hypot(student.cx - teacher.cx, student.cz - teacher.cz) > 8) continue;
-      if (taughtToday(teacher, student, day)) continue;
-      const skill = strongestSkill(teacher);
-      const teacherValue = skillValue(teacher, skill);
-      if (teacherValue < .15) continue;
-      if (teacherValue <= skillValue(student, skill) + .04) continue;
-      const d = Math.hypot(student.cx - teacher.cx, student.cz - teacher.cz);
-      const score = teacherValue * 2 - d * .04;
-      if (!best || score > best.score) best = { student, skill, score };
-    }
-    return best;
-  }
-
-  function startLesson(teacher, student, immediate = false) {
-    if (!teacher || !student || !teacher.ai || !student.ai) return false;
-    const anchor = immediate
-      ? { x: (teacher.cx + student.cx) * .5, z: (teacher.cz + student.cz) * .5 }
-      : lessonAnchor(teacher, student);
-    startTask(teacher, INTERACTIONS.familyLesson, {
-      role: 'teacher', partner: student, anchor,
-      data: { skill: strongestSkill(teacher) }, phase: 'travel',
-    });
-    startTask(student, INTERACTIONS.familyLesson, {
-      role: 'student', partner: teacher, anchor,
-      data: { skill: strongestSkill(teacher) }, phase: 'travel',
-    });
-    if (immediate) {
-      teacher.ai.familyTask.phase = 'act';
-      student.ai.familyTask.phase = 'act';
-      stop(teacher);
-      stop(student);
-      return true;
-    }
-    if (teacher.ai.familyTask.phase === 'act') stop(teacher);
-    else setDestination(teacher, anchor.x, anchor.z);
-    if (student.ai.familyTask.phase === 'act') stop(student);
-    else setDestination(student, anchor.x, anchor.z);
-    return true;
-  }
-
   function forceLesson(teacher, student) {
     if (!teacher || !student || !teacher.ai || !student.ai) return { ok: false, note: 'no pair' };
     cancelPair(teacher);
     cancelPair(student);
     return { ok: familyTaskModule.startLesson(contextFor(teacher), student, true), state: teacher.ai.state };
-  }
-
-  /* ----------------------------------------------------------- family task */
-
-  function finishFamilyTask(actor) {
-    if (!actor || !actor.ai || !actor.ai.familyTask) return;
-    const task = actor.ai.familyTask;
-    const partner = actor.ai.partner;
-    const day = dayNow();
-    const hour = hoursNow();
-    if (task.id === INTERACTIONS.familyPlaydate) {
-      if (partner && partner.ai) {
-        addBond(actor, partner, .18);
-        actor.social = Math.max(0, actor.social - .42);
-        actor.affection = Math.max(0, actor.affection - .30);
-        partner.social = Math.max(0, partner.social - .42);
-        partner.affection = Math.max(0, partner.affection - .30);
-        pushHistory(actor, { kind: 'playdate', uid: partner.uid, day, hour });
-        pushHistory(partner, { kind: 'playdate', uid: actor.uid, day, hour });
-        actor.ai.familyPlayCooldown = 18;
-        partner.ai.familyPlayCooldown = 18;
-        scheduleNextPlaydate(actor, partner);
-        emit(actor, 'heart', .95);
-      }
-      endPair(actor, { stop, next: 'wander', idleT: .6, taskCooldown: 1.0, socialCooldown: 8 });
-    } else if (task.id === INTERACTIONS.familyLesson) {
-      const teacher = task.role === 'teacher' ? actor : partner;
-      const student = teacher === actor ? partner : actor;
-      if (teacher && student) {
-        const result = teachSkill(student, teacher);
-        pushHistory(student, { kind: 'taught', uid: teacher.uid, day, hour });
-        pushHistory(teacher, { kind: 'lesson', uid: student.uid, day, hour });
-        emit(student, result.ok ? 'sparkle' : 'question', .95);
-        endPair(actor, { stop, next: 'wander', idleT: .6, taskCooldown: 1.5 });
-      } else {
-        cancelTask(actor, { stop });
-      }
-    } else if (task.id === INTERACTIONS.familyMeal) {
-      actor.hunger = Math.max(0, actor.hunger - .28);
-      actor.social = Math.max(0, actor.social - .10);
-      let companion = null;
-      let bestD = 2.6;
-      for (const other of actors()) {
-        if (!other || other === actor || !other.active || other.sleeping) continue;
-        if (other.home !== actor.home) continue;
-        const d = Math.hypot(other.cx - actor.cx, other.cz - actor.cz);
-        if (d > 2.6) continue;
-        addBond(actor, other, .05);
-        if (d < bestD) { bestD = d; companion = other; }
-      }
-      pushHistory(actor, { kind: 'meal', uid: companion ? companion.uid : 0, day, hour });
-      emit(actor, 'heart', .9);
-      cancelTask(actor, { stop });
-    } else {
-      cancelTask(actor, { stop });
-    }
-    actor.ai.familyPlay = false;
-    actor.ai.playmateKind = null;
-    actor.ai.playdate = false;
-    actor.ai.playdateHome = null;
-    actor.ai.playdateTarget = null;
   }
 
   /* -------------------------------------------------------------- thinking */
