@@ -1272,6 +1272,17 @@ conflict fields (`damage`, `healthFloor`, `shove`), which remain unwired.
 `legacy` still produce the same transitions, needs, targets, tasks, bonds, history,
 playdates and RNG draws; the module default only changes which implementation runs.
 
+**Known follow-up — `glass-test.mjs` family-follow flake (pre-existing):** 20-run samples
+on 2026-10-20 measured 5/20 failures at `b7f5fea` (before the modular refactor) and 6/20
+under each of the current `?behaviors=legacy` and `?behaviors=modules` paths. The dominant
+failure is the test's assertion that a child already in a `familyTask` must have
+`follow === mother`; a sibling playdate or lesson can legitimately claim the child first,
+leaving `follow` null or pointing at another parent. One pre-refactor run also failed a
+`Glass/Bear visit` lookup. The failure rate is unchanged by the refactor, so this is a test
+fragility, not evidence of a behavior regression. Keep the suite in the deep pass, but
+treat the family-follow assertion as needing a dedicated fix (accept a family task with any
+partner, or isolate the follow check from family scheduling).
+
 ## Content extensibility track (implemented, Oct 2026)
 
 Extend the existing ES modules, not the engine stack. Stable definition IDs must
