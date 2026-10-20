@@ -198,6 +198,7 @@ function emoteTexture(kind) {
   if (emoteTextureCache.has(key)) return emoteTextureCache.get(key);
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 64, 64);
   if (kind === 'refuse') {
     ctx.strokeStyle = style.color;
     ctx.lineWidth = 7;
@@ -221,6 +222,9 @@ function emoteTexture(kind) {
   }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  // Keep transparent texels from bleeding into the sprite edge at small sizes.
+  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
   emoteTextureCache.set(key, tex);
   return tex;
 }
@@ -2419,6 +2423,7 @@ export function buildField({ scene, camera, renderer, sky }) {
       e = new THREE.Sprite(new THREE.SpriteMaterial({
         map: emoteTexture(kind),
         transparent: true,
+        alphaTest: .01,
         depthWrite: false,
         toneMapped: false,
       }));

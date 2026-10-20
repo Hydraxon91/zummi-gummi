@@ -4515,6 +4515,26 @@ const AI_WOOZY_SPEED = 0.65;
 const AI_FACE_RATE_GROUND = 9.0;
 const AI_FACE_RATE_AIR = 4.0;
 const AI_TURN_WAIT = 0.75;
+const AI_AVOID_RADIUS = 1.35;
+const AI_AVOID_STRENGTH = 0.55;
+
+function avoidanceYaw(b, wantYaw) {
+  const fx = Math.sin(wantYaw), fz = Math.cos(wantYaw);
+  let offset = 0;
+  const consider = (other) => {
+    if (!other || other === b || !other.active || other.grabs > 0 || other.inPond) return;
+    const dx = other.cx - b.cx, dz = other.cz - b.cz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 > AI_AVOID_RADIUS * AI_AVOID_RADIUS || d2 < 1e-4) return;
+    if (dx * fx + dz * fz <= 0.12) return;
+    const d = Math.sqrt(d2);
+    const side = dx * fz - dz * fx;
+    offset += (side >= 0 ? -1 : 1) * (1 - d / AI_AVOID_RADIUS);
+  };
+  for (const other of bears) consider(other);
+  if (glassColony) for (const other of glassColony.actors) consider(other);
+  return wantYaw + clamp(offset, -1, 1) * AI_AVOID_STRENGTH;
+}
 
 function aiRoutePoint(b) {
   const a = b.ai;
@@ -4577,7 +4597,7 @@ function updateAiLocomotion(dt) {
       if (a.state === 'wander') a.arrived = true;
       continue;
     }
-    const wantYaw = Math.atan2(dx, dz);
+    const wantYaw = avoidanceYaw(b, Math.atan2(dx, dz));
     a.faceYaw = wantYaw;
     const visualYaw = yawOfQuat(b.q);
     const dyaw = Math.atan2(Math.sin(wantYaw - visualYaw),
@@ -4600,7 +4620,7 @@ function updateAiLocomotion(dt) {
     const speedMax = Number.isFinite(b.hopSpeedMax) ? b.hopSpeedMax : AI_HOP_SPEED_MAX;
     const speed = clamp(d / 0.55, Math.min(speedMin, speedMax), Math.max(speedMin, speedMax)) *
       (b.health < AI_WOOZY_HEALTH ? AI_WOOZY_SPEED : 1);
-    const ux = dx / d, uz = dz / d;
+    const ux = Math.sin(wantYaw), uz = Math.cos(wantYaw);
     hopBear(b, AI_HOP_VERTICAL, ux * speed, uz * speed, true);
     a.hopState = 'air';
     a.hopWait = 0;
