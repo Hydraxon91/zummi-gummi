@@ -363,6 +363,22 @@ counts and scale increasing together without page errors. Mating/birth decisions
 only scan adults and the existing food list, and emotes stay in the fixed pool.
 No new full-frame GPU profile was taken in this pass.
 
+## Step 5 behavior modules
+
+The default Meadow behavior engine is now the module host in
+`src/behaviors/engine.js`; the legacy engine remains selectable for parity. This
+does not add a render pass or change the actor/body count. Config is resolved
+once per actor and cached by config version, module state ownership is a
+registry lookup, and the top-level active-state suppression set is built when
+modules register rather than scanned from a per-tick string list. No per-tick
+config merge or per-actor module allocation was added.
+
+No fresh frame profile was taken specifically for this change. Compare behavior
+runs with `node scripts/behavior-parity.mjs` (correctness/RNG), and re-profile
+the whole Meadow with `scripts/perf-profile.mjs` before claiming a frame-time
+win or regression; the Phase 2/6 GPU numbers above remain the reference until
+then.
+
 ## Studio race prototype spot check
 
 The MSN Buddy is a Studio-only GLB prototype, loaded on the first Studio entry

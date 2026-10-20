@@ -1181,25 +1181,24 @@ can proceed with the current runtime and assets.
 
 One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be
 enabled, disabled or tuned per race, per actor or at runtime. Parity with today's behavior
-is the acceptance gate; the legacy engine stays the default and untouched while modules
-are ported.
+is the acceptance gate. The modular engine is the default; the legacy engine remains an
+untouched, selectable oracle.
 
 **Approved decisions:**
 
 - **Facade layout, `behavior.js` untouched.** `src/behaviors/index.js` picks the engine:
-  `createBehavior({ engine: 'legacy' | 'modules' })`, default `legacy` until parity is
-  green. `src/behavior.js` remains the reference implementation; it is not moved until a
-  separate cleanup approval.
+  `createBehavior({ engine: 'legacy' | 'modules' })`, default `modules` since step 5.
+  `?behaviors=legacy` keeps the reference implementation available; it is not moved until
+  a separate cleanup approval.
 - **Per-actor overrides are runtime-only.** They live in `behaviors/config.js`, not in the
   actor save record, so no actor-save version bump is needed. Bonds, history, playdates,
   directives and every existing actor field keep their current shape.
 - **Unknown species keep the BEAR fallback** with a one-time warning per species. The
   fallback is not changed to an error.
-- **Temporary scaffold.** During step 3 the unported logic stays in
-  `src/behaviors/engine.js` under `// TEMPORARY(port): <module>` blocks. Step 4 moves them
-  out one module at a time. A CI check (`scripts/check-port-markers.mjs`) fails on any
-  remaining marker; until step 4 finishes it runs against the checked-in expected list in
-  `scripts/port-markers.txt`, which step 4 must empty.
+- **Temporary scaffold removed.** Steps 3–4 moved every region out of
+  `src/behaviors/engine.js`; `scripts/port-markers.txt` is empty and
+  `scripts/check-port-markers.mjs` now fails on any `TEMPORARY(port)` marker. The guard
+  was re-proved in step 5 with a planted marker.
 - **Step 5 cleanups approved:** delete the dead `directives: true` key, import the single
   `HOME_CAPACITY`, document `PREGNANCY_HUNGER` as the profile fallback, remove the unused
   `const p` locals, derive state lists from modules, and have `ai.js` read directive
@@ -1208,8 +1207,9 @@ are ported.
 
 **Layered config (later wins):** module defaults → race profile → per-actor override →
 runtime toggle. Resolved once per actor and cached by config version; modules never merge
-config per tick. `hive: null` / `conflict: null` / `directives: null` become `enabled`
-flags at step 5.
+config per tick. Race profiles declare capability modules as
+`modules.<id>.{ enabled, params }`; the legacy flat `hive`/`conflict`/`directives`/
+`stargaze` sections are derived views for `behavior.js`. Other balance blocks stay flat.
 
 **Arbitration:** the existing selection order becomes explicit opportunity `order` values.
 Rest stays above directives, scheduled meals stay above plain hunger, and conflict keeps its
@@ -1242,8 +1242,7 @@ is available to modules for target ranking but eager scoring/arbitration ships o
 writer of `ai.partner`/`ai.familyTask`. A repo grep still finds direct assignments in
 `social.js`, `mate.js`, `conflict.js`, `glass.js`, `ai.js` and legacy `behavior.js`
 (`friend`-level code predates the module split). The family module itself only uses
-`startTask`/`cancelTask`/`endPair`. Defer the repo-wide refactor to step 5; it is not a
-C3 blocker.
+`startTask`/`cancelTask`/`endPair`. Deferred beyond step 5; it is not a C3 blocker.
 
 **Step 3 scope and acceptance (this pass):** core skeleton, module contract, layered
 config, `hive` module, facade and `?behaviors=` flag, parity harness (seeded RNG, fixed
@@ -1259,14 +1258,19 @@ legacy-vs-legacy determinism, legacy-vs-modules parity and catches a 0.001 need
 perturbation for all three races. The new engine mirrors the follow/playdate stall
 changes in `b7f5fea`; the legacy file itself was not edited by this pass. 94 pure tests,
 the 64-check smoke test and the core browser regression pass with both
-`?behaviors=modules` and the legacy default. The behavior files are committed as one
-scoped change; unrelated UV-guide/skill edits in the same working tree remain unstaged.
+`?behaviors=modules` and the legacy default (the default flipped later, in step 5).
 
-**Behavioral changelog:** none. The default engine is still `legacy`; `modules` produces
-the same transitions, needs, targets, tasks, bonds, history, playdates and RNG draw count.
-Hive is the only extracted module in this pass; every other region remains in the explicit
-step-4 scaffold. Step 5 owns the `src/behaviors/README.md` authoring guide and the
-`AGENTS.md` module-ownership update; they are not in this pass.
+**Step 5 result (Oct 2026):** GUMMY is an independent Bear clone keyed to `msn`; the
+facade defaults to `modules` and keeps `?behaviors=legacy`; the approved cleanups landed;
+race capability blocks moved to `modules.<id>.{ enabled, params }`; and
+`src/behaviors/README.md` now documents adding a behavior and a race, the quirk table and
+the changelog. The marker guard was re-proved with a planted marker. The legacy path is
+retained. Remaining follow-ups are the pair/task writer protocol above and the reserved
+conflict fields (`damage`, `healthFloor`, `shove`), which remain unwired.
+
+**Behavioral changelog:** no behavior change from the step-5 cleanup. `modules` and
+`legacy` still produce the same transitions, needs, targets, tasks, bonds, history,
+playdates and RNG draws; the module default only changes which implementation runs.
 
 ## Content extensibility track (implemented, Oct 2026)
 

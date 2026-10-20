@@ -175,12 +175,18 @@ existing stack and structure.
   shape, `assets.js`
   validates manifests and loads manifested GLBs, `npc.js` is the read-only soft-body/Glass
   actor view, `glass.js` owns the Glass Meadow adapter, `msn.js` owns the Studio prototype,
-  and `msnrig.js`/`buddyrig.js` own rig data. `behavior.js` owns the shared life decisions,
-  `behaviorprofiles.js` owns per-species balance/schedule data, `family.js` owns relations,
+  and `msnrig.js`/`buddyrig.js` own rig data. `src/behaviors/` owns the shared life
+  decisions: `engine.js` is the default tick/needs/opportunity host, `index.js` selects
+  `modules` or the legacy oracle (`?behaviors=legacy`), and each behavior is a module
+  (`rest`, `forage`, `water`, `wander`, `social`, `mate`, `conflict`, `hive`, `flee`,
+  `follow`, `stargaze`, `family`, `directives`). `behavior.js` is the untouched legacy
+  reference implementation, `behaviorprofiles.js` owns per-species balance/schedule data,
+  `family.js` owns relations,
   households, lineage, skills, history and schedules, and `interactions.js` owns the shared
   interaction/pair/task protocol. `life.js` remains the age/mating rules; the soft-body host
-  is `ai.js`. Put new logic in the matching module rather than growing `app.js`. See the
-  target split in `ROADMAP.md`.
+  is `ai.js`. Put new logic in the matching module rather than growing `app.js`. Read
+  `src/behaviors/README.md` before adding a behavior, a race or a module config block; see
+  the target split in `ROADMAP.md`.
   `foodtypes.js` owns food defaults/safety; `food.js` owns placed-source state.
   `floratypes.js` owns tree/bush/rock/home-style definitions; `mapcontent.js` owns
   authored lots and starter populations; `field.js` composes them. `assetstore.js`
@@ -235,7 +241,10 @@ and driving it.
   profile and a configurable `BROWSER_BIN`/`CHROME_BIN`. CI runs the same command in a
   separate blocking job after the smoke test, with SwiftShader fallback enabled. Deeper
   passes use `scripts/race-test.mjs` (desktop, `MOBILE=1`, `LOOK=alpha`) and
-  `scripts/glass-test.mjs` through the same portable harness.
+  `scripts/glass-test.mjs` through the same portable harness. Behavior changes also run
+  `node scripts/behavior-parity.mjs --days 2 --seeds 1,2,3` (or `--long`), the seeded
+  `scripts/behavior-browser-parity.mjs` trace, and the same browser suites with
+  `BEHAVIORS=legacy` and `BEHAVIORS=modules`.
 - **The committed check is the smoke test.** `scripts/smoke.mjs` boots from a running
   `launch.py` server and asserts the page shell, source modules, licenses, the wasm MIME
   type/magic/exports and 404 handling. Run it as:
