@@ -218,6 +218,7 @@ export function createGlassColony({
     a.ai.pathIndex = 0;
     a.ai.moving = false;
     a.ai.arrived = false;
+    a.walkDesired = null;
   }
 
   function routePoint(a) {
@@ -234,29 +235,48 @@ export function createGlassColony({
   }
 
   function move(a, dt) {
-    if (!a.ai.moving) return;
+    if (!a.ai.moving) { a.walkDesired = null; return; }
     const p = routePoint(a);
-    if (!p) { clearPath(a); return; }
+    if (!p) { clearPath(a); a.walkDesired = null; return; }
     const dx = p.x - a.cx;
     const dz = p.z - a.cz;
     const d = Math.hypot(dx, dz);
-    if (d < .06) {
-      a.cx = p.x;
-      a.cz = p.z;
+    if (d < .22) {
       a.ai.pathIndex = (a.ai.pathIndex | 0) + 1;
       if (!a.ai.path || a.ai.pathIndex >= a.ai.path.length) {
         clearPath(a);
         a.ai.arrived = true;
+        a.walkDesired = null;
+        return;
       }
       return;
     }
-    const step = Math.min(d, MOVE_SPEED * Math.max(0, dt));
     const ux = dx / d;
     const uz = dz / d;
-    a.cx += ux * step;
-    a.cz += uz * step;
+    a.walkDesired = { x: ux * MOVE_SPEED, z: uz * MOVE_SPEED };
     a.yaw = Math.atan2(ux, uz);
     a.ai.faceYaw = a.yaw;
+  }
+
+  function animateHover(a, dt) {
+    const speed = Math.hypot(a.bodyVx || 0, a.bodyVz || 0);
+    const moveT = clamp(speed / MOVE_SPEED, 0, 1);
+    const targetYaw = a.ai && Number.isFinite(a.ai.faceYaw) ? a.ai.faceYaw : a.yaw;
+    const dyaw = Math.atan2(Math.sin(targetYaw - (a.visualYaw || 0)),
+      Math.cos(targetYaw - (a.visualYaw || 0)));
+    a.visualYaw = (a.visualYaw || 0) + dyaw * (1 - Math.exp(-5.5 * dt));
+    let leanX = clamp(-(a.bodyVz || 0) * .10, -.20, .20) * moveT;
+    let leanZ = clamp((a.bodyVx || 0) * .10, -.20, .20) * moveT;
+    const field = fieldNow();
+    const wind = field && field.wind;
+    if (wind) {
+      const strength = clamp(wind.strength || 0, 0, 2) * .022;
+      leanX += (wind.direction?.z || 0) * strength;
+      leanZ -= (wind.direction?.x || 0) * strength;
+    }
+    const k = 1 - Math.exp(-7 * dt);
+    a.leanX = (a.leanX || 0) + (leanX - (a.leanX || 0)) * k;
+    a.leanZ = (a.leanZ || 0) + (leanZ - (a.leanZ || 0)) * k;
   }
 
   function moveToward(a, x, z, dt, speed = MOVE_SPEED) {
@@ -383,10 +403,12 @@ export function createGlassColony({
       a.root.updateMatrixWorld(true);
       return;
     }
-    if (a.freeBody || a.grabbing) {
+    if (a.freeBody || a.grabbing || a.walkDesired) {
       const rootY = Math.max(.01, a.cy - (a.height || 1.25) * visualScale * .5);
+      const leanX = a.walkDesired ? (a.leanX || 0) : 0;
+      const leanZ = a.walkDesired ? (a.leanZ || 0) : 0;
       a.root.position.set(a.cx, rootY, a.cz);
-      a.root.rotation.set(a.tumbleX, a.yaw || 0, a.tumbleZ);
+      a.root.rotation.set(a.tumbleX + leanX, a.walkDesired ? (a.visualYaw ?? a.yaw ?? 0) : (a.yaw || 0), a.tumbleZ + leanZ);
       a.root.scale.setScalar(visualScale);
       a.shadow.position.y = (.004 - rootY) / Math.max(.001, visualScale);
       a.shadow.scale.setScalar(1);
@@ -395,10 +417,12 @@ export function createGlassColony({
       a.root.updateMatrixWorld(true);
       return;
     }
-    const bob = a.inside || a.grabbing ? 0 : Math.sin(clock * 2.2 + a.phase) * HOVER_BOB;
+    const wind = fieldNow() && fieldNow().wind;
+    const windBob = wind ? Math.sin(clock * 1.6 + a.phase) * .006 * clamp(wind.strength || 0, 0, 2) : 0;
+    const bob = a.inside || a.grabbing ? 0 : Math.sin(clock * 2.2 + a.phase) * HOVER_BOB + windBob;
     const y = a.grabbing || a.coasting ? a.grabY : HOVER * a.scale + bob;
     a.root.position.set(a.cx, y, a.cz);
-    a.root.rotation.set(a.tumbleX, a.yaw || 0, a.tumbleZ);
+    a.root.rotation.set(a.tumbleX + (a.leanX || 0), a.visualYaw ?? a.yaw ?? 0, a.tumbleZ + (a.leanZ || 0));
     a.root.scale.setScalar(visualScale);
     a.cy = y + (a.height || 1.25) * visualScale * .5;
     a.shadow.position.y = (.004 - y) / Math.max(.001, visualScale);
@@ -447,6 +471,7 @@ export function createGlassColony({
     a.grabbing = true;
     a.grabs = 1;
     a.freeBody = false;
+    a.walkDesired = null;
     a.freeT = 0;
     a.coasting = false;
     a.throwT = 0;
@@ -728,6 +753,12 @@ export function createGlassColony({
       cz: walkable ? walkable.z : position.z,
       cy: .65,
       yaw: Number.isFinite(opts.yaw) ? opts.yaw : Math.random() * Math.PI * 2,
+      visualYaw: Number.isFinite(opts.yaw) ? opts.yaw : Math.random() * Math.PI * 2,
+      leanX: 0,
+      leanZ: 0,
+      walkDesired: null,
+      bodyVx: 0,
+      bodyVz: 0,
       height: 1.25,
       bodyHandle: -1,
       bodyRadius: 0,
@@ -865,6 +896,8 @@ export function createGlassColony({
       path: a.ai && a.ai.path ? a.ai.path.slice(0, 6).map(p => [+p.x.toFixed(2), +p.z.toFixed(2)]) : null,
       pathIndex: a.ai && a.ai.pathIndex || 0,
       target: a.ai && a.ai.target ? [+a.ai.target.x.toFixed(2), +a.ai.target.z.toFixed(2)] : null,
+      bodyV: [+(a.bodyVx || 0).toFixed(2), +(a.bodyVz || 0).toFixed(2)],
+      lean: [+(a.leanX || 0).toFixed(3), +(a.leanZ || 0).toFixed(3)],
       visitRole: a.ai ? a.ai.visitRole : null,
       visitPhase: a.ai ? a.ai.visitPhase : null,
       visitHome: a.ai ? a.ai.visitHome : null,
@@ -1008,6 +1041,8 @@ export function createGlassColony({
       if (shared) {
         shared.tick(a, dt, { ready: true });
         if (a.ai.moving) move(a, dt);
+        else a.walkDesired = null;
+        animateHover(a, dt);
         updateVisual(a);
         if (a.mixer) a.mixer.update(dt);
         continue;
@@ -1016,20 +1051,35 @@ export function createGlassColony({
   }
 
   function physicsForces() {
-    if (!meadow) return;
+    if (!meadow || !physics) return;
     for (const a of actors) {
       if (!a.active) continue;
+      if (a.freeBody) continue;
+      if (a.inside) { syncBody(a); continue; }
+      ensureBody(a);
+      if (a.bodyHandle < 0) continue;
+      if (a.grabbing) {
+        physics.read([a.bodyHandle], bodyRead, 1);
+        // Same spring model as soft-body grabs, critically damped for a single
+        // rigid proxy rather than a stretchy rig. The proxy has mass 1.2.
+        const decay = Math.exp(-14 * Math.max(0, (performance.now() - a.grabLastAt - 45) / 1000));
+        physics.applyForces([a.bodyHandle], [
+          1.2 * (600 * (a.grabTarget.x - bodyRead[0]) - 48 * (bodyRead[3] - clamp(a.grabVx * decay, -5, 5))),
+          1.2 * (600 * (a.grabTarget.y - bodyRead[1]) - 48 * (bodyRead[4] - clamp(a.grabVy * decay, -5, 5))),
+          1.2 * (600 * (a.grabTarget.z - bodyRead[2]) - 48 * (bodyRead[5] - clamp(a.grabVz * decay, -5, 5))),
+        ], true, 1);
+        continue;
+      }
+      if (a.walkDesired) {
+        physics.read([a.bodyHandle], bodyRead, 1);
+        const targetY = HOVER * a.scale + (a.height || 1.25) * a.scale * .5;
+        const ax = clamp((a.walkDesired.x - bodyRead[3]) * 14, -28, 28);
+        const az = clamp((a.walkDesired.z - bodyRead[5]) * 14, -28, 28);
+        const ay = clamp(9.8 + (targetY - bodyRead[1]) * 30 - bodyRead[4] * 9, -20, 40);
+        physics.applyForces([a.bodyHandle], [1.2 * ax, 1.2 * ay, 1.2 * az], true, 1);
+        continue;
+      }
       syncBody(a);
-      if (!physics || !a.grabbing || a.bodyHandle < 0) continue;
-      physics.read([a.bodyHandle], bodyRead, 1);
-      // Same spring model as soft-body grabs, critically damped for a single
-      // rigid proxy rather than a stretchy rig. The proxy has mass 1.2.
-      const decay = Math.exp(-14 * Math.max(0, (performance.now() - a.grabLastAt - 45) / 1000));
-      physics.applyForces([a.bodyHandle], [
-        1.2 * (600 * (a.grabTarget.x - bodyRead[0]) - 48 * (bodyRead[3] - clamp(a.grabVx * decay, -5, 5))),
-        1.2 * (600 * (a.grabTarget.y - bodyRead[1]) - 48 * (bodyRead[4] - clamp(a.grabVy * decay, -5, 5))),
-        1.2 * (600 * (a.grabTarget.z - bodyRead[2]) - 48 * (bodyRead[5] - clamp(a.grabVz * decay, -5, 5))),
-      ], true, 1);
     }
   }
 
@@ -1049,16 +1099,22 @@ export function createGlassColony({
   function physicsRead(dt = 1 / 60) {
     if (!physics || !meadow) return;
     for (const a of actors) {
-      if (!a.active || (!a.freeBody && !a.grabbing) || a.bodyHandle < 0) continue;
+      if (!a.active || (!a.freeBody && !a.grabbing && !a.walkDesired) || a.bodyHandle < 0) continue;
       physics.read([a.bodyHandle], bodyRead, 1);
       a.cx = bodyRead[0];
       a.cy = bodyRead[1];
       a.cz = bodyRead[2];
+      a.bodyVx = bodyRead[3];
+      a.bodyVz = bodyRead[5];
       const speed = Math.hypot(bodyRead[3], bodyRead[4], bodyRead[5]);
       if (a.grabbing) {
         const blend = 1 - Math.exp(-10 * dt);
         a.tumbleX += (clamp(-bodyRead[5] * .15, -.8, .8) - a.tumbleX) * blend;
         a.tumbleZ += (clamp(bodyRead[3] * .15, -.8, .8) - a.tumbleZ) * blend;
+        updateVisual(a);
+        continue;
+      }
+      if (!a.freeBody) {
         updateVisual(a);
         continue;
       }

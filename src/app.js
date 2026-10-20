@@ -676,7 +676,19 @@ function applyBearStage(b, nextStage) {
   destroyBearBodies(b);
   createBearBodies(b);
   b.lat = null;
+  b.contacts = 0;
+  b.airborne = false;
   b.needsBuild = true;
+  if (b.ai) {
+    b.ai.hopState = null;
+    b.ai.hopWait = 0;
+    b.ai.turnWait = 0;
+    b.ai.stuckT = 0;
+    b.ai.interrupted = false;
+    b.ai.lastX = b.cx;
+    b.ai.lastZ = b.cz;
+    b.ai.nextThink = 0;
+  }
   buildBear(b);
   for (let i = 0; i < 12; i++) {
     const a = Math.random() * Math.PI * 2;
