@@ -80,8 +80,11 @@ export function applyTraitOffsets(profile, traits) {
       wander.longChance = +clamp(wander.longChance + .10 * d.bold + .10 * d.curiosity, 0, .60).toFixed(4);
     }
     if (d.curiosity) {
-      wander.min = +clamp(wander.min + .5 * d.curiosity, 2, 6).toFixed(4);
-      wander.max = +clamp(wander.max + 2.0 * d.curiosity, 8, 18).toFixed(4);
+      // Glass cannot use long wanders, so widen its short-wander span enough
+      // for curiosity to be visible; soft-body races keep the smaller step.
+      const scale = profile.kind === 'skinned' ? 2 : 1;
+      wander.min = +clamp(wander.min + .5 * scale * d.curiosity, 2, 6).toFixed(4);
+      wander.max = +clamp(wander.max + 2.0 * scale * d.curiosity, 8, 18).toFixed(4);
     }
     out.wander = wander;
   }

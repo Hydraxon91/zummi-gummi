@@ -890,6 +890,50 @@ export function runTraitScenario({
   };
 }
 
+export function runPersonalityBaseline({ race = 'bear', days = 20, seed = 1 } = {}) {
+  const run = createRun({ race, seed, engine: 'modules', personality: true });
+  const rows = new Map();
+  const previous = new Map();
+  const positions = new Map();
+  for (const actor of run.roster) {
+    if (!actor.active) continue;
+    rows.set(actor.uid, {
+      uid: actor.uid,
+      traits: { ...(actor.traits || {}) },
+      socialEntries: 0,
+      seekFoodOnsets: [],
+      wanderDistance: 0,
+    });
+    previous.set(actor.uid, actor.ai ? actor.ai.state : null);
+    positions.set(actor.uid, [actor.cx, actor.cz]);
+  }
+  const ticks = Math.round(days * DAY_SECONDS / DT);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (let tick = 0; tick < ticks; tick++) {
+      hostTick(run, DT);
+      for (const actor of run.roster) {
+        if (!actor.active || !actor.ai) continue;
+        const row = rows.get(actor.uid);
+        if (!row) continue;
+        const state = actor.ai.state;
+        if (state === 'social' && previous.get(actor.uid) !== 'social') row.socialEntries += 1;
+        if (state === 'seekFood' && previous.get(actor.uid) !== 'seekFood') {
+          row.seekFoodOnsets.push(actor.hunger);
+        }
+        const [x, z] = positions.get(actor.uid) || [actor.cx, actor.cz];
+        if (state === 'wander') row.wanderDistance += Math.hypot(actor.cx - x, actor.cz - z);
+        positions.set(actor.uid, [actor.cx, actor.cz]);
+        previous.set(actor.uid, state);
+      }
+    }
+  } finally {
+    console.warn = warn;
+  }
+  return { race, seed, days, actors: [...rows.values()] };
+}
+
 /* --------------------------------------------------------------- validate */
 
 export function validateParity({ race = 'bear', seed = 7, days = 1, verbose = false } = {}) {

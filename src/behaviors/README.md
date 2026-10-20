@@ -81,8 +81,10 @@ after the existing birth draws.
 
 The bounded offsets are documented in `traits.js`; Glass keeps
 `wander.longChance` at 0, so bold/curiosity never create zero-length long
-wanders. Personality is applied once in `config.resolve()`, cached like every
-other per-actor layer, and invalidated when traits change.
+wanders. Because Glass cannot use long wander legs, its curiosity short-wander
+span uses a 2× step so the effect is measurable rather than inert. Personality
+is applied once in `config.resolve()`, cached like every other per-actor layer,
+and invalidated when traits change.
 
 Trait-free actor records stay `actorVersion: 2` for older-build compatibility;
 records with traits use `actorVersion: 3`. Old saves load without traits and

@@ -77,6 +77,10 @@ test('long-wander offsets stay off for Glass and apply for Bear/Gummy', () => {
   for (const traits of [{ ...neutral(), bold: 1, curiosity: 1 }, { ...neutral(), bold: 0, curiosity: 0 }]) {
     assert.equal(config.forActor(actor('glass', traits)).wander.longChance, glass.wander.longChance);
   }
+  const curious = config.forActor(actor('glass', { ...neutral(), curiosity: 1 }));
+  const homebody = config.forActor(actor('glass', { ...neutral(), curiosity: 0 }));
+  assert.ok(curious.wander.max - homebody.wander.max >= 6,
+    'Glass curiosity must widen the short-wander span materially');
 });
 
 test('threshold ordering holds across all trait extremes', () => {
