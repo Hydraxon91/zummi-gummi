@@ -65,6 +65,29 @@ working. Other balance blocks (`wander`, `needs`, `social`, …) stay flat.
 5. Do not route a new race through the BEAR fallback; the fallback is only for
    unknown species and logs one warning.
 
+## Personality (off by default)
+
+`personality` is a modules-engine feature flag. It is **off by default** and is
+ignored by `?behaviors=legacy`.
+
+Three axes, each `0..1` and neutral at `0.5`: `bold` (shy → bold), `greed`
+(generous → greedy), and `curiosity` (homebody → curious). Founders receive
+deterministic FNV-1a hash values in `0.15..0.85` from `species|uid|axis`; this
+draws no RNG, so attach-time draw counts are unchanged. Enabling the feature
+therefore changes existing actors' behavior: hashed founders are **not**
+neutral. Children inherit via `blendTraits` (parent mean + ±0.06 per axis,
+clamped `0.02..0.98`); those three draws occur only when the flag is on and
+after the existing birth draws.
+
+The bounded offsets are documented in `traits.js`; Glass keeps
+`wander.longChance` at 0, so bold/curiosity never create zero-length long
+wanders. Personality is applied once in `config.resolve()`, cached like every
+other per-actor layer, and invalidated when traits change.
+
+Trait-free actor records stay `actorVersion: 2` for older-build compatibility;
+records with traits use `actorVersion: 3`. Old saves load without traits and
+get the same hashed founder values once personality is enabled.
+
 ## Config layers
 
 Later layers win:
@@ -122,6 +145,10 @@ stay empty; any `TEMPORARY(port)` marker fails CI.
 - **Step 5:** GUMMY profile split from Bear; modules became the default with
   legacy selectable; approved cleanups; `modules.<id>.{enabled,params}` profile
   reshape; this guide.
+- **Personality (Oct 2026):** off-by-default modules-only traits, hash-derived
+  founders, inherited children, bounded profile offsets, actorVersion 2/3 save
+  split, trait-extreme scenario pack. Enabling it intentionally changes
+  existing actors' behavior; hashed founders are not neutral.
 - **Open follow-up:** `interactions.js` is not yet the only writer of
   `ai.partner`/`ai.familyTask`; direct assignments remain in `social.js`,
   `mate.js`, `conflict.js`, `glass.js`, `ai.js` and legacy `behavior.js`.

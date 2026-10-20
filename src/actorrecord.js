@@ -4,8 +4,8 @@
 // life record is the same. One serializer keeps save fields from drifting apart
 // when a new species or family feature is added.
 
-import { ACTOR_SAVE_VERSION } from './actorsave.js';
 import { normalizeSkills, normalizeHistory, normalizePlaydates } from './family.js';
+import { normalizeTraits } from './behaviors/traits.js';
 
 function round(value, digits = 4) {
   const n = Number(value);
@@ -19,7 +19,9 @@ function finite(value, fallback) {
 export function snapshotActor(actor, extra = {}) {
   if (!actor) return null;
   const record = {
-    actorVersion: ACTOR_SAVE_VERSION,
+    // Trait-free records remain v2 so older builds can load personality-off
+    // saves; only records carrying traits use v3.
+    actorVersion: actor.traits ? 3 : 2,
     species: actor.species,
     uid: actor.uid,
     name: actor.name,
@@ -49,6 +51,7 @@ export function snapshotActor(actor, extra = {}) {
     z: round(actor.cz, 3),
     ...extra,
   };
+  if (actor.traits) record.traits = normalizeTraits(actor.traits);
   if (actor.kind === 'glass') {
     record.kind = 'glass';
     record.species = 'glass';
@@ -72,5 +75,6 @@ export function applyCommonActorState(actor, record) {
   actor.history = normalizeHistory(record.history);
   actor.playdates = normalizePlaydates(record.playdates);
   actor.fatherUid = Number.isFinite(record.fatherUid) ? record.fatherUid : 0;
+  if (record.traits) actor.traits = normalizeTraits(record.traits);
   return actor;
 }

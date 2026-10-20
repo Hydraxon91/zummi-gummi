@@ -6,11 +6,14 @@
 import { DNA_VERSION } from './dna.js';
 import { getSpecies } from './species.js';
 import { normalizeSkills, normalizeHistory, normalizePlaydates } from './family.js';
+import { normalizeTraits, TRAIT_AXES } from './behaviors/traits.js';
 
-export const ACTOR_SAVE_VERSION = 2;
+// 3 is used only for records that carry traits. Trait-free records stay at 2
+// so older builds can still load personality-off saves.
+export const ACTOR_SAVE_VERSION = 3;
 
 const STAGES = new Set(['baby', 'teen', 'adult']);
-const SUPPORTED_VERSIONS = new Set([1, ACTOR_SAVE_VERSION]);
+const SUPPORTED_VERSIONS = new Set([1, 2, 3]);
 const NUMERIC_FIELDS = [
   'scale', 'health', 'hunger', 'thirst', 'energy', 'age',
   'gestation', 'mateCooldown', 'social', 'affection', 'bold',
@@ -39,6 +42,18 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
     errors.push(`${where}.parentUids is invalid`);
   }
   if (a.bonds !== undefined && !isObj(a.bonds)) errors.push(`${where}.bonds is invalid`);
+
+  if (a.actorVersion === 3 && !isObj(a.traits)) {
+    errors.push(`${where}.traits is required for actorVersion 3`);
+  }
+  if (a.traits !== undefined) {
+    if (!isObj(a.traits)) errors.push(`${where}.traits is invalid`);
+    else for (const axis of TRAIT_AXES) {
+      if (!isNum(a.traits[axis]) || a.traits[axis] < 0 || a.traits[axis] > 1) {
+        errors.push(`${where}.traits.${axis} is invalid`);
+      }
+    }
+  }
 
   if (a.skills !== undefined) {
     if (!isObj(a.skills)) errors.push(`${where}.skills is invalid`);
@@ -104,9 +119,11 @@ export function migrateActorRecord(record) {
   if (!isObj(record)) return record;
   const version = Number.isFinite(record.actorVersion) ? record.actorVersion : 1;
   if (version > ACTOR_SAVE_VERSION) return record;
+  const hasTraits = isObj(record.traits);
   return {
     ...record,
-    actorVersion: ACTOR_SAVE_VERSION,
+    actorVersion: hasTraits ? 3 : 2,
+    ...(hasTraits ? { traits: normalizeTraits(record.traits) } : {}),
     skills: normalizeSkills(record.skills),
     history: normalizeHistory(record.history),
     playdates: normalizePlaydates(record.playdates),

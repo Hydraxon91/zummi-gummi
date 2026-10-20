@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { snapshotActor, applyCommonActorState } from '../src/actorrecord.js';
-import { ACTOR_SAVE_VERSION } from '../src/actorsave.js';
 
 function actor(overrides = {}) {
   return {
@@ -21,7 +20,7 @@ function actor(overrides = {}) {
 
 test('snapshotActor writes the shared v2 life record', () => {
   const record = snapshotActor(actor());
-  assert.equal(record.actorVersion, ACTOR_SAVE_VERSION);
+  assert.equal(record.actorVersion, 2);
   assert.equal(record.uid, 7);
   assert.equal(record.x, 2.25);
   assert.equal(record.z, -3.5);

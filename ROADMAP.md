@@ -1272,6 +1272,16 @@ conflict fields (`damage`, `healthFloor`, `shove`), which remain unwired.
 `legacy` still produce the same transitions, needs, targets, tasks, bonds, history,
 playdates and RNG draws; the module default only changes which implementation runs.
 
+**Personality (Oct 2026, off by default):** modules-only `personality` flag with
+`bold`/`greed`/`curiosity` axes. Founders use a deterministic uid/species/axis hash (no
+RNG); children use `blendTraits` after the existing birth draws. Offsets are bounded and
+Glass long-wander chance stays 0. Actor records without traits remain `actorVersion: 2`
+and stay loadable by older builds; records with traits use `actorVersion: 3`, and old
+saves hash on first enabled attach. **Enabling the flag changes existing actors' behavior;
+hashed founders are not neutral.** `?behaviors=legacy` ignores the flag. Scenario pack:
+`node scripts/personality-scenario.mjs` (all-bold/shy, greedy/generous, curious/homebody
+with direction checks).
+
 **`glass-test.mjs` family-follow flake (pre-existing, fixed 2026-10-20):** the original
 20-run samples measured 5/20 failures at `b7f5fea` (before the modular refactor) and 6/20
 under each of the current `?behaviors=legacy` and `?behaviors=modules` paths. The dominant
