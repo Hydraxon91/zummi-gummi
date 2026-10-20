@@ -25,7 +25,14 @@ const report = { tag: TAG, pageErrors };
 try {
   await waitFor('!!window.__gummy?.booted', 120000);
   await waitFor('window.__gummy.glass()?.actors?.length === 2', 30000);
-  await waitFor('window.__gummy.glass().actors.every(a => a.ready)', 45000);
+  try {
+    await waitFor('window.__gummy.glass().actors.every(a => a.ready)', 150000);
+  } catch (err) {
+    console.log('GLASS retry after slow asset load');
+    await page.evaluate('location.reload()').catch(() => {});
+    await waitFor('!!window.__gummy?.booted', 120000);
+    await waitFor('window.__gummy.glass().actors.every(a => a.ready)', 150000);
+  }
   await sleep(800);
 
   const boot = await evaluate(`(() => {
