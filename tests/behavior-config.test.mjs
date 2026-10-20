@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createBehaviorConfig, FEATURE_DEFAULTS } from '../src/behaviors/config.js';
 import { behaviorEngineFromSearch } from '../src/behaviors/index.js';
-import { BEAR_PROFILE, GLASS_PROFILE } from '../src/behaviorprofiles.js';
+import { BEAR_PROFILE, GUMMY_PROFILE, GLASS_PROFILE, profileFor } from '../src/behaviorprofiles.js';
 import { HIVE_DEFAULTS } from '../src/behaviors/hive.js';
 
 function actor(uid, species = 'bear', extra = {}) {
@@ -26,6 +26,16 @@ test('module defaults resolve to the current Bear hive values', () => {
   // Legacy need/threshold fields stay untouched.
   assert.equal(resolved.needs.hungerRate, BEAR_PROFILE.needs.hungerRate);
   assert.equal(resolved.thresholds.seekHunger, BEAR_PROFILE.thresholds.seekHunger);
+});
+
+test('Gummy is an independent Bear clone routed by msn species', () => {
+  assert.equal(profileFor({ species: 'msn' }), GUMMY_PROFILE);
+  assert.equal(profileFor({ species: 'bear' }), BEAR_PROFILE);
+  assert.equal(GUMMY_PROFILE.id, 'gummy');
+  assert.deepEqual(GUMMY_PROFILE.species, ['msn']);
+  assert.notEqual(GUMMY_PROFILE.needs, BEAR_PROFILE.needs);
+  assert.deepEqual(GUMMY_PROFILE.needs, BEAR_PROFILE.needs);
+  assert.deepEqual(GUMMY_PROFILE.hive, BEAR_PROFILE.hive);
 });
 
 test('Glass disables the hive module through the profile capability', () => {

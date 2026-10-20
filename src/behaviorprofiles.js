@@ -6,7 +6,7 @@
 
 const BEAR = {
   id: 'bear',
-  species: ['bear', 'msn'],
+  species: ['bear'],
   kind: 'softbody',
   locomotion: 'hop',
   directives: true,
@@ -56,6 +56,18 @@ const BEAR = {
   directives: { ttl: 45, max: 3 },
 };
 
+// Gummy starts as an exact Bear clone so the two can diverge without changing
+// today's behavior. Deep-copy the data; nested balance blocks must not be
+// shared with BEAR.
+function cloneProfile(profile, { id, species }) {
+  const copy = JSON.parse(JSON.stringify(profile));
+  copy.id = id;
+  copy.species = [...species];
+  return copy;
+}
+
+const GUMMY = cloneProfile(BEAR, { id: 'gummy', species: ['msn'] });
+
 const GLASS = {
   id: 'glass',
   species: ['glass'],
@@ -100,7 +112,7 @@ const GLASS = {
 };
 
 const PROFILES = new Map();
-for (const profile of [BEAR, GLASS]) {
+for (const profile of [BEAR, GUMMY, GLASS]) {
   for (const species of profile.species) PROFILES.set(species, profile);
 }
 
@@ -114,4 +126,4 @@ export function profileFor(actor) {
   return behaviorProfile(actor.species || 'bear');
 }
 
-export { BEAR as BEAR_PROFILE, GLASS as GLASS_PROFILE };
+export { BEAR as BEAR_PROFILE, GUMMY as GUMMY_PROFILE, GLASS as GLASS_PROFILE };
