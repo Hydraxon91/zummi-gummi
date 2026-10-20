@@ -332,11 +332,16 @@ try {
     g.setTime(8);
     const childIndex = g.glass().actors.length - 1;
     const childBefore = g.glass().actors[childIndex];
-    const mother = g.glass().actors.find(a => (childBefore.parentUids || []).includes(a.uid));
+    const motherIndex = g.glass().actors.findIndex(a => (childBefore.parentUids || []).includes(a.uid));
+    const mother = g.glass().actors[motherIndex];
     if (!mother) return { childIndex, missingParent: childBefore.parentUids };
-    g.glassSetPosition(childIndex, mother.position[0] + 5.5, mother.position[2] + 5.5);
+    // Clear any family task/inside state on the mother so this check measures
+    // the follow link rather than an unrelated scheduling race.
+    g.glassReset(motherIndex);
+    const motherNow = g.glass().actors[motherIndex];
+    g.glassSetPosition(childIndex, motherNow.position[0] + 5.5, motherNow.position[2] + 5.5);
     const placed = g.glass().actors[childIndex];
-    const before = Math.hypot(placed.position[0] - mother.position[0], placed.position[2] - mother.position[2]);
+    const before = Math.hypot(placed.position[0] - motherNow.position[0], placed.position[2] - motherNow.position[2]);
     g.sim(4.0, 8);
     let afterChild = g.glass().actors[childIndex];
     let afterMother = g.glass().actors.find(a => a.uid === mother.uid);
@@ -364,6 +369,11 @@ try {
       follow: afterChild.follow,
       parentFollow,
       mother: mother.name,
+      motherState: afterMother.state,
+      motherInside: !!afterMother.inside,
+      motherSleeping: !!afterMother.sleeping,
+      motherTask: afterMother.familyTask ? afterMother.familyTask.id : null,
+      motherAvailable: !afterMother.inside && !afterMother.sleeping && !afterMother.familyTask,
       home: afterChild.home,
       motherHome: afterMother.home,
       motherBond: (mother.bonds || {})[String(afterChild.uid)] || 0,
@@ -380,10 +390,14 @@ try {
   const taskClaim = familyTask && (family.taskPartnerIsSibling || !family.task?.partnerUid);
   const pursued = familyTask
     ? taskClaim || family.after <= family.before + .1
-    : family.after < family.before - .2;
+    : family.state === 'wander' && !family.motherAvailable
+      ? true
+      : family.after < family.before - .2;
+  const unavailableWander = family.state === 'wander' && !family.motherAvailable;
   if (!family.parents?.length || !family.home || !pursued ||
       !(family.state === 'follow' || family.state === 'wander' || family.state === 'familyTask') ||
       (family.state === 'follow' && !family.parentFollow) ||
+      (family.state === 'wander' && !unavailableWander) ||
       (familyTask && family.follow !== family.mother && !taskClaim && !family.parentFollow) ||
       family.motherBond <= 0) {
     throw new Error(`Glass family follow failed ${JSON.stringify(family)}`);

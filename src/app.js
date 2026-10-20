@@ -6941,7 +6941,7 @@ window.__gummy = {
     return ai.debugState(b, state);
   },
   aiPlan(i){ const b = bears[i]; return b && ai ? ai.plan(b) : null; },
-  traits(i){ const b = bears[i]; return b && b.traits ? { ...b.traits } : null; },
+  personalityTraits(i){ const b = bears[i]; return b && b.traits ? { ...b.traits } : null; },
   thoughts(on){
     if (on !== undefined && behavior && typeof behavior.setFeature === 'function') {
       behavior.setFeature('thoughtBubbles', !!on);
