@@ -18,7 +18,6 @@ try {
   await page.waitFor('window.__gummy?.booted', 150000);
   const report = await page.evaluate(`(async () => {
     const g = window.__gummy;
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
     g.setTime(12);
     g.setCeiling(24);
     g.sim(2, 0);
@@ -61,11 +60,6 @@ try {
     const stats = g.stats();
     const beforeMap = g.map().id;
     const beforeGlass = g.glass().count;
-    g.setMap('studio');
-    await sleep(1200);
-    const studioMap = g.map().id;
-    g.setMap('field');
-    await sleep(1200);
     return {
       startBears,
       endBears: g.bears.length,
@@ -73,10 +67,22 @@ try {
       seconds: ${SECONDS},
       stats: { nan: stats.nan, minY: stats.minY, maxXZ: stats.maxXZ },
       stuck: stuck.slice(0, 8),
-      map: { beforeMap, studioMap, afterMap: g.map().id, beforeGlass, afterGlass: g.glass().count },
+      map: { beforeMap, beforeGlass },
       errors: 0,
     };
   })()`, 300000);
+  if (report.map.beforeMap !== 'field') {
+    throw new Error(`soak did not start in the Meadow: ${JSON.stringify(report.map)}`);
+  }
+  await page.evaluate("window.__gummy.setMap('studio')");
+  await page.waitFor("window.__gummy.map().id === 'studio'", 30000);
+  await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')", 30000);
+  report.map.studioMap = await page.evaluate('window.__gummy.map().id');
+  await page.evaluate("window.__gummy.setMap('field')");
+  await page.waitFor("window.__gummy.map().id === 'field'", 30000);
+  await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')", 30000);
+  report.map.afterMap = await page.evaluate('window.__gummy.map().id');
+  report.map.afterGlass = await page.evaluate('window.__gummy.glass().count');
   report.pageErrors = browser.pageErrors;
   const failures = [];
   if (report.stats.nan) failures.push('non-finite physics state');

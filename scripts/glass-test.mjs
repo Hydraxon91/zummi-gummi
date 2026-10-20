@@ -339,9 +339,16 @@ try {
       motherBond: (mother.bonds || {})[String(afterChild.uid)] || 0,
     };
   })()`);
-  if (!family.parents?.length || !family.home || !(family.after < family.before - .2) ||
+  // A family task can legitimately claim the child before it reaches the
+  // mother. In that case the follow link and a non-increasing distance are the
+  // evidence; otherwise require actual pursuit.
+  const familyTask = family.state === 'familyTask';
+  const pursued = familyTask
+    ? family.after <= family.before + .1
+    : family.after < family.before - .2;
+  if (!family.parents?.length || !family.home || !pursued ||
       !(family.state === 'follow' || family.state === 'wander' || family.state === 'familyTask') ||
-      family.motherBond <= 0) {
+      (familyTask && family.follow !== family.mother) || family.motherBond <= 0) {
     throw new Error(`Glass family follow failed ${JSON.stringify(family)}`);
   }
   report.family = family;
