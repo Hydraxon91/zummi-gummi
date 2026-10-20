@@ -9,6 +9,12 @@ TARGET.searchParams.set('autostart', '1');
 if (process.env.BEHAVIORS) TARGET.searchParams.set('behaviors', process.env.BEHAVIORS);
 const TAG = process.env.TAG || 'glass';
 const RUN_ID = process.env.RUN_ID || `${Date.now()}-${process.pid}`;
+const SCENARIO = process.env.SCENARIO || 'all';
+const FAST = process.env.FAST === '1';
+if (!['all', 'drag', 'growth', 'social', 'hover', 'needs', 'night', 'lifecycle'].includes(SCENARIO)) {
+  throw new Error(`Unknown SCENARIO: ${SCENARIO}`);
+}
+const selected = name => SCENARIO === 'all' || SCENARIO === name;
 const REPORT_PATH = `${ROOT}/.dev-shots/glass-test-${TAG}-${RUN_ID}.json`;
 const W = 1440, H = 900;
 let phase = 'boot';
@@ -38,11 +44,21 @@ const evaluate = async (expression, timeout = 30000) => {
 };
 const waitFor = (expression, timeout = 30000) => page.waitFor(expression, timeout);
 const capture = process.env.SHOTS !== '0';
-const shot = name => capture
-  ? page.screenshot(`${ROOT}/.dev-shots/glass_${TAG}_${name}.png`)
-  : Promise.resolve(null);
+const shot = async name => {
+  if (!capture) return null;
+  const paused = await page.evaluate('window.__gummy.paused()');
+  try {
+    if (paused) {
+      await page.evaluate('window.__gummy.pause(false)');
+      await sleep(100);
+    }
+    return await page.screenshot(`${ROOT}/.dev-shots/glass_${TAG}_${name}.png`);
+  } finally {
+    if (paused) await page.evaluate('window.__gummy.pause(true)');
+  }
+};
 const pageErrors = browser.pageErrors;
-const report = { tag: TAG, runId: RUN_ID, reportPath: REPORT_PATH, pageErrors };
+const report = { tag: TAG, runId: RUN_ID, scenario: SCENARIO, fast: FAST, reportPath: REPORT_PATH, pageErrors };
 try {
   phase = 'boot';
   console.log(`PHASE ${phase}`);
@@ -82,6 +98,8 @@ try {
   report.boot = boot;
   report.shots = { meadow: await shot('meadow') };
 
+  if (selected('drag')) {
+  phase = 'drag';
   const dragScreen = await evaluate('window.__gummy.glassScreen(0)');
   const dragBefore = await evaluate('window.__gummy.glass().actors[0].position');
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: dragScreen.x, y: dragScreen.y, button: 'left', buttons: 1, clickCount: 1 });
@@ -141,7 +159,17 @@ try {
     after: dragAfter.position, coasting: dragAfter.coasting,
     lift: { before: liftBefore, held: liftHeld.position[1], after: liftAfter.position[1] },
   };
+  }
 
+  if (FAST) await evaluate(`(() => {
+    const g = window.__gummy;
+    g.pause(true);
+    window.__glassTestSim = g.sim;
+    g.sim = (seconds) => window.__glassTestSim.call(g, seconds, 0);
+  })()`);
+
+  if (selected('growth')) {
+  phase = 'growth';
   const growth = await evaluate(`(() => {
     const g = window.__gummy;
     g.setTime(11);
@@ -158,7 +186,10 @@ try {
     throw new Error(`Glass night growth failed ${JSON.stringify(growth)}`);
   }
   report.growth = growth;
+  }
 
+  if (selected('social')) {
+  phase = 'social';
   const reciprocal = await evaluate(`(() => {
     const g = window.__gummy;
     g.setTime(12);
@@ -182,7 +213,10 @@ try {
     throw new Error(`Reciprocal Glass social failed ${JSON.stringify(reciprocal)}`);
   }
   report.reciprocal = reciprocal;
+  }
 
+  if (selected('hover')) {
+  phase = 'hover';
   const hover = await evaluate(`(() => {
     const g = window.__gummy;
     g.sim(1.0, 8);
@@ -197,7 +231,10 @@ try {
     throw new Error(`Glass hover failed ${JSON.stringify(hover)}`);
   }
   report.hover = hover;
+  }
 
+  if (selected('needs')) {
+  phase = 'needs';
   const needs = await evaluate(`(() => {
     const g = window.__gummy;
     g.setTime(12);
@@ -217,7 +254,10 @@ try {
     throw new Error(`Glass needs failed ${JSON.stringify(needs)}`);
   }
   report.needs = needs;
+  }
 
+  if (selected('night')) {
+  phase = 'night';
   const night = await evaluate(`(() => {
     const g = window.__gummy;
     g.setTime(23);
@@ -226,7 +266,10 @@ try {
   })()`);
   if (!night.glass.every(a => !a.inside)) throw new Error(`Glass sheltered at night ${JSON.stringify(night)}`);
   report.night = night;
+  }
 
+  if (selected('lifecycle')) {
+  phase = 'lifecycle';
   const dayStage = await evaluate(`(() => {
     const g = window.__gummy;
     g.setTime(11);
@@ -659,6 +702,7 @@ try {
     throw new Error(`Reciprocal Glass mating failed ${JSON.stringify(reciprocalMate)}`);
   }
   report.reciprocalMate = reciprocalMate;
+  }
 
   phase = 'post-sim';
   console.log(`PHASE ${phase}`);
@@ -708,6 +752,11 @@ try {
   console.log('STOP', report.failure.slice(0, 2400));
   process.exitCode = 1;
 } finally {
+  if (FAST) await page.evaluate(`(() => {
+    const g = window.__gummy;
+    if (window.__glassTestSim) { g.sim = window.__glassTestSim; delete window.__glassTestSim; }
+    g.pause(false);
+  })()`, 1000).catch(() => {});
   report.timings = timings;
   report.phase = report.phase || phase;
   await writeFile(REPORT_PATH, JSON.stringify(report, null, 2));

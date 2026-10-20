@@ -1331,8 +1331,16 @@ and rejects commands after connection closure/browser exit. Previously a short w
 could spend 60 seconds in a single poll. Glass evaluations now record duration and
 use a 30-second default rather than 120 seconds; the post-simulation allowance is
 also 30 seconds rather than 180. One modules lifecycle pass and 173 Node checks pass.
-Scenario selection, rebuild-free behavior equivalence checks and paused nonvisual
-execution remain deferred; no physics timestep or app day-length change is made.
+Glass now supports independent `SCENARIO=drag|growth|social|hover|needs|night`
+checks and the prerequisite-preserving `lifecycle` group; default `all` retains
+coverage. Opt-in `FAST=1` pauses background rendering after the pointer checks and
+omits explicit surface rebuilds during behavioral fast-forward. The normal lane
+remains available for rendering/mesh validation. `glass-fast-parity.mjs` compares
+actor state, all soft-body positions and RNG at five checkpoints over ten simulated
+seconds: modules and legacy pass. Full fast lifecycle passes in both engines and
+each selected scenario passes in modules. Evaluation time in the exploratory full
+modules samples was 7.96 s normal versus 3.78 s fast (not an end-to-end benchmark).
+No physics timestep or app day-length change is made.
 Intermittent browser stalls remain unresolved, not certified fixed by this pass.
 
 ## Content extensibility track (implemented, Oct 2026)

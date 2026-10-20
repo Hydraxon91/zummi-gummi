@@ -122,6 +122,18 @@ harnesses share it:
 - `scripts/glass-test.mjs` — Glass hover, grab/throw/tumble, shelter, family/sibling play,
   visits, births and save/load.
 
+For targeted Glass debugging, use `SCENARIO=drag|growth|social|hover|needs|night`
+or `SCENARIO=lifecycle` (the latter retains birth/family/save prerequisites).
+The default `SCENARIO=all` runs every group. `SHOTS=0 FAST=1` skips behavioral
+surface rebuilds and pauses background rendering after real-time pointer checks;
+it does not change physics steps or day length. Keep the normal lane for mesh and
+visual acceptance. `GAME_URL=... node scripts/glass-fast-parity.mjs` checks identical
+fixed-step actor state/positions and RNG with rebuilds on/off; run for both
+`BEHAVIORS=modules` and `BEHAVIORS=legacy` when changing this fast path.
+Glass JSON reports contain per-evaluation `timings`. Use targeted checks during
+iteration, then the full suite once per engine; repeat reliability samples only
+when required and stop at the first failure rather than retrying for green.
+
 Other one-off harnesses belong in the gitignored `.dev-shots/`; import the same helper
 instead of duplicating `spawn`/WebSocket setup.
 
