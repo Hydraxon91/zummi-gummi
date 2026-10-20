@@ -8,7 +8,10 @@ const TARGET = new URL(GAME);
 TARGET.searchParams.set('autostart', '1');
 if (process.env.BEHAVIORS) TARGET.searchParams.set('behaviors', process.env.BEHAVIORS);
 const TAG = process.env.TAG || 'glass';
+const RUN_ID = process.env.RUN_ID || `${Date.now()}-${process.pid}`;
+const REPORT_PATH = `${ROOT}/.dev-shots/glass-test-${TAG}-${RUN_ID}.json`;
 const W = 1440, H = 900;
+let phase = 'boot';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 await mkdir(`${ROOT}/.dev-shots`, { recursive: true });
@@ -20,26 +23,35 @@ const page = await browser.openPage({
 });
 const send = (method, params = {}, timeout = 120000) =>
   browser.send(method, params, page.sessionId, timeout);
-const evaluate = expression => page.evaluate(expression, 120000);
+const evaluate = async (expression, timeout = 120000) => {
+  try {
+    return await page.evaluate(expression, timeout);
+  } catch (error) {
+    error.phase = phase;
+    error.expression = String(expression).slice(0, 240);
+    throw error;
+  }
+};
 const waitFor = (expression, timeout = 30000) => page.waitFor(expression, timeout);
 const capture = process.env.SHOTS !== '0';
 const shot = name => capture
   ? page.screenshot(`${ROOT}/.dev-shots/glass_${TAG}_${name}.png`)
   : Promise.resolve(null);
 const pageErrors = browser.pageErrors;
-const report = { tag: TAG, pageErrors };
+const report = { tag: TAG, runId: RUN_ID, reportPath: REPORT_PATH, pageErrors };
 try {
+  phase = 'boot';
+  console.log(`PHASE ${phase}`);
   await waitFor('!!window.__gummy?.booted', 120000);
+  phase = 'glass-roster';
+  console.log(`PHASE ${phase}`);
   await waitFor('window.__gummy.glass()?.actors?.length === 2', 30000);
-  try {
-    await waitFor('window.__gummy.glass().actors.every(a => a.ready)', 300000);
-  } catch (err) {
-    console.log('GLASS retry after slow asset load');
-    await page.evaluate('location.reload()').catch(() => {});
-    await waitFor('!!window.__gummy?.booted', 120000);
-    await waitFor('window.__gummy.glass().actors.every(a => a.ready)', 300000);
-  }
+  phase = 'glass-ready';
+  console.log(`PHASE ${phase}`);
+  await waitFor('window.__gummy.glass().actors.every(a => a.ready)', 300000);
   await sleep(800);
+  phase = 'glass-body';
+  console.log(`PHASE ${phase}`);
 
   const boot = await evaluate(`(() => {
     const g = window.__gummy;
@@ -106,7 +118,6 @@ try {
     throw new Error(`Glass drag/tumble failed ${JSON.stringify({ dragScreen, dragBefore, dragAfter, dragMoved })}`);
   }
   await sleep(700);
-  await evaluate('window.__gummy.freeze(true)');
   const liftScreen = await evaluate('window.__gummy.glassScreen(0)');
   const liftBefore = await evaluate('window.__gummy.glass().actors[0].position[1]');
   const afterPress = await evaluate(`window.__gummy.glassDragStart(0, ${liftScreen.x}, ${liftScreen.y})`);
@@ -116,7 +127,6 @@ try {
   await evaluate('window.__gummy.glassDragEnd(0)');
   await sleep(250);
   const liftAfter = await evaluate('window.__gummy.glass().actors[0]');
-  await evaluate('window.__gummy.freeze(false)');
   if (!afterPress || !(liftHeld.position[1] > liftBefore + .08) || liftAfter.grabbing) {
     throw new Error(`Glass vertical drag failed ${JSON.stringify({ liftBefore, afterPress, liftHeld, liftAfter })}`);
   }
@@ -652,13 +662,35 @@ try {
   if (after.stats.nan || after.gl) throw new Error(`Glass post-sim failed ${JSON.stringify(after)}`);
   report.after = after;
   report.errors = pageErrors;
+  report.phase = 'complete';
   console.log('STATE', JSON.stringify(report));
   console.log('ERRORS', JSON.stringify(pageErrors).slice(0, 1600));
 } catch (error) {
+  phase = error.phase || phase;
+  report.phase = phase;
   report.failure = String(error.stack || error);
+  report.expression = error.expression || null;
+  report.harness = page.diagnostics();
+  const pageErrorSnapshot = JSON.stringify(pageErrors).slice(0, 4000);
+  try {
+    report.snapshot = await evaluate(`(() => {
+      const g = window.__gummy;
+      return {
+        readyState: document.readyState,
+        booted: !!g?.booted,
+        map: g?.map?.() || null,
+        glass: g?.glass?.() || null,
+        errors: ${JSON.stringify(pageErrorSnapshot)},
+      };
+    })()`, 3000);
+  } catch (snapshotError) {
+    report.snapshotError = String(snapshotError && snapshotError.stack || snapshotError);
+  }
   console.log('STOP', report.failure.slice(0, 2400));
   process.exitCode = 1;
 } finally {
-  await writeFile(`${ROOT}/.dev-shots/glass-test-${TAG}.json`, JSON.stringify(report, null, 2));
+  report.phase = report.phase || phase;
+  await writeFile(REPORT_PATH, JSON.stringify(report, null, 2));
+  console.log('REPORT', REPORT_PATH);
   await browser.close();
 }

@@ -61,6 +61,8 @@ export async function launchBrowser({
   }
   if (!port) port = await getFreePort();
   if (!profile) profile = await mkdtemp(join(tmpdir(), 'gummy-browser-'));
+  let stderr = '';
+  let exit = null;
   const child = spawn(browser, [
     ...(headless ? ['--headless=new'] : []),
     `--remote-debugging-port=${port}`,
@@ -73,7 +75,13 @@ export async function launchBrowser({
     '--window-size=1440,900',
     ...args,
     'about:blank',
-  ], { stdio: 'ignore' });
+  ], { stdio: ['ignore', 'ignore', 'pipe'] });
+  child.stderr?.on('data', chunk => {
+    stderr = (stderr + String(chunk)).slice(-65536);
+  });
+  child.on('exit', (code, signal) => {
+    exit = { code, signal, at: Date.now() };
+  });
 
   let version = null;
   const deadline = Date.now() + 20000;
@@ -92,7 +100,11 @@ export async function launchBrowser({
     await removeProfile(profile).catch(() => {});
     throw new Error(`Browser CDP endpoint did not start on port ${port}`);
   }
-  return { browser, child, port, profile, version };
+  return {
+    browser, child, port, profile, version,
+    get stderr() { return stderr; },
+    get exit() { return exit; },
+  };
 }
 
 export async function connectBrowser(launched) {
@@ -154,6 +166,9 @@ export async function connectBrowser(launched) {
     }
     await send('Page.navigate', { url }, sessionId);
 
+    let lastWaitError = null;
+    let lastWaitExpression = null;
+
     async function evaluate(expression, timeout = 60000) {
       const result = await send('Runtime.evaluate', {
         expression,
@@ -168,11 +183,30 @@ export async function connectBrowser(launched) {
 
     async function waitFor(expression, timeout = 30000) {
       const deadline = Date.now() + timeout;
+      lastWaitExpression = expression;
       while (Date.now() < deadline) {
-        try { if (await evaluate(expression)) return true; } catch (error) {}
+        try {
+          if (await evaluate(expression)) return true;
+        } catch (error) {
+          lastWaitError = String(error && error.stack || error);
+        }
         await sleep(200);
       }
-      throw new Error(`Wait timeout: ${expression}`);
+      const error = new Error(`Wait timeout: ${expression}`);
+      error.lastWaitError = lastWaitError;
+      throw error;
+    }
+
+    function diagnostics() {
+      return {
+        targetId: created.targetId,
+        sessionId,
+        lastWaitExpression,
+        lastWaitError,
+        pageErrors: pageErrors.slice(),
+        browserStderr: launched.stderr,
+        browserExit: launched.exit,
+      };
     }
 
     async function screenshot(path) {
@@ -181,7 +215,9 @@ export async function connectBrowser(launched) {
       return path;
     }
 
-    return { targetId: created.targetId, sessionId, evaluate, waitFor, screenshot };
+    return {
+      targetId: created.targetId, sessionId, evaluate, waitFor, screenshot, diagnostics,
+    };
   }
 
   async function close() {
@@ -191,5 +227,13 @@ export async function connectBrowser(launched) {
     await removeProfile(launched.profile).catch(() => {});
   }
 
-  return { send, openPage, close, pageErrors };
+  function diagnostics() {
+    return {
+      pageErrors: pageErrors.slice(),
+      browserStderr: launched.stderr,
+      browserExit: launched.exit,
+    };
+  }
+
+  return { send, openPage, close, pageErrors, diagnostics };
 }
