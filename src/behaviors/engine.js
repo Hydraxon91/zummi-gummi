@@ -31,6 +31,7 @@ import { stargazeModule } from './stargaze.js';
 import { familyTaskModule } from './family.js';
 import { fleeModule } from './flee.js';
 import { planReason } from './reason.js';
+import { ensureTraits } from './traits.js';
 
 const STUCK_DIST2 = .04;
 
@@ -273,6 +274,7 @@ export function createBehaviorModules({
   function attach(actor) {
     if (!actor) return null;
     if (actor.ai) return actor.ai;
+    if (features.personality && ensureTraits(actor)) config.invalidateActor(actor);
     const p = profile(actor);
     actor.hunger = finite(actor.hunger, .30);
     actor.thirst = finite(actor.thirst, .30);
@@ -1353,6 +1355,7 @@ export function createBehaviorModules({
     startVisit, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind), startConflict,
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
+    ensureTraits, invalidateActor: (actor) => config.invalidateActor(actor),
     coverSlot, coverConflictOutcome, coverHour, coverFlee,
     adapterSleepDone, adapterOnSleep, adapterOnWake, adapterHungerOpportunity,
     noteDoorTransition,
@@ -1367,6 +1370,7 @@ export function createBehaviorModules({
     setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal, forceLesson,
     startSeekHome, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind),
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
+    invalidateActor: (actor) => config.invalidateActor(actor),
     get enabled() { return enabled; },
     get actors() { return actors(); },
     get configVersion() { return configVersion; },

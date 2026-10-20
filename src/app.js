@@ -11,8 +11,9 @@ import { GRAPHICS_GROUPS, GRAPHICS_DEFAULTS, normalizeGraphics, readGraphics, cr
 import {
   HOME_CAPACITY, MATE_COOLDOWN, GESTATION_TIME, MATE_FOOD_MIN, STAGE_ORDER,
   advanceAge, advanceGestation, ageForStage, scaleForStage, stageForAge,
-  blendPace, inheritedFlavor,
+  blendPace, blendTraits, inheritedFlavor,
 } from './life.js';
+import { ensureTraits } from './behaviors/traits.js';
 import { createStudioReturnPortal } from './studiohouse.js';
 import { createMSNPrototype } from './msn.js';
 import { createGlassColony } from './glass.js';
@@ -786,6 +787,11 @@ function addFamilyBond(parent, child, value = .62) {
   child.bonds[String(parent.uid)] = Math.max(value, Number(child.bonds[String(parent.uid)]) || 0);
 }
 
+function personalityEnabled() {
+  return BEHAVIOR_ENGINE === 'modules' && !!(behavior && behavior.api &&
+    behavior.api.features && behavior.api.features.personality);
+}
+
 function birthChild(mother, father = null) {
   if (!mother || !mother.active || !mother.pregnant) return false;
   if (mother.grabs > 0 || mother.inPond || mother.airborne || mother.freeBody) return false;
@@ -840,6 +846,14 @@ function birthChild(mother, father = null) {
     });
   }
   if (!baby) return false;
+  if (personalityEnabled()) {
+    // Inheritance is applied after all existing birth/spawn draws so the
+    // feature-off RNG stream stays byte-identical.
+    if (ensureTraits(mother)) behavior.api.invalidateActor(mother);
+    if (father && ensureTraits(father)) behavior.api.invalidateActor(father);
+    baby.traits = blendTraits(mother.traits, father ? father.traits : mother.traits, Math.random);
+    if (behavior && behavior.api) behavior.api.invalidateActor(baby);
+  }
   if (baby.kind === 'glass') {
     baby.genome = genome;
     baby.phenotype = expressGenome(genome);
@@ -6927,6 +6941,7 @@ window.__gummy = {
     return ai.debugState(b, state);
   },
   aiPlan(i){ const b = bears[i]; return b && ai ? ai.plan(b) : null; },
+  traits(i){ const b = bears[i]; return b && b.traits ? { ...b.traits } : null; },
   thoughts(on){
     if (on !== undefined && behavior && typeof behavior.setFeature === 'function') {
       behavior.setFeature('thoughtBubbles', !!on);

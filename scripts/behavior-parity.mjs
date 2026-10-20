@@ -19,6 +19,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { createBehavior } from '../src/behaviors/index.js';
+import { createBehaviorConfig } from '../src/behaviors/config.js';
 import { createFoodRegistry } from '../src/food.js';
 import {
   STAGE_AGE, GESTATION_TIME, MATE_COOLDOWN,
@@ -173,7 +174,7 @@ const RACE_SPECIES = {
   glass: { species: 'glass', kind: 'glass' },
 };
 
-export function createRoster(race, perturb = 0, { seedBonds = false, social = false, allAdults = false } = {}) {
+export function createRoster(race, perturb = 0, { seedBonds = false, social = false, allAdults = false, traits = null } = {}) {
   const def = RACE_SPECIES[race] || RACE_SPECIES.bear;
   const rows = [
     { uid: 1, sex: 'F', stage: 'adult', age: 700, home: 'Home 1', parents: [] },
@@ -224,6 +225,7 @@ export function createRoster(race, perturb = 0, { seedBonds = false, social = fa
           : { forage: 0, courage: 0, social: 0 },
       playdates: {},
       history: [],
+      ...(traits ? { traits: { ...traits } } : {}),
       grabs: 0,
       inPond: false,
       sleeping: false,
@@ -643,13 +645,15 @@ function firstDiffPath(left, right, path = [], out = []) {
 
 /* ------------------------------------------------------------------ runs */
 
-function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false, rngValue = null, populationCap = POPULATION_CAP }) {
+function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0, social = false, seedBonds = false, startHour = START_HOUR, allAdults = false, rngValue = null, populationCap = POPULATION_CAP, traits = null, personality = false }) {
   const world = createWorld({ flowers });
-  const roster = createRoster(race, perturb, { social, seedBonds, allAdults });
+  const roster = createRoster(race, perturb, { social, seedBonds, allAdults, traits });
   const traced = tracedRng(seed);
   const clock = { seconds: 0 };
+  const config = personality ? createBehaviorConfig({ features: { personality: true } }) : null;
   const engineApi = createBehavior({
     engine,
+    config,
     field: world,
     getActors: () => roster,
     getHours: () => clockAt(clock.seconds, daySeconds, startHour).hours,
@@ -808,6 +812,81 @@ export function runParity({
     transitionLogA: verbose ? a.transitions : undefined,
     transitionLogB: verbose ? b.transitions : undefined,
     samples: verbose ? b.samples : undefined,
+  };
+}
+
+/* ------------------------------------------------------- personality packs */
+
+export function runTraitScenario({
+  race = 'bear', traits = null, days = 2, seed = 1,
+  allAdults = false, resetEvery = 0, resetHunger = null, resetSocial = null,
+} = {}) {
+  const run = createRun({
+    race, seed, engine: 'modules', personality: true, traits, allAdults,
+  });
+  const ticks = Math.round(days * DAY_SECONDS / DT);
+  const last = new Map(run.roster.map(actor => [actor.uid, [actor.cx, actor.cz]]));
+  const perActor = new Map(run.roster.map(actor => [actor.uid, 0]));
+  const reset = () => {
+    for (const actor of run.roster) {
+      if (!actor.active || !actor.ai) continue;
+      const ai = actor.ai;
+      ai.state = 'wander';
+      ai.familyTask = null;
+      ai.partner = null;
+      ai.follow = null;
+      ai.directives.length = 0;
+      ai.directive = null;
+      ai.target = null;
+      ai.path = null;
+      ai.pathIndex = 0;
+      ai.moving = false;
+      ai.source = null;
+      ai.taskCooldown = 0;
+      ai.familyPlayCooldown = 0;
+      ai.socialCooldown = 0;
+      ai.conflictCooldown = 0;
+      ai.nextThink = 0;
+      actor.sleeping = false;
+      actor.inside = false;
+      actor.grabs = 0;
+      actor.inPond = false;
+      actor.thirst = .2;
+      actor.energy = 1;
+      actor.health = 100;
+      if (Number.isFinite(resetHunger)) actor.hunger = resetHunger;
+      if (Number.isFinite(resetSocial)) {
+        actor.social = resetSocial;
+        actor.affection = resetSocial;
+      }
+    }
+  };
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (let tick = 0; tick < ticks; tick++) {
+      if (resetEvery && tick % resetEvery === 0) reset();
+      hostTick(run, DT);
+      for (const actor of run.roster) {
+        if (!actor.active) continue;
+        const [x, z] = last.get(actor.uid) || [actor.cx, actor.cz];
+        perActor.set(actor.uid, (perActor.get(actor.uid) || 0) + Math.hypot(actor.cx - x, actor.cz - z));
+        last.set(actor.uid, [actor.cx, actor.cz]);
+      }
+    }
+  } finally {
+    console.warn = warn;
+  }
+  const summary = summarize(run);
+  return {
+    race, seed, days,
+    distance: +[...perActor.values()].reduce((sum, value) => sum + value, 0).toFixed(2),
+    distancePerActor: +([...perActor.values()].reduce((sum, value) => sum + value, 0) /
+      Math.max(1, perActor.size)).toFixed(2),
+    life: run.life,
+    roster: run.roster.length,
+    summary,
+    coverage: typeof run.engineApi.coverage === 'function' ? run.engineApi.coverage() : null,
   };
 }
 

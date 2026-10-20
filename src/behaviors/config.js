@@ -14,6 +14,7 @@ import { hiveModule } from './hive.js';
 import { directivesModule } from './directives.js';
 import { conflictModule } from './conflict.js';
 import { stargazeModule } from './stargaze.js';
+import { applyTraitOffsets, founderTraits, normalizeTraits } from './traits.js';
 
 // Feature flags for known quirks. Every flag is off by default, so the engine
 // behaves exactly like the legacy path until a flag is deliberately enabled.
@@ -25,6 +26,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
   matePairOnPathFailure: false,// startSeekMate clears the pair when pathing fails
   glassEngineRng: false,       // glass.js insideT uses the engine RNG
   thoughtBubbles: false,       // UI-only plan().reason overlay; no simulation reads
+  personality: false,          // trait offsets; modules engine only, no reads while off
 });
 
 const MODULE_DEFAULTS = Object.freeze({
@@ -136,7 +138,19 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
       }
     }
     resolved.behaviorModules = modules;
+    if (features.personality && actor) {
+      const traits = actor.traits
+        ? normalizeTraits(actor.traits)
+        : founderTraits(actor.uid, actor.species);
+      return applyTraitOffsets(resolved, traits);
+    }
     return resolved;
+  }
+
+  function invalidateActor(actor) {
+    if (!actor) return false;
+    cache.delete(actor);
+    return true;
   }
 
   function forActor(actor) {
@@ -247,6 +261,7 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
     setModuleParams,
     setActorConfig,
     setFeature,
+    invalidateActor,
     reset,
     getVersion: () => version,
     get hasUnknownSpecies() { return hasUnknown; },

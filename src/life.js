@@ -6,6 +6,8 @@
 // work one place to read and lets the headless checks exercise the rules without
 // a renderer.
 
+import { normalizeTraits, TRAIT_AXES } from './behaviors/traits.js';
+
 export const STAGE_ORDER = ['baby', 'teen', 'adult'];
 export const STAGE_SCALE = { baby: 0.58, teen: 0.78, adult: 1.00 };
 export const STAGE_AGE = { baby: 0, teen: 180, adult: 420 };       // seconds
@@ -98,4 +100,17 @@ export function inheritedFlavor(motherFlavor, flavorCount, rng = Math.random) {
     return Math.floor(rng() * count);
   }
   return Math.floor(motherFlavor) % count;
+}
+
+// Children average the parents' trait axes and receive a small mutation. One
+// draw per axis; callers invoke this only when the personality feature is on.
+export function blendTraits(motherTraits, fatherTraits, rng = Math.random) {
+  const mother = normalizeTraits(motherTraits);
+  const father = normalizeTraits(fatherTraits || mother);
+  const out = {};
+  for (const axis of TRAIT_AXES) {
+    const mean = (mother[axis] + father[axis]) * 0.5;
+    out[axis] = +clamp(mean + (rng() - 0.5) * 0.12, 0.02, 0.98).toFixed(4);
+  }
+  return out;
 }
