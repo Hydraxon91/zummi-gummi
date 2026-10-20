@@ -43,16 +43,25 @@ const BEAR = {
     bondBase: .16, bondJitter: .08, familyBondBase: .22, familyBondExtra: .08,
     visitBond: .16, visitChance: .45, visitTime: 4.8, visitDist: 1.55,
   },
-  conflict: {
-    dist: 1.20, time: .85, cooldown: 12, radius: 8, healthFloor: 45,
-    damage: 15, shove: 2.4,
-  },
   mate: { radius: 22, dist: 1.25, followDist: 2.15, requiresRoom: true, chance: 1 },
-  hive: {
-    hunger: .95, health: 45, hardFloor: 25, damage: 15,
-    stingChance: .5, dist: 1.25, raidTime: 1.25, fleeTime: 1.4,
+  modules: {
+    hive: {
+      enabled: true,
+      params: {
+        hunger: .95, health: 45, hardFloor: 25, damage: 15,
+        stingChance: .5, dist: 1.25, raidTime: 1.25, fleeTime: 1.4,
+      },
+    },
+    conflict: {
+      enabled: true,
+      params: {
+        dist: 1.20, time: .85, cooldown: 12, radius: 8, healthFloor: 45,
+        damage: 15, shove: 2.4,
+      },
+    },
+    directives: { enabled: true, params: { ttl: 45, max: 3 } },
+    stargaze: { enabled: false, params: {} },
   },
-  directives: { ttl: 45, max: 3 },
 };
 
 // Gummy starts as an exact Bear clone so the two can diverge without changing
@@ -103,26 +112,46 @@ const GLASS = {
     bondBase: .14, bondJitter: .06, familyBondBase: .18, familyBondExtra: .08,
     visitBond: .16, visitChance: .35, visitTime: 4.8, visitDist: 1.55,
   },
-  conflict: null,
   mate: { radius: 22, dist: 1.25, followDist: 2.15, requiresRoom: false, chance: .10 },
-  hive: null,
-  directives: null,
-  stargaze: { chance: .10, min: 3, max: 8 },
+  modules: {
+    hive: { enabled: false, params: {} },
+    conflict: { enabled: false, params: {} },
+    directives: { enabled: false, params: { ttl: 45, max: 3 } },
+    stargaze: { enabled: true, params: { chance: .10, min: 3, max: 8 } },
+  },
 };
 
+// The legacy engine still reads flat `hive`, `conflict`, `directives` and
+// `stargaze` sections. Derive that view from the module blocks so the data has
+// one source of truth.
+const LEGACY_MODULE_SECTIONS = ['hive', 'conflict', 'directives', 'stargaze'];
+
+function legacyProfile(profile) {
+  const view = { ...profile };
+  for (const id of LEGACY_MODULE_SECTIONS) {
+    const block = profile.modules && profile.modules[id];
+    view[id] = block && block.enabled ? { ...(block.params || {}) } : null;
+  }
+  return view;
+}
+
+const BEAR_PROFILE = legacyProfile(BEAR);
+const GUMMY_PROFILE = legacyProfile(GUMMY);
+const GLASS_PROFILE = legacyProfile(GLASS);
+
 const PROFILES = new Map();
-for (const profile of [BEAR, GUMMY, GLASS]) {
+for (const profile of [BEAR_PROFILE, GUMMY_PROFILE, GLASS_PROFILE]) {
   for (const species of profile.species) PROFILES.set(species, profile);
 }
 
 export function behaviorProfile(speciesId) {
-  return PROFILES.get(speciesId) || BEAR;
+  return PROFILES.get(speciesId) || BEAR_PROFILE;
 }
 
 export function profileFor(actor) {
-  if (!actor) return BEAR;
-  if (actor.kind === 'glass' || actor.species === 'glass') return GLASS;
+  if (!actor) return BEAR_PROFILE;
+  if (actor.kind === 'glass' || actor.species === 'glass') return GLASS_PROFILE;
   return behaviorProfile(actor.species || 'bear');
 }
 
-export { BEAR as BEAR_PROFILE, GUMMY as GUMMY_PROFILE, GLASS as GLASS_PROFILE };
+export { BEAR_PROFILE, GUMMY_PROFILE, GLASS_PROFILE };

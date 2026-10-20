@@ -38,12 +38,34 @@ test('Gummy is an independent Bear clone routed by msn species', () => {
   assert.deepEqual(GUMMY_PROFILE.hive, BEAR_PROFILE.hive);
 });
 
-test('Glass disables the hive module through the profile capability', () => {
+test('Glass disables hive, conflict and directives through module blocks', () => {
   const config = createBehaviorConfig();
   const resolved = config.forActor(actor(2, 'glass'));
   assert.equal(resolved.hive, null);
+  assert.equal(resolved.conflict, null);
+  assert.equal(resolved.directives, null);
   assert.equal(resolved.behaviorModules.hive.enabled, false);
+  assert.equal(resolved.behaviorModules.conflict.enabled, false);
+  assert.equal(resolved.behaviorModules.directives.enabled, false);
+  assert.equal(resolved.behaviorModules.stargaze.enabled, true);
+  assert.deepEqual(resolved.stargaze, GLASS_PROFILE.stargaze);
   assert.equal(resolved.id, GLASS_PROFILE.id);
+});
+
+test('module profile blocks are the single source for legacy sections', () => {
+  const config = createBehaviorConfig();
+  const resolved = config.forActor(actor(1));
+  assert.deepEqual(resolved.hive, BEAR_PROFILE.hive);
+  assert.deepEqual(resolved.conflict, BEAR_PROFILE.conflict);
+  assert.deepEqual(resolved.directives, BEAR_PROFILE.directives);
+  assert.equal(resolved.stargaze, null);
+  assert.equal(resolved.behaviorModules.stargaze.enabled, false);
+  config.setModuleEnabled('conflict', false);
+  assert.equal(config.forActor(actor(1)).conflict, null);
+  config.setModuleEnabled('conflict', true);
+  config.setModuleParams('conflict', { radius: 4 });
+  assert.equal(config.forActor(actor(1)).conflict.radius, 4);
+  assert.equal(config.forActor(actor(1)).behaviorModules.conflict.params.radius, 4);
 });
 
 test('runtime toggles win over the race profile and are cached by version', () => {

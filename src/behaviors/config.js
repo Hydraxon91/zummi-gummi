@@ -12,6 +12,8 @@ import { profileFor } from '../behaviorprofiles.js';
 import { listSpecies } from '../species.js';
 import { hiveModule } from './hive.js';
 import { directivesModule } from './directives.js';
+import { conflictModule } from './conflict.js';
+import { stargazeModule } from './stargaze.js';
 
 // Feature flags for known quirks. Every flag is off by default, so the engine
 // behaves exactly like the legacy path until a flag is deliberately enabled.
@@ -26,13 +28,15 @@ export const FEATURE_DEFAULTS = Object.freeze({
 
 const MODULE_DEFAULTS = Object.freeze({
   hive: hiveModule.defaults,
+  conflict: conflictModule.defaults,
   directives: directivesModule.defaults,
+  stargaze: stargazeModule.defaults,
 });
 
-// Legacy profile sections that act as capability flags today. A null section
-// disables the module; an object enables it. Modules without an entry here are
-// enabled unless their runtime override says otherwise.
+// Profiles written before the modules reshape still used flat capability keys.
+// They remain a fallback for callers that build a profile by hand.
 const LEGACY_CAPABILITY = new Set(['hive', 'conflict', 'directives', 'stargaze']);
+const LEGACY_MODULE_SECTIONS = new Set(['hive', 'conflict', 'directives', 'stargaze']);
 
 const SPECIES = new Map(listSpecies().map(def => [def.id, def]));
 
@@ -90,10 +94,7 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
     let enabled = profileBlock && profileBlock.enabled !== undefined
       ? !!profileBlock.enabled
       : def.enabled;
-    if (LEGACY_CAPABILITY.has(id)) {
-      const legacy = base[id];
-      enabled = !!legacy;
-    }
+    if (!profileBlock && LEGACY_CAPABILITY.has(id)) enabled = !!base[id];
     return {
       enabled,
       params: mergeParams(def.params, base[id], profileBlock && profileBlock.params),
@@ -129,7 +130,9 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
     for (const id of Object.keys(MODULE_DEFAULTS)) {
       const config = layeredModule(id, base, actor);
       modules[id] = config;
-      if (id === 'hive') resolved.hive = config.enabled ? config.params : null;
+      if (LEGACY_MODULE_SECTIONS.has(id)) {
+        resolved[id] = config.enabled ? config.params : null;
+      }
     }
     resolved.behaviorModules = modules;
     return resolved;
