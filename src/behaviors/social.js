@@ -411,6 +411,7 @@ export const socialModule = defineBehaviorModule({
     enter: (ctx) => !!acquireCompany(ctx),
   }],
   acquireCompany,
+  decideAccept,
   startInvite,
   beginSocialPair,
   startDeclinePair,

@@ -700,6 +700,24 @@ function raceStates(race) {
   return ALL_RACE_STATES[race] || ALL_RACE_STATES.bear;
 }
 
+const BEAR_ONLY = new Set(['hive.seek', 'conflict.critical', 'conflict.fallback']);
+const GLASS_ONLY = new Set(['stargaze']);
+const KNOWN_OPPORTUNITIES = Object.freeze([
+  'water.critical', 'forage.critical', 'water.seek', 'hive.seek', 'forage.seek',
+  'mate.seek', 'social.company', 'wander.arrive', 'wander.target',
+]);
+const KNOWN_PIPELINE = Object.freeze([
+  'meal', 'conflict.critical', 'conflict.fallback', 'lesson', 'playdate',
+  'follow', 'familyPlaymate', 'stargaze',
+]);
+
+function applicable(race, id) {
+  if (!race) return true;
+  if (BEAR_ONLY.has(id)) return race === 'bear' || race === 'gummy';
+  if (GLASS_ONLY.has(id)) return race === 'glass';
+  return true;
+}
+
 export function mergeCoverage(results) {
   const states = {};
   const entries = {};
@@ -707,6 +725,7 @@ export function mergeCoverage(results) {
   const taskPhases = {};
   const tasks = {};
   const taskEntries = {};
+  const pipeline = {};
   const add = (target, source) => {
     for (const [key, value] of Object.entries(source || {})) {
       target[key] = (target[key] || 0) + value;
@@ -721,8 +740,9 @@ export function mergeCoverage(results) {
     add(taskPhases, coverage.taskPhases);
     add(tasks, coverage.tasks);
     add(taskEntries, coverage.taskEntries);
+    add(pipeline, coverage.pipeline);
   }
-  return { states, entries, opportunities, taskPhases, tasks, taskEntries };
+  return { states, entries, opportunities, taskPhases, tasks, taskEntries, pipeline };
 }
 
 function coverageSection(merged, title, race = null) {
@@ -732,8 +752,6 @@ function coverageSection(merged, title, race = null) {
     .sort();
   const lowStates = stateNames
     .filter(state => (merged.entries[state] || 0) < LOW_COVERAGE);
-  const lowOpportunities = Object.entries(merged.opportunities)
-    .filter(([, hits]) => hits < LOW_COVERAGE).map(([id]) => id);
   const lines = [title];
   for (const state of stateNames) {
     const entries = merged.entries[state] || 0;
@@ -741,8 +759,21 @@ function coverageSection(merged, title, race = null) {
     lines.push(`  ${state.padEnd(14)} ${String(entries).padStart(7)} entries ${String(ticks).padStart(9)} ticks${entries < LOW_COVERAGE ? '  LOW' : ''}`);
   }
   lines.push('  opportunities (times selected)');
-  for (const id of Object.keys(merged.opportunities).sort()) {
+  const opportunityNames = [...new Set([...KNOWN_OPPORTUNITIES, ...Object.keys(merged.opportunities)])]
+    .filter(id => applicable(race, id)).sort();
+  const lowOpps = [];
+  for (const id of opportunityNames) {
     const hits = merged.opportunities[id] || 0;
+    if (hits < LOW_COVERAGE) lowOpps.push(id);
+    lines.push(`    ${id.padEnd(18)} ${String(hits).padStart(7)}${hits < LOW_COVERAGE ? '  LOW' : ''}`);
+  }
+  lines.push('  pipeline slots (inline, not opportunity objects)');
+  const pipelineNames = [...new Set([...KNOWN_PIPELINE, ...Object.keys(merged.pipeline || {})])]
+    .filter(id => applicable(race, id)).sort();
+  const lowPipeline = [];
+  for (const id of pipelineNames) {
+    const hits = merged.pipeline?.[id] || 0;
+    if (hits < LOW_COVERAGE) lowPipeline.push(id);
     lines.push(`    ${id.padEnd(18)} ${String(hits).padStart(7)}${hits < LOW_COVERAGE ? '  LOW' : ''}`);
   }
   const travel = merged.taskPhases.travel || 0;
@@ -753,8 +784,9 @@ function coverageSection(merged, title, race = null) {
     lines.push(`    ${id.padEnd(18)} ${String(merged.taskEntries[id] || 0).padStart(6)} entries ${String(merged.tasks[id] || 0).padStart(8)} ticks`);
   }
   lines.push(`  LOW (<${LOW_COVERAGE}) states: ${lowStates.join(', ') || 'none'}`);
-  lines.push(`  LOW (<${LOW_COVERAGE}) opportunities: ${lowOpportunities.join(', ') || 'none'}`);
-  return { text: lines.join('\n'), lowStates, lowOpportunities };
+  lines.push(`  LOW (<${LOW_COVERAGE}) opportunities: ${lowOpps.join(', ') || 'none'}`);
+  lines.push(`  LOW (<${LOW_COVERAGE}) pipeline slots: ${lowPipeline.join(', ') || 'none'}`);
+  return { text: lines.join('\n'), lowStates, lowOpportunities: lowOpps, lowPipeline };
 }
 
 export function formatCoverage(results) {
@@ -779,6 +811,7 @@ export function formatCoverage(results) {
     byRace,
     lowStates: aggregate.lowStates,
     lowOpportunities: aggregate.lowOpportunities,
+    lowPipeline: aggregate.lowPipeline,
     text: [...sections, aggregate.text].join('\n\n'),
   };
 }
@@ -838,6 +871,56 @@ function criticalNeeds(run) {
   else actor.hunger = .95;
 }
 
+// Claim every flower but the contested one, then alternate critical (45) and
+// fallback (55) hunger so both conflict slots run.
+function conflictNeeds(run) {
+  const actor = run.roster[0];
+  const other = run.roster[1];
+  const blocker = run.roster[2];
+  if (!actor || !other || !blocker || !actor.ai || !other.ai) return;
+  const sources = run.world.food.sources.filter(source => source.kind === 'flower' && source.ripe);
+  if (!sources.length) return;
+  for (const source of sources) source.claim = null;
+  const target = sources[0];
+  for (const source of sources.slice(1)) source.claim = blocker;
+  target.claim = other;
+  actor.cx = target.approachX + .4;
+  actor.cz = target.approachZ;
+  other.cx = target.approachX;
+  other.cz = target.approachZ;
+  actor.sleeping = false;
+  other.sleeping = false;
+  actor.health = 20;
+  other.health = 100;
+  actor.thirst = .2;
+  actor.ai.state = 'wander';
+  other.ai.state = 'wander';
+  actor.ai.taskCooldown = 0;
+  actor.ai.idleT = 0;
+  actor.ai.moving = false;
+  actor.ai.source = null;
+  actor.ai.waterSpot = null;
+  actor.ai.target = null;
+  actor.ai.path = null;
+  actor.ai.partner = null;
+  actor.ai.conflictCooldown = 0;
+  actor.ai.socialCooldown = 0;
+  actor.ai.avoidSourceId = null;
+  actor.ai.avoidSourceT = 0;
+  other.ai.state = 'wander';
+  other.ai.partner = null;
+  other.ai.conflictT = 0;
+  other.ai.conflictCooldown = 0;
+  other.ai.moving = false;
+  other.ai.source = null;
+  other.ai.target = null;
+  other.ai.path = null;
+  other.grabs = 0;
+  other.inPond = false;
+  run.conflictFlip = !run.conflictFlip;
+  actor.hunger = run.conflictFlip ? .95 : .80;
+}
+
 // Dedicated packs for branches the open-world long run does not reach often.
 // Mate needs a rich larder (MATE_FOOD_MIN is 18 safe sources); the fixture world
 // starts with 8 flowers, so mate is unreachable without this pack.
@@ -891,6 +974,13 @@ export const SCENARIOS = Object.freeze({
     seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     hooks: Object.freeze([{ every: 200, run: criticalNeeds }]),
     requireOpportunities: ['water.critical', 'forage.critical'],
+  }),
+  conflictNeeds: Object.freeze({
+    id: 'conflictNeeds', label: 'contested food: critical and fallback', days: 1,
+    seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    startHour: 10, skipRaces: ['glass'],
+    hooks: Object.freeze([{ every: 100, run: conflictNeeds }]),
+    requirePipeline: ['conflict.critical', 'conflict.fallback'],
   }),
   social: Object.freeze({
     id: 'social', label: 'social chain and visits', days: 10, seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -1049,9 +1139,14 @@ async function main(argv) {
     let scenarioOk = true;
     const check = (kind, key) => {
       const hits = {};
+      const skip = scenario.skipRaces || [];
       for (const race of options.races) {
+        if (skip.includes(race)) { hits[race] = 'n/a'; continue; }
         const merged = coverage.byRace[race] || {};
-        hits[race] = (kind === 'state' ? merged.entries : merged.opportunities)?.[key] || 0;
+        const source = kind === 'state' ? merged.entries
+          : kind === 'opportunity' ? merged.opportunities
+            : merged.pipeline;
+        hits[race] = source?.[key] || 0;
         if (hits[race] < LOW_COVERAGE) scenarioOk = false;
       }
       console.log(`SCENARIO ${scenario.id} required ${key}: ` +
@@ -1059,7 +1154,8 @@ async function main(argv) {
     };
     if (scenario.require) check('state', scenario.require);
     for (const key of scenario.requireOpportunities || []) check('opportunity', key);
-    if (!scenario.require && !scenario.requireOpportunities) {
+    for (const key of scenario.requirePipeline || []) check('pipeline', key);
+    if (!scenario.require && !scenario.requireOpportunities && !scenario.requirePipeline) {
       console.log(`SCENARIO ${scenario.id} (${scenario.label}) parity pack`);
     }
     if (!scenarioOk) console.log('SCENARIO COVERAGE FAIL: a required branch is under ' + LOW_COVERAGE);

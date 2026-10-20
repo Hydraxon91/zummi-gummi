@@ -59,27 +59,32 @@ function think(ctx) {
   if (ai.taskCooldown > 0) return true;
   if (api.runOpportunity(actor, 'water.seek')) return true;
   const meal = api.mealWindow(actor);
-  if (meal && api.startFamilyMeal(actor, meal)) return true;
+  if (meal && api.startFamilyMeal(actor, meal)) { api.coverSlot('meal'); return true; }
   if (api.runOpportunity(actor, 'hive.seek')) return true;
-  if (p.conflict && actor.hunger >= p.thresholds.criticalHunger && api.acquireContest(actor)) return true;
+  if (p.conflict && actor.hunger >= p.thresholds.criticalHunger) {
+    api.coverSlot('conflict.critical');
+    if (api.acquireContest(actor)) return true;
+  }
   if (actor.hunger >= p.thresholds.seekHunger) {
     if (api.runOpportunity(actor, 'forage.seek')) return true;
-    if (p.conflict && api.acquireContest(actor)) return true;
+    if (p.conflict) {
+      api.coverSlot('conflict.fallback');
+      if (api.acquireContest(actor)) return true;
+    }
   }
   const lesson = api.lessonCandidate(actor);
-  if (lesson && api.startLesson(actor, lesson.student)) return true;
+  if (lesson && api.startLesson(actor, lesson.student)) { api.coverSlot('lesson'); return true; }
   const due = api.findDuePlaydate(actor);
-  if (due && api.startPlaydate(actor, due.other, 'friend')) return true;
+  if (due && api.startPlaydate(actor, due.other, 'friend')) { api.coverSlot('playdate'); return true; }
   if (api.runOpportunity(actor, 'mate.seek')) return true;
   if (actor.stage === 'baby') {
-    const parent = api.parentFor(actor);
-    if (parent && !parent.inPond && parent.grabs === 0 &&
+    const parent = api.parentFor(actor);    if (parent && !parent.inPond && parent.grabs === 0 &&
         Math.hypot(parent.cx - actor.cx, parent.cz - actor.cz) > p.mate.followDist) {
-      if (api.startFollow(actor, parent)) return true;
+      if (api.startFollow(actor, parent)) { api.coverSlot('follow'); return true; }
     }
   }
   const family = api.acquireFamilyPlaymate(actor);
-  if (family && api.startPlaydate(actor, family.actor, family.kind)) return true;
+  if (family && api.startPlaydate(actor, family.actor, family.kind)) { api.coverSlot('familyPlaymate'); return true; }
   if (api.runOpportunity(actor, 'social.company')) return true;
   // TEMPORARY(port): stargaze
   let stargazeWindow = !api.isDayFor(actor);
@@ -90,6 +95,7 @@ function think(ctx) {
     stargazeWindow = h >= nightStart || h < nightEnd;
   }
   if (p.stargaze && stargazeWindow && rng() < p.stargaze.chance) {
+    api.coverSlot('stargaze');
     ai.state = 'stargaze';
     ai.idleT = p.stargaze.min + rng() * (p.stargaze.max - p.stargaze.min);
     api.stop(actor);

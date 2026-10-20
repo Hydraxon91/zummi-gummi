@@ -6442,6 +6442,7 @@ window.__gummy = {
   drop(f){ return dropFromAbove(f===undefined?0:f); },
   dropCustom,
   spawnAt(x,z,y,f){ return spawn(x,z,y,f===undefined?0:f,{tilt:0.04}); },
+  spawnGlass(opts = {}){ return glassColony ? glassColony.spawnChild(opts) : null; },
   setWobble(v){ wobble = v; wobbleEl.value = String(Math.round(v*100)); },
   setCustom(h, c){ custom.hue=h; custom.clarity=c; clarityEl.value=String(Math.round(c*100)); refreshCustomUI(); },
   sim(sec, rebuild){ return simulateSeconds(sec, rebuild===undefined?8:rebuild); },

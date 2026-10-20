@@ -107,6 +107,11 @@ export function createBehaviorModules({
     }
   }
 
+  function coverSlot(id) {
+    if (!id) return;
+    coverage.pipeline.set(id, (coverage.pipeline.get(id) || 0) + 1);
+  }
+
   function coverageSnapshot() {
     const map = (source) => Object.fromEntries([...source.entries()].sort(([a], [b]) => a.localeCompare(b)));
     return {
@@ -116,6 +121,7 @@ export function createBehaviorModules({
       taskPhases: map(coverage.taskPhases),
       tasks: map(coverage.tasks),
       taskEntries: map(coverage.taskEntries),
+      pipeline: map(coverage.pipeline),
     };
   }
 
@@ -213,6 +219,7 @@ export function createBehaviorModules({
   const coverage = {
     states: new Map(), entries: new Map(), opportunities: new Map(),
     taskPhases: new Map(), tasks: new Map(), taskEntries: new Map(),
+    pipeline: new Map(),
   };
   const lastCoverState = new WeakMap();
   const lastCoverTask = new WeakMap();
@@ -1873,6 +1880,7 @@ export function createBehaviorModules({
     startVisit, startPlaydate, startConflict,
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
+    coverSlot,
     adapterSleepDone, adapterOnSleep, adapterOnWake, adapterHungerOpportunity,
     noteDoorTransition,
     setModuleEnabled, setModuleParams, setActorConfig, setFeature,

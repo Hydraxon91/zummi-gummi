@@ -13,6 +13,7 @@ import { launchBrowser, connectBrowser } from './browser-harness.mjs';
 const BASE = process.env.GAME_URL || 'http://localhost:8000/';
 const SEED = Number(process.env.SEED || 1234) >>> 0;
 const STEPS = Math.max(1, Number(process.env.STEPS || 180));
+const GLASS_HEAVY = process.env.GLASS_HEAVY === '1';
 
 function initScript(seed) {
   return `(() => {
@@ -27,11 +28,14 @@ function initScript(seed) {
   })();`;
 }
 
-function traceExpression(steps, seed) {
+function traceExpression(steps, seed, glassHeavy) {
   return `(() => {
     const g = window.__gummy;
     g.pause(false);
     g.seed(${seed});
+    if (${glassHeavy} && typeof g.spawnGlass === 'function') {
+      for (let i = 0; i < 4; i++) g.spawnGlass({ stage: 'adult' });
+    }
     const trace = [];
     for (let step = 0; step < ${steps}; step++) {
       g.sim(1);
@@ -101,7 +105,7 @@ async function runEngine(browser, engine) {
   const page = await browser.openPage({ url: url.toString(), initScript: initScript(SEED) });
   try {
     await page.waitFor('window.__gummy && window.__gummy.booted === true', 60000);
-    const result = await page.evaluate(traceExpression(STEPS, SEED), 180000);
+    const result = await page.evaluate(traceExpression(STEPS, SEED, GLASS_HEAVY), 180000);
     if (!result || !Array.isArray(result.trace)) throw new Error(`no trace from ${engine}`);
     return result;
   } finally {
