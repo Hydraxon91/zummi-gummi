@@ -250,6 +250,7 @@ function finish(ctx) {
   } else if (task.id === INTERACTIONS.familyMeal) {
     actor.hunger = Math.max(0, actor.hunger - .28);
     actor.social = Math.max(0, actor.social - .10);
+    api.starsRescue?.(actor, 'food');
     let companion = null;
     let bestD = 2.6;
     for (const other of api.actors()) {

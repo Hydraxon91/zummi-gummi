@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createLauncher } from './launcher.js';
-import { createSky } from './sky.js';
+import { createSky, DAY_SECONDS } from './sky.js';
 import { buildField, POND_HOLE, POND } from './field.js';
 import { createBearAI } from './ai.js';
 import { createBehavior, behaviorEngineFromSearch } from './behaviors/index.js';
@@ -30,6 +30,7 @@ import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindow
 import { MAP_CONTENT } from './mapcontent.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 
+const BEHAVIOR_ENGINE = behaviorEngineFromSearch(typeof location !== 'undefined' ? location.search : '');
 const nativeRandom = Math.random;
 let launcher = null;
 let field = null;
@@ -39,6 +40,18 @@ let behavior = null;
 let aiDebug = null;
 let thoughtBubbles = null;
 let departures = null;
+const farewells = new Map();
+let farewellGlowTex = null;
+const FAREWELL_KEY = 'gummy.farewells';
+const FAREWELL_FEATURES = {
+  farewells: 'farewells',
+  starsOldAge: 'starsOldAge',
+  starsStarvation: 'starsStarvation',
+  starsStings: 'starsStings',
+};
+const farewellSettings = {
+  farewells: false, starsOldAge: false, starsStarvation: false, starsStings: false,
+};
 let selectedBear = null;
 let directivePick = false;
 let clickMode = 'grab';
@@ -523,6 +536,7 @@ function spawn(x, z, y, flavor, opts={}){
   const rigCfg = opts.rig || (requestedSpecies && requestedSpecies.rig) || RIGCFG;
   const b = getFreeBear(rigCfg);
   if (!b) return null;
+  clearFarewellRuntime(b);
   b.active = true; bears.push(b);
   b.rig = rigCfg;
   b.species = rigCfg.species || 'bear';
@@ -618,6 +632,7 @@ function removeBear(b, opts = {}){
   if (ai) ai.detach(b);
   if (field && field.food) field.food.releaseBear(b);
   b.ai = null;
+  clearFarewellRuntime(b);
   destroyBearBodies(b);
   bears.splice(i,1);
   for (const g of Array.from(grabs.values())) if (g.bear === b) endGrab(g, false);
@@ -625,7 +640,154 @@ function removeBear(b, opts = {}){
   b.mesh.visible=false;
   writeEyeInstance(b, true);
 }
-function despawnAll(){ while (bears.length) removeBear(bears[0]); }
+function despawnAll(){
+  cancelFarewellVisuals();
+  while (bears.length) removeBear(bears[0]);
+}
+
+function hashUid(text){
+  let h = 2166136261 >>> 0;
+  for (let i=0;i<text.length;i++){
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function farewellGlowTexture(){
+  if (farewellGlowTex) return farewellGlowTex;
+  const s = 128;
+  const c = document.createElement('canvas'); c.width = c.height = s;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(s/2, s/2, 1, s/2, s/2, s/2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(.18, 'rgba(255,255,255,.82)');
+  g.addColorStop(.48, 'rgba(190,225,255,.28)');
+  g.addColorStop(1, 'rgba(150,190,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
+  farewellGlowTex = new THREE.CanvasTexture(c);
+  farewellGlowTex.colorSpace = THREE.SRGBColorSpace;
+  return farewellGlowTex;
+}
+
+function farewellRoot(actor){
+  return actor && (isGlassActor(actor) ? actor.root : actor.mesh);
+}
+
+function cancelFarewellVisuals(){
+  for (const [actor, fx] of farewells){
+    if (fx.sprite && fx.sprite.parent) fx.sprite.parent.remove(fx.sprite);
+    fx.material?.dispose();
+    delete actor.farewellLift;
+  }
+  farewells.clear();
+  sky?.clearFarewells();
+}
+
+function clearFarewellRuntime(actor){
+  if (!actor) return;
+  delete actor.fading;
+  delete actor.starveT;
+  delete actor.starsRetryDay;
+  delete actor.starsAgeReprieveUntil;
+  delete actor.stay;
+  delete actor.farewellLift;
+}
+
+function cancelFarewellFor(actor){
+  if (!actor || !actor.fading || actor.fading.committed) return false;
+  behavior?.api?.cancelFarewell?.(actor);
+  return true;
+}
+
+function removeGlassActor(actor, opts = {}){
+  if (!glassColony || !actor) return false;
+  if (opts.departure) departures?.snapshot(actor, opts.departure, opts);
+  clearFarewellRuntime(actor);
+  return glassColony.removeActor(actor);
+}
+
+function makeFarewellFx(actor, reason){
+  const root = farewellRoot(actor);
+  if (!root) return null;
+  const h = hashUid(`${actor.species || 'bear'}|${actor.uid}|${reason || 'stars'}`);
+  const hue = (h % 360) / 360;
+  const material = new THREE.SpriteMaterial({
+    map: farewellGlowTexture(),
+    color: new THREE.Color().setHSL(hue, .35, .78),
+    transparent: true, opacity: .55, depthWrite: false,
+    blending: THREE.AdditiveBlending, toneMapped: false, fog: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  root.updateMatrixWorld(true);
+  const local = new THREE.Vector3(actor.cx, (actor.cy || 0) + .45 * (actor.scale || 1), actor.cz);
+  root.worldToLocal(local);
+  sprite.position.copy(local);
+  sprite.scale.setScalar(1.25 * (actor.scale || 1));
+  root.add(sprite);
+  return {
+    sprite, material, baseY: local.y, elapsed: 0, duration: 3,
+    phase: 'fading', reason: reason || 'oldAge',
+  };
+}
+
+function ensureFadingGlow(actor){
+  if (!actor || !actor.fading || actor.fading.committed || farewells.has(actor)) return;
+  const fx = makeFarewellFx(actor, actor.fading.reason);
+  if (fx) farewells.set(actor, fx);
+}
+
+function startFarewell(actor, info = {}){
+  if (!actor) return false;
+  // Commit cleanup happens before this callback returns; the actor can no
+  // longer be rescued once `fading.committed` is set by the stars module.
+  behavior?.api?.commitFarewell(actor);
+  let fx = farewells.get(actor);
+  if (!fx) {
+    fx = makeFarewellFx(actor, info.reason);
+    if (!fx) return false;
+    farewells.set(actor, fx);
+  }
+  fx.phase = 'rise';
+  fx.elapsed = 0;
+  fx.reason = info.reason || fx.reason;
+  fx.material.opacity = .9;
+  fx.sprite.scale.setScalar(1.7 * (actor.scale || 1));
+  actor.farewellLift = 0;
+  sky?.addFarewellStar({ uid: actor.uid, species: actor.species, reason: info.reason });
+  return true;
+}
+
+function updateFarewells(dt){
+  for (const actor of bears) ensureFadingGlow(actor);
+  if (glassColony) for (const actor of glassColony.actors) ensureFadingGlow(actor);
+  if (!farewells.size) return;
+  for (const [actor, fx] of Array.from(farewells)){
+    fx.elapsed += dt;
+    if (fx.phase === 'fading'){
+      fx.material.opacity = .45 + .12 * Math.sin(fx.elapsed * 2.4);
+      fx.sprite.position.y = fx.baseY + .04 * Math.sin(fx.elapsed * 1.7);
+      if (!actor.fading || actor.fading.committed){
+        if (fx.sprite.parent) fx.sprite.parent.remove(fx.sprite);
+        fx.material.dispose();
+        farewells.delete(actor);
+      }
+      continue;
+    }
+    const p = Math.min(1, fx.elapsed / fx.duration);
+    fx.sprite.position.y = fx.baseY + p * 1.35 * (actor.scale || 1);
+    fx.material.opacity = Math.max(0, (1 - p) * .9);
+    fx.sprite.scale.setScalar((1.7 + p * .8) * (actor.scale || 1));
+    actor.farewellLift = p * .55;
+    if (p < 1) continue;
+    if (fx.sprite.parent) fx.sprite.parent.remove(fx.sprite);
+    fx.material.dispose();
+    delete actor.farewellLift;
+    farewells.delete(actor);
+    if (isGlassActor(actor)) removeGlassActor(actor, { departure: 'stars', reason: fx.reason });
+    else removeBear(actor, { departure: 'stars', reason: fx.reason });
+  }
+}
 
 function homeResidents(name) {
   return actorView.homeResidents(name);
@@ -1985,6 +2147,7 @@ function updateMeshTransforms(){
     );
     _mTr.makeTranslation(-b.snapC.x, -b.snapC.y, -b.snapC.z);
     b.meshM.copy(_mDelta).multiply(_mSnapInv).multiply(_mTr);
+    if (b.farewellLift) b.meshM.elements[13] += b.farewellLift;
     b.mesh.matrix.copy(b.meshM);
     b.mesh.matrixWorldNeedsUpdate = true;
     // deformation residual = how far the live shape has drifted from this mesh
@@ -3351,6 +3514,72 @@ limitEl.addEventListener('input', ()=>setCeiling(+limitEl.value, true));
   try { const saved = +localStorage.getItem('gummy.limit'); if (saved >= 8) v = saved; } catch(err){}
   setCeiling(v, false);
 })();
+
+function readFarewellSettings(){
+  try {
+    const saved = JSON.parse(localStorage.getItem(FAREWELL_KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+      for (const key of Object.keys(farewellSettings)) farewellSettings[key] = !!saved[key];
+    }
+  } catch (err) {}
+}
+
+function writeFarewellSettings(){
+  try { localStorage.setItem(FAREWELL_KEY, JSON.stringify(farewellSettings)); } catch (err) {}
+}
+
+function syncFarewellSettingsUI(){
+  const legacy = BEHAVIOR_ENGINE !== 'modules';
+  const master = document.getElementById('settingsFarewells');
+  if (master) {
+    master.checked = !!farewellSettings.farewells;
+    master.disabled = legacy;
+  }
+  const masterVal = document.getElementById('settingsFarewellsVal');
+  if (masterVal) masterVal.textContent = farewellSettings.farewells ? 'On' : 'Off';
+  for (const key of ['starsOldAge', 'starsStarvation', 'starsStings']) {
+    const box = document.getElementById(`settings${key[0].toUpperCase()}${key.slice(1)}`);
+    if (box) {
+      box.checked = !!farewellSettings[key];
+      box.disabled = legacy || !farewellSettings.farewells;
+    }
+    const value = document.getElementById(`settings${key[0].toUpperCase()}${key.slice(1)}Val`);
+    if (value) value.textContent = farewellSettings[key] ? 'On' : 'Off';
+  }
+  const note = document.getElementById('settingsFarewellNote');
+  if (note) {
+    note.textContent = legacy
+      ? 'Farewells need the modules engine; they are disabled with ?behaviors=legacy.'
+      : 'Off by default. A committed farewell cannot be rescued.';
+  }
+}
+
+function applyFarewellSettings(){
+  if (!behavior || BEHAVIOR_ENGINE !== 'modules') return false;
+  for (const [key, feature] of Object.entries(FAREWELL_FEATURES)) {
+    behavior.setFeature(feature, !!farewellSettings[key]);
+  }
+  if (!farewellSettings.farewells) behavior.api.cancelFarewells();
+  return true;
+}
+
+function setFarewellSetting(key, value){
+  if (!(key in farewellSettings)) return false;
+  farewellSettings[key] = !!value;
+  writeFarewellSettings();
+  applyFarewellSettings();
+  syncFarewellSettingsUI();
+  return farewellSettings[key];
+}
+
+readFarewellSettings();
+for (const key of Object.keys(FAREWELL_FEATURES)) {
+  const id = `settings${key[0].toUpperCase()}${key.slice(1)}`;
+  document.getElementById(id)?.addEventListener('change', event => {
+    setFarewellSetting(key, event.target.checked);
+  });
+}
+syncFarewellSettingsUI();
 
 /* ------------------------------ Aero / MSN -------------------------------- */
 const skyClockEl = document.getElementById('skyClock');
@@ -5151,6 +5380,7 @@ function animate(now){
   if (acc > FIXED_DT*MAX_STEPS) acc = 0;
   const tPhys1 = performance.now();
 
+  updateFarewells(dt);
   updateSurfaces();
   updateMeshTransforms();
   drawShadows();
@@ -6030,7 +6260,6 @@ function fitWallsToTable(){
     buildWorldBounds();
   }
 }
-const BEHAVIOR_ENGINE = behaviorEngineFromSearch(typeof location !== 'undefined' ? location.search : '');
 
 async function bootGame(){
   try {
@@ -6060,6 +6289,8 @@ async function bootGame(){
     getHours: () => (sky ? sky.hours : 12),
     getDay: () => (sky ? sky.day : 0),
     getPopulationCap: () => bearCeiling,
+    daySeconds: DAY_SECONDS,
+    onFarewell: (actor, info) => startFarewell(actor, info),
     // Read Math.random at call time so __gummy.seed() also drives the engine.
     rng: () => Math.random(),
   });
@@ -6070,6 +6301,8 @@ async function bootGame(){
     getMapId: () => activeWorld.mapId,
     getTime: () => ({ day: sky ? sky.day : 0, hours: sky ? sky.hours : 0 }),
   });
+  applyFarewellSettings();
+  syncFarewellSettingsUI();
   ai = createBearAI({
     field,
     getBears: () => bears,
@@ -6758,6 +6991,37 @@ window.__gummy = {
   })) : []; },
   setHunger(i, v){ const b = bears[i]; if (!b) return false; b.hunger = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.hunger; },
   setThirst(i, v){ const b = bears[i]; if (!b) return false; b.thirst = clamp(+v || 0, 0, 1); if (b.ai) b.ai.nextThink = 0; return b.thirst; },
+  setStay(i, value){
+    const b = bears[i];
+    if (!b) return false;
+    b.stay = !!value;
+    if (b.stay && b.ai) cancelFarewellFor(b);
+    return b.stay;
+  },
+  stay(i){ return !!(bears[i] && bears[i].stay); },
+  fading(i){
+    const b = bears[i];
+    return b && behavior && behavior.api && typeof behavior.api.starsState === 'function'
+      ? behavior.api.starsState(b) : null;
+  },
+  starsBlock(i){
+    const b = bears[i];
+    return b && behavior && behavior.api && typeof behavior.api.starsBlockReason === 'function'
+      ? behavior.api.starsBlockReason(b) : null;
+  },
+  starsAdvance(i, seconds){
+    const b = bears[i];
+    if (!b || !behavior || !behavior.api || typeof behavior.api.starsUpdate !== 'function') return null;
+    behavior.api.starsUpdate(b, Math.max(0, Number(seconds) || 0));
+    return this.fading(i);
+  },
+  stars(){
+    return behavior && behavior.stars ? behavior.stars.stats() : null;
+  },
+  skyFarewells(){
+    return sky && typeof sky.farewellStats === 'function' ? sky.farewellStats() : null;
+  },
+  farewellVisuals(){ return farewells.size; },
   setHealth(i, v){
     const b = bears[i]; if (!b) return false;
     const n = Number(v); if (!Number.isFinite(n)) return false;
@@ -6832,6 +7096,22 @@ window.__gummy = {
   },
   glass(){ return glassColony ? glassColony.state() : null; },
   glassSetNeed(i, key, value){ return glassColony ? glassColony.setNeed(i, key, value) : false; },
+  glassFading(i){
+    const a = glassColony && glassColony.actors[i];
+    return a && behavior && behavior.api && typeof behavior.api.starsState === 'function'
+      ? behavior.api.starsState(a) : null;
+  },
+  glassStarsBlock(i){
+    const a = glassColony && glassColony.actors[i];
+    return a && behavior && behavior.api && typeof behavior.api.starsBlockReason === 'function'
+      ? behavior.api.starsBlockReason(a) : null;
+  },
+  glassStarsAdvance(i, seconds){
+    const a = glassColony && glassColony.actors[i];
+    if (!a || !behavior || !behavior.api || typeof behavior.api.starsUpdate !== 'function') return null;
+    behavior.api.starsUpdate(a, Math.max(0, Number(seconds) || 0));
+    return this.glassFading(i);
+  },
   glassSetStage(i, stage){ return glassColony ? glassColony.setStage(i, stage) : false; },
   glassSetPosition(i, x, z){ return glassColony ? glassColony.setPosition(i, x, z) : false; },
   glassSetCooldown(i, value){ return glassColony ? glassColony.setCooldown(i, value) : false; },
@@ -6877,6 +7157,7 @@ window.__gummy = {
     if (!b || !Number.isFinite(n)) return false;
     b.age = Math.max(0, n);
     b.pendingStage = stageForAge(b.age);
+    if (b.ai) b.ai.nextThink = 0;
     return b.pendingStage;
   },
   setStage(i, stage){

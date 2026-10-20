@@ -1157,6 +1157,14 @@ export function createGlassColony({
     return 0;
   }
 
+  function removeActor(a) {
+    const index = actors.indexOf(a);
+    if (index < 0) return false;
+    disposeActor(a);
+    actors.splice(index, 1);
+    return true;
+  }
+
   function disposeActor(a) {
     if (!a) return;
     a.disposed = true;
@@ -1416,6 +1424,7 @@ export function createGlassColony({
     physicsRead,
     setMeadow,
     clear,
+    removeActor,
     pick,
     findActor,
     beginDrag,

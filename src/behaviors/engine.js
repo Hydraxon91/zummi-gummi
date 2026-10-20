@@ -33,6 +33,7 @@ import { fleeModule } from './flee.js';
 import { planReason } from './reason.js';
 import { ensureTraits } from './traits.js';
 import { moodFor, moodLabel, MOOD_BUCKET, MOOD_TAU, MOOD_UPDATE_INTERVAL } from './mood.js';
+import { createStars } from './stars.js';
 
 const STUCK_DIST2 = .04;
 
@@ -52,10 +53,22 @@ export function createBehaviorModules({
   getPopulationCap,
   getAdapter,
   rng = Math.random,
+  daySeconds = 600,
+  onFarewell = null,
+  onStarsBlocked = null,
   config: givenConfig = null,
 } = {}) {
   const config = givenConfig || createBehaviorConfig();
   const features = config.features;
+  const stars = createStars({
+    features,
+    getActors,
+    getDay,
+    getCeiling: getPopulationCap,
+    daySeconds,
+    onFarewell,
+    onBlocked: onStarsBlocked,
+  });
   const modules = new Map();
   const opportunities = [];
   const activeStates = new Set();
@@ -951,6 +964,8 @@ export function createBehaviorModules({
     const p = profile(actor);
     const ai = actor.ai;
     tickNeeds(actor, dt);
+    stars.update(actor, dt);
+    if (actor.fading?.committed) return;
     const adapter = adapterOf(actor);
     if (adapter && typeof adapter.preTick === 'function') adapter.preTick(actor, dt, api);
     tickStall(actor, dt, ready);
@@ -1011,6 +1026,26 @@ export function createBehaviorModules({
     stats.ticks++;
   }
 
+  function commitFarewell(actor) {
+    if (!actor || !actor.ai) return false;
+    // The farewell is irreversible once committed: drop every shared claim
+    // before the visual starts, so feeding/drinking cannot rescue the actor.
+    cancelPair(actor);
+    releaseFood(actor);
+    stop(actor);
+    actor.ai.state = 'wander';
+    actor.ai.moving = false;
+    actor.ai.path = null;
+    actor.ai.target = null;
+    actor.ai.source = null;
+    actor.ai.waterSpot = null;
+    return true;
+  }
+
+  function cancelFarewells() {
+    stars.cancelAll();
+  }
+
   function setEnabled(value) {
     enabled = !!value;
     if (!enabled) {
@@ -1063,7 +1098,7 @@ export function createBehaviorModules({
 
   function plan(actor) {
     if (!actor || !actor.ai) return null;
-    let reasonText = null;
+    let reasonText = actor.fading ? 'feeling faint' : null;
     const out = {
       state: actor.ai.state,
       hunger: +finite(actor.hunger, 0).toFixed(3),
@@ -1085,6 +1120,8 @@ export function createBehaviorModules({
       visitRole: actor.ai.visitRole || null,
       home: actor.home || '',
       sleeping: !!actor.sleeping,
+      fading: !!actor.fading,
+      fadingReason: actor.fading ? actor.fading.reason : null,
       interrupted: !!actor.ai.interrupted,
       moving: !!actor.ai.moving,
       noProgressT: +finite(actor.ai.noProgressT, 0).toFixed(2),
@@ -1373,7 +1410,9 @@ export function createBehaviorModules({
   }
 
   function setFeature(name, value) {
-    return config.setFeature(name, value);
+    const changed = config.setFeature(name, value);
+    if (changed && name === 'farewells' && !value) stars.cancelAll();
+    return changed;
   }
 
   function interruptActor(actor, reason) {
@@ -1404,6 +1443,14 @@ export function createBehaviorModules({
     startVisit, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind), startConflict,
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
+    starsRescue: (actor, kind) => stars.onRescue(actor, kind),
+    starsSting: (actor) => stars.onSting(actor),
+    starsState: (actor) => stars.state(actor),
+    starsBlockReason: (actor) => stars.blockReason(actor),
+    starsUpdate: (actor, dt) => stars.update(actor, dt),
+    commitFarewell,
+    cancelFarewell: (actor) => stars.cancel(actor),
+    cancelFarewells,
     ensureTraits, invalidateActor: (actor) => config.invalidateActor(actor),
     mood: (actor) => actor && actor.ai ? {
       value: finite(actor.ai.mood, 0),
@@ -1427,6 +1474,9 @@ export function createBehaviorModules({
     startSeekHome, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind),
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
     invalidateActor: (actor) => config.invalidateActor(actor),
+    stars,
+    commitFarewell,
+    cancelFarewells,
     get enabled() { return enabled; },
     get actors() { return actors(); },
     get configVersion() { return configVersion; },

@@ -1189,6 +1189,14 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
           <label class="settingsRow"><span>Time of day</span><input id="settingsHour" type="range" min="0" max="24" step="0.05" value="7"><b id="settingsHourVal">07:00</b></label>
           <label class="settingsRow"><span>Automatic time</span><input id="settingsTimeAuto" type="checkbox" checked></label>
         </section>
+        <section class="settingsSection">
+          <h3>Farewells</h3>
+          <label class="settingsRow"><span>Stars</span><input id="settingsFarewells" type="checkbox" aria-label="Enable farewells"><b id="settingsFarewellsVal">Off</b></label>
+          <label class="settingsRow"><span>Old age</span><input id="settingsStarsOldAge" type="checkbox" aria-label="Old-age farewells"><b id="settingsStarsOldAgeVal">Off</b></label>
+          <label class="settingsRow"><span>Starvation</span><input id="settingsStarsStarvation" type="checkbox" aria-label="Starvation farewells"><b id="settingsStarsStarvationVal">Off</b></label>
+          <label class="settingsRow"><span>Stings</span><input id="settingsStarsStings" type="checkbox" aria-label="Sting farewells"><b id="settingsStarsStingsVal">Off</b></label>
+          <p class="settingsNote" id="settingsFarewellNote">Off by default. Stars departures need the modules engine; a committed farewell cannot be rescued.</p>
+        </section>
         <div id="graphicsAdvanced" class="graphicsAdvanced"></div>
         <section class="settingsSection savesSection">
           <h3>Saves</h3>

@@ -56,6 +56,7 @@ function finish(ctx) {
   const source = ai.source;
   if (field.food.consume(source, actor)) {
     actor.hunger = Math.max(0, actor.hunger - source.satiation * forageEatScale(actor));
+    api.starsRescue?.(actor, 'food');
   }
   ai.source = null;
   ai.target = null;

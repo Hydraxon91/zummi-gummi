@@ -118,6 +118,31 @@ Snapshots live in a `WeakMap` keyed by survivor and contain no save fields.
 The hook consumes no RNG. `?behaviors=legacy` and the default off state are
 inert.
 
+## Stars / farewells (off by default)
+
+`farewells` is the modules-only master switch, with independent `starsOldAge`,
+`starsStarvation` and `starsStings` causes. The app day is **600 seconds**; the
+parity harness uses 240. Old age uses a deterministic uid/species hash for a
+15-25 game-day lifespan after adulthood and compares it with the saved `age`;
+there is no new stage. Starvation needs 120 seconds at hunger >= 0.95 and the
+unchanged health floor of 1, followed by a 30-second fading timer. Stings only
+shorten an already-fading actor's timer and only at health 1.
+
+A fading actor shows the lazy `plan().reason` text “feeling faint”. Eating or
+drinking (including a family meal) clears fading. A player rescue during
+old-age fading grants a one-game-day reprieve; ordinary eating does not.
+Pregnant actors, sole adults with a baby-stage household child, the
+`min(6, ceiling)` population floor, the last actor of a species, and a runtime
+`stay` override block departure. A blocked departure clears fading and retries
+after one game day, so it never leaves a permanent faint bubble.
+
+Fading is runtime-only and absent from actor saves; timers rebuild empty after
+load. The terminal departure is irreversible once committed: existing pair and
+food/water claims are released before the glow/rise/fade visual starts. Stars
+are transient objects under the sky group, queued until night, positioned and
+tinted only from a uid hash. No new history kind, no save-version change, and no
+RNG are used. `?behaviors=legacy` leaves farewells disabled.
+
 ## Config layers
 
 Later layers win:

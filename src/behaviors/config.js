@@ -30,6 +30,10 @@ export const FEATURE_DEFAULTS = Object.freeze({
   personality: false,          // trait offsets; modules engine only, no reads while off
   mood: false,                 // derived mood offsets; modules engine only, runtime-only
   departures: false,           // runtime-only departure capture; no mourning or save fields
+  farewells: false,            // stars master switch; modules engine only
+  starsOldAge: false,          // old-age fading
+  starsStarvation: false,      // starvation fading
+  starsStings: false,          // sting acceleration while already fading
 });
 
 const MODULE_DEFAULTS = Object.freeze({

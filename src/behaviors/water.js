@@ -42,6 +42,7 @@ function finish(ctx) {
   const { actor, ai, p, api } = ctx;
   if (!actor || !ai) return;
   actor.thirst = Math.max(0, actor.thirst - (p.id === 'glass' ? .52 : .55));
+  api.starsRescue?.(actor, 'water');
   ai.waterSpot = null;
   ai.target = null;
   ai.faceYaw = null;

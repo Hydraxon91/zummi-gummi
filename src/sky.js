@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 
 export const REFLECT_LAYER = 1;
-const DAY_SECONDS = 600; // 10 real minutes for a full day at 1x
+export const DAY_SECONDS = 600; // 10 real minutes for a full day at 1x
 
 const K = (o) => ({
   sunColor: 0xffe3b8,
@@ -129,6 +129,22 @@ function sunTexture() {
   g.addColorStop(0.35, 'rgba(255,208,135,0.5)');
   g.addColorStop(0.7, 'rgba(255,185,115,0.12)');
   g.addColorStop(1, 'rgba(255,170,90,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function farewellStarTexture() {
+  const s = 128;
+  const c = document.createElement('canvas'); c.width = c.height = s;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(s / 2, s / 2, 1, s / 2, s / 2, s / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(.12, 'rgba(239,248,255,.98)');
+  g.addColorStop(.3, 'rgba(190,220,255,.55)');
+  g.addColorStop(.7, 'rgba(165,200,255,.12)');
+  g.addColorStop(1, 'rgba(150,190,255,0)');
   ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -331,6 +347,82 @@ export function createSky(scene, renderer) {
   stars.name = 'meadowStars';
   stars.frustumCulled = false;
   group.add(stars);
+
+  // Transient farewell stars. Positions and tints come only from the departed
+  // uid; the shared texture is never mutated per star.
+  const farewellStars = [];
+  let farewellStarTex = null;
+  function farewellTexture() {
+    if (!farewellStarTex) farewellStarTex = farewellStarTexture();
+    return farewellStarTex;
+  }
+  function disposeFarewellStar(star) {
+    if (!star) return;
+    if (star.sprite.parent) star.sprite.parent.remove(star.sprite);
+    if (star.material) star.material.dispose();
+    star.material = null;
+    star.sprite = null;
+  }
+  function clearFarewells() {
+    for (const star of farewellStars.splice(0)) disposeFarewellStar(star);
+    return 0;
+  }
+  function addFarewellStar({ uid = 0, species = 'bear', reason = 'oldAge' } = {}) {
+    const key = `${species}|${Number(uid) || 0}|${reason}`;
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < key.length; i++) {
+      h ^= key.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    const a = (h / 4294967296) * Math.PI * 2;
+    const b = ((h >>> 8) / 16777216);
+    const r = 132 + ((h >>> 16) / 65536) * 18;
+    const y = .18 + b * .60;
+    const radius = Math.sqrt(Math.max(0, 1 - y * y));
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: farewellTexture(), color: 0xdcecff, transparent: true, opacity: 0,
+      depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false,
+    }));
+    sprite.position.set(Math.cos(a) * radius * r, y * r, Math.sin(a) * radius * r);
+    sprite.scale.setScalar(5.0 + ((h >>> 24) / 255) * 3.0);
+    sprite.visible = false;
+    group.add(sprite);
+    const star = { sprite, material: sprite.material, shown: false, life: 0 };
+    farewellStars.push(star);
+    return star;
+  }
+  function updateFarewellStars(dt) {
+    for (let i = farewellStars.length - 1; i >= 0; i--) {
+      const star = farewellStars[i];
+      if (!star.material) { farewellStars.splice(i, 1); continue; }
+      if (!star.shown && nightValue > .25) {
+        star.shown = true;
+        star.sprite.visible = true;
+      }
+      if (star.shown) {
+        star.life += dt;
+        star.material.opacity = Math.min(.95, star.life * .8) *
+          Math.max(0, Math.min(1, nightValue * 1.5));
+        if (nightValue < .15 && star.life > .4) {
+          disposeFarewellStar(star);
+          farewellStars.splice(i, 1);
+        }
+      }
+    }
+  }
+  function farewellStats() {
+    return {
+      active: farewellStars.length,
+      shown: farewellStars.filter(star => star.shown).length,
+      queued: farewellStars.filter(star => !star.shown).length,
+      points: farewellStars.map(star => ({
+        x: +star.sprite.position.x.toFixed(2),
+        y: +star.sprite.position.y.toFixed(2),
+        z: +star.sprite.position.z.toFixed(2),
+        scale: +star.sprite.scale.x.toFixed(2),
+      })),
+    };
+  }
 
   // sun + halo
   const sunTex = sunTexture();
@@ -599,6 +691,9 @@ export function createSky(scene, renderer) {
     setCloudsVisible(v) { cloudsVisible = !!v; apply(true); },
     get cloudsVisible() { return cloudsVisible; },
     setVisible(v) { group.visible = !!v; },
+    addFarewellStar,
+    clearFarewells,
+    farewellStats,
     update(dt) {
       if (auto) {
         totalHours += dt * 24 / DAY_SECONDS * speed;
@@ -613,6 +708,7 @@ export function createSky(scene, renderer) {
       if (diff > 0.003 || lastApplied < 0) apply(false);
       // sprites follow the current hour every frame for smoothness
       placeCelestial();
+      updateFarewellStars(dt);
     },
   };
 

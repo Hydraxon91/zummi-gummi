@@ -129,8 +129,10 @@ function projectWalkable(x, z) {
   return { x: nx, z: nz };
 }
 
-export function createWorld({ flowers = 0 } = {}) {
-  const sources = FOOD.map(source => ({ ...source }));
+export function createWorld({ flowers = 0, foodSources = null } = {}) {
+  const sources = Array.isArray(foodSources)
+    ? foodSources.map(source => ({ ...source }))
+    : FOOD.map(source => ({ ...source }));
   for (let index = 0; index < flowers; index++) {
     const angle = index * 2.399963;
     const radius = 11 + (index % 4);
@@ -928,6 +930,34 @@ export function runPersonalityBaseline({ race = 'bear', days = 20, seed = 1 } = 
         if (state === 'wander') row.wanderDistance += Math.hypot(actor.cx - x, actor.cz - z);
         positions.set(actor.uid, [actor.cx, actor.cz]);
         previous.set(actor.uid, state);
+      }
+    }
+  } finally {
+    console.warn = warn;
+  }
+  return { race, seed, days, actors: [...rows.values()] };
+}
+
+export function runMoodBaseline({ race = 'bear', days = 20, seed = 1 } = {}) {
+  const run = createRun({ race, seed, engine: 'modules', mood: true });
+  const rows = new Map();
+  for (const actor of run.roster) {
+    if (!actor.active) continue;
+    rows.set(actor.uid, { uid: actor.uid, species: actor.species, values: [] });
+  }
+  const ticks = Math.round(days * DAY_SECONDS / DT);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (let tick = 0; tick < ticks; tick++) {
+      hostTick(run, DT);
+      if (tick % 20 === 0) {
+        for (const actor of run.roster) {
+          if (!actor.active || !actor.ai) continue;
+          const row = rows.get(actor.uid);
+          if (!row) continue;
+          row.values.push(+number(actor.ai.mood).toFixed(3));
+        }
       }
     }
   } finally {

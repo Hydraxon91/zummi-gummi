@@ -1300,6 +1300,14 @@ scale claim. The controlled pack proves direction only.
 is `removed` and does not mourn; map switches, new games and loads are teardown.
 No save fields, no RNG, no stars implementation yet.
 
+**Stars / farewells (Oct 2026, off by default):** modules-only master + per-cause
+flags, runtime-only fading, uid-hash old age measured against saved age, 120 s
+starvation at the unchanged health floor, sting acceleration only while fading,
+pregnancy/baby-household/population/last-species/stay safeguards, one-day retry,
+irreversible committed cleanup, additive actor glow, and transient queued night
+stars. App day is 600 s; harness day is 240 s. No save fields, new history kind,
+or RNG. Orphan adoption remains a later module.
+
 **Mood (Oct 2026, off by default):** derived needs/bonds/history mood, 4 Hz target,
 8 s smoothing, 0.05 buckets, bounded offsets stacked after traits, runtime-only
 `ai.mood` fields with no save change, mood-tinted thought bubbles. Config invalidations

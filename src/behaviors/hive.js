@@ -78,7 +78,11 @@ function finish(ctx) {
     return;
   }
   if (rng() < hive.stingChance) {
+    // A sting only accelerates an actor that was already fading at the floor;
+    // damage that merely reaches the floor does not start the sting timer.
+    const atFloor = typeof actor.health === 'number' && actor.health <= 1.0001;
     actor.health = Math.max(1, actor.health - hive.damage);
+    if (atFloor) api.starsSting?.(actor);
     ai.stungT = 2.0;
     api.releaseFood(actor);
     if (field && field.sting) field.sting(source.x, source.z, source.y);
@@ -87,6 +91,7 @@ function finish(ctx) {
   }
   if (field.food.consume(source, actor)) {
     actor.hunger = Math.max(0, actor.hunger - source.satiation);
+    api.starsRescue?.(actor, 'food');
   }
   ai.source = null;
   ai.target = null;
