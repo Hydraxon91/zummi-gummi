@@ -77,7 +77,8 @@ if (isMain) {
     console.log(`${marker.file}:${marker.line} ${marker.id}`);
   }
   if (result.ok) {
-    console.log(`Port markers: ${result.markers.length} expected (${result.ids.join(', ') || 'none'})`);
+    console.log(`Port markers: ${result.markers.length} marker lines, ` +
+      `${result.ids.length} modules (${result.ids.join(', ') || 'none'})`);
   } else {
     for (const marker of result.unexpected) {
       console.error(`::error::unexpected port marker ${marker.id} at ${marker.file}:${marker.line}`);

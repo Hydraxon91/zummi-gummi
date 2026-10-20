@@ -6039,6 +6039,8 @@ async function bootGame(){
     getHours: () => (sky ? sky.hours : 12),
     getDay: () => (sky ? sky.day : 0),
     getPopulationCap: () => bearCeiling,
+    // Read Math.random at call time so __gummy.seed() also drives the engine.
+    rng: () => Math.random(),
   });
   ai = createBearAI({
     field,

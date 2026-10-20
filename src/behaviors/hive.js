@@ -136,7 +136,7 @@ export const hiveModule = defineBehaviorModule({
   },
   tick(ctx) {
     const { ai, dt } = ctx;
-    if (!ai) return;
+    if (!ai || ai.state !== 'raidHive') return false;
     ai.animT += dt;
     ai.raidT -= dt;
     if (ai.raidT <= 0) finish(ctx);

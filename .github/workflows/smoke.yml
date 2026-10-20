@@ -114,6 +114,13 @@ jobs:
           HEIGHT: "600"
         run: node scripts/browser-regression.mjs
 
+      - name: Compare seeded browser behavior traces
+        env:
+          LOW_QUALITY: "1"
+          WIDTH: "900"
+          HEIGHT: "600"
+        run: node scripts/behavior-browser-parity.mjs
+
       - name: Show server log on failure
         if: failure()
         run: cat server.log

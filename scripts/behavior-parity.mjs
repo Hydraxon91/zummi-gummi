@@ -102,8 +102,19 @@ function projectWalkable(x, z) {
   return { x: nx, z: nz };
 }
 
-export function createWorld() {
+export function createWorld({ flowers = 0 } = {}) {
   const sources = FOOD.map(source => ({ ...source }));
+  for (let index = 0; index < flowers; index++) {
+    const angle = index * 2.399963;
+    const radius = 11 + (index % 4);
+    sources.push({
+      id: `flower-extra-${index}`,
+      kind: 'flower',
+      x: Math.cos(angle) * radius,
+      z: Math.sin(angle) * radius,
+      respawn: 40,
+    });
+  }
   const food = createFoodRegistry({ sources, rng: mulberry32(99) });
   return {
     homes: HOMES.map(home => ({ ...home, door: { ...home.door } })),
@@ -248,7 +259,7 @@ function clockAt(seconds, daySeconds = DAY_SECONDS) {
 }
 
 function hostTick(run, dt) {
-  const clock = clockAt(run.seconds, run.daySeconds);
+  const clock = clockAt(run.clock.seconds, run.daySeconds);
   for (const actor of run.roster) {
     const ai = actor.ai;
     if (!ai) continue;
@@ -281,7 +292,7 @@ function hostTick(run, dt) {
   }
   driveMovement(run, dt);
   run.world.food.update(dt);
-  run.seconds += dt;
+  run.clock.seconds += dt;
 }
 
 function driveMovement(run, dt) {
@@ -458,17 +469,17 @@ function firstDiffPath(left, right, path = [], out = []) {
 
 /* ------------------------------------------------------------------ runs */
 
-function createRun({ race, seed, startHour = START_HOUR, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false }) {
-  const world = createWorld();
+function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DAY_SECONDS, collectSamples = false, flowers = 0 }) {
+  const world = createWorld({ flowers });
   const roster = createRoster(race, perturb);
   const traced = tracedRng(seed);
-  let seconds = 0;
+  const clock = { seconds: 0 };
   const engineApi = createBehavior({
     engine,
     field: world,
     getActors: () => roster,
-    getHours: () => clockAt(seconds, daySeconds).hours,
-    getDay: () => clockAt(seconds, daySeconds).day,
+    getHours: () => clockAt(clock.seconds, daySeconds).hours,
+    getDay: () => clockAt(clock.seconds, daySeconds).day,
     getPopulationCap: () => POPULATION_CAP,
     rng: traced.rng,
   });
@@ -476,8 +487,8 @@ function createRun({ race, seed, startHour = START_HOUR, perturb = 0, engine = '
   engineApi.registerAdapter('skinned', createGlassAdapter());
   for (const actor of roster) engineApi.attach(actor);
   const run = {
-    race, seed, engine, world, roster, engineApi, traced, daySeconds, collectSamples,
-    seconds, transitions: [], samples: [], warnings: [], lastState: new Map(),
+    race, seed, engine, world, roster, engineApi, traced, daySeconds, collectSamples, clock,
+    transitions: [], samples: [], warnings: [], lastState: new Map(),
   };
   for (const actor of roster) run.lastState.set(actor.uid, actor.ai ? actor.ai.state : null);
   return run;
@@ -497,7 +508,7 @@ function captureWarnings(run, fn) {
 function stepRun(run, { dt, sampleEvery, sampleAcc }) {
   const before = new Map(run.roster.map(actor => [actor.uid, actor.ai ? actor.ai.state : null]));
   captureWarnings(run, () => hostTick(run, dt));
-  const t = +run.seconds.toFixed(6);
+  const t = +run.clock.seconds.toFixed(6);
   for (const actor of run.roster) {
     const state = actor.ai ? actor.ai.state : null;
     const previous = before.get(actor.uid);
@@ -537,9 +548,10 @@ export function runParity({
   verbose = false,
   engineA = 'legacy',
   engineB = 'modules',
+  flowers = 0,
 } = {}) {
-  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose });
-  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose });
+  const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers });
+  const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers });
   const ticks = Math.round(days * daySeconds / dt);
   const started = Date.now();
   const originalWarn = console.warn;
@@ -563,10 +575,13 @@ export function runParity({
           transitionsB: b.transitions.length,
           drawsA: a.traced.draws, drawsB: b.traced.draws,
           warningsA: a.warnings.length, warningsB: b.warnings.length,
+          coverage: typeof b.engineApi.coverage === 'function' ? b.engineApi.coverage() : null,
           diffs,
           firstTick: tick,
           durationMs: Date.now() - started,
           transitions: verbose ? b.transitions : undefined,
+          transitionLogA: verbose ? a.transitions : undefined,
+          transitionLogB: verbose ? b.transitions : undefined,
           samples: verbose ? b.samples : undefined,
         };
       }
@@ -580,9 +595,12 @@ export function runParity({
     transitionsB: b.transitions.length,
     drawsA: a.traced.draws, drawsB: b.traced.draws,
     warningsA: a.warnings.length, warningsB: b.warnings.length,
+    coverage: typeof b.engineApi.coverage === 'function' ? b.engineApi.coverage() : null,
     diffs: [],
     durationMs: Date.now() - started,
     transitions: verbose ? b.transitions : undefined,
+    transitionLogA: verbose ? a.transitions : undefined,
+    transitionLogB: verbose ? b.transitions : undefined,
     samples: verbose ? b.samples : undefined,
   };
 }
@@ -603,9 +621,78 @@ export function validateParity({ race = 'bear', seed = 7, days = 1, verbose = fa
   };
 }
 
+/* ---------------------------------------------------------------- coverage */
+
+export const LOW_COVERAGE = 20;
+
+// Current engine states, including the dead seekSocial state, so a zero-hit
+// branch is visible in the report instead of simply missing from the map.
+export const KNOWN_STATES = Object.freeze([
+  'wander', 'seekFood', 'eat', 'seekWater', 'drink', 'seekHive', 'raidHive',
+  'flee', 'seekHome', 'sleep', 'seekCompany', 'invite', 'social', 'decline',
+  'visit', 'seekConflict', 'conflict', 'seekMate', 'mate', 'follow',
+  'familyTask', 'stargaze', 'seekSocial', 'exit',
+]);
+
+export function mergeCoverage(results) {
+  const states = {};
+  const entries = {};
+  const opportunities = {};
+  for (const result of results) {
+    const coverage = result && result.coverage;
+    if (!coverage) continue;
+    for (const [key, value] of Object.entries(coverage.states || {})) {
+      states[key] = (states[key] || 0) + value;
+    }
+    for (const [key, value] of Object.entries(coverage.entries || {})) {
+      entries[key] = (entries[key] || 0) + value;
+    }
+    for (const [key, value] of Object.entries(coverage.opportunities || {})) {
+      opportunities[key] = (opportunities[key] || 0) + value;
+    }
+  }
+  return { states, entries, opportunities };
+}
+
+export function formatCoverage(results) {
+  const merged = mergeCoverage(results);
+  const stateNames = [...new Set([...KNOWN_STATES, ...Object.keys(merged.entries)])].sort();
+  const lowStates = stateNames
+    .filter(state => (merged.entries[state] || 0) < LOW_COVERAGE);
+  const lowOpportunities = Object.entries(merged.opportunities)
+    .filter(([, hits]) => hits < LOW_COVERAGE).map(([id]) => id);
+  const lines = ['COVERAGE (module engine; entries/ticks per state)'];
+  for (const state of stateNames) {
+    const entries = merged.entries[state] || 0;
+    const ticks = merged.states[state] || 0;
+    lines.push(`  ${state.padEnd(14)} ${String(entries).padStart(7)} entries ${String(ticks).padStart(9)} ticks${entries < LOW_COVERAGE ? '  LOW' : ''}`);
+  }
+  lines.push('COVERAGE opportunities (times selected)');
+  for (const id of Object.keys(merged.opportunities).sort()) {
+    const hits = merged.opportunities[id] || 0;
+    lines.push(`  ${id.padEnd(18)} ${String(hits).padStart(7)}${hits < LOW_COVERAGE ? '  LOW' : ''}`);
+  }
+  lines.push(`LOW (<${LOW_COVERAGE}) states: ${lowStates.join(', ') || 'none'}`);
+  lines.push(`LOW (<${LOW_COVERAGE}) opportunities: ${lowOpportunities.join(', ') || 'none'}`);
+  return { merged, lowStates, lowOpportunities, text: lines.join('\n') };
+}
+
 /* -------------------------------------------------------------------- cli */
 
 const RACES = ['bear', 'gummy', 'glass'];
+
+// Dedicated packs for branches the open-world long run does not reach often.
+// Mate needs a rich larder (MATE_FOOD_MIN is 18 safe sources); the fixture world
+// starts with 8 flowers, so mate is unreachable without this pack.
+export const SCENARIOS = Object.freeze({
+  mate: Object.freeze({
+    id: 'mate',
+    label: 'mate (rich food, rested adults)',
+    days: 5,
+    seeds: [1, 2, 3, 4, 5],
+    flowers: 28,
+  }),
+});
 
 function parseList(value) {
   if (!value) return null;
@@ -616,6 +703,7 @@ function parseArgs(argv) {
   const options = {
     races: RACES.slice(), seeds: [1], days: 3, dt: DT, daySeconds: DAY_SECONDS,
     sampleEvery: 1, validate: false, long: false, json: false, verbose: false,
+    coverage: false, scenario: null, flowers: 0, seedProvided: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -623,10 +711,10 @@ function parseArgs(argv) {
     if (arg === '--race') options.races = parseList(value()) || options.races;
     else if (arg === '--race=*') options.races = RACES.slice();
     else if (arg.startsWith('--race=')) options.races = parseList(arg.slice(7)) || options.races;
-    else if (arg === '--seed') options.seeds = [Number(value())];
-    else if (arg.startsWith('--seed=')) options.seeds = [Number(arg.slice(7))];
-    else if (arg === '--seeds') options.seeds = (parseList(value()) || []).map(Number);
-    else if (arg.startsWith('--seeds=')) options.seeds = (parseList(arg.slice(8)) || []).map(Number);
+    else if (arg === '--seed') { options.seeds = [Number(value())]; options.seedProvided = true; }
+    else if (arg.startsWith('--seed=')) { options.seeds = [Number(arg.slice(7))]; options.seedProvided = true; }
+    else if (arg === '--seeds') { options.seeds = (parseList(value()) || []).map(Number); options.seedProvided = true; }
+    else if (arg.startsWith('--seeds=')) { options.seeds = (parseList(arg.slice(8)) || []).map(Number); options.seedProvided = true; }
     else if (arg === '--days') options.days = Number(value());
     else if (arg.startsWith('--days=')) options.days = Number(arg.slice(7));
     else if (arg === '--dt') options.dt = Number(value());
@@ -637,6 +725,9 @@ function parseArgs(argv) {
     else if (arg.startsWith('--sample=')) options.sampleEvery = Math.max(1, Number(arg.slice(9)));
     else if (arg === '--validate') options.validate = true;
     else if (arg === '--long') options.long = true;
+    else if (arg === '--coverage') options.coverage = true;
+    else if (arg === '--scenario') options.scenario = value();
+    else if (arg.startsWith('--scenario=')) options.scenario = arg.slice(11);
     else if (arg === '--json') options.json = true;
     else if (arg === '--verbose') options.verbose = true;
     else if (arg === '--help' || arg === '-h') options.help = true;
@@ -645,6 +736,18 @@ function parseArgs(argv) {
     options.days = 20;
     options.seeds = [1, 2, 3, 4, 5];
     options.sampleEvery = Math.max(options.sampleEvery, 5);
+    options.coverage = true;
+  }
+  if (options.scenario) {
+    const scenario = SCENARIOS[options.scenario];
+    if (!scenario) {
+      options.unknownScenario = options.scenario;
+    } else {
+      options.days = scenario.days;
+      options.flowers = scenario.flowers;
+      if (!options.seedProvided && Array.isArray(scenario.seeds)) options.seeds = scenario.seeds.slice();
+      options.coverage = true;
+    }
   }
   options.seeds = options.seeds.filter(Number.isFinite);
   return options;
@@ -665,7 +768,9 @@ function printHelp() {
   --day-seconds S           wall-clock seconds per in-game day (default 240)
   --sample N                snapshot every N ticks (default 1)
   --validate                legacy/legacy, legacy/modules, perturbation check
-  --long                    20 days x 5 seeds, sampled every 5 ticks
+  --long                    20 days x 5 seeds, sampled every 5 ticks, coverage on
+  --coverage                print per-state and per-opportunity hit counts
+  --scenario mate           dedicated branch pack (rich food, rested adults)
   --json                    machine-readable summary
   --verbose                 include the transition log`);
 }
@@ -673,6 +778,10 @@ function printHelp() {
 async function main(argv) {
   const options = parseArgs(argv);
   if (options.help) { printHelp(); return 0; }
+  if (options.unknownScenario) {
+    console.error(`Unknown scenario "${options.unknownScenario}". Known: ${Object.keys(SCENARIOS).join(', ')}`);
+    return 1;
+  }
   if (options.validate) {
     const results = [];
     for (const race of options.races.length ? options.races : RACES) {
@@ -701,7 +810,7 @@ async function main(argv) {
       const result = runParity({
         race, seed, days: options.days, dt: options.dt,
         daySeconds: options.daySeconds, sampleEvery: options.sampleEvery,
-        verbose: options.verbose,
+        verbose: options.verbose, flowers: options.flowers,
       });
       results.push(result);
       if (!options.json) {
@@ -714,7 +823,28 @@ async function main(argv) {
       }
     }
   }
-  const ok = results.every(result => result.ok);
+  const parityOk = results.every(result => result.ok);
+  const coverage = (options.coverage || options.scenario) ? formatCoverage(results) : null;
+  if (options.scenario) {
+    const scenario = SCENARIOS[options.scenario];
+    const hits = coverage.merged.entries[options.scenario] || 0;
+    console.log(`SCENARIO ${scenario.id} (${scenario.label}): ${hits} ${options.scenario} entries across ` +
+      `${options.races.length} races x ${options.seeds.length} seeds x ${options.days} days`);
+    if (hits < LOW_COVERAGE) {
+      console.log(`SCENARIO COVERAGE FAIL: ${options.scenario} remained under ${LOW_COVERAGE}`);
+    }
+    options.scenarioOk = hits >= LOW_COVERAGE;
+  }
+  const ok = parityOk && (options.scenarioOk !== false);
+  if (coverage) {
+    if (!options.json) console.log(coverage.text);
+    if (options.json) {
+      console.log(JSON.stringify({ results, coverage: coverage.merged, low: {
+        states: coverage.lowStates, opportunities: coverage.lowOpportunities,
+      }, ok }, null, 2));
+      return ok ? 0 : 1;
+    }
+  }
   if (options.json) console.log(JSON.stringify({ results, ok }, null, 2));
   else console.log(ok ? 'PARITY PASS' : 'PARITY FAIL');
   return ok ? 0 : 1;

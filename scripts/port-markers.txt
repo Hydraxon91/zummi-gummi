@@ -2,9 +2,6 @@
 # Step 4 removes one marker from engine.js and one line here per ported module.
 # When this list is empty, any remaining TEMPORARY(port) marker fails CI.
 wander
-forage
-water
-rest
 social
 mate
 conflict

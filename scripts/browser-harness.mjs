@@ -175,7 +175,7 @@ export async function connectBrowser(launched) {
       return path;
     }
 
-    return { sessionId, evaluate, waitFor, screenshot };
+    return { targetId: created.targetId, sessionId, evaluate, waitFor, screenshot };
   }
 
   async function close() {

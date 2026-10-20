@@ -15,7 +15,7 @@ import {
 import { canSpeciesBreed } from '../dna.js';
 import { isSafeFood } from '../foodtypes.js';
 import {
-  familyRelation, addBond, pairBond, skillsFor, forageEatScale,
+  familyRelation, addBond, pairBond, skillsFor,
   socialAcceptBonus, pushHistory, playdateDue, schedulePlaydate,
   nextPlaydateDay, teachSkill, strongestSkill, skillValue, PLAYDATE_WINDOW, routineWindowFor,
 } from '../family.js';
@@ -25,6 +25,9 @@ import {
 } from '../interactions.js';
 import { createBehaviorConfig } from './config.js';
 import { hiveModule } from './hive.js';
+import { restModule } from './rest.js';
+import { forageModule } from './forage.js';
+import { waterModule } from './water.js';
 
 const STUCK_DIST2 = .04;
 const HEART_INTERVAL = .72;
@@ -82,6 +85,26 @@ export function createBehaviorModules({
     return null;
   }
 
+  // Coverage is diagnostic only: per-state ticks/entries and per-opportunity
+  // selections. The parity harness reads it to find rarely exercised branches.
+  function noteCoverage(actor) {
+    if (!actor || !actor.ai) return;
+    const state = actor.ai.state || '(none)';
+    coverage.states.set(state, (coverage.states.get(state) || 0) + 1);
+    if (lastCoverState.get(actor) !== state) {
+      lastCoverState.set(actor, state);
+      coverage.entries.set(state, (coverage.entries.get(state) || 0) + 1);
+    }
+  }
+
+  function coverageSnapshot() {
+    return {
+      states: Object.fromEntries([...coverage.states.entries()].sort(([a], [b]) => a.localeCompare(b))),
+      entries: Object.fromEntries([...coverage.entries.entries()].sort(([a], [b]) => a.localeCompare(b))),
+      opportunities: Object.fromEntries([...coverage.opportunities.entries()].sort(([a], [b]) => a.localeCompare(b))),
+    };
+  }
+
   function contextFor(actor, extra = {}) {
     const ai = actor && actor.ai;
     return {
@@ -102,9 +125,25 @@ export function createBehaviorModules({
     const ctx = contextFor(actor);
     for (const opportunity of opportunities) {
       if (!opportunity.canRun || !opportunity.canRun(ctx)) continue;
-      if (opportunity.enter(ctx)) return opportunity;
+      if (opportunity.enter(ctx)) {
+        coverage.opportunities.set(opportunity.id,
+          (coverage.opportunities.get(opportunity.id) || 0) + 1);
+        return opportunity;
+      }
     }
     return null;
+  }
+
+  // Named slot for places where the legacy cascade has a fixed position.
+  function runOpportunity(actor, id) {
+    const opportunity = opportunities.find(item => item.id === id);
+    if (!opportunity) return null;
+    const ctx = contextFor(actor);
+    if (opportunity.canRun && !opportunity.canRun(ctx)) return null;
+    if (!opportunity.enter(ctx)) return null;
+    coverage.opportunities.set(opportunity.id,
+      (coverage.opportunities.get(opportunity.id) || 0) + 1);
+    return opportunity;
   }
 
   const actors = () => {
@@ -122,6 +161,30 @@ export function createBehaviorModules({
     if (registered) return registered;
     return typeof getAdapter === 'function' ? getAdapter(actor) : null;
   };
+  function adapterSleepDone(actor) {
+    const adapter = adapterOf(actor);
+    if (adapter && typeof adapter.sleepDone === 'function') {
+      return adapter.sleepDone(actor, {
+        hours: hoursNow(), day: dayNow(), isDay: isDayFor(actor), isNight: isNightFor(actor),
+      });
+    }
+    const p = profile(actor);
+    return !isNightFor(actor) && actor.health >= p.thresholds.healthHurt &&
+      actor.energy >= p.thresholds.energyTired;
+  }
+  function adapterOnSleep(actor, home, restKind) {
+    const adapter = adapterOf(actor);
+    if (adapter && typeof adapter.onSleep === 'function') adapter.onSleep(actor, home, restKind);
+  }
+  function adapterOnWake(actor) {
+    const adapter = adapterOf(actor);
+    if (adapter && typeof adapter.onWake === 'function') adapter.onWake(actor);
+  }
+  function adapterHungerOpportunity(actor, ...args) {
+    const adapter = adapterOf(actor);
+    return !!(adapter && typeof adapter.hungerOpportunity === 'function' &&
+      adapter.hungerOpportunity(actor, api, ...args));
+  }
   const hoursNow = () => {
     const h = Number(typeof getHours === 'function' ? getHours() : getHours);
     return Number.isFinite(h) ? h : 12;
@@ -133,6 +196,8 @@ export function createBehaviorModules({
   const populationCap = () => Math.max(1, Number(typeof getPopulationCap === 'function'
     ? getPopulationCap() : getPopulationCap) || 40);
   const stats = { ticks: 0, ms: 0 };
+  const coverage = { states: new Map(), entries: new Map(), opportunities: new Map() };
+  const lastCoverState = new WeakMap();
   let enabled = true;
 
   function profile(actor) {
@@ -468,51 +533,12 @@ export function createBehaviorModules({
     return actor.ai.target;
   }
 
-  // TEMPORARY(port): forage
   function acquireFood(actor) {
-    if (!field || !field.food || !actor || !actor.ai) return null;
-    const p = profile(actor);
-    const exclude = new Set();
-    for (let tries = 0; tries < 5; tries++) {
-      const source = field.food.nearestRipe(actor.cx, actor.cz, {
-        maxDistance: p.food.searchRadius, bear: actor, exclude, safe: true,
-      });
-      if (!source) break;
-      exclude.add(source.id);
-      if (source.id === actor.ai.avoidSourceId && actor.ai.avoidSourceT > 0) continue;
-      if (!field.food.claim(source, actor)) continue;
-      const path = pathTo(actor, source.approachX, source.approachZ);
-      if (!path && Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz) > 1.25) {
-        field.food.release(source, actor);
-        continue;
-      }
-      actor.ai.source = source;
-      actor.ai.state = 'seekFood';
-      actor.ai.target = { x: source.approachX, z: source.approachZ };
-      setPath(actor, path || [{ x: source.approachX, z: source.approachZ }]);
-      face(actor, source.approachX, source.approachZ);
-      return source;
-    }
-    return null;
+    return forageModule.acquire(contextFor(actor));
   }
 
-  // TEMPORARY(port): water
   function acquireWater(actor) {
-    if (!field || !Array.isArray(field.waterSpots) || !field.waterSpots.length || !actor.ai) return null;
-    let best = null;
-    let bestD = Infinity;
-    for (const spot of field.waterSpots) {
-      const d = Math.hypot(spot.x - actor.cx, spot.z - actor.cz);
-      if (d < bestD) { bestD = d; best = spot; }
-    }
-    if (!best) return null;
-    const path = pathTo(actor, best.x, best.z);
-    actor.ai.waterSpot = best;
-    actor.ai.state = 'seekWater';
-    actor.ai.target = { x: best.x, z: best.z };
-    setPath(actor, path || [{ x: best.x, z: best.z }]);
-    face(actor, best.x, best.z);
-    return best;
+    return waterModule.acquire(contextFor(actor));
   }
 
   /* ------------------------------------------------------------ hive/conflict */
@@ -739,26 +765,8 @@ export function createBehaviorModules({
     if (actor.hunger >= .95) actor.health = Math.max(1, actor.health - n.healthStarve * dt);
   }
 
-  // TEMPORARY(port): rest (night schedule, day shelter, home/sleep/wake)
   function needsRest(actor) {
-    const p = profile(actor);
-    if (p.rest.mode !== 'night') return false;
-    if (actor.ai && actor.ai.restCooldown > 0) return false;
-    if (!homeFor(actor)) return false;
-    if (actor.health < p.thresholds.healthWoozy) return true;
-    if (actor.hunger >= p.thresholds.criticalHunger || actor.thirst >= p.thresholds.criticalThirst) return false;
-    return isNightFor(actor) || actor.health < p.thresholds.healthHurt ||
-      actor.energy < p.thresholds.energyTired;
-  }
-
-  function sleepDone(actor) {
-    const adapter = adapterOf(actor);
-    if (adapter && typeof adapter.sleepDone === 'function') return adapter.sleepDone(actor, {
-      hours: hoursNow(), day: dayNow(), isDay: isDayFor(actor), isNight: isNightFor(actor),
-    });
-    const p = profile(actor);
-    return !isNightFor(actor) && actor.health >= p.thresholds.healthHurt &&
-      actor.energy >= p.thresholds.energyTired;
+    return restModule.needsRest(contextFor(actor));
   }
 
   function movementIntent(actor) {
@@ -771,8 +779,11 @@ export function createBehaviorModules({
       if (!target) return false;
       return Math.hypot(target.x - actor.cx, target.z - actor.cz) > profile(actor).mate.followDist + .2;
     }
-    if (['seekFood', 'seekHive', 'seekWater', 'seekHome', 'seekConflict',
-      'seekMate', 'seekCompany'].includes(ai.state)) return true;
+    const owner = moduleStateOwner(ai.state);
+    if (owner && typeof owner.isTraveling === 'function') {
+      return owner.isTraveling(contextFor(actor));
+    }
+    if (['seekConflict', 'seekMate', 'seekCompany'].includes(ai.state)) return true;
     if (ai.state === 'familyTask' && ai.familyTask && ai.familyTask.phase === 'travel') {
       const anchor = ai.familyTask.anchor;
       return !anchor || Math.hypot(anchor.x - actor.cx, anchor.z - actor.cz) > 1.5;
@@ -975,109 +986,23 @@ export function createBehaviorModules({
   /* ---------------------------------------------------------- state change */
 
   function startSeekHome(actor, restKind = null) {
-    if (!actor || !actor.ai) return false;
-    cancelPair(actor);
-    releaseFood(actor);
-    actor.ai.source = null;
-    actor.ai.waterSpot = null;
-    actor.ai.follow = null;
-    actor.ai.target = null;
-    actor.ai.faceYaw = null;
-    actor.ai.state = 'seekHome';
-    actor.ai.restKind = restKind || (profile(actor).rest.mode === 'night' ? 'night' : 'shelter');
-    actor.ai.idleT = 0;
-    stop(actor);
-    return true;
+    return restModule.startSeekHome(contextFor(actor), restKind);
   }
 
   function startSleep(actor, home, restKind = 'night') {
-    if (!actor || !actor.ai || !home) return false;
-    actor.ai.directiveHome = false;
-    actor.ai.state = 'sleep';
-    actor.ai.restKind = restKind;
-    actor.ai.sleepHome = home.name;
-    stop(actor);
-    face(actor, home.door.x, home.door.z);
-    actor.sleeping = true;
-    const adapter = adapterOf(actor);
-    if (adapter && typeof adapter.onSleep === 'function') adapter.onSleep(actor, home, restKind);
-    noteDoorTransition(actor, 'enter');
-    return true;
+    return restModule.startSleep(contextFor(actor), home, restKind);
   }
 
   function wake(actor) {
-    if (!actor || !actor.ai) return;
-    actor.sleeping = false;
-    actor.needsBuild = true;
-    actor.ai.state = 'wander';
-    actor.ai.restKind = null;
-    actor.ai.sleepHome = null;
-    actor.ai.idleT = .5;
-    actor.ai.taskCooldown = .8;
-    actor.ai.nextThink = 0;
-    const adapter = adapterOf(actor);
-    if (adapter && typeof adapter.onWake === 'function') adapter.onWake(actor);
-    noteDoorTransition(actor, 'exit');
-  }
-
-  function finishFood(actor) {
-    if (!actor || !actor.ai) return;
-    if (!actor.ai.source) {
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .5;
-      clearPath(actor);
-      return;
-    }
-    const source = actor.ai.source;
-    const p = profile(actor);
-    if (field.food.consume(source, actor)) {
-      actor.hunger = Math.max(0, actor.hunger - source.satiation * forageEatScale(actor));
-    }
-    actor.ai.source = null;
-    actor.ai.target = null;
-    actor.ai.faceYaw = null;
-    actor.ai.state = 'wander';
-    actor.ai.idleT = .8;
-    actor.ai.taskCooldown = p.food.eatTime > 1.2 ? 1.3 : 1.2;
-    clearPath(actor);
-  }
-
-  function finishWater(actor) {
-    if (!actor || !actor.ai) return;
-    const p = profile(actor);
-    actor.thirst = Math.max(0, actor.thirst - (p.id === 'glass' ? .52 : .55));
-    actor.ai.waterSpot = null;
-    actor.ai.target = null;
-    actor.ai.faceYaw = null;
-    actor.ai.state = 'wander';
-    actor.ai.idleT = .8;
-    actor.ai.taskCooldown = 1.0;
-    clearPath(actor);
+    restModule.wake(contextFor(actor));
   }
 
   function startEat(actor) {
-    if (!actor || !actor.ai || !actor.ai.source) return;
-    const p = profile(actor);
-    actor.ai.state = 'eat';
-    actor.ai.eatT = p.food.eatTime * forageEatScale(actor);
-    actor.ai.animT = 0;
-    actor.ai.moving = false;
-    actor.ai.path = null;
-    face(actor, actor.ai.source.x, actor.ai.source.z);
+    forageModule.startEat(contextFor(actor));
   }
 
   function startDrink(actor) {
-    if (!actor || !actor.ai || !actor.ai.waterSpot) return;
-    const p = profile(actor);
-    const spot = actor.ai.waterSpot;
-    actor.ai.state = 'drink';
-    actor.ai.drinkT = p.food.drinkTime;
-    actor.ai.animT = 0;
-    actor.ai.rippleT = 0;
-    actor.ai.moving = false;
-    actor.ai.path = null;
-    face(actor, spot.waterX, spot.waterZ);
-    if (field && field.splash) field.splash(spot.waterX, spot.waterZ, .45);
+    waterModule.startDrink(contextFor(actor));
   }
 
   /* ----------------------------------------------------------- pair states */
@@ -1862,13 +1787,13 @@ export function createBehaviorModules({
       return;
     }
     if (actor.ai.taskCooldown > 0) return;
-    if (actor.thirst >= p.thresholds.seekThirst && acquireWater(actor)) return;
+    if (runOpportunity(actor, 'water.seek')) return;
     const meal = mealWindow(actor);
     if (meal && startFamilyMeal(actor, meal)) return;
-    if (runOpportunities(actor)) return;
+    if (runOpportunity(actor, 'hive.seek')) return;
     if (p.conflict && actor.hunger >= p.thresholds.criticalHunger && acquireContest(actor)) return;
     if (actor.hunger >= p.thresholds.seekHunger) {
-      if (acquireFood(actor)) return;
+      if (runOpportunity(actor, 'forage.seek')) return;
       if (p.conflict && acquireContest(actor)) return;
     }
     const lesson = lessonCandidate(actor);
@@ -1914,16 +1839,7 @@ export function createBehaviorModules({
   }
 
   function dayShelterCheck(actor) {
-    const p = profile(actor);
-    if (p.rest.mode !== 'dayShelter' || !actor.ai) return false;
-    const hours = hoursNow();
-    if (!isDayFor(actor) || hours < p.rest.start || hours >= p.rest.end) return false;
-    if (actor.shelteredToday || !actor.home || actor.shelterCheckT > 0) return false;
-    actor.shelterCheckT = 24 + rng() * 24;
-    if (rng() < p.rest.chance) {
-      return startSeekHome(actor, 'shelter');
-    }
-    return false;
+    return restModule.dayShelterCheck(contextFor(actor));
   }
 
   function think(actor) {
@@ -1941,106 +1857,14 @@ export function createBehaviorModules({
     if (adapter && typeof adapter.preNeeds === 'function' && adapter.preNeeds(actor, api)) return;
     // TEMPORARY(port): directives (lives in ai.js; engine only observes it)
     if (actor.ai.directive) return;
-    if (state === 'wander') thinkWander(actor);
-    else if (state === 'seekFood') thinkSeekFood(actor);
-    else if (state === 'seekWater') thinkSeekWater(actor);
-    else if (state === 'seekHive') thinkSeekHive(actor);
+    const owner = moduleStateOwner(state);
+    if (owner && typeof owner.think === 'function') owner.think(contextFor(actor));
+    else if (state === 'wander') thinkWander(actor);
     else if (state === 'seekConflict') thinkSeekConflict(actor);
-    else if (state === 'seekHome') thinkSeekHome(actor);
     else if (state === 'seekCompany') thinkSeekCompany(actor);
     else if (state === 'seekMate') thinkSeekMate(actor);
     else if (state === 'follow') thinkFollow(actor);
     else if (adapter && typeof adapter.think === 'function') adapter.think(actor, api);
-  }
-
-  function thinkSeekFood(actor) {
-    if (!actor || !actor.ai) return;
-    const p = profile(actor);
-    if (actor.hunger <= p.thresholds.stopHunger) {
-      releaseFood(actor);
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .4;
-      stop(actor);
-      return;
-    }
-    let source = actor.ai.source;
-    if (!source || !source.ripe || (source.claim && source.claim !== actor)) {
-      releaseFood(actor);
-      source = acquireFood(actor);
-    }
-    if (!source) {
-      const adapter = adapterOf(actor);
-      if (adapter && typeof adapter.hungerOpportunity === 'function' && adapter.hungerOpportunity(actor, api, true)) return;
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .7;
-      stop(actor);
-      return;
-    }
-    const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
-    if (d <= p.food.eatDist) { startEat(actor); return; }
-    if (needsReplan(actor.ai)) {
-      if (!setDestination(actor, source.approachX, source.approachZ)) {
-        field.food.release(source, actor);
-        actor.ai.source = null;
-        actor.ai.state = 'wander';
-        actor.ai.idleT = .7;
-      }
-    }
-  }
-
-  function thinkSeekWater(actor) {
-    if (!actor || !actor.ai) return;
-    const p = profile(actor);
-    if (actor.thirst <= p.thresholds.stopThirst) {
-      actor.ai.waterSpot = null;
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .4;
-      stop(actor);
-      return;
-    }
-    if (!actor.ai.waterSpot && !acquireWater(actor)) {
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .8;
-      return;
-    }
-    const spot = actor.ai.waterSpot;
-    if (!spot) return;
-    const d = Math.hypot(spot.x - actor.cx, spot.z - actor.cz);
-    if (d <= p.food.drinkDist) { startDrink(actor); return; }
-    if (needsReplan(actor.ai)) {
-      if (!setDestination(actor, spot.x, spot.z)) {
-        actor.ai.waterSpot = null;
-        actor.ai.state = 'wander';
-        actor.ai.idleT = .8;
-      }
-    }
-  }
-
-  function thinkSeekHome(actor) {
-    if (!actor || !actor.ai) return;
-    const p = profile(actor);
-    const home = homeFor(actor);
-    if (!home) {
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .8;
-      return;
-    }
-    if (!needsRest(actor) && !actor.ai.directiveHome && actor.ai.restKind !== 'shelter') {
-      actor.ai.state = 'wander';
-      actor.ai.idleT = .5;
-      return;
-    }
-    const d = Math.hypot(home.door.x - actor.cx, home.door.z - actor.cz);
-    if (d <= p.rest.homeDist) {
-      startSleep(actor, home, actor.ai.restKind || 'night');
-      return;
-    }
-    if (needsReplan(actor.ai)) {
-      if (!setDestination(actor, home.door.x, home.door.z)) {
-        actor.ai.state = 'wander';
-        actor.ai.idleT = .8;
-      }
-    }
   }
 
   /* ------------------------------------------------------------- per tick */
@@ -2049,6 +1873,7 @@ export function createBehaviorModules({
     if (!enabled || !actor || !actor.active) return;
     if (!actor.ai) attach(actor);
     if (!actor.ai) return;
+    noteCoverage(actor);
     const p = profile(actor);
     const ai = actor.ai;
     tickNeeds(actor, dt);
@@ -2056,7 +1881,8 @@ export function createBehaviorModules({
     if (adapter && typeof adapter.preTick === 'function') adapter.preTick(actor, dt, api);
     tickStall(actor, dt, ready);
     if (ai.state === 'sleep') {
-      if (sleepDone(actor)) wake(actor);
+      const ctx = contextFor(actor);
+      if (restModule.sleepDone(ctx)) restModule.wake(ctx);
       return;
     }
     if (!ready || ai.possessed) return;
@@ -2126,22 +1952,9 @@ export function createBehaviorModules({
       }
       return;
     }
-    if (ai.state === 'eat') {
-      ai.animT += dt;
-      ai.eatT -= dt;
-      if (ai.eatT <= 0) finishFood(actor);
-      return;
-    }
-    if (ai.state === 'drink') {
-      ai.animT += dt;
-      ai.drinkT -= dt;
-      ai.rippleT = (ai.rippleT || 0) - dt;
-      if (ai.rippleT <= 0 && ai.waterSpot && field.splash) {
-        field.splash(ai.waterSpot.waterX, ai.waterSpot.waterZ, .30);
-        ai.rippleT = .55;
-      }
-      if (ai.drinkT <= 0) finishWater(actor);
-      return;
+    const stateOwner = moduleStateOwner(ai.state);
+    if (stateOwner && typeof stateOwner.tick === 'function') {
+      if (stateOwner.tick(contextFor(actor, { dt }), dt) !== false) return;
     }
     if (ai.state === 'familyTask' && ai.directives.length) {
       const adapter = adapterOf(actor);
@@ -2325,59 +2138,9 @@ export function createBehaviorModules({
 
   function resumeTask(actor) {
     if (!actor || !actor.ai) return;
-    const p = profile(actor);
     const ai = actor.ai;
-    if (ai.state === 'eat') {
-      const source = ai.source;
-      if (source && source.ripe && field.food.claim(source, actor)) {
-        ai.target = { x: source.approachX, z: source.approachZ };
-        const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
-        if (d <= p.food.eatDist) {
-          ai.eatT = p.food.eatTime * forageEatScale(actor);
-          ai.animT = 0;
-          ai.moving = false;
-          face(actor, source.x, source.z);
-        } else {
-          ai.state = 'seekFood';
-          setDestination(actor, source.approachX, source.approachZ);
-        }
-      } else {
-        ai.source = null;
-        ai.state = 'seekFood';
-        ai.nextThink = 0;
-      }
-      return;
-    }
-    if (ai.state === 'drink') {
-      const spot = ai.waterSpot;
-      const d = spot ? Math.hypot(spot.x - actor.cx, spot.z - actor.cz) : Infinity;
-      if (spot && d <= p.food.drinkDist) {
-        ai.drinkT = Math.max(.7, ai.drinkT);
-        ai.animT = 0;
-        ai.moving = false;
-        face(actor, spot.waterX, spot.waterZ);
-      } else {
-        ai.state = 'seekWater';
-        ai.moving = false;
-      }
-      return;
-    }
-    if (ai.state === 'seekFood') {
-      const source = ai.source;
-      if (source && source.ripe && field.food.claim(source, actor)) {
-        ai.target = { x: source.approachX, z: source.approachZ };
-        setDestination(actor, source.approachX, source.approachZ);
-      } else {
-        ai.source = null;
-        ai.nextThink = 0;
-      }
-      return;
-    }
-    if (ai.state === 'seekWater') {
-      const spot = ai.waterSpot;
-      if (spot) setDestination(actor, spot.x, spot.z);
-      return;
-    }
+    const owner = moduleStateOwner(ai.state);
+    if (owner && typeof owner.resume === 'function' && owner.resume(contextFor(actor))) return;
     ai.target = null;
     ai.faceYaw = null;
     ai.idleT = .4;
@@ -2570,6 +2333,9 @@ export function createBehaviorModules({
   }
 
   registerModule(hiveModule);
+  registerModule(restModule);
+  registerModule(forageModule);
+  registerModule(waterModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -2612,9 +2378,12 @@ export function createBehaviorModules({
     canMatePair, startMatePair, startSeekMate, startFlee,
     startVisit, startPlaydate, startConflict,
     isDayFor, isNightFor, needsRest,
-    config, features, modules, opportunities, runOpportunities, interruptActor,
+    config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
+    adapterSleepDone, adapterOnSleep, adapterOnWake, adapterHungerOpportunity,
+    noteDoorTransition,
     setModuleEnabled, setModuleParams, setActorConfig, setFeature,
     feature: (name) => !!features[name],
+    coverage: coverageSnapshot,
   };
 
   return {
@@ -2626,6 +2395,7 @@ export function createBehaviorModules({
     get enabled() { return enabled; },
     get actors() { return actors(); },
     get configVersion() { return configVersion; },
+    coverage: coverageSnapshot,
     api,
   };
 }
