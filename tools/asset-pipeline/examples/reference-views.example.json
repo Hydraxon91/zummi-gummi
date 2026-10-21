@@ -1,0 +1,39 @@
+{
+  "schema": "reference-sheet-views/v1",
+  "views": [
+    {
+      "name": "body_front",
+      "rect": [40, 40, 320, 240],
+      "projection": "front",
+      "origin_px": [200, 280],
+      "calibration": {
+        "p1": [40, 280],
+        "p2": [360, 280],
+        "distance_mm": 3200.0,
+        "label": "overall width",
+        "scale_authority": true
+      },
+      "notes": "Replace rect and landmark pixels after inspecting the real sheet."
+    },
+    {
+      "name": "body_side",
+      "rect": [400, 40, 320, 240],
+      "projection": "side",
+      "origin_px": [440, 280],
+      "notes": "Front of the vehicle is at the left edge; origin is the front axle ground point."
+    },
+    {
+      "name": "body_top",
+      "rect": [40, 320, 320, 240],
+      "projection": "top",
+      "origin_px": [200, 440],
+      "notes": "Front of the vehicle is at the left edge; origin is the front axle centreline."
+    },
+    {
+      "name": "body_three_quarter",
+      "rect": [400, 320, 320, 240],
+      "projection": "visual",
+      "notes": "Perspective guide only; this view is cropped but not built as a plane."
+    }
+  ]
+}
