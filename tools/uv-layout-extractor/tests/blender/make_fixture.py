@@ -51,8 +51,22 @@ def main():
     bpy.ops.wm.save_as_mainfile(filepath=str(out / 'overlap_fixture.blend'))
 
     (out / 'names.json').write_text(json.dumps({
-        str(index): 'face_%d' % index for index in range(1, 7)
+        str(index): ('front panel' if index == 1 else
+                     'long wrapped panel name' if index == 2 else 'face_%d' % index)
+        for index in range(1, 7)
     }, indent=2))
+    (out / 'placements.json').write_text(json.dumps([{
+        'id': 'test_badge', 'island': 1,
+        'uv_rect': [0.08, 0.08, 0.20, 0.20],
+        'source_object': 'FixtureCube', 'source_uv': 'UVMap',
+        'source_uv_to_canvas': [1, 0, 0, 0, 1, 0],
+    }], indent=2))
+    (out / 'placements_invalid.json').write_text(json.dumps([{
+        'id': 'outside_island', 'island': 1,
+        'uv_rect': [0.4, 0.4, 0.5, 0.5],
+        'source_object': 'FixtureCube', 'source_uv': 'UVMap',
+        'source_uv_to_canvas': [1, 0, 0, 0, 1, 0],
+    }], indent=2))
     print('UV_FIXTURE', out, flush=True)
 
 

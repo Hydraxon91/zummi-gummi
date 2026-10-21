@@ -26,8 +26,11 @@ anything into Gummy Bears.
   render-hidden Blender reference planes from author-supplied pixel rectangles.
 - `scripts/run_comfy_workflow_stable_materials.py` — reusable StableMaterials ComfyUI runner
   driven by a job JSON; dry-run, validation, map download and hash manifest.
+- `scripts/run_comfy_workflow_qwen_image_edit.py` — reusable Qwen Image 2.1 image-edit
+  ComfyUI runner for UV-template-guided texture and sticker jobs.
 - `examples/laptop-plastics-aged.job.json` — aged ivory/tangerine plastic prompts for the
   laptop tooling test.
+- `examples/laptop-stickers-qwen.job.json` — UV-template sticker job for the same test.
 - `scripts/check_evidence.py` — pose, frame, hash and frame-specific fingerprint validation.
 - `scripts/check_interface.py` — experimental local signed-surface interface diagnostic.
 - `scripts/construction_gate.py` — construction brief, candidate ledger and evidence validation.
@@ -141,6 +144,51 @@ The reusable runner's pure checks:
 
 ```bash
 python3 tools/asset-pipeline/tests/phase7/test_comfy_stable_materials_runner.py
+```
+
+## Qwen Image 2.1 image edit via ComfyUI (optional)
+
+Sticker processing: `scripts/process_sticker_sheet.py` provides Blender-side
+`process(raw_path, output_path, crops, saturation=1.0, contrast=1.0)`.
+Crops are top-left pixel rectangles; output paths must be new. Extraction uses a
+closed white die-cut border and fills enclosed shading, avoiding grey-key holes.
+It is not a general background remover; binary-alpha edges require visual review.
+Colour grading is optional, affects coloured artwork only, and preserves the raw PNG.
+The laptop `_050` candidate uses saturation 1.5 / contrast 1.15; it remains pale
+under the existing review lighting, so this is not a complete contrast fix.
+Synthetic alpha and saved-colour controls run with:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup \
+  --python-exit-code 1 --python tools/asset-pipeline/tests/phase7/test_sticker_processing.py
+```
+
+The official `image_qwen_image_2_1_image_edit` subgraph treats image 1 as the edit
+canvas and images 2–10 as references. The shared runner drives it from a job JSON, so a
+UV-guided sticker or texture set needs no new script. The API template is patched by node
+class, not by node id.
+
+```bash
+python3 tools/asset-pipeline/scripts/run_comfy_workflow_qwen_image_edit.py \
+  --job tools/asset-pipeline/examples/laptop-stickers-qwen.job.json \
+  --base-url http://192.168.1.190:8188 \
+  --out-dir .dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/materials/laptop-stickers-001
+```
+
+Validate the job and write the patched graph without contacting ComfyUI (`--dry-run`).
+The job supplies the template, steps, CFG, reference resolution, seeds, filename prefix
+and one entry per sample with an ordered image list; image 1 is the canvas. The runner
+uploads images, records prompt IDs for successes *and* failures, scans every output node
+for images, downloads and hashes them, and writes `run-manifest.json`. It does not start,
+restart, free or reconfigure ComfyUI, and it does not start a prompt enhancer.
+
+UV-guided generation does not place the artwork reliably on its own: the model's
+position drifts and can leave a sprite under the trackpad or across a material boundary.
+Treat the raw output as artwork, then composite it into the UV layout at explicit world
+rectangles before wiring it into a material. Raw output is not a delivered texture.
+
+```bash
+python3 tools/asset-pipeline/tests/phase7/test_comfy_qwen_image_edit_runner.py
 ```
 
 ## Shape review

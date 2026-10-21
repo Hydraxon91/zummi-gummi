@@ -1,0 +1,26 @@
+{
+  "template": "../tests/phase5/api/qwen_image_21_texture_template.json",
+  "base_url": "http://192.168.1.190:8188",
+  "steps": 25,
+  "cfg": 1.0,
+  "resolution": 1024,
+  "filename_prefix": "phase7_laptop_stickers",
+  "seeds": [20261021],
+  "samples": [
+    {
+      "id": "laptop_stickers",
+      "label": "Gummy bear lid sticker and MSM buddy palm-rest sticker in UV space",
+      "prompt": "Repaint this UV layout as a flat sticker sheet viewed from directly above. <image1> is the UV canvas: keep the two outlined island shapes exactly where they are. Inside the larger upper island labelled 1 LID_OUTER_PANEL paint one die-cut vinyl sticker of a cute gummy bear, front view, sitting, chunky rounded silhouette, semi-transparent jelly body with soft inner glow, thick white die-cut border, subtle soft shadow, centred in the thick middle of the island and comfortably smaller than the outline. Inside the lower island labelled 2 PALM_REST paint one die-cut vinyl sticker of the glossy bright-green figure from <image2>, front view, rounded head and body, thick white die-cut border, subtle soft shadow, centred and comfortably smaller than the outline. Leave the thin margin between the sticker and each island outline empty. Fill all remaining space with one flat mid-grey background. Remove every black guide line and every label letter. Flat 2D vector sticker illustration, crisp edges, even lighting, no perspective, no text, no logos, no reflections of a room, no paper texture.",
+      "images": [
+        {
+          "path": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/sticker-uv/guide_1024/1024/labelled_reference.png",
+          "label": "uv_template"
+        },
+        {
+          "path": ".dev-shots/msn_buddy_smooth_front.png",
+          "label": "buddy_reference"
+        }
+      ]
+    }
+  ]
+}

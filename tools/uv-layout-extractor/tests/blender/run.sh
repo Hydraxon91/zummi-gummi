@@ -26,9 +26,11 @@ python3 "$ROOT/tests/blender/check_png.py" \
 echo "== line guide =="
 run_blender "$TMP/fixture/clean_cube.blend" "$ROOT/scripts/uv_line_guide.py" \
   --object FixtureCube --uv UVMap --names "$TMP/fixture/names.json" \
+  --placements "$TMP/fixture/placements.json" \
   --out "$TMP/guide" --resolutions 256 512
 python3 "$ROOT/tests/blender/check_png.py" \
-  "$TMP/guide/256/labelled_reference.png" "$TMP/guide/512/labelled_reference.png"
+  "$TMP/guide/256/labelled_reference.png" "$TMP/guide/512/labelled_reference.png" \
+  "$TMP/guide/512/safe_test_badge.png"
 python3 - "$TMP/guide/512/labels.json" <<'PY'
 import json
 import sys
@@ -50,6 +52,15 @@ names = json.load(open(sys.argv[1]))
 assert len(names) == 6, len(names)
 print('rebound names:', len(names))
 PY
+
+echo "== invalid placement expected FAIL =="
+if run_blender "$TMP/fixture/clean_cube.blend" "$ROOT/scripts/uv_line_guide.py" \
+  --object FixtureCube --uv UVMap --placements "$TMP/fixture/placements_invalid.json" \
+  --out "$TMP/invalid_placement" --resolutions 256; then
+  echo "invalid placement unexpectedly passed" >&2
+  exit 1
+fi
+test ! -e "$TMP/invalid_placement/256/clean_guide.png"
 
 echo "== clean gate =="
 run_blender "$TMP/fixture/clean_cube.blend" "$ROOT/scripts/uv_layout_gate.py" \

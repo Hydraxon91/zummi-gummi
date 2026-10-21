@@ -4,6 +4,7 @@ This module deliberately contains no project-specific object names, material map
 or naming rules. It is the only shared dependency of the public tools.
 """
 import math
+import re
 import struct
 import zlib
 from collections import defaultdict
@@ -188,9 +189,10 @@ def text_width(text, scale):
 
 
 def wrap_candidates(text, scale, max_width):
-    """Best 1-, 2- and 3-line splits at underscores that fit the width."""
+    """Best 1-, 2- and 3-line splits at spaces or underscores that fit."""
     from itertools import combinations
-    tokens = text.split('_')
+    tokens = re.split(r'(?<=[_\s])', text)
+    tokens = [token for token in tokens if token]
     result = []
     for count in (1, 2, 3):
         if count > len(tokens):
@@ -198,7 +200,7 @@ def wrap_candidates(text, scale, max_width):
         best = None
         for splits in combinations(range(1, len(tokens)), count - 1):
             bounds = (0,) + splits + (len(tokens),)
-            lines = ['_'.join(tokens[a:b]) for a, b in zip(bounds, bounds[1:])]
+            lines = [''.join(tokens[a:b]).strip(' _') for a, b in zip(bounds, bounds[1:])]
             widths = [text_width(item, scale) for item in lines]
             if max(widths) <= max_width and (best is None or max(widths) < best[0]):
                 best = (max(widths), lines)

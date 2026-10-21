@@ -4,6 +4,7 @@ Read-only. Names come from an optional JSON map; every other island is labelled 
 its numeric ID only and marked UNRESOLVED in the legend. The layout is not repaired.
 """
 import argparse
+import hashlib
 import importlib.util
 import json
 import math
@@ -30,6 +31,10 @@ def box_sums(table, x, y, w, h):
     return table[y+h, x+w]-table[y, x+w]-table[y+h, x]+table[y, x]
 
 
+def normalized_label(value):
+    return ''.join(value.split()).replace('_', '').casefold()
+
+
 def load_names(path):
     if path is None:
         return {}
@@ -50,7 +55,7 @@ def load_names(path):
     return result
 
 
-def render(mesh, layer, islands, names, size, out, core, force=False):
+def render(mesh, layer, islands, names, size, out, core, force=False, placements=None):
     clean = np.full((size, size, 3), 255, dtype=np.uint8)
     records = []
     all_solid = np.zeros((size, size), dtype=bool)
@@ -66,6 +71,17 @@ def render(mesh, layer, islands, names, size, out, core, force=False):
         _, _, mask = core.rasterise([t for f in faces for t in triangles[f]],
                                     size, size, bbox)
         all_solid[y0:y1 + 1, x0:x1 + 1] |= mask
+        for placement in (placements or []):
+            if placement['island'] != island['id']:
+                continue
+            u0, v0, u1, v1 = placement['uv_rect']
+            px0, px1 = math.ceil(u0 * (size - 1)), math.floor(u1 * (size - 1))
+            py0, py1 = math.ceil((1 - v1) * (size - 1)), math.floor((1 - v0) * (size - 1))
+            if (px1 < px0 or py1 < py0 or px0 < x0 or px1 > x1 or
+                    py0 < y0 or py1 > y1 or
+                    not mask[py0-y0:py1-y0+1, px0-x0:px1-x0+1].all()):
+                raise ValueError('Placement %s is not fully covered by island %s at %s' %
+                                 (placement['id'], island['id'], size))
         edges = {}
         for face in faces:
             loops = list(mesh.polygons[face].loop_indices)
@@ -183,19 +199,26 @@ def render(mesh, layer, islands, names, size, out, core, force=False):
         core.draw_text(legend, text, 20 * scale + column * column_width,
                        header + position * row_height, scale, (0, 0, 0))
 
+    assert len(records) == len(islands)
+    assert all(r['placement'] and r['label_lines'] for r in records)
+    for row in records:
+        flat = normalized_label(''.join(row['label_lines']))
+        if row['status'] == 'unresolved':
+            assert row['label_lines'] == [str(row['id'])], row
+        else:
+            assert normalized_label(row['part_name']) in flat, row
     out.mkdir(parents=True, exist_ok=True)
     for name, pixels in [('clean_guide', clean), ('labelled_reference', labelled),
                          ('island_legend', legend)]:
         core.write_png(out / (name + '.png'), pixels, overwrite=force)
     (out / 'labels.json').write_text(json.dumps(sorted(records, key=lambda r: r['id']), indent=2))
-    assert len(records) == len(islands)
-    assert all(r['placement'] and r['label_lines'] for r in records)
-    for row in records:
-        flat = ''.join(row['label_lines']).replace(' ', '').replace('_', '').lower()
-        if row['status'] == 'unresolved':
-            assert row['label_lines'] == [str(row['id'])], row
-        else:
-            assert row['part_name'].replace('_', '').lower() in flat, row
+    for placement in (placements or []):
+        safe = np.zeros((size, size, 3), dtype=np.uint8)
+        u0, v0, u1, v1 = placement['uv_rect']
+        x0, x1 = math.ceil(u0 * (size - 1)), math.floor(u1 * (size - 1))
+        y0, y1 = math.ceil((1 - v1) * (size - 1)), math.floor((1 - v0) * (size - 1))
+        safe[y0:y1+1, x0:x1+1] = 255
+        core.write_png(out / ('safe_' + placement['id'] + '.png'), safe, overwrite=force)
     named_count = sum(r['status'] == 'named' for r in records)
     return {'resolution': [size, size], 'islands': len(records),
             'callouts': sum(r['placement'] == 'leader_callout' for r in records),
@@ -210,6 +233,7 @@ def main():
     parser.add_argument('--out', required=True)
     parser.add_argument('--resolutions', type=int, nargs='+', default=[1280, 4096])
     parser.add_argument('--force', action='store_true', help='Overwrite named output files')
+    parser.add_argument('--placements', help='Explicit reviewed UV rectangles and source-object metadata JSON')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     if not bpy.app.background:
         raise ValueError('Background Blender only')
@@ -226,17 +250,49 @@ def main():
     u0, v0, u1, v1 = core.require_single_tile(ob.data, layer)
     names = load_names(args.names)
     islands = core.ordered_islands(ob.data, layer)
+    placements = []
+    if args.placements:
+        placements = json.loads(Path(args.placements).read_text())
+        known = {island['id'] for island in islands}
+        seen = set()
+        for placement in placements:
+            identifier = placement['id']
+            if (not isinstance(identifier, str) or not identifier or
+                    any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789_' for c in identifier) or
+                    identifier in seen):
+                raise ValueError('Placement IDs must be unique lowercase filename-safe identifiers')
+            seen.add(identifier)
+            rect = placement['uv_rect']
+            if (len(rect) != 4 or not all(math.isfinite(v) for v in rect) or
+                    not 0 <= rect[0] < rect[2] <= 1 or not 0 <= rect[1] < rect[3] <= 1):
+                raise ValueError('Invalid placement UV rectangle: %s' % identifier)
+            if placement['island'] not in known:
+                raise ValueError('Unknown placement island: %s' % identifier)
+            if not placement.get('source_object') or not placement.get('source_uv'):
+                raise ValueError('Placement requires source_object and source_uv')
+            transform = placement.get('source_uv_to_canvas')
+            if (not isinstance(transform, list) or len(transform) != 6 or
+                    not all(math.isfinite(v) for v in transform)):
+                raise ValueError('Placement requires six affine source_uv_to_canvas coefficients')
     summary = []
     for size in args.resolutions:
         summary.append(render(ob.data, layer, islands, names, size,
-                              out / str(size), core, args.force))
+                              out / str(size), core, args.force, placements))
     manifest = {'source': bpy.data.filepath, 'object': ob.name, 'uv': layer.name,
+                'uv_sha256': hashlib.sha256(json.dumps({
+                    'faces': [list(p.vertices) for p in ob.data.polygons],
+                    'uv': [list(value.uv) for value in layer.data],
+                }, sort_keys=True).encode()).hexdigest(),
                 'names_source': str(args.names) if args.names else None,
                 'uv_bounds': [u0, v0, u1, v1], 'outputs': summary,
+                'placements': placements,
+                'pixel_axes': 'top-left origin; x=u*(size-1), y=(1-v)*(size-1)',
                 'limits': ['Existing UV overlaps retained, not repaired or waived',
                            'Single 0-1 tile only',
                            'Names absent from the input map remain unresolved',
-                           'Clean guide is UV outlines, not generated albedo']}
+                           'Clean guide is UV outlines, not generated albedo',
+                           'Safe rectangles are user-reviewed, not automatic obstacle detection',
+                           'Raster coverage is not proof of clearance from other scene objects']}
     (out / 'guide_manifest.json').write_text(json.dumps(manifest, indent=2))
     print('UV_LINE_GUIDE', json.dumps(summary), flush=True)
 

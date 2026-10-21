@@ -80,6 +80,26 @@ labels.json
 
 plus `out/guide/guide_manifest.json`.
 
+Names containing spaces or underscores both support wrapping. Label validation runs
+before writing images, so a label failure does not publish that resolution's guide.
+
+Optional `--placements placements.json` exports one black/white
+`safe_<id>.png` per explicitly reviewed rectangle, preserving the layout. Example:
+
+```json
+[{"id":"badge", "island":1, "uv_rect":[0.1,0.1,0.2,0.2],
+  "source_object":"Body", "source_uv":"UVMap",
+  "source_uv_to_canvas":[1,0,0,0,1,0]}]
+```
+
+Rectangles use bottom-left UV coordinates. Six affine coefficients mean
+`canvas_u=a*u+b*v+c`, `canvas_v=d*u+e*v+f`; identity retains the source UV space.
+The manifest retains these explicit source-object mappings. PNG pixels have a
+top-left origin, `x=u*(size-1)`, `y=(1-v)*(size-1)`.
+Rectangles must be covered by the named island at every requested raster resolution.
+This does **not** detect trackpads, material boundaries or occluding objects: the
+caller must review those restrictions. It neither unwraps nor certifies physical clearance.
+
 Names are optional. The JSON is either a simple map:
 
 ```json
