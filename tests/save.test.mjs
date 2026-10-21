@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DNA_VERSION, defaultGenome } from '../src/dna.js';
 import { SAVE_VERSION, validateSave, normalizeSave } from '../src/save.js';
+import { maxActorUid } from '../src/actorsave.js';
 
 function basePayload() {
   const bear = {
@@ -90,6 +91,34 @@ test('Glass actors validate without a genome and reject an invalid species tag',
 
   payload.worlds.field.glass[0].species = 'bear';
   assert.equal(validateSave(payload).ok, false);
+});
+
+test('the loader reserves the highest uid across both maps and Glass', () => {
+  const worlds = {
+    field: { bears: [{ uid: 4 }], glass: [{ uid: 7 }] },
+    studio: { bears: [{ uid: 9 }], glass: [{ uid: 500000 }] },
+  };
+  assert.equal(maxActorUid(worlds), 500000);
+  assert.equal(maxActorUid({ field: { bears: [{ uid: 3 }] } }), 3);
+  assert.equal(maxActorUid(null), 0);
+});
+
+test('a duplicate actor uid anywhere in the game is rejected', () => {
+  const payload = basePayload();
+  payload.worlds.studio.bears = [{ ...payload.worlds.field.bears[0], uid: 1 }];
+  const check = validateSave(payload);
+  assert.equal(check.ok, false);
+  assert.match(check.errors.join('; '), /duplicate actor uid 1/);
+  assert.throws(() => normalizeSave(payload), /duplicate actor uid 1/);
+
+  const glassPayload = basePayload();
+  glassPayload.worlds.field.glass = [{
+    kind: 'glass', species: 'glass', uid: 1, x: 3, z: 4, stage: 'baby',
+    genome: defaultGenome('glass'),
+  }];
+  const glassCheck = validateSave(glassPayload);
+  assert.equal(glassCheck.ok, false);
+  assert.match(glassCheck.errors.join('; '), /duplicate actor uid 1/);
 });
 
 test('normalization strips unknown top-level keys and preserves the map payload', () => {

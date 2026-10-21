@@ -26,6 +26,7 @@ import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldsha
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
 import { snapshotActor, applyCommonActorState } from './actorrecord.js';
+import { maxActorUid } from './actorsave.js';
 import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
@@ -121,7 +122,22 @@ function familyShort(a) {
   if (family.children.length) bits.push(`${family.children.length} child${family.children.length === 1 ? '' : 'ren'}`);
   return bits.join(' · ');
 }
-function reserveUid(){ return nextBearUid++; }
+function reserveUid(value){
+  if (Number.isFinite(value)) {
+    if (value >= nextBearUid) nextBearUid = value + 1;
+    return value;
+  }
+  return nextBearUid++;
+}
+
+function reserveWorldUids(world){
+  const max = maxActorUid({ field: world });
+  if (max >= nextBearUid) nextBearUid = max + 1;
+}
+
+function reserveGameUids(worlds){
+  nextBearUid = Math.max(1, maxActorUid(worlds) + 1);
+}
 function applyDnaTraits(b){
   const defaults = speciesOf(b)?.genetics?.defaults || {};
   const genes = b.genome?.genes || {};
@@ -5870,6 +5886,7 @@ function activateMap(id, opts = {}){
   if (!opts.initial && worlds[id].camera) applyCameraState(worlds[id].camera);
   else resetCamera();
   const w = worlds[id];
+  reserveWorldUids(w);
   if (Array.isArray(w.bears)) {
     for (const st of w.bears) spawnFromState(st);
   } else if (map.kind === 'life') {
@@ -5966,6 +5983,9 @@ function buildSavePayload() {
 function applySavePayload(raw) {
   // Validate everything before touching the live session.
   const payload = normalizeSave(raw);
+  // Reserve every loaded identity before any restored actor can spawn, including
+  // actors on the inactive map and Glass actors.
+  reserveGameUids(payload.worlds);
   loadingSave = true;
   try {
     for (const id of ['field', 'studio']) {
@@ -6034,6 +6054,9 @@ function resetNewGame() {
     w.camera = null;
     w.initialized = false;
   }
+  // A new game starts its own identity space; never continue a loaded game's
+  // allocator.
+  nextBearUid = 1;
   worlds.field.time = 7.0;
   worlds.field.auto = true;
   worlds.field.speed = 1;

@@ -50,6 +50,25 @@ export function validateSave(data) {
   else {
     validateWorld(data.worlds.field, 'worlds.field', errors);
     validateWorld(data.worlds.studio, 'worlds.studio', errors);
+    // UIDs are game-wide identities: parents, bonds, guardians and lineage all
+    // reference them. Reject duplicates instead of silently merging two actors.
+    const seen = new Map();
+    for (const id of ['field', 'studio']) {
+      const world = data.worlds[id];
+      if (!isObj(world)) continue;
+      for (const collection of listActorCollections()) {
+        const list = world[collection.key];
+        if (!Array.isArray(list)) continue;
+        for (let index = 0; index < list.length; index++) {
+          const actor = list[index];
+          if (!isObj(actor) || !isNum(actor.uid) || actor.uid <= 0) continue;
+          const where = `worlds.${id}.${collection.key}[${index}]`;
+          const previous = seen.get(actor.uid);
+          if (previous) errors.push(`duplicate actor uid ${actor.uid} at ${where} and ${previous}`);
+          else seen.set(actor.uid, where);
+        }
+      }
+    }
   }
   if (data.sky != null) {
     const s = data.sky;

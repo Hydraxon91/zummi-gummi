@@ -202,6 +202,24 @@ export function listActorCollections() {
   return [...collections.values()];
 }
 
+// Highest actor uid across a loaded game. Used to reserve the shared allocator
+// before restored actors are spawned, including actors on an inactive map.
+export function maxActorUid(worlds) {
+  let max = 0;
+  for (const id of ['field', 'studio']) {
+    const world = worlds && worlds[id];
+    if (!world || typeof world !== 'object') continue;
+    for (const collection of collections.values()) {
+      const list = world[collection.key];
+      if (!Array.isArray(list)) continue;
+      for (const actor of list) {
+        if (actor && isNum(actor.uid) && actor.uid > max) max = actor.uid;
+      }
+    }
+  }
+  return max;
+}
+
 export function validateActorWorld(world, where, errors) {
   for (const collection of collections.values()) {
     const value = world[collection.key];
