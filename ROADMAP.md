@@ -1378,7 +1378,8 @@ save/load and fresh-game isolation; `tests/mourning-determinism.test.mjs` proves
 same-seed trace identity with mourning enabled and zero RNG draws for the
 departure and tick-time pruning paths; `--validate` also cross-checks the direct
 comparator against JSON every tick. `scripts/mourning-profile.mjs` records the
-contended CPU profile in `PERFORMANCE.md`. Gifting and rivalry remain later modules.
+contended CPU profile in `PERFORMANCE.md`. Physical gifting and the relationship
+features are documented below.
 
 **Orphan adoption (Oct 2026, off by default):** modules-only automatic guardians
 for baby-stage actors with no active parent and no parent UID in the current
@@ -1417,21 +1418,41 @@ tests, `scripts/relationship-test.mjs` (tabs, keyboard, pair expansion, cross-ma
 and missing relatives, asymmetric bonds, Glass and mobile), both browser
 regressions, seeded browser parity and the all-race parity suites.
 
-**Gifting (Oct 2026, off by default):** modules-only food offers. An adult with
-enough health and low enough hunger/thirst reserves a nearby ripe safe source and
-selects a nearby hungry actor; the source is consumed only at successful handover,
-the receiver receives the normal satiation effect, and the pair gains the
-configured small bond amount. Refusal and interruption release the claim without
-consuming food. Successful gifts record `gift`/`receivedGift` history with bond
-deltas and persist the giver’s `lastGiftDay` on `actorVersion: 7`. There is one
-successful gift per giver per game day; feature-off actors carry no gift fields.
-The first version has no inventory: an interrupted offer drops the reservation
-rather than creating a loose food item. Critical thirst, grabbing, departure,
-feature disable and map switches cancel an active offer and release its source;
+**Gifting (Oct 2026, off by default, physical v1):** modules-only food gifts. An
+adult with enough health and low enough hunger/thirst reserves and collects a
+nearby ripe safe source or recovered dropped portion, carries it to a nearby
+hungry actor and hands it over. Collection and handover each consume the portion
+once; acceptance applies normal satiation, a small symmetric bond and
+`gift`/`receivedGift` history, and sets `lastGiftDay` (`actorVersion: 7`, or 8
+with another v8 field). An interrupted, disabled, removed or map-switched carry
+drops a recoverable portion at the giver’s position; a post-collection refusal
+also drops it. Portions keep their originating map, do not resume as active
+offers after load, and are converted from carried to dropped on load. Critical
+needs, grabs, departure, disable and map switches release both participants;
 unreachable offers time out; competing givers cannot reserve one source; Glass can
-gift as well as receive; enabled gifting runs at the same seed with identical
-traces and no gift-path RNG draws. Verified by Node gift/save/determinism tests,
-`scripts/gifting-test.mjs`, both browser regressions and the long parity matrix.
+give and receive; enabled gifting draws no RNG. Verified by Node gift/save/
+determinism tests, `scripts/gifting-test.mjs`, `scripts/social-test.mjs`, both
+browser regressions and the long parity matrix.
+
+**Pair activities, bonds and groups (Oct 2026, off by default):** `pairActivities`
+adds chat (all stages/species) and cuddle (reciprocal bond `>= .35`) with
+`.02`/`.04` bond gains and 30/60-second cooldowns. `rivalry` persists completed
+conflicts as reciprocal unresolved records; `reconciliation` clears them with a
+six-second repair and `.04` bond, plus a 30-second failed-attempt cooldown.
+`partnership` forms exclusive reciprocal adult partnerships at a `.65` mutual
+bond, survives maps and saves, and ends through explicit separation or committed
+departure. `groupActivities` runs three-to-five-agent spaced `groupPlay`/
+`groupGather` activities with a five-second join window, ten-second act, one
+`.01` bond per pair and 45-second cooldown. All four reuse the shared pair/task
+protocol and cancel on critical needs, grabs, removal, map switches and feature
+disable. `relationshipview.js` exposes directional friendship labels
+(`acquaintance`/`familiar`/`friend`/`close friend`), a separate partnership row
+with an explicit end action, and rival rows. Actor records use `actorVersion: 8`
+for rivalry, partnership or carried portions; contradictory non-reciprocal
+records are rejected before load. Verified by Node feature/save/view tests,
+`scripts/social-test.mjs` (desktop/mobile settings, Glass, v8 save/load and
+dropped-portion map isolation), both browser regressions and the long parity
+matrix.
 
 **Actor identity (Oct 2026, fixed):** a loaded save reserves the highest UID
 across both maps and Glass before any restored actor spawns; map activation
@@ -2380,7 +2401,8 @@ Guardian capacity and feature-disable behavior are now implemented and tested.
 **Bond-delta history (Oct 2026):** completed social, visit and conflict events can
 carry `bondBefore`/`bondAfter` on the existing history entry. `normalizeHistory`
 preserves those fields and `actorVersion: 6` is written only when a delta exists
-(version 7 when `lastGiftDay` is also present); older saves remain valid. Deltas are display-only: mood does not weight the
+(version 7 when `lastGiftDay` is also present, or version 8 alongside a rivalry,
+partnership or carried portion); older saves remain valid. Deltas are display-only: mood does not weight the
 interaction kinds, and interaction records may recycle only other interaction
 slots; they never displace non-interaction history. If the buffer is full of
 behavior history, the display event is skipped, so mood and same-day teaching are
@@ -2389,35 +2411,31 @@ relationship and Recent events panels render the delta as `42% → 48%`. Validat
 rejects deltas on v5 and v6 without a delta. Older builds reject v6 rather than
 silently stripping the explanation.
 
-## Post-gifting interaction backlog (planned expansion)
+## Interaction expansion backlog (remaining)
 
-The modular engine and the first interaction set are complete. These are future
-modules or feature increments, not an engine redesign. Recommended order:
+The modular interaction foundation is complete: physical gifting v1, directional
+friendship labels, persistent rivalry/reconciliation, persistent partnership with
+explicit separation, chat/cuddle pair activities, spaced group activities, the
+read-only relationship view and versioned history/deltas. These are optional
+modules/features, off by default.
 
-1. **Friendship tiers and persistent rivalry.** Build on directional bonds and
-   interaction history; define thresholds, hysteresis, reciprocity, reconciliation
-   and decay before adding save fields. Negative encounters need their own retained
-   record rather than inferring a rival from a low bond.
-2. **Persistent partnership.** Decide whether mating creates a saved partnership
-   separate from friendship, and how it ends. Keep it distinct from `ai.partner`,
-   which is only an active pair.
-3. **Gifting v2.** Optional carried token/loose-food model, multiple servings,
-   recipient preferences and refusal reasons. The current v1 deliberately consumes
-   a reserved source at handover and has no inventory.
-4. **Reconciliation and comfort.** Use conflict outcomes plus mourning/comfort
-   history to define a clear recovery interaction without silently changing bond
-   semantics.
-5. **Richer pair activities.** Chat, cuddle and distinct visit outcomes, reusing
-   the pair/task protocol and display-only interaction records.
-6. **Group activities (3+).** Tag, dancing, group play and gatherings; define
-   joining/leaving, participant caps, interruption and cleanup, and spaced activity
-   positions. Group work should use the existing opportunity/state engine, not a
-   parallel scheduler.
+Remaining increments, each requiring its own design decision, save review,
+focused browser coverage and an invalidated-evidence check:
 
-Each increment needs its own design decision, save-version review, focused browser
-coverage and a fresh long parity matrix. Group activities and partnership are the
-largest remaining steps; gifting v1, the relationship view and bond-delta history
-are the completed interaction foundation.
+1. **Richer group activities.** Tag, dancing and distinct gatherings; decide
+   late-joining, spectator and activity-variant semantics. Reuse the existing
+   opportunity/state engine and spaced-slot rule.
+2. **Gifting v2.** Multiple servings, recipient preferences, refusal reasons and a
+   general inventory beyond one carried portion. A carried portion must still have
+   one durable identity and one consumption path.
+3. **Comfort interactions.** Extend reconciliation with mourning comfort and
+   distinct cuddle/chat outcomes without redefining bond semantics implicitly.
+4. **Friendship-tier effects.** Only after deciding whether labels should affect
+   acceptance, teaching or gifting; current labels are display-only.
+
+Group activities and general inventory are the largest remaining steps. Do not add
+a parallel scheduler, infer a rival from a low bond, or make friendship labels
+behavioral without an explicit decision.
 
 ## Village & placement editor (Phase 9)
 

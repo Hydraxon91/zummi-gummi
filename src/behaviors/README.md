@@ -25,6 +25,10 @@ in parity by the harness.
 | `stargaze.js` | Glass stargazing |
 | `family.js` | family meals, lessons and playdates |
 | `directives.js` | player directive queue/refusal/apply, separate RNG |
+| `gifting.js` | physical gift collection, carrying and handover |
+| `affection.js` | chat and cuddle pair states |
+| `relationships.js` | reconciliation and partnership formation |
+| `groups.js` | spaced three-to-five actor group activities |
 
 `src/behaviorprofiles.js` holds race data. The capability modules (`hive`,
 `conflict`, `directives`, `stargaze`) are declared as
@@ -89,9 +93,9 @@ and invalidated when traits change.
 Trait-free actor records stay `actorVersion: 2` for older-build compatibility;
 records with traits use `actorVersion: 3`; records carrying mourning use
 `actorVersion: 4`; a baby carrying a guardian uses `actorVersion: 5`; any record
-carrying an interaction bond delta uses `actorVersion: 6`; and a giver carrying
-`lastGiftDay` uses `actorVersion: 7` (mourning, traits and a guardian may ride
-along). `guardianUid` is stored only on baby-stage
+carrying an interaction bond delta uses `actorVersion: 6`; a giver carrying
+`lastGiftDay` alone uses `actorVersion: 7`; and rivalry, partnership or a carried
+gift portion uses `actorVersion: 8` (older fields may ride along). `guardianUid` is stored only on baby-stage
 actors and never rewrites `parentUids`. Old saves load without traits and get the
 same hashed founder values once personality is enabled.
 
@@ -205,52 +209,90 @@ without deleting the saved field.
 
 ## Gifting (off by default)
 
-`gifting` is a modules-only, **off-by-default** offer interaction. An adult giver
-with enough health and a low enough hunger/thirst selects a nearby ripe, safe,
-unclaimed food source and a nearby actor (baby, teen or adult; any species) with
-hunger above the receiver threshold. The source stays claimed by the giver while
-the pair approaches; it is consumed once only at a successful handover, and the
-receiver gets the normal satiation and `forageEatScale` effect. A refusal or
-interruption releases the claim without consuming food.
+`gifting` is a modules-only, **off-by-default** physical gift interaction. An adult
+giver with enough health and a low enough hunger/thirst selects a nearby actor
+(baby, teen or adult; any species) with hunger above the receiver threshold, then
+reserves the nearest safe ripe food source or recoverable dropped portion. The
+giver travels to the origin, collects it once into a carried portion, approaches
+the receiver and hands it over. Accepted gifts consume the carried identity once,
+apply the normal satiation and `forageEatScale` effect, add the configured small
+bond amount, record `gift` / `receivedGift` history with bond deltas, and set the
+giver's `lastGiftDay`. Refusal before collection leaves the source untouched.
 
-Successful gifts add the configured small bond amount, record `gift` /
-`receivedGift` history with bond deltas, and set the giver's `lastGiftDay`.
-`lastGiftDay` uses `actorVersion: 7`; feature-off actors and saves keep the old
-versions. Turning gifting off cancels active offers and leaves no gift retry state
-on unaffected actors. Critical needs, grabs, departure, feature disable and map
-switches cancel an offer and release the reservation; unreachable offers time out,
-and two givers cannot claim one source. Glass can give as well as receive. The
-first version deliberately has no inventory: the reserved source is consumed at
-handover, so a picked-up/dropped item model is future work.
+Successful gifts set `lastGiftDay` (`actorVersion: 7` when alone). Carried or
+dropped portions and other v8 fields use `actorVersion: 8`. A carried portion is
+dropped at the giver's position on interruption, disabling, departure or a map
+switch; a recipient refusal after collection also drops rather than destroys it.
+Dropped portions remain recoverable by a later giver and stay on their originating
+map. Saving a carried portion converts it to a dropped portion on load; active
+offers never resume. Critical needs, grabs, departure, feature disable and map
+switches release both participants, and unreachable offers time out. Two givers
+cannot claim one source. Glass can give as well as receive. The first physical
+version supports one carried portion and one successful gift per giver per day;
+preferences, multiple servings and a general inventory remain future work.
+
+## Pair activities: chat and cuddle (off by default)
+
+`pairActivities` is modules-only and off by default. Chat is available to every
+stage and species; cuddle additionally requires a reciprocal bond of at least
+`.35`. Both use the shared pair protocol, travel to the partner, run a timed act,
+apply the existing social/affection relief and one bond gain per completion
+(chat `.02`, cuddle `.04`), then set a 30/60-second participant cooldown. The
+initiator owns the timer and completion effects. Critical needs, grabs, removal,
+map switches and disabling the feature cancel the pair. The receiver's refusal is
+expressed by ineligibility (busy, unavailable, unhealthy or below the cuddle
+bond threshold), not by a punishment. Glass and every soft-body species can chat.
+
+## Rivalry, reconciliation and partnership (off by default)
+
+`rivalry` records a completed conflict as a reciprocal unresolved grievance with
+`sinceDay`/`sinceHour`; it adds no new aggression and does not erase itself when
+the bond changes. `reconciliation` lets two idle, healthy rivals run a six-second
+repair, clear both records and add `.04` bond. Refusal or interruption has no
+penalty beyond a 30-second failed-attempt cooldown. `partnership` forms exclusive,
+reciprocal adult partnerships from a six-second completion when both directional
+bonds are at least `.65`, the species can breed, the pair is opposite-sex and not
+immediate family. Partnerships persist through map switches and save/load, do not
+auto-end from low bonds, and end through the relationship panel's explicit
+separation control or a committed departure. Disabling rivalry/partnership
+suppresses new behavior without deleting saved records. These records use
+`actorVersion: 8`; contradictions such as a non-reciprocal partner or missing
+rival are rejected before load.
+
+## Group activities (off by default)
+
+`groupActivities` is modules-only and off by default. An idle leader claims two to
+four nearby idle actors (three to five participants), assigns each a spaced
+navigable slot around the group centroid, allows a five-second joining window and
+runs a ten-second `groupGather` (adult leader) or `groupPlay` (young leader).
+Completion applies existing social relief and one `.01` bond per participating
+pair exactly once, then cooldowns all participants for 45 seconds. Leaving removes
+only that member; below three participants the group dissolves without effects.
+Critical needs, grabs, departure, map switch and feature disable release every
+participant. No late joining or parallel scheduler is used.
 
 ## Interaction history and the relationship view
 
-Completed social pairs, home visits, declined invitations and food conflicts append
-to the existing bounded actor history (16 entries); no new save field or actor
-version is introduced. Visits use `visit` for the guest and `hosted` for the host,
-and declines use `decline` for the inviter and `declined` for the responder.
-Interrupted/unfinished visits and interrupted social pairs are not recorded.
-The `interactionHistory` feature is off in the engine defaults and enabled by
-`app.js` when the relationship panel is available; the parity harness leaves it
-off so the legacy oracle has no extra history eviction. Legacy does not write
-these module-only history kinds, so the parity comparator also excludes only this
-explicit set while still comparing state, needs, bonds, playdates, RNG and the
-rest of history. At the 16-entry cap, interaction records may recycle only other
-interaction slots; they never displace a non-interaction record. If no slot is
-available, the display event is skipped. This keeps mood, same-day lesson checks
-and the non-interaction history sequence identical with logging on or off.
-Interaction kinds are not mood inputs; `visit` was removed from `EVENT_WEIGHTS`.
-Completed social, visit and conflict records also carry optional
-`bondBefore`/`bondAfter` values; a record with a delta is saved as actor version 6
-(or 7 when a gift day is also present) and rendered as a directional before/after
-percentage.
+Completed pair activities, group activities, social pairs, home visits, declined
+invitations, reconciliations, gifts and food conflicts append to the existing
+bounded actor history (16 entries). Partner formation/separation are persistent
+relationship events and do not consume interaction slots. Interaction records may
+recycle only other interaction slots; they never displace a non-interaction
+record. If no slot is available, the display event is skipped. This keeps mood,
+same-day lesson checks and the non-interaction history sequence identical with
+logging on or off. Interaction kinds are not mood inputs.
+`bondBefore`/`bondAfter` deltas are saved as actor version 6 (or 7/8 when a gift
+day or a version-8 record also applies) and rendered directionally.
 
 `relationshipview.js` is the pure read-only model behind the selected-actor
 **Relationships** tab. It resolves active and inactive-map records for the current
 game, keeps guardian/dependent links separate from ancestry, shows missing records
-as unavailable, and never averages asymmetric bonds. Pair-specific recent
-interactions come from the selected actor’s own history, so the panel does not
-claim a complete shared timeline.
+as unavailable, and never averages asymmetric bonds. Bond rows carry display-only
+directional friendship labels (`acquaintance`, `familiar`, `friend`, `close
+friend`); partnership and rivalry rows are separate from ancestry/care. The
+partnership section offers the explicit end-partnership action. Pair-specific
+recent interactions come from the selected actor’s own history, so the panel does
+not claim a complete shared timeline.
 
 ## Config layers
 
@@ -322,17 +364,19 @@ stay empty; any `TEMPORARY(port)` marker fails CI.
 
 ## Post-gifting expansion
 
-The interaction foundation now includes gifting v1, the read-only relationship
-view and versioned interaction history/deltas. Planned increments, each requiring
-its own design decision and save review:
+Implemented in this batch: directional friendship labels, persistent rivalry and
+reconciliation, persistent partnerships with explicit separation, chat/cuddle,
+spaced group activities, and physical gifting with carried/recoverable portions.
+These remain optional modules/features and are off by default.
 
-1. friendship tiers and persistent rivalry;
-2. persistent partnership separate from runtime `ai.partner`;
-3. gifting v2 with carried/loose food and preferences;
-4. reconciliation/comfort as a defined conflict-recovery path;
-5. richer pair activities (chat, cuddle, visit variants);
-6. group activities (tag, dancing, gatherings) with join/leave and spaced
-   participation.
+Still planned, each requiring its own design decision and save review:
+
+1. richer group activity variants (tag, dancing, distinct gatherings) and late
+   joining policies;
+2. gift preferences, multiple servings and a general inventory beyond one carried
+   portion;
+3. additional reconciliation/comfort interactions beyond the rivalry repair;
+4. broader pair-activity variants and deeper friendship-tier effects.
 
 Use the existing opportunity/state/pair protocol for these; do not add a parallel
 scheduler or silently redefine bond semantics.
