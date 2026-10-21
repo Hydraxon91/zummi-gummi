@@ -106,7 +106,7 @@ const engine = {};
 for (const records of [0, ...RECORD_COUNTS]) {
   const samples = [];
   for (let batch = 0; batch < BATCHES; batch++) samples.push(engineHour(records));
-  engine[records === 0 ? 'off' : `${records}record`] = {
+  engine[records === 0 ? 'noRecords' : `${records}record`] = {
     msPerSimHour: ms(median(samples)),
     msPerTick: us(median(samples) / TICKS),
     samples: samples.map(ms),

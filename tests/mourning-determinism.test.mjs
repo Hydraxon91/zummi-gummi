@@ -32,7 +32,7 @@ function clockAt(seconds) {
 
 // A quick seeded actor run with mourning and mood enabled. `depart` removes one
 // bonded adult through the stars trigger so the survivor carries real grief.
-function run({ seed = 7, ticks = 1500, depart = false, record = false, mood = true } = {}) {
+function run({ seed = 7, ticks = 1500, depart = false, record = false, recordBond = .85, mood = true } = {}) {
   const world = createWorld();
   const roster = createRoster('bear', 0, { seedBonds: true, allAdults: true });
   const next = mulberry32(seed);
@@ -53,8 +53,11 @@ function run({ seed = 7, ticks = 1500, depart = false, record = false, mood = tr
   engine.registerAdapter('softbody', fakeAdapter());
   for (const actor of roster) engine.attach(actor);
 
+  let recordAdded = false;
   if (record) {
-    addMourning(roster[0], { uid: 999, name: 'absent', species: 'bear' }, { day: 1, hours: 6 });
+    roster[0].bonds[String(999)] = recordBond;
+    recordAdded = addMourning(roster[0], { uid: 999, name: 'absent', species: 'bear' },
+      { day: 1, hours: 6 });
   }
   let departure = null;
   if (depart) {
@@ -93,7 +96,7 @@ function run({ seed = 7, ticks = 1500, depart = false, record = false, mood = tr
   } finally {
     console.warn = warn;
   }
-  return { trace, draws, departure, roster };
+  return { trace, draws, departure, roster, recordAdded };
 }
 
 test('enabled mourning is deterministic for the same seed and departure', () => {
@@ -156,9 +159,16 @@ test('departure bookkeeping and mood reads do not draw from the engine RNG', () 
   assert.equal(draws, baseline);
 });
 
-test('tick-time pruning with mood off leaves the RNG stream and trace untouched', () => {
-  const control = run({ seed: 17, ticks: 300, record: false, mood: false });
-  const grieving = run({ seed: 17, ticks: 300, record: true, mood: false });
+test('expiry pruning with mood off leaves the RNG stream and behavior untouched', () => {
+  const control = run({ seed: 17, ticks: 400, record: false, mood: false });
+  // closeness 0.18 gives the shortest supported duration (~0.65 game-days), so
+  // the record is active at the start and pruned before the trace ends.
+  const grieving = run({ seed: 17, ticks: 400, record: true, recordBond: .18, mood: false });
+  assert.equal(grieving.recordAdded, true);
+  assert.equal(grieving.trace[0][0].grief?.length, 1);
+  assert.equal(grieving.trace.at(-1)[0].grief, null);
   assert.equal(grieving.draws, control.draws);
-  assert.deepEqual(grieving.trace, control.trace);
+  const behavior = trace => trace.map(frame =>
+    frame.map(({ grief, ...rest }) => rest));
+  assert.deepEqual(behavior(grieving.trace), behavior(control.trace));
 });

@@ -551,7 +551,7 @@ quiet or frame-time baseline; the engine rows exclude physics and rendering.
 | Pure mourning pass, no records | 0.031 µs | — | — |
 | Pure mourning pass, 1 record | 0.925 µs | — | — |
 | Pure mourning pass, 8 records | 6.19 µs | — | — |
-| Engine, mourning off | — | 7.55 ms | 0.038 ms |
+| Engine, no records | — | 7.55 ms | 0.038 ms |
 | Engine, 1 record each | — | 12.57 ms | 0.063 ms |
 | Engine, 8 records each (record cap) | — | 38.74 ms | 0.194 ms |
 
