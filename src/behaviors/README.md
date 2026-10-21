@@ -88,9 +88,10 @@ and invalidated when traits change.
 
 Trait-free actor records stay `actorVersion: 2` for older-build compatibility;
 records with traits use `actorVersion: 3`; records carrying mourning use
-`actorVersion: 4`; a baby carrying a guardian uses `actorVersion: 5`; and any
-record carrying an interaction bond delta uses `actorVersion: 6` (mourning,
-traits and a guardian may ride along). `guardianUid` is stored only on baby-stage
+`actorVersion: 4`; a baby carrying a guardian uses `actorVersion: 5`; any record
+carrying an interaction bond delta uses `actorVersion: 6`; and a giver carrying
+`lastGiftDay` uses `actorVersion: 7` (mourning, traits and a guardian may ride
+along). `guardianUid` is stored only on baby-stage
 actors and never rewrites `parentUids`. Old saves load without traits and get the
 same hashed founder values once personality is enabled.
 
@@ -198,8 +199,27 @@ rewritten. It clears when a parent is active again, when the guardian departs or
 is no longer a valid adult, and on stage-up. `follow.seek` stays at order 90 but
 targets the guardian when no parent is active. Adoption consumes no RNG.
 `actorVersion: 5` is written for a baby carrying `guardianUid`; a record that also
-has a bond-delta history entry uses version 6. Turning the feature off suppresses
-assignment and guardian following without deleting the saved field.
+has a bond-delta history entry uses version 6, and a persisted gift day uses
+version 7. Turning the feature off suppresses assignment and guardian following
+without deleting the saved field.
+
+## Gifting (off by default)
+
+`gifting` is a modules-only, **off-by-default** offer interaction. An adult giver
+with enough health and a low enough hunger/thirst selects a nearby ripe, safe,
+unclaimed food source and a nearby actor (baby, teen or adult; any species) with
+hunger above the receiver threshold. The source stays claimed by the giver while
+the pair approaches; it is consumed once only at a successful handover, and the
+receiver gets the normal satiation and `forageEatScale` effect. A refusal or
+interruption releases the claim without consuming food.
+
+Successful gifts add the configured small bond amount, record `gift` /
+`receivedGift` history with bond deltas, and set the giver's `lastGiftDay`.
+`lastGiftDay` uses `actorVersion: 7`; feature-off actors and saves keep the old
+versions. Turning gifting off cancels active offers and leaves no gift retry state
+on unaffected actors. The first version deliberately has no inventory: the
+reserved source is consumed at handover, so a picked-up/dropped item model is
+future work.
 
 ## Interaction history and the relationship view
 
@@ -220,7 +240,8 @@ and the non-interaction history sequence identical with logging on or off.
 Interaction kinds are not mood inputs; `visit` was removed from `EVENT_WEIGHTS`.
 Completed social, visit and conflict records also carry optional
 `bondBefore`/`bondAfter` values; a record with a delta is saved as actor version 6
-and rendered as a directional before/after percentage.
+(or 7 when a gift day is also present) and rendered as a directional before/after
+percentage.
 
 `relationshipview.js` is the pure read-only model behind the selected-actor
 **Relationships** tab. It resolves active and inactive-map records for the current

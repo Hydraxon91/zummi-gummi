@@ -1390,8 +1390,8 @@ adopted babies once each. A grandparent is not recoverable without the absent
 linking parent record. Assignment happens on the next think outside a pair
 or family task, with a one-game-hour retry when nobody qualifies. `guardianUid` is separate from
 `parentUids` and home, clears on parent return, guardian departure or stage-up,
-and emits `actorVersion: 5` when present (version 6 when interaction history also
-carries a bond delta). `follow.seek` stays at order 90 and
+and emits `actorVersion: 5` when present (version 6 with a bond delta, version 7
+with a persisted gift day). `follow.seek` stays at order 90 and
 targets the guardian when no parent is active; disabling the feature cancels an
 active guardian follow while preserving the saved link, and leaves parent-follow
 untouched. The off path adds no guardian fields and no RNG. Verified by Node save/behavior tests, `scripts/adoption-test.mjs`
@@ -1416,6 +1416,18 @@ kinds while still comparing state, needs, bonds, playdates, RNG and other histor
 tests, `scripts/relationship-test.mjs` (tabs, keyboard, pair expansion, cross-map
 and missing relatives, asymmetric bonds, Glass and mobile), both browser
 regressions, seeded browser parity and the all-race parity suites.
+
+**Gifting (Oct 2026, off by default):** modules-only food offers. An adult with
+enough health and low enough hunger/thirst reserves a nearby ripe safe source and
+selects a nearby hungry actor; the source is consumed only at successful handover,
+the receiver receives the normal satiation effect, and the pair gains the
+configured small bond amount. Refusal and interruption release the claim without
+consuming food. Successful gifts record `gift`/`receivedGift` history with bond
+deltas and persist the giver’s `lastGiftDay` on `actorVersion: 7`. There is one
+successful gift per giver per game day; feature-off actors carry no gift fields.
+The first version has no inventory: an interrupted offer drops the reservation
+rather than creating a loose food item. Verified by Node gift/save tests,
+`scripts/gifting-test.mjs`, the browser regressions and the long parity matrix.
 
 **Actor identity (Oct 2026, fixed):** a loaded save reserves the highest UID
 across both maps and Glass before any restored actor spawns; map activation
@@ -2365,8 +2377,8 @@ decision.
 
 **Bond-delta history (Oct 2026):** completed social, visit and conflict events can
 carry `bondBefore`/`bondAfter` on the existing history entry. `normalizeHistory`
-preserves those fields and `actorVersion: 6` is written only when a delta exists;
-older v2-v5 saves remain valid. Deltas are display-only: mood does not weight the
+preserves those fields and `actorVersion: 6` is written only when a delta exists
+(version 7 when `lastGiftDay` is also present); older saves remain valid. Deltas are display-only: mood does not weight the
 interaction kinds, and interaction records may recycle only other interaction
 slots; they never displace non-interaction history. If the buffer is full of
 behavior history, the display event is skipped, so mood and same-day teaching are
