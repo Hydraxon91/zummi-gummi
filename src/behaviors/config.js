@@ -15,6 +15,9 @@ import { directivesModule } from './directives.js';
 import { conflictModule } from './conflict.js';
 import { stargazeModule } from './stargaze.js';
 import { giftingModule } from './gifting.js';
+import { pairActivitiesModule } from './affection.js';
+import { relationshipsModule } from './relationships.js';
+import { groupActivitiesModule } from './groups.js';
 import { applyTraitOffsets, founderTraits, normalizeTraits } from './traits.js';
 import { applyMoodOffsets } from './mood.js';
 
@@ -38,6 +41,11 @@ export const FEATURE_DEFAULTS = Object.freeze({
   mourning: false,             // per-save grief after stars departures
   adoption: false,             // automatic guardians for parentless babies
   gifting: false,              // offer ripe food to another actor
+  pairActivities: false,       // chat and cuddle pair activities
+  rivalry: false,              // persistent unresolved conflict records
+  reconciliation: false,       // repair an unresolved rivalry
+  partnership: false,          // persistent adult partnerships
+  groupActivities: false,      // spaced three-to-five actor activities
   interactionHistory: false,   // completion-only social/visit/conflict history
 });
 
@@ -47,6 +55,9 @@ const MODULE_DEFAULTS = Object.freeze({
   directives: directivesModule.defaults,
   stargaze: stargazeModule.defaults,
   gifting: giftingModule.defaults,
+  pairActivities: pairActivitiesModule.defaults,
+  relationships: relationshipsModule.defaults,
+  groupActivities: groupActivitiesModule.defaults,
 });
 
 // Profiles written before the modules reshape still used flat capability keys.

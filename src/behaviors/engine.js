@@ -11,7 +11,7 @@
 
 import { PREGNANCY_HUNGER, HOME_CAPACITY } from '../life.js';
 import {
-  addBond, pairBond, skillsFor,
+  addBond, pairBond, skillsFor, pushHistory,
 } from '../family.js';
 import {
   cancelTask,
@@ -31,6 +31,12 @@ import { stargazeModule } from './stargaze.js';
 import { familyTaskModule } from './family.js';
 import { fleeModule } from './flee.js';
 import { giftingModule } from './gifting.js';
+import { pairActivitiesModule } from './affection.js';
+import { relationshipsModule } from './relationships.js';
+import { groupActivitiesModule } from './groups.js';
+import {
+  clearPartnership, clearPartnershipUid, clearRivalUid, normalizePartnerUid,
+} from '../relationships.js';
 import { planReason } from './reason.js';
 import { ensureTraits } from './traits.js';
 import { moodFor, moodLabel, MOOD_BUCKET, MOOD_TAU, MOOD_UPDATE_INTERVAL } from './mood.js';
@@ -41,6 +47,13 @@ import {
 import { createStars } from './stars.js';
 
 const STUCK_DIST2 = .04;
+
+// New interaction states opt in to module-owned cancellation. Legacy states keep
+// their existing generic cancelPair path so disabled features remain inert.
+const MODULE_CANCELLABLE = new Set([
+  'seekGift', 'gift', 'seekChat', 'chat', 'seekCuddle', 'cuddle',
+  'seekReconcile', 'reconcile', 'seekPartner', 'partnering', 'group',
+]);
 
 function finite(n, fallback) {
   return Number.isFinite(n) ? n : fallback;
@@ -58,6 +71,7 @@ export function createBehaviorModules({
   getPopulationCap,
   getAdapter,
   getKnownActorUids = null,
+  getMapId = null,
   rng = Math.random,
   daySeconds = 600,
   onFarewell = null,
@@ -161,7 +175,7 @@ export function createBehaviorModules({
     };
   }
 
-  function contextFor(actor, extra = {}) {
+  const contextFor = (actor, extra = {}) => {
     const ai = actor && actor.ai;
     return {
       actor, ai,
@@ -171,9 +185,10 @@ export function createBehaviorModules({
       field,
       config,
       features,
+      mapId: mapIdNow(),
       ...extra,
     };
-  }
+  };
 
   // First-match pipeline. `canRun` must not draw RNG; only the winning `enter`
   // runs, which keeps the legacy random sequence unchanged.
@@ -248,6 +263,10 @@ export function createBehaviorModules({
   const dayNow = () => {
     const d = Number(typeof getDay === 'function' ? getDay() : getDay);
     return Number.isFinite(d) ? Math.max(0, Math.floor(d)) : 0;
+  };
+  const mapIdNow = () => {
+    const id = typeof getMapId === 'function' ? getMapId() : getMapId;
+    return id === 'studio' ? 'studio' : 'field';
   };
   const populationCap = () => Math.max(1, Number(typeof getPopulationCap === 'function'
     ? getPopulationCap() : getPopulationCap) || 40);
@@ -356,6 +375,15 @@ export function createBehaviorModules({
       familyPlay: false,
       playmateKind: null,
       familyPlayCooldown: 0,
+      chatCooldown: 0,
+      cuddleCooldown: 0,
+      groupCooldown: 0,
+      reconcileCooldown: 0,
+      activityRole: null,
+      activityT: 0,
+      group: null,
+      groupSlot: null,
+      groupRole: null,
       heartT: 0,
       declineT: 0,
       conflictT: 0,
@@ -655,11 +683,19 @@ export function createBehaviorModules({
 
   function cancelPair(actor) {
     if (!actor || !actor.ai) return;
+    if (MODULE_CANCELLABLE.has(actor.ai.state)) {
+      const owner = moduleStateOwner(actor.ai.state);
+      if (owner && typeof owner.interrupt === 'function') {
+        owner.interrupt(contextFor(actor, { reason: 'cancel' }), 'cancel');
+      }
+    }
     const partner = actor.ai.partner;
     releaseFood(actor);
     if (partner) releaseFood(partner);
     breakSharedPair(actor, { stop });
-    const pairState = ['social', 'invite', 'decline', 'visit', 'seekCompany', 'seekMate', 'mate', 'familyTask', 'conflict', 'seekGift', 'gift'].includes(actor.ai.state);
+    const pairState = ['social', 'invite', 'decline', 'visit', 'seekCompany', 'seekMate', 'mate', 'familyTask', 'conflict', 'seekGift', 'gift',
+      'seekChat', 'chat', 'seekCuddle', 'cuddle', 'seekReconcile', 'reconcile',
+      'seekPartner', 'partnering', 'group'].includes(actor.ai.state);
     const seekState = features.cancelPairStateReset &&
       ['seekFood', 'seekHive', 'seekWater', 'seekHome', 'seekConflict'].includes(actor.ai.state);
     if (pairState || seekState) {
@@ -790,6 +826,18 @@ export function createBehaviorModules({
     const source = ai.source || ai.contestSource || null;
     const sourceId = source ? source.id : null;
     noteStall(actor, 'no-progress');
+    if (['seekChat', 'chat', 'seekCuddle', 'cuddle', 'seekReconcile', 'reconcile',
+      'seekPartner', 'partnering', 'group', 'seekGift', 'gift'].includes(ai.state)) {
+      interruptActor(actor, 'no-progress');
+      ai.progressX = actor.cx;
+      ai.progressZ = actor.cz;
+      ai.progressTargetX = null;
+      ai.progressTargetZ = null;
+      ai.progressDist = Infinity;
+      ai.progressPathIndex = 0;
+      ai.noProgressT = 0;
+      return;
+    }
     if (ai.state === 'visit') {
       finishVisitPair(actor);
     } else if (ai.state === 'familyTask') {
@@ -1115,6 +1163,10 @@ export function createBehaviorModules({
       ai.giftRetryT = Math.max(0, ai.giftRetryT - dt);
     }
     if (ai.familyPlayCooldown > 0) ai.familyPlayCooldown = Math.max(0, ai.familyPlayCooldown - dt);
+    if (ai.chatCooldown > 0) ai.chatCooldown = Math.max(0, ai.chatCooldown - dt);
+    if (ai.cuddleCooldown > 0) ai.cuddleCooldown = Math.max(0, ai.cuddleCooldown - dt);
+    if (ai.groupCooldown > 0) ai.groupCooldown = Math.max(0, ai.groupCooldown - dt);
+    if (ai.reconcileCooldown > 0) ai.reconcileCooldown = Math.max(0, ai.reconcileCooldown - dt);
     if (ai.idleT > 0) ai.idleT = Math.max(0, ai.idleT - dt);
     if (ai.stungT > 0) ai.stungT = Math.max(0, ai.stungT - dt);
     if (ai.socialCooldown > 0) ai.socialCooldown = Math.max(0, ai.socialCooldown - dt);
@@ -1127,7 +1179,9 @@ export function createBehaviorModules({
     const criticalNeed = actor.thirst >= p.thresholds.criticalThirst ? 'water'
       : actor.hunger >= p.thresholds.criticalHunger ? 'food' : null;
     if (criticalNeed && ['invite', 'social', 'decline', 'mate', 'visit', 'familyTask', 'stargaze',
-      'seekHome', 'seekMate', 'seekCompany', 'seekSocial', 'follow', 'seekGift', 'gift'].includes(ai.state)) {
+      'seekHome', 'seekMate', 'seekCompany', 'seekSocial', 'follow', 'seekGift', 'gift',
+      'seekChat', 'chat', 'seekCuddle', 'cuddle', 'seekReconcile', 'reconcile',
+      'seekPartner', 'partnering', 'group'].includes(ai.state)) {
       cancelPair(actor);
       if (criticalNeed === 'water') acquireWater(actor);
       else if (!acquireFood(actor) && p.conflict) acquireContest(actor);
@@ -1162,10 +1216,26 @@ export function createBehaviorModules({
     stats.ticks++;
   }
 
+  function endPartnership(actor, reason = 'separated') {
+    if (!actor) return false;
+    const otherUid = normalizePartnerUid(actor.partnerUid);
+    if (otherUid === null) return false;
+    const other = actors().find(item => item && item.uid === otherUid) || null;
+    clearPartnership(actor, other);
+    if (features.interactionHistory) {
+      const day = dayNow();
+      const hour = hoursNow();
+      if (other) pushHistory(other, { kind: 'separated', uid: actor.uid, day, hour });
+      pushHistory(actor, { kind: 'separated', uid: otherUid, day, hour });
+    }
+    return true;
+  }
+
   function commitFarewell(actor) {
     if (!actor || !actor.ai) return false;
     // The farewell is irreversible once committed: drop every shared claim
     // before the visual starts, so feeding/drinking cannot rescue the actor.
+    endPartnership(actor, 'departed');
     cancelPair(actor);
     releaseFood(actor);
     stop(actor);
@@ -1479,11 +1549,69 @@ export function createBehaviorModules({
     }
     cancelPair(actor);
     cancelPair(recipient);
+    // A debug force is an explicit new attempt, not a retry of the pair just
+    // cancelled. It clears only the short retry timer, not eligibility.
+    if (actor.ai && 'giftRetryT' in actor.ai) actor.ai.giftRetryT = 0;
     const ok = giftingModule.beginGift(contextFor(actor), recipient);
     return {
       ok, state: actor.ai ? actor.ai.state : null,
       sourceId: ok && actor.ai.source ? actor.ai.source.id : null,
+      portionId: ok && actor.ai.giftOrigin?.portion ? actor.ai.giftOrigin.portion.id : null,
+      phase: ok && actor.ai ? actor.ai.giftPhase : null,
     };
+  }
+
+  function forceChat(actor, partner) {
+    if (!actor || !partner || !actor.ai || !partner.ai) return { ok: false, note: 'no pair' };
+    cancelPair(actor);
+    cancelPair(partner);
+    actor.ai.chatCooldown = 0;
+    partner.ai.chatCooldown = 0;
+    const ok = pairActivitiesModule.beginChat(contextFor(actor), partner);
+    return { ok, state: actor.ai.state };
+  }
+
+  function forceCuddle(actor, partner) {
+    if (!actor || !partner || !actor.ai || !partner.ai) return { ok: false, note: 'no pair' };
+    cancelPair(actor);
+    cancelPair(partner);
+    actor.ai.cuddleCooldown = 0;
+    partner.ai.cuddleCooldown = 0;
+    const ok = pairActivitiesModule.beginCuddle(contextFor(actor), partner);
+    return { ok, state: actor.ai.state };
+  }
+
+  function forceReconcile(actor, partner) {
+    if (!actor || !partner || !actor.ai || !partner.ai) return { ok: false, note: 'no pair' };
+    cancelPair(actor);
+    cancelPair(partner);
+    actor.ai.reconcileCooldown = 0;
+    partner.ai.reconcileCooldown = 0;
+    const ok = relationshipsModule.beginReconcile(contextFor(actor), partner);
+    return { ok, state: actor.ai.state };
+  }
+
+  function forcePartnership(actor, partner) {
+    if (!actor || !partner || !actor.ai || !partner.ai) return { ok: false, note: 'no pair' };
+    cancelPair(actor);
+    cancelPair(partner);
+    const ok = relationshipsModule.beginPartnership(contextFor(actor), partner);
+    return { ok, state: actor.ai.state };
+  }
+
+  function forceGroup(actor, members = null) {
+    if (!actor || !actor.ai) return { ok: false, note: 'no actor' };
+    if (Array.isArray(members)) {
+      const ok = groupActivitiesModule.startGroup(contextFor(actor), [actor, ...members]);
+      return { ok, state: actor.ai.state };
+    }
+    const ok = groupActivitiesModule.acquireGroup(contextFor(actor));
+    return { ok, state: actor.ai.state };
+  }
+
+  function separatePartnership(actor) {
+    if (!actor) return false;
+    return endPartnership(actor, 'separated');
   }
 
   function forceInvite(actor, partner, accept = true) {
@@ -1543,6 +1671,9 @@ export function createBehaviorModules({
   registerModule(familyTaskModule);
   registerModule(fleeModule);
   registerModule(giftingModule);
+  registerModule(pairActivitiesModule);
+  registerModule(relationshipsModule);
+  registerModule(groupActivitiesModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -1587,10 +1718,41 @@ export function createBehaviorModules({
     if (changed && name === 'adoption' && !value) suspendGuardianFollows();
     if (changed && name === 'gifting' && !value) {
       for (const actor of actors()) {
-        if (actor.ai && (actor.ai.state === 'seekGift' || actor.ai.state === 'gift')) {
+        if (!actor.ai) continue;
+        if (actor.ai.state === 'seekGift' || actor.ai.state === 'gift') {
           giftingModule.cancel(contextFor(actor));
+        } else if (actor.carriedFood) {
+          giftingModule.dropCarried(actor, field, contextFor(actor));
         }
-        if (actor.ai) actor.ai.giftRetryT = 0;
+        actor.ai.giftRetryT = 0;
+      }
+    }
+    if (changed && name === 'pairActivities' && !value) {
+      for (const actor of actors()) {
+        if (actor.ai && ['seekChat', 'chat', 'seekCuddle', 'cuddle'].includes(actor.ai.state)) {
+          pairActivitiesModule.cancel(contextFor(actor));
+        }
+      }
+    }
+    if (changed && name === 'reconciliation' && !value) {
+      for (const actor of actors()) {
+        if (actor.ai && ['seekReconcile', 'reconcile'].includes(actor.ai.state)) {
+          relationshipsModule.cancel(contextFor(actor), 'reconcile');
+        }
+      }
+    }
+    if (changed && name === 'partnership' && !value) {
+      for (const actor of actors()) {
+        if (actor.ai && ['seekPartner', 'partnering'].includes(actor.ai.state)) {
+          relationshipsModule.cancel(contextFor(actor), 'partner');
+        }
+      }
+    }
+    if (changed && name === 'groupActivities' && !value) {
+      for (const actor of actors()) {
+        if (actor.ai && actor.ai.state === 'group' && actor.ai.group) {
+          groupActivitiesModule.cancel(contextFor(actor));
+        }
       }
     }
     return changed;
@@ -1607,7 +1769,7 @@ export function createBehaviorModules({
   }
 
   const api = {
-    field, profile, actors, hoursNow, dayNow, rng,
+    field, profile, actors, hoursNow, dayNow, mapId: mapIdNow, rng,
     pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
     homeFor, assignHome, parentFor, followTargetFor, adoption: adoptionInfo,
     reconcileAdoption, adoptionActive: () => !!features.adoption,
@@ -1657,6 +1819,9 @@ export function createBehaviorModules({
     attach, tick, plan, stats: statsNow, registerAdapter,
     setEnabled, onGrab, onRelease, detach, resumeTask, debugState,
     setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal, forceLesson, forceGift,
+    forceChat, forceCuddle, forceReconcile, forcePartnership, forceGroup, separatePartnership, cancelPair,
+    dropCarried: (actor) => actor && actor.carriedFood
+      ? giftingModule.dropCarried(actor, field, contextFor(actor)) : null,
     startSeekHome, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind),
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
     invalidateActor: (actor) => config.invalidateActor(actor),

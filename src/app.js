@@ -18,6 +18,7 @@ import { ensureTraits } from './behaviors/traits.js';
 import { createStudioReturnPortal } from './studiohouse.js';
 import { createMSNPrototype } from './msn.js';
 import { createGlassColony } from './glass.js';
+import { createGiftVisuals } from './giftvisuals.js';
 import { assetStore } from './assetstore.js';
 import { createActorView, isGlassActor } from './npc.js';
 import { getSpecies, speciesForRig, listSpecies } from './species.js';
@@ -42,13 +43,29 @@ let behavior = null;
 let aiDebug = null;
 let thoughtBubbles = null;
 let departures = null;
+let giftVisuals = null;
 const farewells = new Map();
 let farewellGlowTex = null;
 const FAREWELL_KEY = 'gummy.farewells';
 const ADOPTION_KEY = 'gummy.adoption';
 const GIFTING_KEY = 'gummy.gifting';
+const SOCIAL_KEY = 'gummy.social';
+const SOCIAL_FEATURES = Object.freeze({
+  pairActivities: 'pairActivities',
+  rivalry: 'rivalry',
+  reconciliation: 'reconciliation',
+  partnership: 'partnership',
+  groupActivities: 'groupActivities',
+});
 let adoptionEnabled = false;
 let giftingEnabled = false;
+const socialFeatures = {
+  pairActivities: false,
+  rivalry: false,
+  reconciliation: false,
+  partnership: false,
+  groupActivities: false,
+};
 const FAREWELL_FEATURES = {
   farewells: 'farewells',
   starsOldAge: 'starsOldAge',
@@ -640,6 +657,9 @@ function spawn(x, z, y, flavor, opts={}){
   b.fatherUid=Number.isFinite(opts.fatherUid) ? opts.fatherUid : 0;
   delete b.guardianUid;
   delete b.lastGiftDay;
+  delete b.carriedFood;
+  delete b.partnerUid;
+  delete b.rivals;
   b.bedtime=Number.isFinite(opts.bedtime) ? opts.bedtime : 20+Math.random()*2.5;
   b.wakeTime=Number.isFinite(opts.wakeTime) ? opts.wakeTime : 5+Math.random()*2;
   b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
@@ -675,16 +695,65 @@ function clearGuardianReferences(uid){
   }
 }
 
+function clearRelationshipReferences(uid){
+  if (!Number.isFinite(uid)) return;
+  const clear = actor => {
+    if (!actor) return;
+    if (Number(actor.partnerUid) === uid) delete actor.partnerUid;
+    if (actor.rivals && actor.rivals[String(uid)]) delete actor.rivals[String(uid)];
+  };
+  for (const actor of actorView.all()) clear(actor);
+  for (const id of ['field', 'studio']) {
+    const world = worlds[id];
+    for (const actor of world.bears || []) clear(actor);
+    for (const actor of world.glass || []) clear(actor);
+  }
+}
+
+function partnerRecord(uid){
+  const active = actorView.byUid(uid);
+  if (active) return { actor: active, active: true };
+  for (const id of ['field', 'studio']) {
+    const world = worlds[id];
+    const record = [...(world.bears || []), ...(world.glass || [])]
+      .find(actor => Number(actor.uid) === Number(uid));
+    if (record) return { actor: record, active: false };
+  }
+  return null;
+}
+
+function separatePartnershipFor(actor){
+  if (!actor || !behavior || typeof behavior.separatePartnership !== 'function') return false;
+  const partnerUid = Number(actor.partnerUid);
+  const found = Number.isFinite(partnerUid) ? partnerRecord(partnerUid) : null;
+  const ok = behavior.separatePartnership(actor);
+  if (ok && found && !found.active) {
+    delete found.actor.partnerUid;
+    if (sky) {
+      pushHistory(found.actor, {
+        kind: 'separated', uid: actor.uid,
+        day: Math.max(0, Math.floor(sky.day || 0)), hour: sky.hours || 0,
+      });
+    }
+  }
+  return ok;
+}
+
 function removeBear(b, opts = {}){
   const i = bears.indexOf(b); if (i<0) return;
   if (opts.departure) departures?.snapshot(b, opts.departure, opts);
+  dropCarriedFood(b, activeWorld.mapId);
+  if (field && field.portions) field.portions.releaseActor(b);
   if (ai) ai.detach(b);
   if (field && field.food) field.food.releaseBear(b);
   b.ai = null;
   clearFarewellRuntime(b);
   destroyBearBodies(b);
   bears.splice(i,1);
-  clearGuardianReferences(b.uid);
+  if (!opts.preserveRefs) {
+    clearGuardianReferences(b.uid);
+    clearRelationshipReferences(b.uid);
+  }
   for (const g of Array.from(grabs.values())) if (g.bear === b) endGrab(g, false);
   b.active=false; b.grabs=0;
   b.mesh.visible=false;
@@ -692,7 +761,9 @@ function removeBear(b, opts = {}){
 }
 function despawnAll(){
   cancelFarewellVisuals();
-  while (bears.length) removeBear(bears[0]);
+  // Map switches and save loads despawn the live roster but keep the saved
+  // records' cross-map references intact. A real removal still clears them.
+  while (bears.length) removeBear(bears[0], { preserveRefs: true });
 }
 
 function hashUid(text){
@@ -756,8 +827,14 @@ function removeGlassActor(actor, opts = {}){
   if (opts.departure) departures?.snapshot(actor, opts.departure, opts);
   clearFarewellRuntime(actor);
   const uid = actor.uid;
+  dropCarriedFood(actor, activeWorld.mapId);
+  if (field && field.portions) field.portions.releaseActor(actor);
+  if (field && field.food) field.food.releaseBear(actor);
   const removed = glassColony.removeActor(actor);
-  if (removed) clearGuardianReferences(uid);
+  if (removed) {
+    clearGuardianReferences(uid);
+    clearRelationshipReferences(uid);
+  }
   return removed;
 }
 
@@ -3601,7 +3678,7 @@ function syncGiftingSettingsUI(){
   if (note) {
     note.textContent = legacy
       ? 'Gifting needs the modules engine; it is disabled with ?behaviors=legacy.'
-      : 'Off by default. An adult can offer ripe food to a nearby actor once a day.';
+      : 'Off by default. An adult can collect and hand over one safe food portion per day.';
   }
 }
 
@@ -3611,6 +3688,56 @@ function setGiftingSetting(value){
   applyGiftingSetting();
   syncGiftingSettingsUI();
   return giftingEnabled;
+}
+
+function readSocialSettings(){
+  try {
+    const saved = JSON.parse(localStorage.getItem(SOCIAL_KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+      for (const key of Object.keys(SOCIAL_FEATURES)) socialFeatures[key] = !!saved[key];
+    }
+  } catch (err) {}
+}
+
+function applySocialSettings(){
+  if (!behavior || BEHAVIOR_ENGINE !== 'modules') return false;
+  for (const [key, feature] of Object.entries(SOCIAL_FEATURES)) {
+    behavior.setFeature(feature, !!socialFeatures[key]);
+  }
+  return true;
+}
+
+function socialFeatureLabel(key){
+  return key[0].toUpperCase() + key.slice(1);
+}
+
+function syncSocialSettingsUI(){
+  const legacy = BEHAVIOR_ENGINE !== 'modules';
+  for (const [key, feature] of Object.entries(SOCIAL_FEATURES)) {
+    const box = document.getElementById(`settings${socialFeatureLabel(key)}`);
+    if (box) {
+      box.checked = !!socialFeatures[key];
+      box.disabled = legacy;
+    }
+    const value = document.getElementById(`settings${socialFeatureLabel(key)}Val`);
+    if (value) value.textContent = socialFeatures[key] ? 'On' : 'Off';
+    const note = document.getElementById(`settings${socialFeatureLabel(key)}Note`);
+    if (note) {
+      if (!note.dataset.on) note.dataset.on = note.textContent;
+      note.textContent = legacy
+        ? `${key} needs the modules engine; it is disabled with ?behaviors=legacy.`
+        : note.dataset.on;
+    }
+  }
+}
+
+function setSocialSetting(key, value){
+  if (!(key in SOCIAL_FEATURES)) return false;
+  socialFeatures[key] = !!value;
+  try { localStorage.setItem(SOCIAL_KEY, JSON.stringify(socialFeatures)); } catch (err) {}
+  applySocialSettings();
+  syncSocialSettingsUI();
+  return socialFeatures[key];
 }
 
 function applyAdoptionSetting(){
@@ -3719,6 +3846,14 @@ document.getElementById('settingsGifting')?.addEventListener('change', event => 
   setGiftingSetting(event.target.checked);
 });
 syncGiftingSettingsUI();
+readSocialSettings();
+for (const key of Object.keys(SOCIAL_FEATURES)) {
+  const id = `settings${socialFeatureLabel(key)}`;
+  document.getElementById(id)?.addEventListener('change', event => {
+    setSocialSetting(key, event.target.checked);
+  });
+}
+syncSocialSettingsUI();
 
 /* ------------------------------ Aero / MSN -------------------------------- */
 const skyClockEl = document.getElementById('skyClock');
@@ -4097,6 +4232,13 @@ function historyLabel(event) {
     case 'conflict': return `contested food with ${name}`;
     case 'gift': return `gave food to ${name}`;
     case 'receivedGift': return `received food from ${name}`;
+    case 'chat': return `chatted with ${name}`;
+    case 'cuddle': return `cuddled with ${name}`;
+    case 'reconcile': return `reconciled with ${name}`;
+    case 'groupPlay': return `played with ${name} and others`;
+    case 'groupGather': return `gathered with ${name} and others`;
+    case 'partnered': return `became partners with ${name}`;
+    case 'separated': return `ended a partnership with ${name}`;
     case 'stage': return 'grew up';
     case 'home': return 'went home';
     case 'moved': return 'moved home';
@@ -4189,8 +4331,8 @@ function relationshipRow(actor, row, section) {
     const detail = document.createElement('span');
     detail.className = 'relDetail';
     detail.textContent = row.asymmetric
-      ? `theirs ${Math.round(row.reverse * 100)}%`
-      : 'bond';
+      ? `${row.friendship || 'bond'} · theirs ${Math.round(row.reverse * 100)}%${row.friendshipReverse ? ` (${row.friendshipReverse})` : ''}`
+      : (row.friendship || 'bond');
     const bondBox = document.createElement('span');
     bondBox.className = 'relBond';
     bondBox.append(value, meter, detail);
@@ -4223,6 +4365,21 @@ function relationshipSection(title, rows, actor) {
   head.textContent = title;
   section.append(head);
   for (const row of rows) section.append(relationshipRow(actor, row, title));
+  if (title === 'Partnership' && rows.some(row => !row.missing)) {
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'relAction';
+    action.textContent = 'End partnership';
+    action.addEventListener('click', event => {
+      event.stopPropagation();
+      if (!behavior || typeof behavior.separatePartnership !== 'function') return;
+      if (!separatePartnershipFor(actor)) return;
+      relViewSig = '';
+      renderRelationships(actor);
+      syncDirectivePanel();
+    });
+    section.append(action);
+  }
   return section;
 }
 
@@ -4234,11 +4391,14 @@ function relationshipSignature(actor) {
     .map(([uid, value]) => `${uid}:${value}`).join(',');
   const history = (actor.history || []).slice(-8)
     .map(event => `${event.kind}:${event.uid}:${event.day}:${event.hour}`).join(',');
+  const rivals = Object.entries(actor.rivals || {})
+    .map(([uid, record]) => `${uid}:${record.sinceDay}:${record.sinceHour}`).join(',');
   const others = [...known.values()].map(entry =>
     `${entry.actor.uid}:${entry.mapId}:${entry.actor.guardianUid || 0}:${
       (entry.actor.parentUids || []).join('.')}:${
       entry.actor.bonds ? entry.actor.bonds[String(actor.uid)] || 0 : 0}`).join(',');
-  return [actor.uid, actor.name, actor.guardianUid || 0, bonds, history, others].join('|');
+  return [actor.uid, actor.name, actor.guardianUid || 0, actor.partnerUid || 0, rivals,
+    bonds, history, others].join('|');
 }
 
 function renderRelationships(actor) {
@@ -4247,11 +4407,15 @@ function renderRelationships(actor) {
   relRelationshipsEl.replaceChildren();
   const family = relationshipSection('Family', view.family, actor);
   const care = relationshipSection('Care', view.care, actor);
+  const partner = relationshipSection('Partnership', view.partner ? [view.partner] : [], actor);
+  const rivals = relationshipSection('Rivals', view.rivals, actor);
   const bonds = relationshipSection('Bonds', view.bonds, actor);
   if (family) relRelationshipsEl.append(family);
   if (care) relRelationshipsEl.append(care);
+  if (partner) relRelationshipsEl.append(partner);
+  if (rivals) relRelationshipsEl.append(rivals);
   if (bonds) relRelationshipsEl.append(bonds);
-  if (!family && !care && !bonds) {
+  if (!family && !care && !partner && !rivals && !bonds) {
     const empty = document.createElement('span');
     empty.className = 'hEmpty';
     empty.textContent = 'No recorded relationships yet.';
@@ -4259,7 +4423,7 @@ function renderRelationships(actor) {
   } else if (bonds) {
     const note = document.createElement('p');
     note.className = 'relNote';
-    note.textContent = 'Bond strength, not a friendship rank.';
+    note.textContent = 'Bond strength and its display-only friendship label; directional values are shown separately.';
     relRelationshipsEl.append(note);
   }
   relViewSig = relationshipSignature(actor);
@@ -5735,6 +5899,7 @@ function animate(now){
     if (scene.fog) scene.fog.color.copy(sky.fogColor);
   }
   if (aiDebug) aiDebug.update(dt);
+  if (giftVisuals) giftVisuals.update(dt);
   if (msnPrototype) msnPrototype.update(dt);
 
   const tPhys0 = performance.now();
@@ -5998,8 +6163,34 @@ function spawnFromState(st){
   return b;
 }
 
-function saveCurrentWorld(){
+function dropCarriedFood(actor, mapId){
+  if (!actor || !actor.carriedFood || !field || !field.portions) return null;
+  const carried = actor.carriedFood;
+  actor.carriedFood = null;
+  return field.portions.add({
+    id: carried.id,
+    kind: carried.kind,
+    satiation: carried.satiation,
+    x: actor.cx,
+    y: Math.max(.04, Number.isFinite(actor.cy) ? actor.cy - .12 : .04),
+    z: actor.cz,
+    mapId,
+  }) || field.portions.add({
+    id: field.portions.nextId(),
+    kind: carried.kind,
+    satiation: carried.satiation,
+    x: actor.cx,
+    y: Math.max(.04, Number.isFinite(actor.cy) ? actor.cy - .12 : .04),
+    z: actor.cz,
+    mapId,
+  });
+}
+
+function saveCurrentWorld({ dropCarried = false } = {}){
   const id = activeWorld.mapId;
+  if (dropCarried){
+    for (const actor of actorView.all()) dropCarriedFood(actor, id);
+  }
   const w = worlds[id];
   w.bears = actorView.soft().filter(b => b.active).map(snapshotBear);
   w.glass = id === 'field' && glassColony ? glassColony.snapshot() : [];
@@ -6013,6 +6204,7 @@ function saveCurrentWorld(){
     w.auto = sky.auto;
     w.speed = sky.speed;
   }
+  if (field && field.portions) w.gifts = field.portions.snapshot(id);
   w.initialized = true;
   persistWorld(id);
 }
@@ -6184,6 +6376,10 @@ function activateMap(id, opts = {}){
   else resetCamera();
   const w = worlds[id];
   reserveWorldUids(w);
+  if (field && field.portions && Array.isArray(w.gifts)) {
+    const others = field.portions.all().filter(portion => portion.mapId !== id);
+    field.portions.restore([...others.map(portion => ({ ...portion })), ...w.gifts]);
+  }
   if (Array.isArray(w.bears)) {
     for (const st of w.bears) spawnFromState(st);
   } else if (map.kind === 'life') {
@@ -6270,6 +6466,7 @@ function worldSaveState(id) {
     initialized: !!w.initialized,
   };
   if (id === 'field' && field && field.food) out.food = field.food.snapshot();
+  if (field && field.portions) out.gifts = field.portions.snapshot(id);
   return out;
 }
 
@@ -6287,6 +6484,29 @@ function buildSavePayload() {
   });
 }
 
+function restoreSavedCarriedFood(payload){
+  if (!field || !field.portions) return 0;
+  let restored = 0;
+  for (const id of ['field', 'studio']) {
+    const world = payload.worlds[id];
+    for (const actor of [...(world.bears || []), ...(world.glass || [])]) {
+      const carried = actor && actor.carriedFood;
+      if (!carried) continue;
+      const portion = field.portions.add({
+        id: carried.id,
+        kind: carried.kind,
+        satiation: carried.satiation,
+        x: actor.x,
+        y: 0,
+        z: actor.z,
+        mapId: id,
+      });
+      if (portion) restored++;
+    }
+  }
+  return restored;
+}
+
 function applySavePayload(raw) {
   // Validate everything before touching the live session.
   const payload = normalizeSave(raw);
@@ -6298,12 +6518,11 @@ function applySavePayload(raw) {
     for (const id of ['field', 'studio']) {
       const src = payload.worlds[id];
       const all = [...(Array.isArray(src.bears) ? src.bears : []), ...(Array.isArray(src.glass) ? src.glass : [])];
-      const validUids = new Set(all.map(actor => actor.uid));
-      for (const actor of all) pruneActorRefs(actor, validUids);
       const w = worlds[id];
       w.bears = src.initialized || src.bears.length ? src.bears : null;
       w.glass = Array.isArray(src.glass) ? src.glass : null;
       w.camera = src.camera;
+      w.gifts = Array.isArray(src.gifts) ? src.gifts : [];
       if (src.launcher) w.launcher = { ...src.launcher };
       if (id === 'field') {
         w.time = Number.isFinite(src.time) ? src.time : 7.0;
@@ -6312,7 +6531,31 @@ function applySavePayload(raw) {
       }
       w.initialized = !!(src.initialized || src.bears.length);
     }
+    // References are game-wide, not per map: a partner or rival on the inactive
+    // map must survive pruning while the active map loads.
+    const gameUids = new Set();
+    for (const id of ['field', 'studio']) {
+      const src = payload.worlds[id];
+      for (const actor of [...(src.bears || []), ...(src.glass || [])]) {
+        if (actor && Number.isFinite(actor.uid)) gameUids.add(actor.uid);
+      }
+    }
+    for (const id of ['field', 'studio']) {
+      const src = payload.worlds[id];
+      for (const actor of [...(src.bears || []), ...(src.glass || [])]) {
+        pruneActorRefs(actor, gameUids);
+      }
+    }
+    // Replace portions from the previous session before map activation merges
+    // the target map's saved list.
+    if (field && field.portions) {
+      field.portions.restore([
+        ...(payload.worlds.field.gifts || []),
+        ...(payload.worlds.studio.gifts || []),
+      ]);
+    }
     activateMap(payload.mapId);
+    restoreSavedCarriedFood(payload);
     if (payload.mapId === 'field' && field && field.food && Array.isArray(payload.worlds.field.food)) {
       field.food.restore(payload.worlds.field.food);
     }
@@ -6354,11 +6597,13 @@ function resetNewGame() {
   despawnAll();
   if (glassColony) glassColony.clear();
   if (field && field.food) field.food.reset();
+  if (field && field.portions) field.portions.reset();
   for (const id of ['field', 'studio']) {
     const w = worlds[id];
     w.bears = null;
     w.glass = null;
     w.camera = null;
+    w.gifts = [];
     w.initialized = false;
   }
   // A new game starts its own identity space; never continue a loaded game's
@@ -6557,7 +6802,7 @@ function requestMapSwitch(id){
   if (wipe) wipe.classList.add('on');
   setTimeout(()=>{
     try {
-      saveCurrentWorld();
+      saveCurrentWorld({ dropCarried: true });
       activateMap(id);
     } catch (err) {
       console.error('map switch failed', err);
@@ -6691,6 +6936,7 @@ async function bootGame(){
     getDay: () => (sky ? sky.day : 0),
     getPopulationCap: () => bearCeiling,
     getKnownActorUids: gameActorUids,
+    getMapId: () => activeWorld.mapId,
     daySeconds: DAY_SECONDS,
     onFarewell: (actor, info) => startFarewell(actor, info),
     // Read Math.random at call time so __gummy.seed() also drives the engine.
@@ -6703,12 +6949,21 @@ async function bootGame(){
     getMapId: () => activeWorld.mapId,
     getTime: () => ({ day: sky ? sky.day : 0, hours: sky ? sky.hours : 0 }),
   });
+  giftVisuals = createGiftVisuals({
+    scene,
+    getPortions: () => (field && field.portions ? field.portions.all() : []),
+    getActors: () => actorView.all(),
+    getMapId: () => activeWorld.mapId,
+    getActive: () => !!window.__gummy && window.__gummy.booted,
+  });
   applyFarewellSettings();
   syncFarewellSettingsUI();
   applyAdoptionSetting();
   syncAdoptionSettingsUI();
   applyGiftingSetting();
   syncGiftingSettingsUI();
+  applySocialSettings();
+  syncSocialSettingsUI();
   // Interaction history feeds the selected-actor relationship view. It stays
   // off in the engine/parity defaults so the legacy oracle is unaffected.
   if (behavior && typeof behavior.setFeature === 'function') {
@@ -7290,6 +7545,7 @@ window.__gummy = {
       horizon: field.horizon ? { towers:field.horizon.towers, windmills:field.horizon.windmills, windmillSpeed:+field.horizon.windmillSpeed().toFixed(3), windmillYaw:+field.horizon.windmillYaw().toFixed(3) } : null,
       wind: field.wind ? { strength:field.wind.strength, dir:field.wind.direction, gust:field.wind.gust } : null,
       food: field.food ? field.food.stats() : null,
+      gifts: field.portions ? field.portions.stats() : null,
       hives: field.hives ? field.hives.length : 0,
       waterSpots: field.waterSpots ? field.waterSpots.length : 0,
       emotes: field.emoteCount || 0,
@@ -7377,7 +7633,7 @@ window.__gummy = {
     sky.setCloudsVisible(!v);
     return 1;
   },
-  map(){ return { id:activeWorld.mapId, sky: sky ? { hours:sky.hours, auto:sky.auto, speed:sky.speed } : null, bears:bears.length, glass:glassColony ? glassColony.count : 0, launcher:launcher ? launcher.state() : null }; },
+  map(){ return { id:activeWorld.mapId, sky: sky ? { hours:sky.hours, auto:sky.auto, speed:sky.speed } : null, bears:bears.length, glass:glassColony ? glassColony.count : 0, gifts: field && field.portions ? field.portions.stats() : null, launcher:launcher ? launcher.state() : null }; },
   launcherToggle(on){ return launcher ? launcher.toggleAiming(on) : false; },
   launcherAim(x, z){ if (!launcher) return null; launcher.aimAt(x, z); return launcher.state(); },
   launcherFire(){ return launcher ? launcher.fire() : false; },
@@ -7416,7 +7672,7 @@ window.__gummy = {
   foodSources(){ return field && field.food ? field.food.sources.map(s => ({
     id:s.id, kind:s.kind, x:s.x, z:s.z,
     approachX:s.approachX, approachZ:s.approachZ,
-    ripe:s.ripe, claimed:!!s.claim, visualIndex:s.visualIndex,
+    ripe:s.ripe, claimed:!!s.claim, claimedBy:s.claim ? s.claim.uid : null, visualIndex:s.visualIndex,
   })) : []; },
   homes(){ return field ? field.homes.map(h => ({
     name:h.name, x:h.x, z:h.z, yaw:h.yaw,
@@ -7554,6 +7810,53 @@ window.__gummy = {
       return { ok:false, note:'modules only' };
     }
     return behavior.forceGift(bears[i], bears[j]);
+  },
+  giftByUid(a, b){
+    if (!behavior) return { ok:false, note:'modules only' };
+    return behavior.forceGift(actorView.byUid(a), actorView.byUid(b));
+  },
+  socialByUid(a, b, kind = 'chat'){
+    if (!behavior) return { ok:false, note:'modules only' };
+    const left = actorView.byUid(a);
+    const right = actorView.byUid(b);
+    if (kind === 'cuddle') return behavior.forceCuddle(left, right);
+    if (kind === 'reconcile') return behavior.forceReconcile(left, right);
+    if (kind === 'partner') return behavior.forcePartnership(left, right);
+    return behavior.forceChat(left, right);
+  },
+  groupByUids(leader, others = []){
+    if (!behavior) return { ok:false, note:'modules only' };
+    return behavior.forceGroup(actorView.byUid(leader),
+      (others || []).map(uid => actorView.byUid(uid)).filter(Boolean));
+  },
+  separate(uid){
+    if (!behavior) return false;
+    return separatePartnershipFor(actorView.byUid(uid));
+  },
+  socialFeature(name, value){
+    if (!behavior) return false;
+    if (value === undefined) return !!(behavior.api && behavior.api.feature(name));
+    return behavior.setFeature(name, !!value);
+  },
+  portions(){
+    if (!field || !field.portions) return null;
+    return {
+      stats: field.portions.stats(),
+      list: field.portions.all().map(portion => ({
+        id: portion.id, kind: portion.kind, satiation: portion.satiation,
+        x: +portion.x.toFixed(2), z: +portion.z.toFixed(2), mapId: portion.mapId,
+        claimedBy: portion.claim ? portion.claim.uid : null,
+      })),
+    };
+  },
+  carried(){
+    return actorView.all().filter(actor => actor.carriedFood).map(actor => ({
+      uid: actor.uid, name: actor.name, food: { ...actor.carriedFood },
+    }));
+  },
+  giftVisuals(){
+    return giftVisuals && typeof giftVisuals.debug === 'function'
+      ? giftVisuals.debug() : null;
   },
   forceMate(i, j){
     if (!ai) return { ok:false, note:'meadow only' };

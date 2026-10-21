@@ -18,6 +18,30 @@ function event(kind, uid, day, hour) {
   return { kind, uid, day, hour };
 }
 
+test('bond labels are directional and partnerships/rivals are explicit sections', () => {
+  const a = actor(10, {
+    bonds: { 2: .7, 4: .3 },
+    partnerUid: 2,
+    rivals: { 4: { sinceDay: 2, sinceHour: 9 } },
+    history: [event('partnered', 2, 2, 9), event('conflict', 4, 2, 9)],
+  });
+  const b = actor(2, { bonds: { 10: .45 } });
+  const c = actor(4, { bonds: { 10: .8 } });
+  const view = buildRelationshipView(a, [known(a), known(b), known(c)]);
+  const rowB = view.bonds.find(row => row.uid === 2);
+  const rowC = view.bonds.find(row => row.uid === 4);
+  assert.equal(rowB.friendship, 'close friend');
+  assert.equal(rowB.friendshipReverse, 'friend');
+  assert.equal(rowB.asymmetric, true);
+  assert.equal(rowC.friendship, 'familiar');
+  assert.equal(view.partner.uid, 2);
+  assert.equal(view.partner.relation, 'Partner');
+  assert.equal(view.rivals.length, 1);
+  assert.equal(view.rivals[0].uid, 4);
+  assert.equal(view.rivals[0].sinceDay, 2);
+  assert.equal(view.partner.interactions[0].kind, 'partnered');
+});
+
 function fixture() {
   const pip = actor(10, {
     name: 'Pip', parentUids: [1, 3, 99], guardianUid: 5,

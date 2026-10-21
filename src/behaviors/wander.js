@@ -74,6 +74,12 @@ function think(ctx) {
   if (api.runOpportunity(actor, 'follow.seek')) return true;
   const family = api.acquireFamilyPlaymate(actor);
   if (family && api.startPlaydate(actor, family.actor, family.kind)) { api.coverSlot('familyPlaymate'); return true; }
+  if (api.runOpportunity(actor, 'relationship.reconcile')) return true;
+  if (api.runOpportunity(actor, 'relationship.partner')) return true;
+  if (api.runOpportunity(actor, 'affection.cuddle')) return true;
+  if (api.runOpportunity(actor, 'affection.chat')) return true;
+  if (api.runOpportunity(actor, 'group.seek')) return true;
+  if (api.runOpportunity(actor, 'gifting.offer')) return true;
   if (api.runOpportunity(actor, 'social.company')) return true;
   if (api.runOpportunity(actor, 'stargaze.seek')) return true;
   if (api.runOpportunity(actor, 'wander.arrive')) return true;

@@ -26,8 +26,8 @@ function adapter() {
   };
 }
 
-function setup({ gifting = true, interactionHistory = true, giverExtra = {}, receiverExtra = {}, rng = () => .5 } = {}) {
-  const world = createWorld();
+function setup({ gifting = true, interactionHistory = true, giverExtra = {}, receiverExtra = {}, rng = () => .5, world = null } = {}) {
+  world = world || createWorld();
   const giver = actor(10, giverExtra);
   const receiver = actor(11, { cx: 3.25, hunger: .5, ...receiverExtra });
   const engine = createBehavior({
@@ -200,4 +200,90 @@ test('gifting consumes no RNG and is deterministic for the same seed', () => {
     });
   };
   assert.equal(run(), run());
+});
+
+test('a collected gift is carried, then handed over exactly once', () => {
+  const world = createWorld({
+    foodSources: [{ id: 'only', kind: 'flower', x: 2.5, z: .5, respawn: 40 }],
+  });
+  const { engine, giver, receiver } = setup({ world });
+  const result = engine.forceGift(giver, receiver);
+  assert.equal(result.ok, true);
+  engine.tick(giver, .2, { ready: true });
+  assert.equal(giver.ai.giftPhase, 'deliver');
+  assert.equal(giver.carriedFood.kind, 'flower');
+  assert.equal(world.food.get('only').ripe, false);
+  for (let n = 0; n < 30 && giver.ai.state !== 'wander'; n++) {
+    engine.tick(giver, .2, { ready: true });
+    engine.tick(receiver, .2, { ready: true });
+  }
+  assert.equal(giver.carriedFood, null);
+  assert.equal(receiver.hunger < .5, true);
+  assert.equal(giver.lastGiftDay, 1);
+  const before = receiver.hunger;
+  engine.tick(giver, 4, { ready: true });
+  assert.equal(receiver.hunger, before, 'no second handover');
+});
+
+test('interrupting a carried gift drops a recoverable portion', () => {
+  const world = createWorld({
+    foodSources: [{ id: 'only', kind: 'flower', x: 2.5, z: .5, respawn: 40 }],
+  });
+  const { engine, giver, receiver } = setup({ world });
+  assert.equal(engine.forceGift(giver, receiver).ok, true);
+  engine.tick(giver, .2, { ready: true });
+  assert.equal(giver.carriedFood.kind, 'flower');
+  engine.cancelPair(giver);
+  assert.equal(giver.carriedFood, null);
+  assert.equal(world.portions.all('field').length, 1);
+  const dropped = world.portions.all('field')[0];
+  assert.equal(dropped.kind, 'flower');
+  assert.equal(world.food.get('only').ripe, false);
+  giver.ai.giftRetryT = 0;
+  assert.equal(engine.forceGift(giver, receiver).ok, true);
+  assert.equal(giver.ai.giftOrigin.type, 'portion');
+  for (let n = 0; n < 30 && giver.ai.state !== 'wander'; n++) {
+    engine.tick(giver, .2, { ready: true });
+    engine.tick(receiver, .2, { ready: true });
+  }
+  assert.equal(world.portions.all('field').length, 0);
+  assert.equal(receiver.hunger < .5, true);
+});
+
+test('a recipient refusal after collection drops rather than consumes the portion', () => {
+  const world = createWorld({
+    foodSources: [{ id: 'only', kind: 'flower', x: 2.5, z: .5, respawn: 40 }],
+  });
+  const { engine, giver, receiver } = setup({ world });
+  assert.equal(engine.forceGift(giver, receiver).ok, true);
+  engine.tick(giver, .2, { ready: true });
+  assert.equal(giver.carriedFood.kind, 'flower');
+  receiver.hunger = .1;
+  engine.tick(giver, .2, { ready: true });
+  assert.equal(giver.carriedFood, null);
+  assert.equal(world.portions.all('field').length, 1);
+  assert.equal(receiver.hunger, .1);
+  assert.equal(giver.lastGiftDay, undefined);
+});
+
+test('disabling gifting while carrying drops the portion', () => {
+  const world = createWorld({
+    foodSources: [{ id: 'only', kind: 'flower', x: 2.5, z: .5, respawn: 40 }],
+  });
+  const { engine, giver, receiver } = setup({ world });
+  assert.equal(engine.forceGift(giver, receiver).ok, true);
+  engine.tick(giver, .2, { ready: true });
+  assert.equal(giver.carriedFood.kind, 'flower');
+  engine.setFeature('gifting', false);
+  assert.equal(giver.carriedFood, null);
+  assert.equal(world.portions.all('field').length, 1);
+  assert.equal(giver.ai.state, 'wander');
+});
+
+test('the natural gifting opportunity starts from real eligibility', () => {
+  const { engine, giver, receiver } = setup();
+  const opportunity = engine.api.runOpportunity(giver, 'gifting.offer');
+  assert.equal(opportunity?.id, 'gifting.offer');
+  assert.equal(giver.ai.state, 'seekGift');
+  assert.equal(receiver.ai.state, 'seekGift');
 });

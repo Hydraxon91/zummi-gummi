@@ -1,4 +1,5 @@
-// Gifting lifecycle: settings, accepted gift, refusal, daily cap and v7 save.
+// Physical gifting: settings, collection/carry, accepted gift, refusal, daily cap,
+// map cleanup and v7 save.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { launchBrowser, connectBrowser } from './browser-harness.mjs';
@@ -65,7 +66,8 @@ try {
 
   const started = await evaluate(`(() => {
     const g = window.__gummy;
-    const result = g.gift(${setup.giverIndex}, ${setup.receiverIndex});
+    g.sim(.1, 0);
+    const result = g.giftByUid(${setup.giverUid}, ${setup.receiverUid});
     if (result.ok) g.selectBear(${setup.giverIndex});
     return result;
   })()`);
@@ -76,9 +78,14 @@ try {
     g.sim(5, 0);
     const giver = g.traits().find(a => a.uid === ${setup.giverUid});
     const receiver = g.traits().find(a => a.uid === ${setup.receiverUid});
-    const source = g.foodSources().find(s => s.id === ${JSON.stringify(started.sourceId)});
+    const sourceId = ${JSON.stringify(started.sourceId)};
+    const portionId = ${JSON.stringify(started.portionId)};
+    const source = sourceId ? g.foodSources().find(s => s.id === sourceId) : null;
     return {
-      sourceRipe: source?.ripe,
+      sourceRipe: source ? source.ripe : null,
+      portionGone: portionId
+        ? !(g.portions()?.list || []).some(portion => portion.id === portionId)
+        : null,
       receiverHunger: receiver?.hunger,
       bond: giver?.bonds?.[String(${setup.receiverUid})],
       giftHistory: giver?.history?.some(e => e.kind === 'gift'),
@@ -87,14 +94,47 @@ try {
     };
   })()`);
   check('an accepted gift consumes one source, feeds the receiver and records both sides',
-    started.ok === true && accepted.sourceRipe === false &&
+    started.ok === true &&
+    (started.sourceId ? accepted.sourceRipe === false : accepted.portionGone === true) &&
     accepted.receiverHunger < .6 && accepted.bond > .1 &&
     accepted.giftHistory === true && accepted.received === true,
     { value: JSON.stringify({ started, accepted }) });
 
+  const carrying = await evaluate(`(() => {
+    const g = window.__gummy;
+    const source = g.foodSources().find(s => s.ripe && !s.claimed);
+    if (!source) return { found: false };
+    const giver = g.spawnAt(source.approachX, source.approachZ, 0, 0);
+    const receiver = g.spawnAt(source.approachX + 6, source.approachZ, 0, 0);
+    const list = g.traits();
+    const gi = list.findIndex(a => a.uid === giver.uid);
+    const ri = list.findIndex(a => a.uid === receiver.uid);
+    g.setHunger(gi, .2);
+    g.setHunger(ri, .6);
+    g.sim(.1, 0);
+    const result = g.giftByUid(giver.uid, receiver.uid);
+    g.sim(.6, 0);
+    g.selectBear(gi);
+    return {
+      found: true, result,
+      carried: (g.carried() || []).filter(item => item.uid === giver.uid),
+      giverUid: giver.uid,
+      giver: { cx: +giver.cx.toFixed(2), cy: +giver.cy.toFixed(2), cz: +giver.cz.toFixed(2), scale: giver.scale },
+      visuals: g.giftVisuals(),
+    };
+  })()`);
+  await new Promise(resolve => setTimeout(resolve, 900));
+  await page.screenshot(`${ROOT}/.dev-shots/gifting_carried.png`);
+  check('a carried gift is visible while the giver approaches',
+    carrying.result?.ok === true && carrying.carried.length === 1 &&
+    (carrying.visuals || []).length > 0,
+    { value: JSON.stringify(carrying) });
+  await evaluate("window.__gummy.setBehaviorFeature('gifting', false)");
+  await evaluate("window.__gummy.setBehaviorFeature('gifting', true)");
+
   const cap = await evaluate(`(() => {
     const g = window.__gummy;
-    const result = g.gift(${setup.giverIndex}, ${setup.receiverIndex});
+    const result = g.giftByUid(${setup.giverUid}, ${setup.receiverUid});
     return { result, lastGiftDay: JSON.parse(g.exportSave()).worlds.field.bears
       .find(a => a.uid === ${setup.giverUid})?.lastGiftDay };
   })()`);
@@ -134,7 +174,7 @@ try {
   await evaluate("window.__gummy.setBehaviorFeature('gifting', false)");
   const off = await evaluate(`(() => {
     const g = window.__gummy;
-    return { result: g.gift(${setup.giverIndex}, ${setup.receiverIndex}) };
+    return { result: g.giftByUid(${setup.giverUid}, ${setup.receiverUid}) };
   })()`);
   check('gifting off prevents a new offer', off.result?.ok === false,
     { value: JSON.stringify(off) });
@@ -152,23 +192,31 @@ try {
     g.setHunger(giverIndex, .2);
     g.setHunger(receiverIndex, .6);
     g.sim(.1, 0);
-    return { ...g.gift(giverIndex, receiverIndex), sourceId: source.id };
+    const result = g.gift(giverIndex, receiverIndex);
+    return { ...result, sourceId: source.id, giverUid: giver.uid, receiverUid: receiver.uid };
   })()`);
   await evaluate("window.__gummy.setMap('studio')");
   await page.waitFor("window.__gummy.map().id === 'studio'", 30000);
   await new Promise(resolve => setTimeout(resolve, 500));
+  await evaluate("window.__gummy.setBehaviorFeature('gifting', false)");
   await evaluate("window.__gummy.setMap('field')");
   await page.waitFor("window.__gummy.map().id === 'field'", 30000);
   await new Promise(resolve => setTimeout(resolve, 500));
   const switched = await evaluate(`(() => {
     const g = window.__gummy;
+    const uids = new Set([${startedSwitch.giverUid || 0}, ${startedSwitch.receiverUid || 0}]);
+    const actors = g.traits().filter(a => uids.has(a.uid));
     return {
-      activeGift: g.traits().some(a => a.ai === 'seekGift' || a.ai === 'gift'),
-      claimed: g.foodSources().some(s => s.claimed),
+      activeGift: actors.some(a => a.ai === 'seekGift' || a.ai === 'gift'),
+      carried: actors.some(a => (g.carried() || []).some(item => item.uid === a.uid)),
+      claimed: g.foodSources().some(s => s.claimedBy && uids.has(s.claimedBy)) ||
+        (g.portions()?.list || []).some(p => p.claimedBy && uids.has(p.claimedBy)),
     };
   })()`);
+  await evaluate("window.__gummy.setBehaviorFeature('gifting', true)");
   check('a map switch abandons an active offer and releases food claims',
-    startedSwitch.ok === true && switched.activeGift === false && switched.claimed === false,
+    startedSwitch.ok === true && switched.activeGift === false &&
+    switched.carried === false && switched.claimed === false,
     { value: JSON.stringify({ startedSwitch, switched }) });
 
   const mobile = await browser.openPage({ url: TARGET.href, width: 390, height: 844 });

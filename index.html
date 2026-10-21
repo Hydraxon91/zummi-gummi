@@ -637,6 +637,8 @@
   .relInteractions{margin:3px 0 6px 10px;padding-left:7px;border-left:1px solid rgba(53,145,161,.22)}
   .relInteractions b{display:block;font:650 8px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#3f727c;margin-bottom:2px}
   .relNote{margin:5px 0 0;font-size:8px;line-height:1.35;color:#7d9aa0;font-style:italic}
+  .relAction{margin:4px 0 2px 10px;padding:4px 8px;border:1px solid rgba(53,145,161,.3);border-radius:7px;background:rgba(255,255,255,.5);font:650 8px var(--sans);color:#3f727c;cursor:pointer}
+  .relAction:hover{background:rgba(105,201,192,.16)}
   .directiveHistory{margin:2px 0 0;padding-top:4px;border-top:1px solid rgba(53,145,161,.18);max-height:140px;overflow:auto}
   .directiveHistory .hLine{display:block;font-size:8.5px;line-height:1.4;color:#5d858d}
   .directiveHistory .hLine b{font-weight:650;color:#3f727c}
@@ -1240,7 +1242,20 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
           <label class="settingsRow"><span>Guardians</span><input id="settingsAdoption" type="checkbox" aria-label="Adopt parentless babies"><b id="settingsAdoptionVal">Off</b></label>
           <p class="settingsNote" id="settingsAdoptionNote">Off by default. A parentless baby gets an automatic same-species guardian.</p>
           <label class="settingsRow"><span>Gifting</span><input id="settingsGifting" type="checkbox" aria-label="Offer food to nearby actors"><b id="settingsGiftingVal">Off</b></label>
-          <p class="settingsNote" id="settingsGiftingNote">Off by default. An adult can offer ripe food to a nearby actor once a day.</p>
+          <p class="settingsNote" id="settingsGiftingNote">Off by default. An adult can collect and hand over one safe food portion per day.</p>
+        </section>
+        <section class="settingsSection">
+          <h3>Social</h3>
+          <label class="settingsRow"><span>Chat &amp; cuddle</span><input id="settingsPairActivities" type="checkbox" aria-label="Enable chat and cuddle"><b id="settingsPairActivitiesVal">Off</b></label>
+          <p class="settingsNote" id="settingsPairActivitiesNote">Off by default. Friends can chat; bonded pairs can cuddle.</p>
+          <label class="settingsRow"><span>Rivalry</span><input id="settingsRivalry" type="checkbox" aria-label="Remember conflicts as rivalries"><b id="settingsRivalryVal">Off</b></label>
+          <p class="settingsNote" id="settingsRivalryNote">Off by default. A completed conflict becomes a persisted, symmetric rivalry.</p>
+          <label class="settingsRow"><span>Reconciliation</span><input id="settingsReconciliation" type="checkbox" aria-label="Enable reconciliation"><b id="settingsReconciliationVal">Off</b></label>
+          <p class="settingsNote" id="settingsReconciliationNote">Off by default. Idle rivals can repair the rivalry and gain a small bond.</p>
+          <label class="settingsRow"><span>Partnerships</span><input id="settingsPartnership" type="checkbox" aria-label="Enable partnerships"><b id="settingsPartnershipVal">Off</b></label>
+          <p class="settingsNote" id="settingsPartnershipNote">Off by default. Compatible adults with a strong mutual bond can become exclusive partners.</p>
+          <label class="settingsRow"><span>Group activities</span><input id="settingsGroupActivities" type="checkbox" aria-label="Enable group activities"><b id="settingsGroupActivitiesVal">Off</b></label>
+          <p class="settingsNote" id="settingsGroupActivitiesNote">Off by default. Three to five actors meet at spaced positions for a short activity.</p>
         </section>
         <section class="settingsSection">
           <h3>Farewells</h3>

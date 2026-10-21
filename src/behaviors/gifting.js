@@ -1,8 +1,11 @@
-// Gifting behavior: offer a nearby ripe food source to another actor.
+// Physical gifting: collect one safe ripe food portion, carry it, hand it over.
 //
-// The source stays reserved by the giver during the approach. It is consumed
-// once, at a successful handover, and the recipient receives the normal
-// satiation effect. A refused or interrupted offer releases the claim.
+// The source is consumed once when the giver picks it up; the carried portion is
+// consumed once at a successful handover. An interrupted collected gift is
+// dropped as a recoverable portion instead of disappearing. A dropped portion can
+// itself be reserved and carried by a later offer.
+//
+// Gifting is modules-only and off by default. Nothing here draws RNG.
 
 import {
   addBond, bondOf, forageEatScale, pairBond, pushHistory,
@@ -14,6 +17,10 @@ const GIFT_STATES = ['seekGift', 'gift'];
 
 function params(ctx) {
   return ctx.p.gifting || ctx.p.behaviorModules?.gifting?.params || {};
+}
+
+function mapId(ctx) {
+  return ctx.mapId || 'field';
 }
 
 function miss(actor, p) {
@@ -47,23 +54,62 @@ function candidateFor(ctx, forced = null) {
   return forced;
 }
 
+function dropCarried(actor, field, ctx) {
+  if (!actor || !actor.carriedFood) return null;
+  const carried = actor.carriedFood;
+  actor.carriedFood = null;
+  if (!field || !field.portions) return null;
+  const record = {
+    id: carried.id,
+    kind: carried.kind,
+    satiation: carried.satiation,
+    x: actor.cx,
+    y: Math.max(.04, Number.isFinite(actor.cy) ? actor.cy - .12 : .04),
+    z: actor.cz,
+    mapId: mapId(ctx),
+  };
+  const dropped = field.portions.add(record) ||
+    field.portions.add({ ...record, id: field.portions.nextId() });
+  return dropped || null;
+}
+
+function releaseOrigin(actor, field) {
+  if (!actor || !actor.ai) return;
+  const ai = actor.ai;
+  if (ai.source) {
+    if (field && field.food) field.food.release(ai.source, actor);
+    ai.source = null;
+  }
+  if (ai.giftOrigin?.portion) {
+    if (field && field.portions) field.portions.release(ai.giftOrigin.portion, actor);
+    ai.giftOrigin = null;
+  }
+  ai.giftPhase = null;
+}
+
+function clearGiftActor(actor, retryT) {
+  if (!actor || !actor.ai) return;
+  actor.ai.giftRole = null;
+  actor.ai.giftT = 0;
+  actor.ai.giftPhase = null;
+  actor.ai.giftOrigin = null;
+  actor.ai.source = null;
+  if (actor.ai.giftRetryT !== undefined) actor.ai.giftRetryT = retryT;
+}
+
 function cancelGift(ctx) {
   const { actor, ai, api, field } = ctx;
-  const p = params(ctx);
   if (!actor || !ai) return;
+  const p = params(ctx);
   const partner = ai.partner;
   const giver = ai.giftRole === 'giver' ? actor : partner;
-  if (giver && giver.ai && giver.ai.source) {
-    if (field && field.food) field.food.release(giver.ai.source, giver);
-    giver.ai.source = null;
+  if (giver && giver.ai) {
+    releaseOrigin(giver, field);
+    dropCarried(giver, field, ctx);
+    giver.ai.giftRetryT = p.retryT;
   }
-  if (ai.giftRole) ai.giftRole = null;
-  if (ai.giftT) ai.giftT = 0;
-  ai.giftRetryT = p.retryT;
-  if (partner && partner.ai) {
-    partner.ai.giftRole = null;
-    partner.ai.giftT = 0;
-  }
+  clearGiftActor(actor, p.retryT);
+  if (partner && partner.ai) clearGiftActor(partner, p.retryT);
   if (partner) endPair(actor, { stop: api.stop, next: 'wander', idleT: .55, taskCooldown: .8 });
   else {
     ai.state = 'wander';
@@ -72,10 +118,37 @@ function cancelGift(ctx) {
   }
 }
 
+function originFor(ctx) {
+  const { actor, field } = ctx;
+  const p = params(ctx);
+  if (!field) return null;
+  // Recover a dropped portion before looking for a fresh source.
+  if (field.portions) {
+    const portion = field.portions.nearest(actor.cx, actor.cz, {
+      maxDistance: p.searchRadius, mapId: mapId(ctx), bear: actor,
+    });
+    if (portion && field.portions.claim(portion, actor)) {
+      return { type: 'portion', portion, x: portion.x, z: portion.z };
+    }
+  }
+  const source = field.food ? field.food.nearestRipe(actor.cx, actor.cz, {
+    maxDistance: p.searchRadius, bear: actor, safe: true,
+  }) : null;
+  if (!source || !field.food.claim(source, actor)) return null;
+  return { type: 'source', source, x: source.approachX, z: source.approachZ };
+}
+
+function pathToOrigin(ctx, origin) {
+  const { actor, api } = ctx;
+  const d = Math.hypot(origin.x - actor.cx, origin.z - actor.cz);
+  if (d <= params(ctx).arriveDist) return true;
+  return api.setDestination(actor, origin.x, origin.z);
+}
+
 function beginGift(ctx, forced = null) {
   const { actor, ai, api, field, features } = ctx;
   const p = params(ctx);
-  if (!features || !features.gifting || !actor || !ai || !field || !field.food) return false;
+  if (!features || !features.gifting || !actor || !ai || !field) return false;
   if (actor.stage !== 'adult' || actor.health < p.giverHealth ||
       actor.hunger > p.giverHunger || actor.thirst > p.giverThirst) return miss(actor, p);
   if (actor.lastGiftDay === api.dayNow()) return miss(actor, p);
@@ -83,49 +156,80 @@ function beginGift(ctx, forced = null) {
 
   const recipient = candidateFor(ctx, forced);
   if (!recipient) return miss(actor, p);
-  const source = field.food.nearestRipe(actor.cx, actor.cz, {
-    maxDistance: p.searchRadius, bear: actor, safe: true,
-  });
-  if (!source || !field.food.claim(source, actor)) return miss(actor, p);
+
+  let origin = null;
+  if (!actor.carriedFood) {
+    origin = originFor(ctx);
+    if (!origin) return miss(actor, p);
+  }
 
   if (!beginPair(actor, recipient, 'seekGift', { stop: api.stop, face: api.face })) {
-    field.food.release(source, actor);
+    if (origin) {
+      if (origin.type === 'source') field.food.release(origin.source, actor);
+      else if (origin.type === 'portion') field.portions.release(origin.portion, actor);
+    }
     return miss(actor, p);
   }
-  ai.source = source;
   ai.giftRole = 'giver';
   ai.giftT = p.approachTimeout;
+  ai.giftOrigin = origin;
+  ai.source = origin?.type === 'source' ? origin.source : null;
+  ai.giftPhase = actor.carriedFood ? 'deliver' : 'collect';
   ai.target = { x: recipient.cx, z: recipient.cz };
   recipient.ai.giftRole = 'receiver';
   recipient.ai.giftT = p.approachTimeout;
   recipient.ai.target = { x: actor.cx, z: actor.cz };
-  const path = api.pathTo(actor, recipient.cx, recipient.cz);
-  if (path) api.setPath(actor, path);
-  api.face(actor, recipient.cx, recipient.cz);
+
+  const target = ai.giftPhase === 'collect' ? origin : { x: recipient.cx, z: recipient.cz };
+  if (!pathToOrigin(ctx, target)) {
+    cancelGift(ctx);
+    return false;
+  }
+  api.face(actor, target.x, target.z);
   api.face(recipient, actor.cx, actor.cz);
   api.emit(actor, 'question', 1.05);
   return true;
 }
 
-function finishGift(ctx) {
-  const { actor, ai, api, field, features } = ctx;
+function collect(ctx) {
+  const { actor, ai, field } = ctx;
+  const origin = ai.giftOrigin;
+  if (!origin || !field) return false;
+  if (origin.type === 'source') {
+    if (!origin.source || !origin.source.ripe || origin.source.claim !== actor) return false;
+    if (!field.food.consume(origin.source, actor)) return false;
+    actor.carriedFood = {
+      id: field.portions ? field.portions.nextId() : `gift-${actor.uid}-${Math.floor(actor.ai.clock || 0)}`,
+      kind: origin.source.kind,
+      satiation: origin.source.satiation,
+    };
+    ai.source = null;
+  } else {
+    if (!field.portions) return false;
+    const carried = field.portions.take(origin.portion, actor);
+    if (!carried) return false;
+    actor.carriedFood = carried;
+  }
+  ai.giftOrigin = null;
+  ai.giftPhase = 'deliver';
+  ai.giftT = params(ctx).approachTimeout;
+  return true;
+}
+
+function finishGift(ctx) {  const { actor, ai, api, features } = ctx;
   const p = params(ctx);
   if (!actor || !ai || ai.giftRole !== 'giver') return false;
   const recipient = ai.partner;
-  const source = ai.source;
+  const carried = actor.carriedFood;
   if (!recipient || !recipient.ai || !recipient.active || recipient.ai.partner !== actor ||
-      !source || !source.ripe || source.claim !== actor ||
-      recipient.hunger < p.receiverHunger) {
+      !carried || recipient.hunger < p.receiverHunger) {
     cancelGift(ctx);
     return false;
   }
   const beforeActor = bondOf(actor, recipient);
   const beforeRecipient = bondOf(recipient, actor);
-  if (!field.food.consume(source, actor)) {
-    cancelGift(ctx);
-    return false;
-  }
-  recipient.hunger = Math.max(0, recipient.hunger - source.satiation * forageEatScale(recipient));
+  actor.carriedFood = null;
+  recipient.hunger = Math.max(0, recipient.hunger - carried.satiation * forageEatScale(recipient));
   api.starsRescue?.(recipient, 'food');
   addBond(actor, recipient, p.bond);
   actor.lastGiftDay = api.dayNow();
@@ -141,9 +245,9 @@ function finishGift(ctx) {
       bondBefore: beforeRecipient, bondAfter: bondOf(recipient, actor),
     });
   }
-  ai.source = null;
   ai.giftRole = null;
   ai.giftT = 0;
+  ai.giftPhase = null;
   recipient.ai.giftRole = null;
   recipient.ai.giftT = 0;
   api.emit(recipient, 'heart', 1.05);
@@ -152,7 +256,7 @@ function finishGift(ctx) {
 }
 
 function thinkGift(ctx) {
-  const { actor, ai, api } = ctx;
+  const { actor, ai, api, field } = ctx;
   const p = params(ctx);
   if (!actor || !ai) return;
   const recipient = ai.partner;
@@ -164,9 +268,33 @@ function thinkGift(ctx) {
     api.face(actor, recipient.cx, recipient.cz);
     return;
   }
-  const source = ai.source;
-  if (!source || !source.ripe || source.claim !== actor ||
-      recipient.hunger < p.receiverHunger || recipient.health < p.recipientHealth) {
+  if (recipient.hunger < p.receiverHunger || recipient.health < p.recipientHealth) {
+    cancelGift(ctx);
+    return;
+  }
+
+  if (ai.giftPhase === 'collect') {
+    const origin = ai.giftOrigin;
+    if (!origin ||
+        (origin.type === 'source' && (!origin.source || !origin.source.ripe || origin.source.claim !== actor)) ||
+        (origin.type === 'portion' && !origin.portion)) {
+      cancelGift(ctx);
+      return;
+    }
+    const d = Math.hypot(origin.x - actor.cx, origin.z - actor.cz);
+    if (d <= p.arriveDist) {
+      if (!collect(ctx)) cancelGift(ctx);
+      if (!actor.ai || !actor.carriedFood) return;
+      if (!api.setDestination(actor, recipient.cx, recipient.cz)) cancelGift(ctx);
+      return;
+    }
+    if (api.needsReplan(ai) && !api.setDestination(actor, origin.x, origin.z)) {
+      cancelGift(ctx);
+    }
+    return;
+  }
+
+  if (!actor.carriedFood) {
     cancelGift(ctx);
     return;
   }
@@ -184,7 +312,9 @@ function thinkGift(ctx) {
     api.face(recipient, actor.cx, actor.cz);
     return;
   }
-  if (api.needsReplan(ai)) api.setDestination(actor, recipient.cx, recipient.cz);
+  if (api.needsReplan(ai) && !api.setDestination(actor, recipient.cx, recipient.cz)) {
+    cancelGift(ctx);
+  }
 }
 
 export const giftingModule = defineBehaviorModule({
@@ -221,6 +351,8 @@ export const giftingModule = defineBehaviorModule({
   }],
   beginGift,
   finishGift,
+  collect,
+  dropCarried,
   think(ctx) {
     if (!ctx.ai || (ctx.ai.state !== 'seekGift')) return false;
     thinkGift(ctx);

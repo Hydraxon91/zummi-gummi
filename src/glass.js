@@ -866,6 +866,8 @@ export function createGlassColony({
       uid: a.uid,
       name: a.name,
       species: a.species,
+      x: +a.cx.toFixed(3),
+      z: +a.cz.toFixed(3),
       sex: a.sex,
       stage: a.stage,
       age: +a.age.toFixed(1),

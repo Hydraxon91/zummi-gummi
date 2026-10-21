@@ -5,7 +5,11 @@
 // simulation state, never invents a missing name and never averages asymmetric
 // bonds silently.
 
-const RELATION_ORDER = { Parent: 0, Sibling: 1, Child: 2, Grandparent: 3, Guardian: 4, Dependent: 5 };
+import {
+  friendshipLabel, normalizeRivals, partnerUidOf,
+} from './relationships.js';
+
+const RELATION_ORDER = { Parent: 0, Sibling: 1, Child: 2, Grandparent: 3, Guardian: 4, Dependent: 5, Partner: 6, Rival: 7 };
 const PAIR_EXCLUDED = new Set(['born', 'stage', 'home', 'moved']);
 
 const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : 0));
@@ -111,11 +115,34 @@ export function buildRelationshipView(actor, known, { pairLimit = 3, eventLimit 
       bond: value,
       reverse,
       asymmetric: reverse !== null && Math.abs(value - reverse) > 1e-4,
+      friendship: friendshipLabel(value),
+      friendshipReverse: reverse === null ? null : friendshipLabel(reverse),
       interactions: pairEvents(actor.history, uid, pairLimit),
     });
   }
   bondRows.sort((a, b) => b.bond - a.bond || (a.missing !== b.missing ? (a.missing ? 1 : -1) : 0) ||
     String(a.name || '').localeCompare(String(b.name || '')) || a.uid - b.uid);
+
+  const partnerUid = partnerUidOf(actor);
+  const partner = partnerUid === null ? null : decorate(partnerUid, 'Partner');
+  if (partner) {
+    partner.bond = clamp01(actor.bonds && actor.bonds[String(partnerUid)]);
+    const entry = byUid(partnerUid);
+    const other = entry && entry.actor ? entry.actor : null;
+    partner.reverse = other && other.bonds ? clamp01(other.bonds[String(actor.uid)]) : null;
+    partner.friendship = friendshipLabel(partner.bond);
+    partner.friendshipReverse = partner.reverse === null ? null : friendshipLabel(partner.reverse);
+  }
+
+  const rivals = [];
+  for (const [key, record] of Object.entries(normalizeRivals(actor.rivals))) {
+    const uid = Number(key);
+    const row = decorate(uid, 'Rival');
+    row.sinceDay = record.sinceDay;
+    row.sinceHour = record.sinceHour;
+    rivals.push(row);
+  }
+  sortRows(rivals);
 
   const events = (Array.isArray(actor.history) ? actor.history : [])
     .slice(-Math.max(0, eventLimit | 0))
@@ -126,6 +153,8 @@ export function buildRelationshipView(actor, known, { pairLimit = 3, eventLimit 
     actor: { uid: actor.uid, name: actor.name || null, species: actor.species || null },
     family,
     care,
+    partner,
+    rivals,
     bonds: bondRows,
     events,
   };

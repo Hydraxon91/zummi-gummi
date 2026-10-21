@@ -8,6 +8,7 @@
 import { isSafeFood } from '../foodtypes.js';
 import { addBond, bondOf, pairBond, pushHistory } from '../family.js';
 import { beginPair } from '../interactions.js';
+import { setRival } from '../relationships.js';
 import { defineBehaviorModule } from './module.js';
 
 function clamp(n, lo, hi) {
@@ -195,6 +196,9 @@ function finishConflict(ctx) {
   const beforeActor = bondOf(actor, other);
   const beforeOther = bondOf(other, actor);
   addBond(actor, other, -.08);
+  if (features && features.rivalry) {
+    setRival(actor, other, { day: api.dayNow(), hour: api.hoursNow() });
+  }
   if (features && features.interactionHistory) {
     const day = typeof api.dayNow === 'function' ? api.dayNow() : 0;
     const hour = typeof api.hoursNow === 'function' ? api.hoursNow() : 0;
