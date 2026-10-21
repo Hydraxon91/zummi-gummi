@@ -28,14 +28,14 @@ function adapter() {
   };
 }
 
-function setup(uidA, uidB) {
+function setup(uidA, uidB, { interactionHistory = true } = {}) {
   const world = createWorld();
   const home = world.homes[0].name;
   const a = actor(uidA, home);
   const b = actor(uidB, home);
   const engine = createBehavior({
     engine: 'modules',
-    config: createBehaviorConfig(),
+    config: createBehaviorConfig({ features: { interactionHistory } }),
     field: world,
     getActors: () => [a, b],
     getHours: () => 12,
@@ -70,6 +70,16 @@ test('new interaction history kinds use the existing bounded actor shape', () =>
   const saved = snapshotActor(actor(10, 'Home 1', { history }));
   assert.equal(saved.actorVersion, 2);
   assert.deepEqual(saved.history.map(event => event.kind), history.map(event => event.kind));
+});
+
+test('interaction history off writes nothing to either actor', () => {
+  const { engine, a, b } = setup(10, 11, { interactionHistory: false });
+  engine.forceSocial(a, b);
+  tick(engine, a, 6);
+  engine.forceConflict(a, b);
+  tick(engine, a, 3);
+  assert.deepEqual(a.history, []);
+  assert.deepEqual(b.history, []);
 });
 
 test('a completed social pair records one event for each participant', () => {

@@ -203,7 +203,7 @@ function scheduleNextPlaydate(ctx, partner) {
 }
 
 function endSocialPair(ctx) {
-  const { actor, ai, p, api, rng } = ctx;
+  const { actor, ai, p, api, rng, features } = ctx;
   if (!actor || !ai || ai.state !== 'social') return;
   const partner = ai.partner;
   const familyPlay = !!(ai.familyPlay || (partner && partner.ai && partner.ai.familyPlay));
@@ -212,9 +212,11 @@ function endSocialPair(ctx) {
   settleSocial(ctx);
   if (completedWith) {
     settleSocial({ actor: partner, ai: partner.ai, p: api.profile(partner) });
-    const { day, hour } = historyTime(api);
-    pushHistory(actor, { kind: 'social', uid: partner.uid, day, hour });
-    pushHistory(partner, { kind: 'social', uid: actor.uid, day, hour });
+    if (features && features.interactionHistory) {
+      const { day, hour } = historyTime(api);
+      pushHistory(actor, { kind: 'social', uid: partner.uid, day, hour });
+      pushHistory(partner, { kind: 'social', uid: actor.uid, day, hour });
+    }
   }
   addBond(actor, partner, (familyPlay ? p.social.familyBondBase : p.social.bondBase) + rng() * p.social.bondJitter);
   if (familyPlay) {
@@ -230,7 +232,7 @@ function endSocialPair(ctx) {
 }
 
 function startDeclinePair(ctx, partner) {
-  const { actor, ai, api } = ctx;
+  const { actor, ai, api, features } = ctx;
   if (!actor || !ai || !partner || !partner.ai) return;
   const p = ctx.p;
   beginPair(actor, partner, 'decline', { stop: api.stop, face: api.face });
@@ -240,9 +242,11 @@ function startDeclinePair(ctx, partner) {
   partner.ai.inviteT = 0;
   ai.socialCooldown = Math.max(ai.socialCooldown, 4.0);
   partner.ai.socialCooldown = Math.max(partner.ai.socialCooldown, 2.5);
-  const { day, hour } = historyTime(api);
-  pushHistory(actor, { kind: 'decline', uid: partner.uid, day, hour });
-  pushHistory(partner, { kind: 'declined', uid: actor.uid, day, hour });
+  if (features && features.interactionHistory) {
+    const { day, hour } = historyTime(api);
+    pushHistory(actor, { kind: 'decline', uid: partner.uid, day, hour });
+    pushHistory(partner, { kind: 'declined', uid: actor.uid, day, hour });
+  }
   api.emit(actor, 'no', 1.08);
   api.emit(partner, 'no', 1.08);
 }
@@ -331,10 +335,10 @@ function beginVisitHangout(ctx, partner) {
 }
 
 function finishVisitPair(ctx, completed = false) {
-  const { actor, ai, api } = ctx;
+  const { actor, ai, api, features } = ctx;
   if (!actor || !ai || ai.state !== 'visit') return;
   const partner = ai.partner;
-  if (completed && partner && partner.ai) {
+  if (completed && partner && partner.ai && features && features.interactionHistory) {
     const { day, hour } = historyTime(api);
     const actorRole = ai.visitRole === 'host' ? 'host' : 'guest';
     if (actorRole === 'host') {

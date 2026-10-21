@@ -118,7 +118,7 @@ function startConflict(ctx, other, source) {
 }
 
 function finishConflict(ctx) {
-  const { actor, ai, p, api, rng } = ctx;
+  const { actor, ai, p, api, rng, features } = ctx;
   const conflict = p.conflict;
   if (!conflict || !actor || !ai || ai.state !== 'conflict') return;
   const other = ai.partner;
@@ -142,10 +142,12 @@ function finishConflict(ctx) {
   const loser = winner === actor ? other : actor;
   const claimant = source ? source.claim : null;
   const claimOk = !!source && source.ripe;
-  const day = typeof api.dayNow === 'function' ? api.dayNow() : 0;
-  const hour = typeof api.hoursNow === 'function' ? api.hoursNow() : 0;
-  pushHistory(actor, { kind: 'conflict', uid: other.uid, day, hour });
-  pushHistory(other, { kind: 'conflict', uid: actor.uid, day, hour });
+  if (features && features.interactionHistory) {
+    const day = typeof api.dayNow === 'function' ? api.dayNow() : 0;
+    const hour = typeof api.hoursNow === 'function' ? api.hoursNow() : 0;
+    pushHistory(actor, { kind: 'conflict', uid: other.uid, day, hour });
+    pushHistory(other, { kind: 'conflict', uid: actor.uid, day, hour });
+  }
 
   actor.ai.partner = null;
   other.ai.partner = null;

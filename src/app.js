@@ -6649,6 +6649,11 @@ async function bootGame(){
   syncFarewellSettingsUI();
   applyAdoptionSetting();
   syncAdoptionSettingsUI();
+  // Interaction history feeds the selected-actor relationship view. It stays
+  // off in the engine/parity defaults so the legacy oracle is unaffected.
+  if (behavior && typeof behavior.setFeature === 'function') {
+    behavior.setFeature('interactionHistory', true);
+  }
   ai = createBearAI({
     field,
     getBears: () => bears,

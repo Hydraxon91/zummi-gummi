@@ -205,9 +205,12 @@ to the existing bounded actor history (16 entries); no new save field or actor
 version is introduced. Visits use `visit` for the guest and `hosted` for the host,
 and declines use `decline` for the inviter and `declined` for the responder.
 Interrupted/unfinished visits and interrupted social pairs are not recorded.
-Legacy does not write these module-only history kinds, so the parity harness
-excludes only this explicit set while still comparing state, needs, bonds,
-playdates, RNG and the rest of history.
+The `interactionHistory` feature is off in the engine defaults and enabled by
+`app.js` when the relationship panel is available; the parity harness leaves it
+off so the legacy oracle has no extra history eviction. Legacy does not write
+these module-only history kinds, so the parity comparator also excludes only this
+explicit set while still comparing state, needs, bonds, playdates, RNG and the
+rest of history.
 
 `relationshipview.js` is the pure read-only model behind the selected-actor
 **Relationships** tab. It resolves active and inactive-map records for the current

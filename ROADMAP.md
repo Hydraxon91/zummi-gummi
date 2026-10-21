@@ -1406,9 +1406,10 @@ Completed social pairs, home visits, declined invitations and food conflicts
 append to the existing 16-entry history; visits use `visit`/`hosted`, declines
 use `decline`/`declined`, and interrupted/unfinished interactions are not
 recorded. `bond` remains an unused history kind. No new actor field or actor
-version was needed. Legacy does not write these module-only history kinds, so the
-parity comparator excludes only that explicit set while still comparing state,
-needs, bonds, playdates, RNG and other history. Verified by Node view/history
+version was needed. `interactionHistory` is off in the engine defaults and enabled
+by `app.js` for the panel; the parity harness leaves it off so legacy has no extra
+history eviction. The comparator also excludes only the module-only interaction
+kinds while still comparing state, needs, bonds, playdates, RNG and other history. Verified by Node view/history
 tests, `scripts/relationship-test.mjs` (tabs, keyboard, pair expansion, cross-map
 and missing relatives, asymmetric bonds, Glass and mobile), both browser
 regressions, seeded browser parity and the all-race parity suites.
