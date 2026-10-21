@@ -25,11 +25,14 @@ export function snapshotActor(actor, extra = {}) {
   const history = normalizeHistory(actor.history);
   const guardianUid = actor.stage === 'baby' && Number.isFinite(actor.guardianUid) &&
     actor.guardianUid > 0 ? actor.guardianUid : null;
+  const giftDay = Number.isFinite(actor.lastGiftDay) && actor.lastGiftDay >= 0
+    ? Math.floor(actor.lastGiftDay) : null;
   const record = {
     // Trait-free records remain v2; traits v3; grief v4; a guardian v5; bond
-    // deltas v6 so an older build cannot silently strip the explanation.
-    actorVersion: historyHasBondDelta(history) ? 6
-      : (guardianUid ? 5 : (mourning.length ? 4 : (actor.traits ? 3 : 2))),
+    // deltas v6; a persisted gift day v7.
+    actorVersion: giftDay !== null ? 7
+      : (historyHasBondDelta(history) ? 6
+        : (guardianUid ? 5 : (mourning.length ? 4 : (actor.traits ? 3 : 2)))),
     species: actor.species,
     uid: actor.uid,
     name: actor.name,
@@ -62,6 +65,7 @@ export function snapshotActor(actor, extra = {}) {
   if (actor.traits) record.traits = normalizeTraits(actor.traits);
   if (mourning.length) record.mourning = mourning;
   if (guardianUid) record.guardianUid = guardianUid;
+  if (giftDay !== null) record.lastGiftDay = giftDay;
   if (actor.kind === 'glass') {
     record.kind = 'glass';
     record.species = 'glass';
@@ -92,6 +96,11 @@ export function applyCommonActorState(actor, record) {
     actor.guardianUid = record.guardianUid;
   } else {
     delete actor.guardianUid;
+  }
+  if (Number.isFinite(record.lastGiftDay) && record.lastGiftDay >= 0) {
+    actor.lastGiftDay = Math.floor(record.lastGiftDay);
+  } else {
+    delete actor.lastGiftDay;
   }
   return actor;
 }

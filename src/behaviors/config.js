@@ -14,6 +14,7 @@ import { hiveModule } from './hive.js';
 import { directivesModule } from './directives.js';
 import { conflictModule } from './conflict.js';
 import { stargazeModule } from './stargaze.js';
+import { giftingModule } from './gifting.js';
 import { applyTraitOffsets, founderTraits, normalizeTraits } from './traits.js';
 import { applyMoodOffsets } from './mood.js';
 
@@ -36,6 +37,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
   starsStings: false,          // sting acceleration while already fading
   mourning: false,             // per-save grief after stars departures
   adoption: false,             // automatic guardians for parentless babies
+  gifting: false,              // offer ripe food to another actor
   interactionHistory: false,   // completion-only social/visit/conflict history
 });
 
@@ -44,12 +46,13 @@ const MODULE_DEFAULTS = Object.freeze({
   conflict: conflictModule.defaults,
   directives: directivesModule.defaults,
   stargaze: stargazeModule.defaults,
+  gifting: giftingModule.defaults,
 });
 
 // Profiles written before the modules reshape still used flat capability keys.
 // They remain a fallback for callers that build a profile by hand.
 const LEGACY_CAPABILITY = new Set(['hive', 'conflict', 'directives', 'stargaze']);
-const LEGACY_MODULE_SECTIONS = new Set(['hive', 'conflict', 'directives', 'stargaze']);
+const LEGACY_MODULE_SECTIONS = new Set(['hive', 'conflict', 'directives', 'stargaze', 'gifting']);
 
 const SPECIES = new Map(listSpecies().map(def => [def.id, def]));
 

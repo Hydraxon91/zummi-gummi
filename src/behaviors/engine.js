@@ -30,6 +30,7 @@ import { followModule } from './follow.js';
 import { stargazeModule } from './stargaze.js';
 import { familyTaskModule } from './family.js';
 import { fleeModule } from './flee.js';
+import { giftingModule } from './gifting.js';
 import { planReason } from './reason.js';
 import { ensureTraits } from './traits.js';
 import { moodFor, moodLabel, MOOD_BUCKET, MOOD_TAU, MOOD_UPDATE_INTERVAL } from './mood.js';
@@ -415,6 +416,11 @@ export function createBehaviorModules({
       actor.ai.moodClock = 0;
       actor.ai.moodAt = 0;
     }
+    if (features.gifting) {
+      actor.ai.giftRetryT = 0;
+      actor.ai.giftRole = null;
+      actor.ai.giftT = 0;
+    }
     if (actor._directiveSave) {
       const saved = actor._directiveSave;
       const clean = (d) => (d && Number.isFinite(d.ttl) ? { ...d } : null);
@@ -653,7 +659,7 @@ export function createBehaviorModules({
     releaseFood(actor);
     if (partner) releaseFood(partner);
     breakSharedPair(actor, { stop });
-    const pairState = ['social', 'invite', 'decline', 'visit', 'seekCompany', 'seekMate', 'mate', 'familyTask', 'conflict'].includes(actor.ai.state);
+    const pairState = ['social', 'invite', 'decline', 'visit', 'seekCompany', 'seekMate', 'mate', 'familyTask', 'conflict', 'seekGift', 'gift'].includes(actor.ai.state);
     const seekState = features.cancelPairStateReset &&
       ['seekFood', 'seekHive', 'seekWater', 'seekHome', 'seekConflict'].includes(actor.ai.state);
     if (pairState || seekState) {
@@ -1105,6 +1111,9 @@ export function createBehaviorModules({
 
     if (ai.taskCooldown > 0) ai.taskCooldown = Math.max(0, ai.taskCooldown - dt);
     if (ai.followRetryT > 0) ai.followRetryT = Math.max(0, ai.followRetryT - dt);
+    if (features.gifting && ai.giftRetryT > 0) {
+      ai.giftRetryT = Math.max(0, ai.giftRetryT - dt);
+    }
     if (ai.familyPlayCooldown > 0) ai.familyPlayCooldown = Math.max(0, ai.familyPlayCooldown - dt);
     if (ai.idleT > 0) ai.idleT = Math.max(0, ai.idleT - dt);
     if (ai.stungT > 0) ai.stungT = Math.max(0, ai.stungT - dt);
@@ -1464,6 +1473,19 @@ export function createBehaviorModules({
     return { ok: true, state: actor.ai.state };
   }
 
+  function forceGift(actor, recipient) {
+    if (!actor || !recipient || !actor.ai || !recipient.ai) {
+      return { ok: false, note: 'no pair' };
+    }
+    cancelPair(actor);
+    cancelPair(recipient);
+    const ok = giftingModule.beginGift(contextFor(actor), recipient);
+    return {
+      ok, state: actor.ai ? actor.ai.state : null,
+      sourceId: ok && actor.ai.source ? actor.ai.source.id : null,
+    };
+  }
+
   function forceInvite(actor, partner, accept = true) {
     if (!actor || !partner) return { ok: false, note: 'no pair' };
     cancelPair(actor);
@@ -1520,6 +1542,7 @@ export function createBehaviorModules({
   registerModule(stargazeModule);
   registerModule(familyTaskModule);
   registerModule(fleeModule);
+  registerModule(giftingModule);
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
@@ -1625,7 +1648,7 @@ export function createBehaviorModules({
   return {
     attach, tick, plan, stats: statsNow, registerAdapter,
     setEnabled, onGrab, onRelease, detach, resumeTask, debugState,
-    setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal, forceLesson,
+    setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal, forceLesson, forceGift,
     startSeekHome, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind),
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
     invalidateActor: (actor) => config.invalidateActor(actor),

@@ -22,7 +22,7 @@ export const FAMILY_ROUTINES = Object.freeze({
 
 export const HISTORY_KINDS = Object.freeze([
   'born', 'mated', 'child', 'meal', 'lesson', 'taught', 'playdate', 'visit',
-  'hosted', 'social', 'decline', 'declined', 'conflict',
+  'hosted', 'social', 'decline', 'declined', 'conflict', 'gift', 'receivedGift',
   'stage', 'home', 'moved', 'bond',
 ]);
 
@@ -30,7 +30,7 @@ export const HISTORY_KINDS = Object.freeze([
 // prefer evicting one of them over a lesson record, which gates same-day
 // teaching behavior.
 export const INTERACTION_HISTORY_KINDS = Object.freeze(new Set([
-  'social', 'hosted', 'visit', 'decline', 'declined', 'conflict',
+  'social', 'hosted', 'visit', 'decline', 'declined', 'conflict', 'gift', 'receivedGift',
 ]));
 
 function bondDeltaFields(event) {

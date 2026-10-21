@@ -34,7 +34,7 @@ test('bond-delta history uses actorVersion 6 and round-trips', () => {
   applyCommonActorState(restored, record);
   assert.equal(restored.history[0].bondBefore, .4);
   assert.equal(restored.history[0].bondAfter, .52);
-  assert.equal(ACTOR_SAVE_VERSION, 6);
+  assert.equal(ACTOR_SAVE_VERSION, 7);
 });
 
 test('a Glass record with a bond delta validates on v6', () => {
@@ -48,6 +48,33 @@ test('a Glass record with a bond delta validates on v6', () => {
   const restored = actor(9, { kind: 'glass', species: 'glass' });
   applyCommonActorState(restored, record);
   assert.equal(restored.history[0].bondAfter, .52);
+});
+
+test('a persisted gift day uses actorVersion 7 and round-trips', () => {
+  const record = snapshotActor(actor(1, {
+    lastGiftDay: 3, history: [delta],
+  }), { flavor: 0 });
+  assert.equal(record.actorVersion, 7);
+  assert.equal(record.lastGiftDay, 3);
+  const errors = [];
+  validateActorWorld({ bears: [record] }, 'world', errors);
+  assert.deepEqual(errors, []);
+  const restored = actor(1);
+  applyCommonActorState(restored, record);
+  assert.equal(restored.lastGiftDay, 3);
+
+  const wrongVersion = [];
+  validateActorWorld({ bears: [{ ...record, actorVersion: 6 }] }, 'world', wrongVersion);
+  assert.match(wrongVersion.join('; '), /lastGiftDay requires actorVersion 7/);
+
+  const missing = snapshotActor(actor(2), { flavor: 0 });
+  const missingErrors = [];
+  validateActorWorld({ bears: [{ ...missing, actorVersion: 7 }] }, 'world', missingErrors);
+  assert.match(missingErrors.join('; '), /lastGiftDay is required for actorVersion 7/);
+
+  const migrated = migrateActorRecord(actor(3, { actorVersion: 2, lastGiftDay: 4 }));
+  assert.equal(migrated.actorVersion, 7);
+  assert.equal(migrated.lastGiftDay, 4);
 });
 
 test('deltas require v6 and v6 requires at least one delta', () => {

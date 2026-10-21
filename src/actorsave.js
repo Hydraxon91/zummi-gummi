@@ -12,12 +12,12 @@ import { normalizeTraits, TRAIT_AXES } from './behaviors/traits.js';
 import { normalizeMourning } from './behaviors/mourning.js';
 
 // 2 is trait/grief/guardian/delta-free, 3 carries traits, 4 carries per-save
-// mourning, 5 carries a baby's guardian, and 6 carries bond-delta history
-// (mourning, traits and a guardian may ride along).
-export const ACTOR_SAVE_VERSION = 6;
+// mourning, 5 carries a baby's guardian, 6 carries bond-delta history, and 7
+// carries a persisted daily gift day (other features may ride along).
+export const ACTOR_SAVE_VERSION = 7;
 
 const STAGES = new Set(['baby', 'teen', 'adult']);
-const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5, 6]);
+const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7]);
 const NUMERIC_FIELDS = [
   'scale', 'health', 'hunger', 'thirst', 'energy', 'age',
   'gestation', 'mateCooldown', 'social', 'affection', 'bold',
@@ -51,9 +51,18 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
     } else if (a.stage !== 'baby') {
       errors.push(`${where}.guardianUid requires stage baby`);
     }
-    if (a.actorVersion !== 5 && a.actorVersion !== 6) {
-      errors.push(`${where}.guardianUid requires actorVersion 5 or 6`);
+    if (a.actorVersion !== 5 && a.actorVersion !== 6 && a.actorVersion !== 7) {
+      errors.push(`${where}.guardianUid requires actorVersion 5, 6 or 7`);
     }
+  }
+  if (a.lastGiftDay !== undefined) {
+    if (!isNum(a.lastGiftDay) || a.lastGiftDay < 0) {
+      errors.push(`${where}.lastGiftDay is invalid`);
+    }
+    if (a.actorVersion !== 7) errors.push(`${where}.lastGiftDay requires actorVersion 7`);
+  }
+  if (a.actorVersion === 7 && !isNum(a.lastGiftDay)) {
+    errors.push(`${where}.lastGiftDay is required for actorVersion 7`);
   }
   if (a.actorVersion === 5 && !isNum(a.guardianUid)) {
     errors.push(`${where}.guardianUid is required for actorVersion 5`);
@@ -100,8 +109,8 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
       }
     });
   }
-  if (historyDeltas && a.actorVersion !== 6) {
-    errors.push(`${where}.bondDelta requires actorVersion 6`);
+  if (historyDeltas && a.actorVersion !== 6 && a.actorVersion !== 7) {
+    errors.push(`${where}.bondDelta requires actorVersion 6 or 7`);
   }
   if (a.actorVersion === 6 && !historyDeltas) {
     errors.push(`${where}.bondDelta is required for actorVersion 6`);
@@ -132,8 +141,9 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
         errors.push(`${where}.mourning[${index}] is invalid`);
       }
     });
-    if (a.actorVersion !== 4 && a.actorVersion !== 5 && a.actorVersion !== 6) {
-      errors.push(`${where}.mourning requires actorVersion 4, 5 or 6`);
+    if (a.actorVersion !== 4 && a.actorVersion !== 5 && a.actorVersion !== 6 &&
+        a.actorVersion !== 7) {
+      errors.push(`${where}.mourning requires actorVersion 4-7`);
     }
   }
   if (a.actorVersion === 4 && !Array.isArray(a.mourning)) {
@@ -180,10 +190,12 @@ export function migrateActorRecord(record) {
   const mourning = normalizeMourning(record.mourning);
   const history = normalizeHistory(record.history);
   const hasDelta = historyHasBondDelta(history);
+  const giftDay = isNum(record.lastGiftDay) && record.lastGiftDay >= 0
+    ? Math.floor(record.lastGiftDay) : null;
   const guardianUid = record.stage === 'baby' && isNum(record.guardianUid) && record.guardianUid > 0
     ? record.guardianUid : null;
-  const versioned = hasDelta ? 6
-    : (guardianUid ? 5 : (mourning.length ? 4 : (hasTraits ? 3 : 2)));
+  const versioned = giftDay !== null ? 7
+    : (hasDelta ? 6 : (guardianUid ? 5 : (mourning.length ? 4 : (hasTraits ? 3 : 2))));
   const migrated = {
     ...record,
     actorVersion: versioned,
@@ -194,6 +206,8 @@ export function migrateActorRecord(record) {
   };
   if (guardianUid) migrated.guardianUid = guardianUid;
   else delete migrated.guardianUid;
+  if (giftDay !== null) migrated.lastGiftDay = giftDay;
+  else delete migrated.lastGiftDay;
   if (mourning.length) migrated.mourning = mourning;
   else delete migrated.mourning;
   return migrated;

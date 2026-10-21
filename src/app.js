@@ -46,7 +46,9 @@ const farewells = new Map();
 let farewellGlowTex = null;
 const FAREWELL_KEY = 'gummy.farewells';
 const ADOPTION_KEY = 'gummy.adoption';
+const GIFTING_KEY = 'gummy.gifting';
 let adoptionEnabled = false;
+let giftingEnabled = false;
 const FAREWELL_FEATURES = {
   farewells: 'farewells',
   starsOldAge: 'starsOldAge',
@@ -637,6 +639,7 @@ function spawn(x, z, y, flavor, opts={}){
   b.parentUids=Array.isArray(opts.parentUids) ? opts.parentUids.slice() : [];
   b.fatherUid=Number.isFinite(opts.fatherUid) ? opts.fatherUid : 0;
   delete b.guardianUid;
+  delete b.lastGiftDay;
   b.bedtime=Number.isFinite(opts.bedtime) ? opts.bedtime : 20+Math.random()*2.5;
   b.wakeTime=Number.isFinite(opts.wakeTime) ? opts.wakeTime : 5+Math.random()*2;
   b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
@@ -3575,6 +3578,41 @@ function readAdoptionSetting(){
   try { adoptionEnabled = localStorage.getItem(ADOPTION_KEY) === '1'; } catch (err) {}
 }
 
+function readGiftingSetting(){
+  try { giftingEnabled = localStorage.getItem(GIFTING_KEY) === '1'; } catch (err) {}
+}
+
+function applyGiftingSetting(){
+  if (!behavior || BEHAVIOR_ENGINE !== 'modules') return false;
+  behavior.setFeature('gifting', !!giftingEnabled);
+  return true;
+}
+
+function syncGiftingSettingsUI(){
+  const legacy = BEHAVIOR_ENGINE !== 'modules';
+  const box = document.getElementById('settingsGifting');
+  if (box) {
+    box.checked = !!giftingEnabled;
+    box.disabled = legacy;
+  }
+  const value = document.getElementById('settingsGiftingVal');
+  if (value) value.textContent = giftingEnabled ? 'On' : 'Off';
+  const note = document.getElementById('settingsGiftingNote');
+  if (note) {
+    note.textContent = legacy
+      ? 'Gifting needs the modules engine; it is disabled with ?behaviors=legacy.'
+      : 'Off by default. An adult can offer ripe food to a nearby actor once a day.';
+  }
+}
+
+function setGiftingSetting(value){
+  giftingEnabled = !!value;
+  try { localStorage.setItem(GIFTING_KEY, giftingEnabled ? '1' : '0'); } catch (err) {}
+  applyGiftingSetting();
+  syncGiftingSettingsUI();
+  return giftingEnabled;
+}
+
 function applyAdoptionSetting(){
   if (!behavior || BEHAVIOR_ENGINE !== 'modules') return false;
   behavior.setFeature('adoption', !!adoptionEnabled);
@@ -3676,6 +3714,11 @@ document.getElementById('settingsAdoption')?.addEventListener('change', event =>
   setAdoptionSetting(event.target.checked);
 });
 syncAdoptionSettingsUI();
+readGiftingSetting();
+document.getElementById('settingsGifting')?.addEventListener('change', event => {
+  setGiftingSetting(event.target.checked);
+});
+syncGiftingSettingsUI();
 
 /* ------------------------------ Aero / MSN -------------------------------- */
 const skyClockEl = document.getElementById('skyClock');
@@ -4052,6 +4095,8 @@ function historyLabel(event) {
     case 'decline': return `had an invitation declined by ${name}`;
     case 'declined': return `declined an invitation from ${name}`;
     case 'conflict': return `contested food with ${name}`;
+    case 'gift': return `gave food to ${name}`;
+    case 'receivedGift': return `received food from ${name}`;
     case 'stage': return 'grew up';
     case 'home': return 'went home';
     case 'moved': return 'moved home';
@@ -4284,6 +4329,10 @@ function syncDirectivePanel(){
     text = b.inside ? 'Resting inside for the day.' : 'Glass hovers, feeds and socialises autonomously.';
   } else if (b.ai && b.ai.directiveStatus && b.ai.directiveStatus.t > 0) {
     text = b.ai.directiveStatus.text;
+  } else if (b.ai && b.ai.state === 'seekGift') {
+    text = b.ai.giftRole === 'giver' ? 'Offering food nearby.' : 'Waiting for an offer.';
+  } else if (b.ai && b.ai.state === 'gift') {
+    text = b.ai.giftRole === 'giver' ? 'Handing over food.' : 'Receiving food.';
   } else if (b.ai && b.ai.directive) {
     text = `${DIRECTIVE_TEXT[b.ai.directive.kind] || 'Directive'} — ${Math.ceil(b.ai.directive.ttl)}s`;
   } else if (b.ai && b.ai.directives && b.ai.directives.length) {
@@ -6658,6 +6707,8 @@ async function bootGame(){
   syncFarewellSettingsUI();
   applyAdoptionSetting();
   syncAdoptionSettingsUI();
+  applyGiftingSetting();
+  syncGiftingSettingsUI();
   // Interaction history feeds the selected-actor relationship view. It stays
   // off in the engine/parity defaults so the legacy oracle is unaffected.
   if (behavior && typeof behavior.setFeature === 'function') {
@@ -7497,6 +7548,12 @@ window.__gummy = {
   forceConflict(i, j){
     if (!ai) return { ok:false, note:'meadow only' };
     return ai.debugConflict(bears[i], bears[j]);
+  },
+  gift(i, j){
+    if (!behavior || typeof behavior.forceGift !== 'function') {
+      return { ok:false, note:'modules only' };
+    }
+    return behavior.forceGift(bears[i], bears[j]);
   },
   forceMate(i, j){
     if (!ai) return { ok:false, note:'meadow only' };
