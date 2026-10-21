@@ -355,6 +355,8 @@ export function createGlassColony({
     a.scale = clamp(scaleForStage(stage) * size, .35, 1.8);
     a.root.scale.setScalar(a.scale);
     if (stage !== 'baby') {
+      delete a.guardianUid;
+      a.ai.adoptionRetryAt = 0;
       a.ai.follow = null;
       if (a.ai.state === 'follow') {
         a.ai.state = 'wander';

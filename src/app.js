@@ -647,6 +647,28 @@ function spawn(x, z, y, flavor, opts={}){
   buildBear(b);
   return b;
 }
+function clearGuardianReferences(uid){
+  if (!Number.isFinite(uid)) return;
+  for (const actor of actorView.all()) {
+    if (!actor || actor.guardianUid !== uid) continue;
+    delete actor.guardianUid;
+    if (!actor.ai) continue;
+    actor.ai.adoptionRetryAt = 0;
+    if (actor.ai.follow && actor.ai.follow.uid === uid) {
+      actor.ai.follow = null;
+      if (actor.ai.state === 'follow') {
+        actor.ai.state = 'wander';
+        actor.ai.idleT = .5;
+        actor.ai.nextThink = 0;
+        actor.ai.path = null;
+        actor.ai.moving = false;
+        actor.ai.target = null;
+        behavior?.api?.stop?.(actor);
+      }
+    }
+  }
+}
+
 function removeBear(b, opts = {}){
   const i = bears.indexOf(b); if (i<0) return;
   if (opts.departure) departures?.snapshot(b, opts.departure, opts);
@@ -656,6 +678,7 @@ function removeBear(b, opts = {}){
   clearFarewellRuntime(b);
   destroyBearBodies(b);
   bears.splice(i,1);
+  clearGuardianReferences(b.uid);
   for (const g of Array.from(grabs.values())) if (g.bear === b) endGrab(g, false);
   b.active=false; b.grabs=0;
   b.mesh.visible=false;
@@ -726,7 +749,10 @@ function removeGlassActor(actor, opts = {}){
   if (!glassColony || !actor) return false;
   if (opts.departure) departures?.snapshot(actor, opts.departure, opts);
   clearFarewellRuntime(actor);
-  return glassColony.removeActor(actor);
+  const uid = actor.uid;
+  const removed = glassColony.removeActor(actor);
+  if (removed) clearGuardianReferences(uid);
+  return removed;
 }
 
 function makeFarewellFx(actor, reason){

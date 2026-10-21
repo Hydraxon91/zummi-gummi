@@ -173,6 +173,51 @@ try {
     removed && removed.guardian === null, { value: JSON.stringify(removed) });
   report.removed = removed;
 
+  const glass = await evaluate(`(() => {
+    const g = window.__gummy;
+    const payload = JSON.parse(g.exportSave());
+    const world = payload.worlds.field;
+    const adults = (world.glass || []).filter(a => a.stage === 'adult');
+    if (!adults.length) return { found: false, reason: 'no Glass adult' };
+    const maxUid = Math.max(0,
+      ...(world.glass || []).map(a => a.uid),
+      ...(world.bears || []).map(a => a.uid));
+    const guardian = adults[0];
+    const baby = {
+      ...guardian,
+      uid: maxUid + 1,
+      stage: 'baby',
+      age: 40,
+      scale: .55,
+      parentUids: [999999],
+      pregnant: false,
+      gestation: 0,
+      mateCooldown: 0,
+      bonds: {},
+      skills: {},
+      history: [],
+      playdates: {},
+    };
+    delete baby.guardianUid;
+    guardian.home = baby.home;
+    for (const row of world.glass) delete row.guardianUid;
+    world.glass.push(baby);
+    payload.mapId = 'field';
+    g.importSave(payload);
+    g.sim(20, 0);
+    const index = g.glass().actors.findIndex(a => a.uid === baby.uid);
+    const assigned = index >= 0 ? g.glassGuardian(index) : null;
+    const staged = index >= 0 ? g.glassSetStage(index, 'teen') : false;
+    return {
+      found: true, babyUid: baby.uid, guardianUid: guardian.uid,
+      assigned, staged, afterStage: index >= 0 ? g.glassGuardian(index) : null,
+    };
+  })()`);
+  check('a parentless Glass baby gets a Glass guardian and clears on stage-up',
+    glass.found && glass.assigned === glass.guardianUid && glass.staged === true &&
+    glass.afterStage === null, { value: JSON.stringify(glass) });
+  report.glass = glass;
+
   const off = await evaluate(`(() => {
     const g = window.__gummy;
     g.setBehaviorFeature('adoption', false);

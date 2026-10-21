@@ -370,7 +370,6 @@ export function createBehaviorModules({
       visitRetryT: 0,
       follow: null,
       followRetryT: 0,
-      adoptionRetryAt: 0,
       mateT: 0,
       shove: null,
       lastX: actor.cx,

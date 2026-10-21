@@ -180,12 +180,15 @@ map uses live actors; an inactive map uses the snapshot taken when it was left.
 If the roster cannot be read while the baby has parent UIDs, assignment is
 deferred instead of treating the baby as an orphan.
 
-An automatic guardian is a same-species adult. Preference is immediate family or
-grandparent, then a same-household adult, then an adult with a bond of at least
-`0.35`; ties use the stronger bond and then the lowest UID. Candidates already
-holding more than two other baby dependents are skipped. A guardian is assigned
-on the baby's next think, only while it is free of a pair or family task; with no
-candidate the baby keeps its normal behavior and retries after one game-hour.
+An automatic guardian is a same-species adult. Preference is immediate family
+(a sibling sharing stored parent UIDs), then a same-household adult, then an
+adult with a bond of at least `0.35`; ties use the stronger bond and then the
+lowest UID. A grandparent cannot be recovered while the linking parent record is
+absent. Candidates already holding more than two other adopted baby dependents
+are skipped. A guardian is assigned on the baby's next think, only while it is
+free of a pair or family task; with no candidate the baby keeps its normal
+behavior and retries after one game-hour. The retry field is created only while
+the feature is enabled.
 
 `guardianUid` is separate from `parentUids`; ancestry and home are never
 rewritten. It clears when a parent is active again, when the guardian departs or

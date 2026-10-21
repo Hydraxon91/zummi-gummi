@@ -21,14 +21,10 @@ function knownUidSet(knownUids) {
   return null;
 }
 
-function isRelative(child, candidate, byUid) {
-  if (familyRelation(child, candidate)) return true;
-  // Grandparents are relatives too; great-grandparents are not considered.
-  for (const uid of child.parentUids || []) {
-    const parent = byUid.get(uid);
-    if (parent && (parent.parentUids || []).includes(candidate.uid)) return true;
-  }
-  return false;
+function isRelative(child, candidate) {
+  // Only immediate family is recoverable for an orphan: a sibling shares stored
+  // parent UIDs, while a grandparent needs the absent parent's own record.
+  return familyRelation(child, candidate);
 }
 
 export function adoptionStatus(child, actors, { knownUids = null } = {}) {
@@ -58,7 +54,6 @@ export function guardianCandidate(child, actors, { knownUids = null } = {}) {
   if (!status.orphan) return null;
 
   const list = Array.isArray(actors) ? actors.filter(active) : [];
-  const byUid = new Map(list.map(actor => [actor.uid, actor]));
   const dependents = new Map();
   for (const actor of list) {
     if (actor === child || actor.stage !== 'baby' || !Number.isFinite(actor.guardianUid)) continue;
@@ -72,7 +67,7 @@ export function guardianCandidate(child, actors, { knownUids = null } = {}) {
     if (candidate.fading) continue;
     if ((dependents.get(candidate.uid) || 0) > ADOPTION_DEFAULTS.maxDependents) continue;
 
-    const relation = isRelative(child, candidate, byUid);
+    const relation = isRelative(child, candidate);
     const household = !!child.home && candidate.home === child.home;
     const childBond = bondOf(child, candidate);
     const bond = Math.max(childBond, bondOf(candidate, child));

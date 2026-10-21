@@ -100,6 +100,36 @@ test('follow.seek keeps order 90 while adoption is enabled', () => {
   assert.equal(opportunity.order, 90);
 });
 
+test('a grandparent is not recoverable without the absent parent record', () => {
+  const child = actor(10, { stage: 'baby', parentUids: [50], home: 'Home 2' });
+  // The absent parent 50 owns the link to 30; without that record the game
+  // cannot tell that 30 is a grandparent.
+  const grandparent = actor(30, { parentUids: [], home: 'Home 3' });
+  const { engine } = setup([child, grandparent]);
+  thinkNow(engine, child);
+  assert.equal(child.guardianUid, undefined);
+  assert.equal(engine.api.adoption(child).orphan, true);
+});
+
+test('competing babies fill the guardian capacity deterministically', () => {
+  const babies = [10, 11, 12, 13].map(uid =>
+    actor(uid, { stage: 'baby', parentUids: [99], home: 'Home 2' }));
+  const guardian = actor(30, { home: 'Home 2' });
+  const { engine } = setup([...babies, guardian]);
+  // Assignment order is the roster order; a real think may defer while a baby
+  // is in a family task, so exercise the adoption decision directly here.
+  for (const baby of babies) engine.api.reconcileAdoption(baby);
+  assert.deepEqual(babies.map(baby => baby.guardianUid), [30, 30, 30, undefined]);
+});
+
+test('a missing guardian is cleared even while the child is paired', () => {
+  const child = actor(10, { stage: 'baby', parentUids: [99], home: 'Home 2', guardianUid: 30 });
+  const { engine } = setup([child]);
+  child.ai.partner = actor(31);
+  assert.equal(engine.api.reconcileAdoption(child), true);
+  assert.equal(child.guardianUid, undefined);
+});
+
 test('a Glass baby uses a Glass guardian', () => {
   const child = actor(10, {
     stage: 'baby', species: 'glass', kind: 'glass', parentUids: [99], home: 'Home 2',
@@ -182,6 +212,24 @@ test('a returning parent clears the guardian and becomes the follow target', () 
   assert.equal(engine.api.adoption(child).parent, 3);
 });
 
+test('a returning parent replaces an active guardian follow', () => {
+  const child = actor(10, { stage: 'baby', parentUids: [3], home: 'Home 2', guardianUid: 30 });
+  const guardian = actor(30, { home: 'Home 2', cx: 5, cz: 0 });
+  const parent = actor(3, { home: 'Home 3', cx: 10, cz: 0 });
+  const { engine } = setup([child, guardian, parent], { knownUids: new Set([3]) });
+  child.ai.state = 'follow';
+  child.ai.follow = guardian;
+  child.ai.target = { x: guardian.cx, z: guardian.cz };
+  engine.tick(child, .1, { ready: true });
+  assert.notEqual(child.ai.follow, guardian);
+  for (let i = 0; i < 10 && child.ai.follow !== parent; i++) {
+    child.ai.nextThink = 0;
+    engine.tick(child, .1, { ready: true });
+  }
+  assert.equal(child.ai.state, 'follow');
+  assert.equal(child.ai.follow, parent);
+});
+
 test('a departed or invalid guardian is cleared', () => {
   const child = actor(10, { stage: 'baby', parentUids: [99], home: 'Home 2', guardianUid: 30 });
   const guardian = actor(30, { home: 'Home 2' });
@@ -238,6 +286,7 @@ test('adoption off leaves the baby untouched and does not draw RNG', () => {
   assert.equal(child.guardianUid, undefined);
   assert.equal(engine.api.followTargetFor(child), null);
   assert.equal(engine.stats().adoptions, 0);
+  assert.equal('adoptionRetryAt' in child.ai, false);
 
   let draws = 0;
   const next = mulberry32(4);
