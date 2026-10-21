@@ -87,6 +87,31 @@ try {
     babyNow.guardianUid === setup.guardianUid, { value: JSON.stringify(babyNow) });
   report.setup = { ...setup, babyNow };
 
+  const toggle = await evaluate(`(() => {
+    const g = window.__gummy;
+    const index = g.traits().findIndex(a => a.uid === ${setup.babyUid});
+    const before = index >= 0 ? g.guardian(index) : null;
+    const forced = index >= 0 ? g.guardianFollow(index) : false;
+    const following = index >= 0 ? g.traits()[index].ai : null;
+    g.setBehaviorFeature('adoption', false);
+    const off = index >= 0 ? g.adoption(index) : null;
+    const stateOff = index >= 0 ? g.traits()[index].ai : null;
+    g.setBehaviorFeature('adoption', true);
+    return {
+      before, forced, following, stateOff,
+      guardianOff: off?.guardianUid ?? null,
+      enabledOff: off?.enabled ?? null,
+      targetOff: off?.target ?? null,
+      after: index >= 0 ? g.guardian(index) : null,
+    };
+  })()`);
+  check('disabling adoption stops an active guardian follow and preserves the link',
+    toggle.forced && toggle.following === 'follow' && toggle.stateOff !== 'follow' &&
+    toggle.guardianOff === setup.guardianUid && toggle.enabledOff === false &&
+    toggle.targetOff === null && toggle.after === setup.guardianUid,
+    { value: JSON.stringify(toggle) });
+  report.toggle = toggle;
+
   const saved = await evaluate(`(async () => {
     const g = window.__gummy;
     const before = g.guardian(g.traits().findIndex(a => a.uid === ${setup.babyUid}));
@@ -164,7 +189,9 @@ try {
       if (row.uid === ${setup.babyUid}) row.parentUids = [];
     }
     payload.mapId = 'field';
+    g.setBehaviorFeature('adoption', false);
     g.importSave(payload);
+    g.setBehaviorFeature('adoption', true);
     g.sim(20, 0);
     const index = g.traits().findIndex(a => a.uid === ${setup.babyUid});
     return index < 0 ? null : { guardian: g.guardian(index), adoption: g.adoption(index) };

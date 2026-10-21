@@ -7170,6 +7170,16 @@ window.__gummy = {
     if (a && a.active) focusBuddy(a);
     return selectedBear ? selectedBear.name : null;
   },
+  guardianFollow(i){
+    const b = bears[i];
+    const guardian = b && Number.isFinite(b.guardianUid) ? actorView.byUid(b.guardianUid) : null;
+    if (!b || !b.ai || !guardian || !guardian.ai) return false;
+    b.ai.state = 'follow';
+    b.ai.follow = guardian;
+    b.ai.target = { x: guardian.cx, z: guardian.cz };
+    b.ai.moving = false;
+    return true;
+  },
   relationships(uid){
     const actor = uid === undefined || uid === null
       ? selectedBear
