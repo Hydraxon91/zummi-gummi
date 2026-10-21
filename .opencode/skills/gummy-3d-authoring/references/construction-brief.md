@@ -7,6 +7,10 @@ Record concise decisions and observable evidence, not hidden reasoning.
 ## Template
 
 - **Target/evidence:** reference landmarks, dimensions, units, coordinate space and uncertainty.
+- **Reference calibration:** authority view, crop rectangles, pixels-per-metre scale, plane
+  collection and the overlay captures used for the gate. If no reference was supplied, state
+  that explicitly. Calibration must exist before the first geometry edit; dimensions agreed
+  only in chat do not count.
 - **Geometry drivers:** silhouette, section progression, curvature, thickness, openings,
   interfaces and operating poses. Identify protected surfaces/transforms.
 - **Method:** chosen approach, why it fits, and the principal alternative's drawback.

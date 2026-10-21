@@ -398,6 +398,10 @@ source fingerprints; approvals require fresh four-view evidence and are revalida
 detail/delivery. Materials, keys, bezels, seams and delivery exports come after the shell
 reads correctly.
 
+The shape gate is **feature presence plus overlay comparison, not bounds**. Inspect top and
+three-quarter views specifically for cavities, openings and recline; a missing required
+feature blocks the next stage regardless of how finished the rest looks.
+
 Prove one representative difficult part, including its interfaces, evaluated topology, UVs
 and requested export, before replicating it. Inspect modifier-generated bevel corners,
 Boolean walls, coincident/split surfaces, sliver triangles and generated UVs: a healthy base

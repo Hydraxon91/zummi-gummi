@@ -30,6 +30,13 @@ working in this repo.
   would otherwise lose context, keep one short pointer to that doc. If you catch yourself
   writing a story, a measurement table or a failure history into a skill, stop and move
   it.
+- **Known-broken features block delivery.** A required feature that is absent, collapsed or
+  contradicted by the reference is a **failure**, never a "residual", a "known limitation" or
+  an "accepted trade-off". Do not bake, export, approve or report delivered while such a
+  defect stands. Residuals are only for out-of-scope or unverifiable items and must name what
+  is missing; "seat cavity lost under smoothing" is a defect, not a residual. If a rebuild
+  destroys an earlier working feature, restore or fix it before continuing — do not regress
+  to a simpler shape and ship it.
 - **Style alignment:** mirror the existing syntax, formatting and pattern choices in
   `src/`. Match the surrounding file; do not introduce a new idiom for one change.
 - **Hypothesis verification:** before proposing a fix, state the expected behavior, the
@@ -576,22 +583,35 @@ approved work chunk.
 - **Check shared data before edits.** Inventory mesh, material and image users, parents,
   constraints and modifier dependencies. Make an approved independent copy when necessary;
   changing one part must not silently change linked parts or their placement.
-- **Calibrate references before modeling.** Record the real target dimensions, measure what
-  each reference sheet actually encodes, pick one sheet as the dimensional authority and
-  never non-uniformly scale a reference to force agreement. If sheets conflict, that is the
-  user's decision (see the Fix-Classification Gate): present the numbers and wait.
+- **Reference images require calibrated planes before any shape edit.** Record the real
+  target dimensions, measure what each reference sheet actually encodes, pick one sheet as
+  the dimensional authority and never non-uniformly scale a reference to force agreement.
+  If the task models from a supplied image or sheet, build locked reference planes with one
+  shared scale *before* the first geometry operation; dimensions agreed only in chat, bounds
+  estimates or "we can compare later" are not calibration. Supplying an image and starting to
+  model in the same step is a process error. If sheets conflict, that is the user's decision
+  (see the Fix-Classification Gate): present the numbers and wait.
   Use visually confirmed structural landmarks and physical silhouettes, not livery, paint
   colours or decal boundaries, for geometry measurements. Lock calibrated references;
   recalibration requires reporting the discrepancy, approval and rechecking dependent
   measurements.
-- **Use reference planes for direct comparison.** When calibrated reference planes are
-  available, compare the model against them in aligned orthographic views before and after
-  each silhouette-changing step. Use a verified see-through or wireframe overlay so both
-  model edges and reference features remain visible; hide unrelated reference planes to
-  prevent overlapping drawings. Inspect the resulting capture: enabling an X-ray setting
-  alone does not prove transparency works. Compare upper and lower silhouettes, openings
-  and fixed structural landmarks, not only overall bounds or sampled top heights. Preserve
-  reference calibration and restore temporary visibility settings.
+- **Silhouette approval requires overlays.** A silhouette or shape gate is valid only with
+  aligned orthographic captures of the model over the calibrated planes — reference-only,
+  model-edges-over-reference and solid model, identical framing — plus inspection of those
+  captures. Use a verified see-through or wireframe overlay so both model edges and
+  reference features remain visible; hide unrelated reference planes to prevent overlapping
+  drawings. Enabling an X-ray setting alone does not prove transparency works. Compare upper
+  and lower silhouettes, openings and fixed structural landmarks, not only overall bounds or
+  sampled top heights. Numeric bounds, vertex counts or a hero render make the gate **fail**,
+  not "unverified". Preserve reference calibration and restore temporary visibility settings.
+- **Feature-presence gate before detail and delivery.** Before materials, bake or export,
+  list the required features read from the reference — openings, cavities, recline, contact
+  patch, seams, hardware — and mark each **present / absent / unverified** with the capture
+  that shows it. Any "absent" blocks the stage. The capture must actually demonstrate the
+  feature: a front render cannot certify a seat bowl, and a manifest cannot certify a
+  silhouette. Speed goals, "one shot" instructions or a nearly-finished pipeline do not
+  relax this gate. Before reporting a delivery, re-read the brief's required features and
+  check each against a named capture; a feature without a capture is unverified, not passed.
 - **Fit mating parts without reshaping unrelated geometry.** When trim, flares or other
   attachments must follow an existing surface, verify both gaps and excessive penetration
   across the complete interface, including endpoints. Do not reshape an approved host
