@@ -22,6 +22,14 @@ working in this repo.
   **Known follow-ups** section of `ROADMAP.md` in the same task — include the
   trigger, the affected file/state and whether it is fixed, deferred or needs a
   decision. Do not leave it only in chat or silently work around it.
+- **No notes in procedure files.** `AGENTS.md` and `SKILL.md` state rules and procedures;
+  they are not journals. Do not add worked examples from a session, dated incident
+  narratives, measured trial results, case-specific dimensions or file paths, or
+  "here is what happened last time" commentary. Those belong in a topic doc under `docs/`
+  (for example `docs/3d-authoring-notes.md`, `docs/comfyui-materials.md`). Where the rule
+  would otherwise lose context, keep one short pointer to that doc. If you catch yourself
+  writing a story, a measurement table or a failure history into a skill, stop and move
+  it.
 - **Style alignment:** mirror the existing syntax, formatting and pattern choices in
   `src/`. Match the surrounding file; do not introduce a new idiom for one change.
 - **Hypothesis verification:** before proposing a fix, state the expected behavior, the
@@ -374,8 +382,8 @@ and driving it.
   scope and commit.
 - **Living docs (keep current):** `README.md`, `ROADMAP.md`, `PERFORMANCE.md`,
   `screenshots/README.md`, `AGENTS.md`, `assets/README.md`, `docs/species-template.md`,
-  and the project skills under `.opencode/skills/*/SKILL.md` when a command, harness or
-  verification procedure changes.
+  `docs/comfyui-materials.md`, `docs/3d-authoring-notes.md`, and the project skills under
+  `.opencode/skills/*/SKILL.md` when a command, harness or verification procedure changes.
 - **`ROADMAP.md` status is updated at phase boundaries,** not per intermediate step. Keep
   phase tables, the "Status" list and "Tuning defaults" consistent with reality.
 - **Historical records are immutable:** `snapshots/*.zip`, dated screenshot sets and
@@ -704,21 +712,11 @@ approved work chunk.
   generation jobs and `review_colour.py` with an explicit review record for correction.
 - **ComfyUI jobs are reusable data.** Both runners
   (`run_comfy_workflow_stable_materials.py`, `run_comfy_workflow_qwen_image_edit.py`)
-  take a **job JSON** plus an **API-format** workflow, and must be dry-run before a real
-  submission. Save workflows under `tools/asset-pipeline/workflows/` and jobs under
-  `tools/asset-pipeline/examples/`; never inline a workflow in a script. API-format export
-  is not the same as a UI save (`nodes`/`links`) and only the API form validates. The
-  StableMaterials runner needs one `SaveImage` node per map (outputs 0–4 of
-  `StableMaterialsGenerate`); a UI export that keeps only a combined preview save is not
-  enough. CLIP limits each prompt and negative prompt to 77 tokens, so a long
-  comma-separated negative list fails the job — keep them near 40 words. A run writes
-  `run-manifest.json` plus a phase-5 compatible `summary.json` for the colour gate; if
-  either is missing, treat the run as incomplete rather than reconstructing one by hand.
-  Pass the server with `--base-url` or the job's `base_url`; the runners never start,
-  restart or reconfigure ComfyUI. For pristine surfaces, say so in both prompt and negative
-  prompt (dirty, dirt, grime, oil, stains, dust, scratches, scuffs, damage, wear, aged,
-  mottling) and record the intent in the job; generation does not prove the material is
-  clean, so inspect tiling and offset previews before wiring it.
+  take a **job JSON** plus an **API-format** workflow, must be dry-run before a real
+  submission, and never start or reconfigure ComfyUI. Workflows live in
+  `tools/asset-pipeline/workflows/`, jobs in `tools/asset-pipeline/examples/`; never
+  inline a workflow in a script. Workflow-format, prompt-length, colour-gate and
+  map-application details are in `docs/comfyui-materials.md`.
 - **Bake and export faithfully.** A new noise texture is a replacement, not a bake of the
   original shader. Preserve source graphs, transfer all required channels and compare under
   matching conditions; simplifications require approval. Verify self-contained exports in
