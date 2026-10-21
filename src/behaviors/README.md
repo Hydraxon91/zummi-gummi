@@ -88,8 +88,10 @@ and invalidated when traits change.
 
 Trait-free actor records stay `actorVersion: 2` for older-build compatibility;
 records with traits use `actorVersion: 3`; records carrying mourning use
-`actorVersion: 4`. Old saves load without traits and get the same hashed founder
-values once personality is enabled.
+`actorVersion: 4`, and a baby carrying a guardian uses `actorVersion: 5`
+(mourning and traits may ride along). `guardianUid` is stored only on baby-stage
+actors and never rewrites `parentUids`. Old saves load without traits and get the
+same hashed founder values once personality is enabled.
 
 ## Mood (off by default)
 

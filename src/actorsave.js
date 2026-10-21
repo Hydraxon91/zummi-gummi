@@ -9,12 +9,12 @@ import { normalizeSkills, normalizeHistory, normalizePlaydates } from './family.
 import { normalizeTraits, TRAIT_AXES } from './behaviors/traits.js';
 import { normalizeMourning } from './behaviors/mourning.js';
 
-// 2 is trait/grief-free, 3 carries traits, and 4 carries per-save mourning
-// (with traits as well when personality generated them).
-export const ACTOR_SAVE_VERSION = 4;
+// 2 is trait/grief/guardian-free, 3 carries traits, 4 carries per-save mourning
+// and 5 carries a baby's guardian (mourning and traits may ride along).
+export const ACTOR_SAVE_VERSION = 5;
 
 const STAGES = new Set(['baby', 'teen', 'adult']);
-const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4]);
+const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5]);
 const NUMERIC_FIELDS = [
   'scale', 'health', 'hunger', 'thirst', 'energy', 'age',
   'gestation', 'mateCooldown', 'social', 'affection', 'bold',
@@ -41,6 +41,17 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
   if (a.pregnant !== undefined && typeof a.pregnant !== 'boolean') errors.push(`${where}.pregnant is invalid`);
   if (a.parentUids !== undefined && (!Array.isArray(a.parentUids) || a.parentUids.some(u => !isNum(u)))) {
     errors.push(`${where}.parentUids is invalid`);
+  }
+  if (a.guardianUid !== undefined) {
+    if (!isNum(a.guardianUid) || a.guardianUid <= 0) {
+      errors.push(`${where}.guardianUid is invalid`);
+    } else if (a.stage !== 'baby') {
+      errors.push(`${where}.guardianUid requires stage baby`);
+    }
+    if (a.actorVersion !== 5) errors.push(`${where}.guardianUid requires actorVersion 5`);
+  }
+  if (a.actorVersion === 5 && !isNum(a.guardianUid)) {
+    errors.push(`${where}.guardianUid is required for actorVersion 5`);
   }
   if (a.bonds !== undefined && !isObj(a.bonds)) errors.push(`${where}.bonds is invalid`);
 
@@ -100,7 +111,9 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
         errors.push(`${where}.mourning[${index}] is invalid`);
       }
     });
-    if (a.actorVersion !== 4) errors.push(`${where}.mourning requires actorVersion 4`);
+    if (a.actorVersion !== 4 && a.actorVersion !== 5) {
+      errors.push(`${where}.mourning requires actorVersion 4 or 5`);
+    }
   }
   if (a.actorVersion === 4 && !Array.isArray(a.mourning)) {
     errors.push(`${where}.mourning is required for actorVersion 4`);
@@ -144,7 +157,9 @@ export function migrateActorRecord(record) {
   if (version > ACTOR_SAVE_VERSION) return record;
   const hasTraits = isObj(record.traits);
   const mourning = normalizeMourning(record.mourning);
-  const versioned = mourning.length ? 4 : (hasTraits ? 3 : 2);
+  const guardianUid = record.stage === 'baby' && isNum(record.guardianUid) && record.guardianUid > 0
+    ? record.guardianUid : null;
+  const versioned = guardianUid ? 5 : (mourning.length ? 4 : (hasTraits ? 3 : 2));
   const migrated = {
     ...record,
     actorVersion: versioned,
@@ -153,6 +168,8 @@ export function migrateActorRecord(record) {
     history: normalizeHistory(record.history),
     playdates: normalizePlaydates(record.playdates),
   };
+  if (guardianUid) migrated.guardianUid = guardianUid;
+  else delete migrated.guardianUid;
   if (mourning.length) migrated.mourning = mourning;
   else delete migrated.mourning;
   return migrated;

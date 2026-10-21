@@ -20,10 +20,12 @@ function finite(value, fallback) {
 export function snapshotActor(actor, extra = {}) {
   if (!actor) return null;
   const mourning = normalizeMourning(actor.mourning);
+  const guardianUid = actor.stage === 'baby' && Number.isFinite(actor.guardianUid) &&
+    actor.guardianUid > 0 ? actor.guardianUid : null;
   const record = {
-    // Trait-free records remain v2; traits use v3; grief records use v4 so an
-    // older build cannot silently load them without mourning support.
-    actorVersion: mourning.length ? 4 : (actor.traits ? 3 : 2),
+    // Trait-free records remain v2; traits use v3; grief uses v4; a guardian
+    // uses v5 so an older build cannot drop the relationship on load.
+    actorVersion: guardianUid ? 5 : (mourning.length ? 4 : (actor.traits ? 3 : 2)),
     species: actor.species,
     uid: actor.uid,
     name: actor.name,
@@ -55,6 +57,7 @@ export function snapshotActor(actor, extra = {}) {
   };
   if (actor.traits) record.traits = normalizeTraits(actor.traits);
   if (mourning.length) record.mourning = mourning;
+  if (guardianUid) record.guardianUid = guardianUid;
   if (actor.kind === 'glass') {
     record.kind = 'glass';
     record.species = 'glass';
@@ -81,5 +84,10 @@ export function applyCommonActorState(actor, record) {
   if (record.traits) actor.traits = normalizeTraits(record.traits);
   if (record.mourning !== undefined) actor.mourning = normalizeMourning(record.mourning);
   else delete actor.mourning;
+  if (actor.stage === 'baby' && Number.isFinite(record.guardianUid) && record.guardianUid > 0) {
+    actor.guardianUid = record.guardianUid;
+  } else {
+    delete actor.guardianUid;
+  }
   return actor;
 }

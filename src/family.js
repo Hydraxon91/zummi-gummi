@@ -372,5 +372,9 @@ export function pruneActorRefs(actor, validUids) {
     const kept = actor.history.filter(event => !event.uid || valid.has(Number(event.uid)));
     if (kept.length !== actor.history.length) { actor.history = kept; changed = true; }
   }
+  if (actor.guardianUid !== undefined && !valid.has(Number(actor.guardianUid))) {
+    delete actor.guardianUid;
+    changed = true;
+  }
   return changed;
 }
