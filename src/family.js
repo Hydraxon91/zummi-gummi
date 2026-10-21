@@ -26,6 +26,13 @@ export const HISTORY_KINDS = Object.freeze([
   'stage', 'home', 'moved', 'bond',
 ]);
 
+// These records are UI-facing bookkeeping. When the bounded buffer is full,
+// prefer evicting one of them over a lesson record, which gates same-day
+// teaching behavior.
+export const INTERACTION_HISTORY_KINDS = Object.freeze(new Set([
+  'social', 'hosted', 'visit', 'decline', 'declined', 'conflict',
+]));
+
 function finite(n, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
@@ -255,7 +262,18 @@ export function pushHistory(actor, event, limit = HISTORY_LIMIT) {
     hour: Number.isFinite(Number(event.hour)) ? clamp(Number(event.hour), 0, 24) : 0,
   };
   list.push(entry);
-  actor.history = list.slice(-Math.max(1, limit | 0));
+  const max = Math.max(1, limit | 0);
+  if (list.length > max) {
+    const oldest = list[0];
+    const protectsLesson = oldest && (oldest.kind === 'lesson' || oldest.kind === 'taught');
+    const alternate = protectsLesson
+      ? list.findIndex((item, index) => index !== list.length - 1 &&
+        INTERACTION_HISTORY_KINDS.has(item.kind))
+      : -1;
+    if (alternate >= 0) list.splice(alternate, 1);
+    else list.shift();
+  }
+  actor.history = list;
   return entry;
 }
 

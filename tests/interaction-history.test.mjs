@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createBehavior } from '../src/behaviors/index.js';
 import { createBehaviorConfig } from '../src/behaviors/config.js';
 import { createWorld } from '../scripts/behavior-parity.mjs';
-import { normalizeHistory, HISTORY_KINDS } from '../src/family.js';
+import { normalizeHistory, pushHistory, HISTORY_KINDS, HISTORY_LIMIT } from '../src/family.js';
 import { snapshotActor } from '../src/actorrecord.js';
 
 function actor(uid, home, extra = {}) {
@@ -80,6 +80,23 @@ test('interaction history off writes nothing to either actor', () => {
   tick(engine, a, 3);
   assert.deepEqual(a.history, []);
   assert.deepEqual(b.history, []);
+});
+
+test('interaction history evicts itself before a lesson record', () => {
+  const a = actor(10, 'Home 1');
+  const meals = Array.from({ length: 14 }, (_, index) =>
+    ({ kind: 'meal', uid: 20 + index, day: 1, hour: 8 }));
+  a.history = [
+    { kind: 'lesson', uid: 2, day: 1, hour: 7 },
+    { kind: 'social', uid: 2, day: 1, hour: 8 },
+    ...meals,
+  ];
+  assert.equal(a.history.length, HISTORY_LIMIT);
+  pushHistory(a, { kind: 'social', uid: 3, day: 1, hour: 9 });
+  assert.equal(a.history.length, HISTORY_LIMIT);
+  assert.equal(a.history.some(event => event.kind === 'lesson'), true);
+  assert.equal(a.history.some(event => event.kind === 'social' && event.uid === 2), false);
+  assert.equal(a.history.some(event => event.kind === 'social' && event.uid === 3), true);
 });
 
 test('a completed social pair records one event for each participant', () => {

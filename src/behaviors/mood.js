@@ -9,9 +9,11 @@ export const MOOD_TAU = 8;
 export const MOOD_UPDATE_INTERVAL = 0.25;
 export const MOOD_BUCKET = 0.05;
 
+// Interaction-history kinds are display-only. Keep `visit` out of mood so new
+// completion logging does not become a hidden mood source.
 const EVENT_WEIGHTS = Object.freeze({
   born: .12, child: .12, mated: .10, playdate: .08,
-  lesson: .06, taught: .06, visit: .05, stage: .05,
+  lesson: .06, taught: .06, stage: .05,
   meal: .04, bond: .04, home: .03, moved: .01,
 });
 

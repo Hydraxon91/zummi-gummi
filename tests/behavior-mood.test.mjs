@@ -36,6 +36,11 @@ test('moodFor is pure, bounded and uses existing history kinds only', () => {
   assert.equal(JSON.stringify(a), before, 'moodFor must not mutate');
   const oldKinds = actor('bear', { history: [
     { kind: 'conflict', uid: 2, day: 2, hour: 11 },
+    { kind: 'social', uid: 2, day: 2, hour: 11 },
+    { kind: 'hosted', uid: 2, day: 2, hour: 11 },
+    { kind: 'visit', uid: 2, day: 2, hour: 11 },
+    { kind: 'decline', uid: 2, day: 2, hour: 11 },
+    { kind: 'declined', uid: 2, day: 2, hour: 11 },
     { kind: 'sting', uid: 2, day: 2, hour: 11 },
   ] });
   assert.equal(moodFor(oldKinds, { day: 2, hours: 12 }), moodFor(actor('bear'), { day: 2, hours: 12 }));
