@@ -22,6 +22,7 @@ export const FAMILY_ROUTINES = Object.freeze({
 
 export const HISTORY_KINDS = Object.freeze([
   'born', 'mated', 'child', 'meal', 'lesson', 'taught', 'playdate', 'visit',
+  'hosted', 'social', 'decline', 'declined', 'conflict',
   'stage', 'home', 'moved', 'bond',
 ]);
 

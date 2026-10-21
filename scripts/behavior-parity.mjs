@@ -532,7 +532,7 @@ function bondSnapshot(actor) {
 }
 
 function historySnapshot(actor) {
-  return (actor.history || []).map(event => [event.kind, event.uid, event.day, event.hour]);
+  return comparableHistory(actor).map(event => [event.kind, event.uid, event.day, event.hour]);
 }
 
 function playdateSnapshot(actor) {
@@ -665,6 +665,17 @@ function keyedEqual(a = {}, b = {}, playdates = false) {
   }
   return true;
 }
+// Interaction-history records are modules-only bookkeeping added after the
+// legacy oracle. Compare every simulation field, bond and playdate, but not
+// these intentionally modules-only history entries.
+const MODULE_HISTORY_ONLY = new Set([
+  'social', 'hosted', 'visit', 'decline', 'declined', 'conflict',
+]);
+function comparableHistory(actor) {
+  return (actor && Array.isArray(actor.history) ? actor.history : [])
+    .filter(event => event && !MODULE_HISTORY_ONLY.has(event.kind));
+}
+
 export function actorsEqual(a, b) {
   const x = a.ai, y = b.ai;
   if (a.uid !== b.uid || primitive(x.state) !== primitive(y.state) || a.stage !== b.stage ||
@@ -694,7 +705,7 @@ export function actorsEqual(a, b) {
     if (!pointEqual(t.anchor, u.anchor)) return false;
   }
   if (!keyedEqual(a.bonds || {}, b.bonds || {}) || !keyedEqual(a.playdates || {}, b.playdates || {}, true)) return false;
-  const h = a.history || [], j = b.history || [];
+  const h = comparableHistory(a), j = comparableHistory(b);
   if (h.length !== j.length) return false;
   for (let i = 0; i < h.length; i++) for (const key of ['kind', 'uid', 'day', 'hour']) {
     if (!sameArrayValue(h[i][key], j[i][key])) return false;

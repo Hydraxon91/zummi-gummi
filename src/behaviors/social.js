@@ -7,13 +7,20 @@
 
 import {
   addBond, pairBond, familyRelation, socialAcceptBonus, schedulePlaydate,
-  nextPlaydateDay, PLAYDATE_WINDOW,
+  nextPlaydateDay, PLAYDATE_WINDOW, pushHistory,
 } from '../family.js';
 import { pairAvailable, beginPair, endPair } from '../interactions.js';
 import { comfortMourning } from './mourning.js';
 import { defineBehaviorModule } from './module.js';
 
 const COMPANY_STATES = ['wander', 'seekCompany', 'stargaze', 'seekSocial'];
+
+function historyTime(api) {
+  return {
+    day: typeof api.dayNow === 'function' ? api.dayNow() : 0,
+    hour: typeof api.hoursNow === 'function' ? api.hoursNow() : 0,
+  };
+}
 
 function clamp(n, lo, hi) {
   return n < lo ? lo : (n > hi ? hi : n);
@@ -200,9 +207,14 @@ function endSocialPair(ctx) {
   if (!actor || !ai || ai.state !== 'social') return;
   const partner = ai.partner;
   const familyPlay = !!(ai.familyPlay || (partner && partner.ai && partner.ai.familyPlay));
+  const completedWith = partner && partner.ai && partner.ai.state === 'social' &&
+    partner.ai.partner === actor ? partner : null;
   settleSocial(ctx);
-  if (partner && partner.ai && partner.ai.state === 'social' && partner.ai.partner === actor) {
+  if (completedWith) {
     settleSocial({ actor: partner, ai: partner.ai, p: api.profile(partner) });
+    const { day, hour } = historyTime(api);
+    pushHistory(actor, { kind: 'social', uid: partner.uid, day, hour });
+    pushHistory(partner, { kind: 'social', uid: actor.uid, day, hour });
   }
   addBond(actor, partner, (familyPlay ? p.social.familyBondBase : p.social.bondBase) + rng() * p.social.bondJitter);
   if (familyPlay) {
@@ -228,6 +240,9 @@ function startDeclinePair(ctx, partner) {
   partner.ai.inviteT = 0;
   ai.socialCooldown = Math.max(ai.socialCooldown, 4.0);
   partner.ai.socialCooldown = Math.max(partner.ai.socialCooldown, 2.5);
+  const { day, hour } = historyTime(api);
+  pushHistory(actor, { kind: 'decline', uid: partner.uid, day, hour });
+  pushHistory(partner, { kind: 'declined', uid: actor.uid, day, hour });
   api.emit(actor, 'no', 1.08);
   api.emit(partner, 'no', 1.08);
 }
@@ -315,10 +330,21 @@ function beginVisitHangout(ctx, partner) {
   api.emit(actor, 'heart', .95);
 }
 
-function finishVisitPair(ctx) {
+function finishVisitPair(ctx, completed = false) {
   const { actor, ai, api } = ctx;
   if (!actor || !ai || ai.state !== 'visit') return;
   const partner = ai.partner;
+  if (completed && partner && partner.ai) {
+    const { day, hour } = historyTime(api);
+    const actorRole = ai.visitRole === 'host' ? 'host' : 'guest';
+    if (actorRole === 'host') {
+      pushHistory(actor, { kind: 'hosted', uid: partner.uid, day, hour });
+      pushHistory(partner, { kind: 'visit', uid: actor.uid, day, hour });
+    } else {
+      pushHistory(actor, { kind: 'visit', uid: partner.uid, day, hour });
+      pushHistory(partner, { kind: 'hosted', uid: actor.uid, day, hour });
+    }
+  }
   addBond(actor, partner, .08);
   actor.social = Math.max(0, actor.social - .22);
   actor.affection = Math.max(0, actor.affection - .16);
@@ -393,7 +419,7 @@ function tick(ctx, dt) {
       ai.heartT -= dt;
       ai.visitT -= dt;
       if (ai.heartT <= 0) { ai.heartT = 1.0; api.emit(actor, 'heart', .95); }
-      if (ai.visitT <= 0) finishVisitPair(ctx);
+      if (ai.visitT <= 0) finishVisitPair(ctx, true);
     } else {
       ai.animT += dt;
       tickVisit(ctx, dt);

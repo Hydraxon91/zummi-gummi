@@ -6,7 +6,7 @@
 // stays in the engine as a threat response shared with the hive.
 
 import { isSafeFood } from '../foodtypes.js';
-import { addBond, pairBond } from '../family.js';
+import { addBond, pairBond, pushHistory } from '../family.js';
 import { beginPair } from '../interactions.js';
 import { defineBehaviorModule } from './module.js';
 
@@ -142,6 +142,10 @@ function finishConflict(ctx) {
   const loser = winner === actor ? other : actor;
   const claimant = source ? source.claim : null;
   const claimOk = !!source && source.ripe;
+  const day = typeof api.dayNow === 'function' ? api.dayNow() : 0;
+  const hour = typeof api.hoursNow === 'function' ? api.hoursNow() : 0;
+  pushHistory(actor, { kind: 'conflict', uid: other.uid, day, hour });
+  pushHistory(other, { kind: 'conflict', uid: actor.uid, day, hour });
 
   actor.ai.partner = null;
   other.ai.partner = null;
