@@ -1,0 +1,10 @@
+{
+  "source": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/hybrid-review-007/retro_laptop_hybrid_review_007.blend",
+  "objects": ["RetroLaptop_Root"],
+  "out_dir": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/hybrid-review-007/delivery-review",
+  "views": "front,side,top,three_quarter",
+  "preset": "material",
+  "pose_object": "Atlas_Shell_Hinge",
+  "frame": 1,
+  "resolution": [900, 800]
+}

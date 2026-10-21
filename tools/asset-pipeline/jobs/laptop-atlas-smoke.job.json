@@ -1,0 +1,12 @@
+{
+  "name": "laptop-atlas-smoke",
+  "objects": ["Shell_Root"],
+  "exclude": ["Shell_Review_Ground", "Keyboard_Well_Cutter", "Lid_Shell_Welded"],
+  "out_dir": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/atlas-smoke-001",
+  "resolution": 512,
+  "margin": 4,
+  "samples": 4,
+  "alpha": true,
+  "export": "smoke.glb",
+  "blend": "smoke_source.blend"
+}

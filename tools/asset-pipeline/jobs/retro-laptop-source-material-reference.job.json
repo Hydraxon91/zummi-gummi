@@ -1,0 +1,10 @@
+{
+  "source": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/retro_laptop_detail_source_050.blend",
+  "objects": ["Shell_Root"],
+  "exclude": ["Shell_Review_Ground", "Keyboard_Well_Cutter"],
+  "out_dir": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/source-050-material-reference",
+  "views": "top,three_quarter",
+  "preset": "material",
+  "frame": 1,
+  "resolution": [900, 800]
+}

@@ -1,0 +1,8 @@
+{
+  "source": ".dev-shots/asset-pipeline/mug-001/atlas-review-001/mug_atlas_review_001.blend",
+  "objects": ["Atlas_Mug_Root"],
+  "out_dir": ".dev-shots/asset-pipeline/mug-001/atlas-review-001/renders",
+  "views": "three_quarter,front,side,top",
+  "preset": "material",
+  "resolution": [900, 900]
+}

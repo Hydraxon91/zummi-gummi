@@ -42,6 +42,9 @@ def parse_args():
                         help="Pose/freshness evidence JSON")
     parser.add_argument("--stage", choices=("detail", "delivery"), default="detail")
     parser.add_argument("--required-views", default="front,side,top,three_quarter")
+    parser.add_argument("--tangents", action="store_true",
+                        help="Export authored tangents. Off by default: degenerate UV "
+                             "triangles produce zero-length tangents, which glTF validators reject")
     parser.add_argument("--animations", action="store_true")
     return parser.parse_args(
         sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
@@ -118,7 +121,7 @@ def main():
         export_apply=True,
         export_materials="EXPORT",
         export_image_format="AUTO",
-        export_tangents=True,
+        export_tangents=args.tangents,
         export_yup=True,
         export_cameras=False,
         export_lights=False,
@@ -138,6 +141,7 @@ def main():
         "approval": approval,
         "construction": construction,
         "evidence_recheck": evidence_recheck,
+        "tangents": args.tangents,
         "animations": args.animations,
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
