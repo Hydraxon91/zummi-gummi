@@ -1,0 +1,32 @@
+{
+  "name": "deskfan-pristine-materials",
+  "template": "../workflows/stablematerials_text_pbr_api.json",
+  "base_url": "http://192.168.1.190:8188",
+  "mode": "Standard (50 steps, quality)",
+  "steps": 50,
+  "cfg": 7.5,
+  "size": 1024,
+  "seeds": [20261022],
+  "filename_prefix": "deskfan",
+  "prompt_suffix": "Pristine unused surface, uniform brightness, no wear. Opposite edges match when tiled.",
+  "materials": [
+    {
+      "id": "shell_black",
+      "label": "Black moulded shell",
+      "prompt": "pristine matte black moulded plastic, fine uniform micro-grain, satin finish, clean unmarked surface",
+      "negative": "blurry, low quality, distorted, dull, mottling, damage, old, wear, scratches, scuffs, dust, fingerprints, stains, smudges, gloss highlights, text, watermark, border, visible seam, gradient, vignette"
+    },
+    {
+      "id": "copper_metal",
+      "label": "Copper guard and arms",
+      "prompt": "pristine warm copper metal, fine linear brushed grain, clean polished surface, subtle satin sheen",
+      "negative": "blurry, low quality, distorted, dull, mottling, damage, old, wear, scratches, fingerprints, patina, verdigris, tarnish, rust, stains, text, watermark, border, visible seam, gradient, vignette, painted"
+    },
+    {
+      "id": "blade_dark",
+      "label": "Dark charcoal blades",
+      "prompt": "pristine dark charcoal grey plastic, smooth satin finish, faint uniform moulded grain",
+      "negative": "blurry, low quality, distorted, dull, mottling, damage, old, wear, scratches, dust, fingerprints, stains, gloss highlights, text, watermark, border, visible seam, gradient, vignette"
+    }
+  ]
+}

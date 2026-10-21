@@ -702,6 +702,23 @@ approved work chunk.
   The established procedure is in `tools/asset-pipeline/tests/phase5/README.md`; use
   `tools/asset-pipeline/scripts/run_comfy_workflow_stable_materials.py` for reusable
   generation jobs and `review_colour.py` with an explicit review record for correction.
+- **ComfyUI jobs are reusable data.** Both runners
+  (`run_comfy_workflow_stable_materials.py`, `run_comfy_workflow_qwen_image_edit.py`)
+  take a **job JSON** plus an **API-format** workflow, and must be dry-run before a real
+  submission. Save workflows under `tools/asset-pipeline/workflows/` and jobs under
+  `tools/asset-pipeline/examples/`; never inline a workflow in a script. API-format export
+  is not the same as a UI save (`nodes`/`links`) and only the API form validates. The
+  StableMaterials runner needs one `SaveImage` node per map (outputs 0–4 of
+  `StableMaterialsGenerate`); a UI export that keeps only a combined preview save is not
+  enough. CLIP limits each prompt and negative prompt to 77 tokens, so a long
+  comma-separated negative list fails the job — keep them near 40 words. A run writes
+  `run-manifest.json` plus a phase-5 compatible `summary.json` for the colour gate; if
+  either is missing, treat the run as incomplete rather than reconstructing one by hand.
+  Pass the server with `--base-url` or the job's `base_url`; the runners never start,
+  restart or reconfigure ComfyUI. For pristine surfaces, say so in both prompt and negative
+  prompt (dirty, dirt, grime, oil, stains, dust, scratches, scuffs, damage, wear, aged,
+  mottling) and record the intent in the job; generation does not prove the material is
+  clean, so inspect tiling and offset previews before wiring it.
 - **Bake and export faithfully.** A new noise texture is a replacement, not a bake of the
   original shader. Preserve source graphs, transfer all required channels and compare under
   matching conditions; simplifications require approval. Verify self-contained exports in

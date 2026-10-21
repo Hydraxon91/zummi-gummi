@@ -103,6 +103,36 @@ locked, render-hidden reference planes; it does not detect views or infer dimens
 (UV template as image 1, references after it) against the ComfyUI HTTP API;
 `run_comfy_workflow_stable_materials.py` does the same for StableMaterials map sets. Both
 are dry-runnable and write a manifest; neither starts or reconfigures ComfyUI.
+**ComfyUI contract:** a job JSON plus an **API-format** workflow (not a UI save with
+`nodes`/`links`), stored under `tools/asset-pipeline/workflows/` with jobs beside
+`tools/asset-pipeline/examples/`. Dry-run first (`--dry-run`), then pass the server via
+`--base-url` or `base_url` in the job. The StableMaterials runner needs one `SaveImage`
+node per map (outputs 0–4 of `StableMaterialsGenerate`); a UI export that left only the
+combined preview save is not enough. CLIP allows 77 tokens per prompt and negative
+prompt, so long comma-separated negative lists fail with a sequence-length error — keep
+them near 40 words. Each run writes `run-manifest.json` **and** a phase-5 compatible
+`summary.json` that `review_colour.py` consumes; a missing summary is an incomplete run,
+not something to hand-write. Ask for pristine surfaces in both prompt and negative
+prompt (dirty, dirt, grime, oil, stains, dust, scratches, scuffs, damage, wear, aged,
+mottling) and still inspect tiling/offset previews — generation does not prove
+cleanliness, and the colour gate applies before any wiring.
+
+### Applying generated PBR sets
+
+1. **Fix the view transform first.** Judge materials under a recorded transform
+   (`Standard` for this project's prop reviews). `AgX` lifts a near-black albedo into
+   mid-grey; correcting against an AgX render "fixes" a colour that was already right.
+2. **Normals need UVs.** Never drive a tangent-space Normal Map from object coordinates.
+   Wire base colour, roughness and metallic now and defer the normal map until unwrap.
+3. **Tiling recipe:** Object coords → POINT Mapping → FLAT/REPEAT images for base
+   colour, roughness and metallic; roughness through a linear Map Range so the hybrid
+   bake recipe accepts the graph.
+4. **Probe before blaming the texture.** After a shader edit call `update_tag()` and
+   `view_layer.update()`, then confirm with an isolation render and a flat-colour probe.
+   A stale EEVEE shader looks identical to a wrong material.
+5. **Audit every part's slot** — including `slot.link` and objects you did not
+   consciously assign. A forgotten part keeps the review clay and reads as a "material
+   bug" through several renders.
 
 For requested export verification, use
 `tools/asset-pipeline/scripts/verify_asset.mjs` with the workflow in
@@ -628,6 +658,12 @@ unrelated lighting or cameras to conceal shape defects.
   topology and run the health check immediately. They are not inherently invalid in every case.
 - A beveled curve with `use_fill_caps` can still produce coincident cap-rim vertices. Inspect
   evaluated boundaries and weld/fill only where approved and necessary; preserve intentional holes.
+- Never start a clean scene with `bpy.ops.wm.read_factory_settings()` or `wm.read_homefile()`
+  through the MCP bridge: both reload Blender's startup file, which **unregisters the MCP
+  addon and drops the connection mid-call**. The scene may already be reset and the script's
+  output lost. To build a new asset, delete the existing objects explicitly (or work in a new
+  collection), and use `wm.save_as_mainfile` to a new checkpoint; a UI-driven reload is the
+  user's call, not a scripted side effect.
 - Keep MCP local-only. Do not enable paid generators/download integrations without
   approval or use Blender scripting to bypass repository file-edit requirements.
 

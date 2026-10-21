@@ -296,6 +296,34 @@ def submit_and_wait(base_url, graph, timeout, prompt_id, tag):
     return prompt_id, entry
 
 
+def write_summary(out_dir, manifest):
+    """Write a phase-5 compatible summary so review_colour.py can consume a run.
+
+    review_colour.py reads summary.json; the runner's own record stays in
+    run-manifest.json with prompts, server details and failure reasons.
+    """
+    results = []
+    for entry in manifest.get("materials", {}).values():
+        files = {name: {"path": value.get("path"), "sha256": value.get("sha256")}
+                 for name, value in (entry.get("files") or {}).items()}
+        results.append({
+            "material": entry.get("id"),
+            "seed": entry.get("seed"),
+            "status": entry.get("status"),
+            "files": files,
+        })
+    summary = {
+        "runner": manifest.get("runner"),
+        "template": manifest.get("template"),
+        "template_sha256": manifest.get("template_sha256"),
+        "source_manifest": str(Path(out_dir) / "run-manifest.json"),
+        "results": results,
+    }
+    path = Path(out_dir) / "summary.json"
+    path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
 def run(args):
     job = load_job(args.job)
     job_dir = Path(job["job_path"]).parent
@@ -447,6 +475,7 @@ def run(args):
     if "status" not in manifest:
         manifest["status"] = "success" if not manifest["failures"] else "failed"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    write_summary(out_dir, manifest)
     if manifest["failures"]:
         raise RunnerError(f"{len(manifest['failures'])} material job(s) failed; see {manifest_path}")
     return out_dir, manifest
