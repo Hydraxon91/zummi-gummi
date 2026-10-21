@@ -1390,7 +1390,8 @@ adopted babies once each. A grandparent is not recoverable without the absent
 linking parent record. Assignment happens on the next think outside a pair
 or family task, with a one-game-hour retry when nobody qualifies. `guardianUid` is separate from
 `parentUids` and home, clears on parent return, guardian departure or stage-up,
-and emits `actorVersion: 5` only when present. `follow.seek` stays at order 90 and
+and emits `actorVersion: 5` when present (version 6 when interaction history also
+carries a bond delta). `follow.seek` stays at order 90 and
 targets the guardian when no parent is active; disabling the feature cancels an
 active guardian follow while preserving the saved link, and leaves parent-follow
 untouched. The off path adds no guardian fields and no RNG. Verified by Node save/behavior tests, `scripts/adoption-test.mjs`
@@ -2362,14 +2363,15 @@ a decision rather than a silent change. Duplicate-UID saves are now rejected at
 load with no automatic renumbering; any existing duplicate save needs a recovery
 decision.
 
-**Bond-delta design (deferred):** recording before/after bond values cannot ride
-on the current history entry shape, because `normalizeHistory` keeps only
-`kind`/`uid`/`day`/`hour` and would strip extra fields on an older build. It needs
-an explicit history/actor version or a lossless envelope. Mood reads event kinds
-only; interaction-history kinds are excluded from `EVENT_WEIGHTS`, and
-`pushHistory` now evicts an interaction record before a `lesson`/`taught` record so
-display logging cannot silently reopen same-day teaching. Any future bond delta
-must remain display-only and be audited against mood and lesson readers first.
+**Bond-delta history (Oct 2026):** completed social, visit and conflict events can
+carry `bondBefore`/`bondAfter` on the existing history entry. `normalizeHistory`
+preserves those fields and `actorVersion: 6` is written only when a delta exists;
+older v2-v5 saves remain valid. Deltas are display-only: mood does not weight the
+interaction kinds, and `pushHistory` evicts an interaction record before a
+`lesson`/`taught` record so display logging cannot reopen same-day teaching. The
+relationship and Recent events panels render the delta as `42% → 48%`. Validation
+rejects deltas on v5 and v6 without a delta. Older builds reject v6 rather than
+silently stripping the explanation.
 
 ## Village & placement editor (Phase 9)
 

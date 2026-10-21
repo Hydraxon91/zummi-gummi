@@ -88,8 +88,9 @@ and invalidated when traits change.
 
 Trait-free actor records stay `actorVersion: 2` for older-build compatibility;
 records with traits use `actorVersion: 3`; records carrying mourning use
-`actorVersion: 4`, and a baby carrying a guardian uses `actorVersion: 5`
-(mourning and traits may ride along). `guardianUid` is stored only on baby-stage
+`actorVersion: 4`; a baby carrying a guardian uses `actorVersion: 5`; and any
+record carrying an interaction bond delta uses `actorVersion: 6` (mourning,
+traits and a guardian may ride along). `guardianUid` is stored only on baby-stage
 actors and never rewrites `parentUids`. Old saves load without traits and get the
 same hashed founder values once personality is enabled.
 
@@ -196,9 +197,9 @@ enabled. Turning the feature off cancels an active guardian follow, preserves
 rewritten. It clears when a parent is active again, when the guardian departs or
 is no longer a valid adult, and on stage-up. `follow.seek` stays at order 90 but
 targets the guardian when no parent is active. Adoption consumes no RNG.
-`actorVersion: 5` is written only for a baby carrying `guardianUid`; turning the
-feature off suppresses assignment and guardian following without deleting the
-saved field.
+`actorVersion: 5` is written for a baby carrying `guardianUid`; a record that also
+has a bond-delta history entry uses version 6. Turning the feature off suppresses
+assignment and guardian following without deleting the saved field.
 
 ## Interaction history and the relationship view
 
@@ -215,6 +216,9 @@ explicit set while still comparing state, needs, bonds, playdates, RNG and the
 rest of history. At the 16-entry cap, an interaction record is evicted before a
 `lesson`/`taught` record so display logging cannot reopen same-day teaching.
 Interaction kinds are not mood inputs; `visit` was removed from `EVENT_WEIGHTS`.
+Completed social, visit and conflict records also carry optional
+`bondBefore`/`bondAfter` values; a record with a delta is saved as actor version 6
+and rendered as a directional before/after percentage.
 
 `relationshipview.js` is the pure read-only model behind the selected-actor
 **Relationships** tab. It resolves active and inactive-map records for the current
