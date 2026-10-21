@@ -1281,6 +1281,17 @@ can proceed with the current runtime and assets.
   on a schedule, a `v*` tag or manual dispatch. The full Glass lifecycle remains too
   slow for the blocking job under SwiftShader; `glass-test` supports `SHOTS=0` and
   longer asset waits for the deep lane.
+- **Interaction suite Glass gate (fixed 2026-10-21).** The isolated `gifting` job timed
+  out at the Glass readiness gate after 30 s while the `social` job passed in the same
+  run: under SwiftShader the first frame blocks Glass readiness for roughly 100 s, so
+  gifting never reached its first check. `gifting-test.mjs` now uses the same 150 s
+  gate, `count > 0` guard and one reload retry as `social-test.mjs` and
+  `browser-regression.mjs`, and logs per-actor `ready`/`error` when the retry fails.
+  The diagnostic upload steps also set `include-hidden-files: true`, because
+  `.dev-shots` is a dot-directory and `upload-artifact` v4 was silently discarding
+  every `.dev-shots` capture. The remaining 30 s gates (`adoption`,
+  `relationship`, `mourning`, `uid`, `glass-fast-parity`) are local/nightly only and
+  still unaligned.
 - **Citizen panel (fixed).** The two refresh signatures now share one helper, and rows
   are keyed by actor uid and updated in place instead of rebuilding the whole list.
   Browser checks keep an original row connected after idle and complete 10/10 CDP

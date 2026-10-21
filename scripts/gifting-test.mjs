@@ -34,10 +34,32 @@ const check = (name, pass, detail = {}) => {
   report.checks.push({ name, pass: !!pass, ...detail });
   console.log(`${pass ? 'PASS' : 'FAIL'} ${name}${detail.value === undefined ? '' : ` (${detail.value})`}`);
 };
+const GLASS_READY = 'window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)';
+const glassState = () => evaluate(`(() => {
+  const g = window.__gummy;
+  if (!g) return { booted: false };
+  const glass = g.glass();
+  return { booted: !!g.booted, count: glass.count,
+    actors: glass.actors.map(a => ({ uid: a.uid, ready: !!a.ready, error: a.error || null })) };
+})()`, 10000).catch(error => ({ error: String(error && error.message || error) }));
 
 try {
   await page.waitFor('!!window.__gummy?.booted', 90000);
-  await page.waitFor('window.__gummy.glass().actors.every(a => a.ready)', 30000);
+  console.log('STEP glass ready');
+  try {
+    await page.waitFor(GLASS_READY, 150000);
+  } catch (error) {
+    console.log('STEP glass reload', JSON.stringify(await glassState()));
+    await page.evaluate('location.reload()').catch(() => {});
+    await page.waitFor('!!window.__gummy?.booted', 120000);
+    try {
+      await page.waitFor(GLASS_READY, 150000);
+    } catch (retryError) {
+      console.log('STEP glass failed', JSON.stringify(await glassState()));
+      throw retryError;
+    }
+  }
+  console.log('STEP glass done');
 
   const setup = await evaluate(`(() => {
     const g = window.__gummy;
