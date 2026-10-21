@@ -4,10 +4,11 @@ Status: **Phase 3 implemented and verified**, with resource/density checks still
 **Phase 4 crate material-zone trial implemented**; **Phase 5 pilot accepted** (8 candidates,
 with corrected ceramic seed `20261021` rejected); **Phase 6 crate-only mapping trial
 implemented and v4 512 px silver selected, with density still in review**; **Phase 7A
-tool validation passed; 7B many-island case passed with density review; 7C
-procedural-source bake passed channel, seam-pair and visual checks with density
-review; 7D desk-lamp assembly accepted with density review; 7E office corner accepted,
-with 16.1 MB/58-call mixed delivery selected and 512/1024 variants retained**;
+tool validation passed; 7B many-island case completed with a tileable-versus-atlas
+comparison and density review; 7C procedural-source bake passed channel, seam-pair
+and visual checks with density review; 7D desk-lamp assembly accepted with density
+review; 7E office corner accepted, with 16.1 MB/58-call mixed delivery selected and
+512/1024 variants retained**;
 house/game integration remains gated.
 Date: 2026-10-21
 Owner: Hydraxon
@@ -16,6 +17,48 @@ This is a separate roadmap for the Blender → AI-assisted materials → glTF de
 pipeline. It does not replace the game roadmap in `ROADMAP.md`.
 
 ## Objective
+
+### Construction-method tooling status
+
+The authoring skill's construction-method gate and brief are implemented as documentation.
+A manual subdivided moulded-shell test is preserved under
+`.dev-shots/asset-pipeline/phase7/benchmark/moulded-shell-pattern-001/`; it is workflow
+evidence, not a reusable pattern library.
+
+Implemented and fixture-tested:
+- Pose-aware captures with explicit frames, evaluated controller matrices and bounds-based
+  focus captures; `check_evidence.py` validates hashes, frames, poses, source hashes and
+  frame-specific fingerprints. Approvals record and validate their review frame.
+  The moulded-shell test includes closed, intermediate and open poses.
+- Experimental `check_interface.py` local signed sampling on touching, separated and
+  intersecting fixtures, plus a deliberately unsupported cap-shrinkage fixture that opens a
+  detectable gap. It reports coverage limits and is not a contact guarantee.
+- `construction_gate.py` validates a brief (including a geometry/material split), candidate
+  ledger and source-bound evidence; the shape gate, canonical exporter, two prototype
+  builders and office exporter require those inputs. Export paths revalidate capture
+  evidence against the current source immediately before writing. The remaining benchmark
+  builders are explicitly exempt in `tools/asset-pipeline/tests/phase7/ENFORCEMENT.md`.
+  Method review remains separate from structural and visual acceptance. A positive export
+  fixture covers a successful GLB plus unsaved geometry, changed-source, swapped-target and
+  swapped-evidence negatives.
+
+- Target coverage hardening now requires persistent `asset_id` values and binds revalidated
+  manifest IDs, brief/ledger `target_ids` and approval records to selected meshes on the
+  enforced paths. A fresh-other-existing-object negative, old-name/new-ID replacement and
+  duplicate IDs block canonical export; extra IDs require explicit support declarations.
+  Legacy or ID-less evidence cannot authorize enforced exports. Canonical, office and detail
+  shape-gate positive fixtures are executed; the laptop and Frutiger builders assign stable
+  IDs but still need positive GLB fixture runs.
+
+Still planned:
+- Expand to fixture-tested loft, sweep, revolve, panel, soft-goods and coil patterns, each
+  with scale-dependent controls, preserved sources, limitations and failure cases.
+- Improve interface coverage and signed-distance validation beyond local triangle sampling;
+  no complete-contact claim exists.
+- Automatic visual/likeness review and automatic pose adequacy; both remain human checks.
+
+These are not automatic likeness guarantees or authorization to rebuild assets, integrate
+the game or export deliveries.
 
 Build reusable, engine-neutral asset tooling, with **Gummy Bears / three.js** as the
 first delivery target. The tooling must support authored props, characters and
@@ -604,6 +647,23 @@ for this pilot.
 - Approved colour targets: teal `#2FA7A0`, ceramic `#E8E1D4`, silver `#B9BEC2`.
   Corrected means are within `0.012` RGB of target. This is labelled
   **AI/agent-reviewed, script-corrected**, not pure-generation evidence.
+- Added a reusable StableMaterials ComfyUI runner
+  (`run_comfy_workflow_stable_materials.py`) with job JSON data, API-graph validation,
+  `--dry-run`, sequential submission, map download and a hash/failure manifest. The
+  laptop job uses aged ivory/tangerine plastic prompts and preserves the existing opaque
+  orange material settings. A 1024 Standard and LCM attempt on the local 16 GB server
+  both failed at `LoadStableMaterials` with `torch.OutOfMemoryError` before generation;
+  no maps or Blender material changes were produced from that attempt. Subsequent UI
+  history proved Standard/4-step/1024² works on the same server. Matching those settings
+  through the shared runner generated both laptop plastics and all ten maps successfully
+  in `materials/aged-plastic-003/`; the earlier loader OOM cause remains unresolved, not
+  evidence that a larger GPU is required. The raw ivory/tan and yellow-orange maps were
+  reviewed as colour-only; `review_colour.py` produced corrected maps with colour deltas
+  0.003005/0.002543 and corrected seam ratios 1.016506/1.036012. Corrected base colour,
+  roughness and height-bump are applied in `retro_laptop_detail_source_043.blend` using
+  object-coordinate tiling; UVs/normal-map wiring remain pending. Alpha/transmission and
+  face assignments are unchanged. The runner leaves server lifecycle and model unloading
+  outside its scope.
 - A colour/orientation fixture established that Blender exposes byte-image pixels as
   sRGB values in bottom-up rows; corrected PNG rows are flipped to top-down. The
   corrected-to-source luminance correlation remains above `0.98` with direct
@@ -807,17 +867,42 @@ Approve benchmark sources and acceptance results.
   records only the captures inspected. 7A evidence is under
   `.dev-shots/asset-pipeline/phase7/7a-summary.json`.
 - 7B built a project-authored beveled equipment case with two recessed panel assemblies,
-  a U-handle and four rubber feet. It has 3 objects, 3 materials, 108 UV islands and
-  1,580 triangles. Topology has zero boundary edges, loose vertices, degenerate faces
-  or winding conflicts; UVs have zero overlaps, out-of-bounds corners or degenerate
-  triangles. Minimum inter-island padding at 512 is `8.44` px (case), `5.57` px
-  (handle) and `8.16` px (feet); minimum border margin is `0.00544`.
-- The 7B GLB is `4,215,116` bytes with a `15,728,640` byte decoded texture estimate,
-  6 embedded images and 5 draw calls. Validator reports 0 errors/0 warnings and 4
-  unused-tangent/UV infos on the untextured dark primitives. Clean import, preview and
-  visual review pass. The 2 m density review still reports under/over and anisotropy
-  warnings from mixed 1024/512 maps and Smart UV variation, so density remains review.
-- 7B uses tileable materials, not a baked non-overlapping atlas.
+  a U-handle and four rubber feet. The current tileable baseline is
+  `equipment-case-010`: 3 objects, 3 materials, 77 UV islands and 1,428 triangles.
+  Topology is clean; UVs have zero geometric overlaps, out-of-bounds corners or
+  degenerate triangles. Minimum inter-island padding at 512 is `6.74` px (case),
+  `5.53` px (handle) and `8.16` px (feet); minimum border margin is `0.005404`.
+- The earlier camera-only flicker at the frame and handle joints came from
+  overlapping joined frame bars, not UV mapping: `Ctrl+J` does not remove
+  intersecting surfaces. The current source uses single Boolean-cut front/top
+  frames, a slightly recessed top frame and unioned handle mounts; user inspection
+  of `equipment-case-010` found no visible flicker or z-fighting. The experimental
+  coplanar checker is advisory only: hidden overlap is acceptable, visible flicker
+  is the blocker, and a still image cannot prove a joint clean.
+- The 7B tileable GLB is `4,183,272` bytes, 2,058 exported vertices, 3 materials and
+  6 images. Validator reports 1 warning
+  (`MESH_PRIMITIVE_GENERATED_TANGENT_SPACE` on one primitive) plus 4
+  unused-tangent/UV infos; clean import and preview pass. The warning is an
+  export-preparation defect in the tileable baseline (the handle mesh was not
+  triangulated before tangent calculation), not an atlas issue. Density remains
+  review.
+- 7B also baked `equipment-case-atlas-008` from case 010: one flattened object,
+  one `AtlasUV`, 90 islands, 1,428 triangles, 3 images, `1,982,128` bytes (52.6%
+  smaller). Atlas base colour, roughness, metallic and tangent normal are baked at
+  1024² with a 4 px margin and 16 samples. Minimum island padding is `19.34` px at
+  1024 (`9.67` px at 512), border `9.67` px. Audit is clean; validator reports 0
+  errors/0 warnings/0 infos; clean import and preview pass (5 rendered meshes to 1).
+- Matched three.js day captures give encoded MAE `0.00128` front, `0.00096`
+  three-quarter and `0.00459` near; p95 `0.00530`/`0.00409`/`0.03039`. The difference
+  is broad and strongest on the silver frame/handle edges; front-panel/handle
+  close-ups show softer silver grain, and those plus back, right-side and top
+  captures show no visible UV seam. This is a texel-density tradeoff, not a seam
+  failure. The atlas is a comparison candidate, not a replacement delivery;
+  tileable remains the accepted baseline for closer-view grain.
+- `equipment-case-atlas-007` is a rejected diagnostic: it was not triangulated
+  before export, so tangents were omitted and the validator reported
+  `MESH_PRIMITIVE_GENERATED_TANGENT_SPACE`. Triangulating before the bake fixes the
+  baked and exported tangent spaces.
 - 7C selected `pebble-procedural-004` as `pass_with_density_review`. It is a pole-free
   quad sphere with an asymmetric dimple, frozen low triangulation and a 3D analytic source
   (`pebble_fields.py`) evaluated through shader groups. The final atlas has one UV set and
@@ -880,6 +965,56 @@ Approve benchmark sources and acceptance results.
   `.dev-shots/asset-pipeline/phase7/benchmark/office-corner-006/7e-summary.json`.
 - 7E is accepted: mixed is the default delivery, 512 the lightweight variant and 1024
   the full-resolution baseline. House and game integration remain gated.
+- Post-acceptance revision `office-corner-009` extends the floor and back wall to the
+  exterior footprint, replaces the chair's separate rear legs/back posts with continuous
+  stiles, deepens the apron/stretcher joints, and embeds the user's edited lamp hierarchy.
+  It is built and chair-checked; the optimized 16.1 MB/58-call delivery has not been
+  regenerated from it. `office-corner-006` remains the accepted delivery until the
+  revision is approved.
+- Phase 7F starts a shape-first workflow for the retro laptop and Frutiger props.
+  `capture_review.py` provides staged Workbench/material/final captures with complete
+  settings restoration and temporary camera/light/world cleanup. `asset_fingerprint.py`
+  hashes source transforms, mesh data, materials, modifiers and custom properties.
+  `check_shape_gate.py` checks bounds, hinge presence, modifiers, default-scene hygiene,
+  stale capture manifests and a recorded silhouette approval before detail/delivery.
+  Approvals require a fresh front/side/top/three-quarter manifest and store review/capture
+  hashes; detail revalidates them, and failed gates exit nonzero. The self-test covers
+  success, exception and material-preset cleanup, forced render errors, animated-frame
+  framing, UV/material/transform/modifier-operand fingerprint changes, stale review and
+  deleted-capture rejection, and the detail approval gate. `retro-laptop-013` improves the
+  asymmetric layout and 4:3 screen but still fails the shell/handle/hinge shape gate. The
+  live MCP shell candidate `retro-laptop-shell-007` removes the handle, thickens/flattens
+  the lid, lowers the hinge and adds a clean raised bezel with a blank screen panel. A
+  Boolean screen recess was rejected (degenerate after Subsurf; teardrop before it), so the
+  bezel is a separate clean mesh. `retro-laptop-shell-008` applies the additional reference
+  finding: base seam higher at the rear, lid bottom wedged to match, lid depth matched to
+  the base and hinge raised to the rear seam; closed width is flush with a 1 mm seam. Screen
+  dressing is hidden for this shape checkpoint and still needs re-seating. `retro-laptop-shell-014`
+  is the side-profile pass: curved base underside, a lid crown varying around the
+  perimeter, matched seam and flush outer widths. `retro-laptop-shell-020` added a seam
+  gasket for the rounded-edge groove; it is retained but rejected because the band floated
+  off the base. `retro-laptop-shell-021` hides that band, supports the cap perimeters with a
+  fan and perimeter-only crease, and seats the lid bottom on the evaluated base surface
+  (0.35–1.4 mm clearance, perimeter about 0.7 mm inside the base edge). Base/lid health and
+  the structural gate pass. `009–020` are retained iterations. `frutiger-props-002`
+  still reads as a moulded beanbag bowl. Both are prototypes, not deliveries. Shell 021
+  is user-accepted with reservations, not verified perfect contact.
+  Earlier cage equality and unsigned distances were insufficient attachment evidence.
+  The trial also
+  found that a factory-startup 2 m cube can enclose the review camera, imported glTF empties
+  need quaternion-aware placement, and on add-on 1.8/protocol 14 `look` angles/frames work
+  while `topology` mode remains unavailable. The prototype builders now save their source and block GLB export
+  without a matching approval; `export_approved_asset.py` is the gated delivery entry point.
+  Blocking was verified on `retro-laptop-014` and the old evidence-free approval is rejected.
+- 7G adds reference-sheet preparation. `reference_sheet.py` crops explicit pixel
+  rectangles, validates one shared mm/pixel scale across calibrated views, writes
+  source/crop hashes and builds locked, render-hidden image planes in a **new** `.blend`.
+  It does not auto-detect views, infer dimensions, prove orthographic projection or remove
+  sheet backgrounds. A crop-only Raptor run reproduced the six existing derived crops
+  pixel-for-pixel (`chassis_top`, `chassis_side`, `body_front`, `body_side_left`,
+  `body_top`, `body_iso`) with zero pixel differences; this is a cutter test, not a
+  scale/plane or vehicle build claim. Pure geometry/scale checks and a Blender
+  crop/build/verify fixture pass.
 
 ---
 
@@ -1025,9 +1160,10 @@ authorize game integration, dependency changes, commits or pushes.
   remains a reviewed limitation. House application and game integration remain separate
   decisions.
 - **Phase 7A**, **7B**, **7C**, **7D** and **7E** pass their implemented checks;
-  7B–7D retain density-review limitations. 7E is accepted with a 16.1 MB/58-call
-  mixed delivery; the 512 and 1024 variants are retained, and texel density is not
-  audited.
+  7B includes the tileable-versus-atlas comparison, and 7B–7D retain density-review
+  limitations. 7E is accepted with a 16.1 MB/58-call mixed delivery; the 512 and 1024
+  variants are retained, and texel density is not audited. The post-acceptance
+  `office-corner-009` revision is built but not accepted or optimized.
 - No house modeling or game integration at this stage.
 - No commit or push without explicit approval.
 - Validator provisioning is approved; loader/runtime changes remain separate.
@@ -1044,13 +1180,16 @@ trial is under `tools/asset-pipeline/tests/phase4/`; the Phase 5 pilot is accept
 pass with MAE 0.0 and density remains a reviewed limitation. V5 (256) is softer; V6
 (512 + independent trim UV 0.8) is retained as a density experiment. Review
 `selection.json`, `candidate-comparison.json`, close-ups, density audits and verification
-evidence. Phase 7A/7B/7C evidence is under `tools/asset-pipeline/tests/phase7/`; the
-accepted 7C procedural result and limitations are in
+evidence. Phase 7A/7B/7C evidence is under `tools/asset-pipeline/tests/phase7/`; 7B's
+tileable case is `equipment-case-010` and its atlas comparison is
+`equipment-case-atlas-008`. The accepted 7C procedural result and limitations are in
 `.dev-shots/asset-pipeline/phase7/benchmark/pebble-procedural-004/7c-summary.json`.
 7D is accepted as `desk-lamp-005` with density review. 7E is accepted as
 `office-corner-006`: mixed 1024/512 is the default delivery at 16.1 MB and 58
-preview draw calls, with 512 and 1024 variants retained. Texel density remains
-unaudited. House application and game integration remain separately gated.
+preview draw calls, with 512 and 1024 variants retained. `office-corner-009` is the
+built chair/wall/lamp revision; it is not yet accepted and its optimized delivery
+has not been regenerated. Texel density remains unaudited. House application and
+game integration remain separately gated.
 
 Density thresholds remain advisory; no compression variant, loader change or house
 modeling has started.

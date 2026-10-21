@@ -74,6 +74,23 @@ Restart ComfyUI and confirm `width`/`height` appear on the
 - 30 steps, CFG 7.0, `dpmpp_2m` / `karras`
 - Outputs the texture and a 50% offset check
 
+## Shared runner for new jobs
+
+`tools/asset-pipeline/scripts/run_comfy_workflow_stable_materials.py` is the current
+reusable entry point for new StableMaterials jobs. Keep prompts and run settings in a
+job JSON such as `tools/asset-pipeline/examples/laptop-plastics-aged.job.json`; the
+runner validates the API graph, supports `--dry-run`, downloads the five maps and writes
+a hash manifest. It does not manage the ComfyUI process.
+
+```bash
+python3 tools/asset-pipeline/scripts/run_comfy_workflow_stable_materials.py \
+  --job tools/asset-pipeline/examples/laptop-plastics-aged.job.json \
+  --base-url http://192.168.1.190:8188 \
+  --out-dir .dev-shots/asset-pipeline/phase7/laptop-materials
+```
+
+The commands below remain the historical Phase 5 comparison scripts.
+
 ## Commands
 
 ```bash
@@ -110,7 +127,8 @@ It writes 3×3 and 50%-offset previews.
 ## Colour review and correction
 
 The StableMaterials model follows surface detail and tiling more reliably than
-prompt colour. Raw candidates are checked against the approved palette. A
+prompt colour. **This is a mandatory gate for generated base colour, not an optional
+polish pass.** Raw candidates are checked against the approved palette. A
 colour-only failure may be corrected by a deterministic script; seam, stain,
 lighting or texture failures are not colour corrections.
 

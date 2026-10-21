@@ -14,7 +14,7 @@ This procedure applies to any Blender asset in the project, not only bears. Char
 species-variant rig/export notes are in "Character and variant authoring" and
 "Deformation and export".
 
-Last reviewed: 2026-10-20. Update this line when the commands, scripts or delivery
+Last reviewed: 2026-10-21. Update this line when the commands, scripts or delivery
 contract below materially change; `AGENTS.md` remains the policy source.
 
 ## Supporting workflows and tools
@@ -46,7 +46,14 @@ Additional tools: `scripts/png_report.py` (read-only structural check),
 `scripts/uv_island_export.py` (per-object id/zone maps, labelled overlay, island manifest
 and binary masks with dilation; deterministic ids, non-zero exit on failed validation) and
 `scripts/uv_label_review.py` (numbered review sheet plus a proposed-name JSON template; a human
-must review it before `--names` is used).
+must review it before `--names` is used). Project-local `tools/asset-pipeline/scripts/capture_review.py`
+provides staged solid/material/final captures with render-state restoration,
+`check_evidence.py` validates pose/frame/hash/fingerprint evidence, `check_interface.py` is an
+experimental local signed-surface diagnostic, `construction_gate.py` validates brief/ledger
+and source-bound evidence (required by detail/delivery and delivery exporters), `check_shape_gate.py` is a read-only bounds, hinge, modifier and default-scene hygiene
+gate, and `export_approved_asset.py` is the gated GLB export entry point.
+`reference_sheet.py` crops explicit view rectangles, enforces one shared scale and builds
+locked, render-hidden reference planes; it does not detect views or infer dimensions.
 
 For Phase 2 export verification, use
 `tools/asset-pipeline/scripts/verify_asset.mjs` with the workflow in
@@ -87,14 +94,18 @@ performed, and game integration is not authorized.
 Phase 7A tool-validation fixtures and the Phase 7B equipment-case benchmark live under
 `tools/asset-pipeline/tests/phase7/`. 7A covers linear/sRGB downsampling, orientation,
 normal renormalisation, channel negative controls, planar density and material-specific
-UV exports. 7B is a 108-island hard-surface case with clean topology and 5.57 px minimum
-padding at 512; density remains review. 7C passes with a procedural 3D source baked to a
-six-island atlas: source-to-baked channels and 802 seam-pair samples pass, and visual
-review found no island cuts. Density remains review. Passing these does not establish
-arbitrary-asset support. 7D adds a 24-part desk-lamp assembly accepted with density
-review. 7E adds a mixed opaque/glass office corner: wallpaper/parquet, transmission
-window, rug, open book, chair and ceiling fan/light; it is accepted with a 16.1 MB
-/ 58-call mixed delivery and 512/1024 variants retained.
+UV exports. 7B's tileable baseline has 77 islands and 1,428 triangles, with 5.53 px
+minimum padding at 512; a 1024² baked atlas is 52.6% smaller and validates 0/0/0, but
+is softer on the silver frame near view because a single atlas has lower texel density
+than repeated tileable maps. Density remains review, and the flicker fix was geometry
+(single Boolean-cut frames), not UV mapping. 7C passes with a procedural 3D source baked
+to a six-island atlas: source-to-baked channels and 802 seam-pair samples pass, and
+visual review found no island cuts. Density remains review. Passing these does not
+establish arbitrary-asset support. 7D adds a 24-part desk-lamp assembly accepted with
+density review. 7E adds a mixed opaque/glass office corner: wallpaper/parquet,
+transmission window, rug, open book, chair and ceiling fan/light; `office-corner-006`
+is accepted with a 16.1 MB / 58-call mixed delivery and 512/1024 variants retained,
+while the chair/wall/lamp revision `office-corner-009` is built and pending acceptance.
 
 For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
 [references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are
@@ -196,6 +207,45 @@ joints and containment separately rather than treating an overlap count as the v
 
 ## Diagnosing appearance discrepancies
 
+### Material-boundary repair procedure
+
+Identify the visible object and faces using picking/raycast or a restored flat-colour
+isolation probe. Record face bands, material regions and shared boundary loops before
+editing. Prefer existing rounded loops over face-centre thresholds; create a deliberate
+boundary only where none exists. Do not add subdivision to disguise misclassification.
+Inspect every affected corner close up and at an oblique angle. Compare geometry and
+unrelated assignments (including rear surfaces) before/after. Preserve diagnostic colours
+only in explicitly labelled scratch captures; restore source materials in `finally`.
+
+`tools/asset-pipeline/scripts/check_material_boundaries.py` (repo-relative) is a read-only
+advisory helper. Inside Blender use `snapshot(obj)` and `analyze(current, baseline,
+allowed_faces)` with stable mesh indexing; alternatively pass snapshot JSON to its CLI.
+It reports material regions, separating edges, endpoints/branches, single-face regions
+and out-of-scope assignment changes. It cannot certify likeness, smooth curves or visual
+correctness: even a closed toothed boundary can pass, and intentional accents can trigger
+warnings. Tests: `python3 tools/asset-pipeline/tests/phase7/test_material_boundaries.py`.
+
+### Generated-material colour gate
+
+StableMaterials (and similar generators) is known to follow surface detail and tiling
+more reliably than prompt colour. **Colour drift is an expected limitation, not a failed
+prompt.** Raw base colour is therefore a candidate, never a delivery.
+
+1. Inspect the raw base colour, a 3×3 repeat and a 50% offset. Record seam/tiling,
+   stain/lighting and content findings separately from colour.
+2. Compare the mean against an approved target palette. Record a review entry. Correct
+   **only** when the failure is classified `colour_only`; do not use colour correction to
+   disguise a seam, stain, lighting or texture-content defect.
+3. Use the established deterministic correction (`tools/asset-pipeline/tests/phase5/
+   review_colour.py`) with the explicit palette and review record. It applies bounded
+   luminance modulation and replaces chroma while preserving generated detail; raw files
+   and normal/roughness/height/metallic maps remain untouched.
+4. Re-inspect the corrected tile and offset preview. Wire only the corrected base colour
+   plus the reviewed detail maps; preserve stable alpha/transmission and do not alter
+   unrelated channels to make the colour pass.
+5. Record the raw/corrected hashes, review classification, correction report and
+   limitations. A corrected map is not pure-generation evidence.
+
 Rendered and viewport appearances can disagree for reasons unrelated to the material. Before
 editing shader values, establish what a capture is actually showing.
 
@@ -218,6 +268,19 @@ editing shader values, establish what a capture is actually showing.
 
 ## Capturing views
 
+- Framing targets does not imply isolation. Use `capture_review.py --isolate` with explicit
+  targets for host/attachment checks and inspect the image. Add `--focus-targets` and
+  `--focus-view` for a bounds-based interface close-up; do not guess a camera distance.
+- Animated captures require explicit `--frame`; `--pose-object` records an evaluated
+  hinge/controller matrix. `check_evidence.py` compares frames, matrices, hashes and
+  frame-specific fingerprints. An "open" label is not a pose assertion.
+- `check_interface.py` is experimental: it samples evaluated surfaces and reports local
+  signed nearest distances, spacing and coverage. It is fixture-tested on boxes but does not
+  prove complete contact or watertightness.
+- Keep a criterion-based attempt ledger; separate structural, interface, likeness, motion
+  and user-acceptance outcomes. Follow `references/assembly-verification.md` for evaluated
+  interfaces: cage equality is not contact.
+
 Treat external reviews as hypotheses, not instructions to repair. For each finding record
 the evidence, applicability to the intended style, verification needed and whether a change
 is warranted. Texture thumbnails cannot establish model, glass or chassis quality. Suggestions
@@ -225,10 +288,22 @@ do not authorize edits; do not add wear or rework accepted geometry without appr
 
 - `look` may return only a perspective shot even when other views are requested. Check the
   installed tool schema rather than assuming; verify the returned image is the view asked for.
+  On add-on 1.8, including the protocol-14 build, `angles` and `frames` work but `topology`
+  is unavailable; use `shading="wireframe"` or direct mesh diagnostics there.
+- Use `look` as the primary live shape loop: inspect the actual target, make one small cage or
+  proportion edit, inspect again. Do not regenerate the whole asset to avoid looking. If MCP
+  disconnects, stop live editing and report instead of silently switching to a full rebuild.
 - True orthographic front/right/top captures need a Blender-side capture that writes a PNG
   to `.dev-shots/`. A read-only or plan-mode session blocks that write: ask for a mode switch
   at the start of the task, not after a failed audit.
 - Name captures `<step>_<what>_<view>.png` and never overwrite earlier iterations. View them.
+- Stage render work by decision, not by edit. During construction, use transform/bounds checks
+  and viewport, solid-shading or material-preview captures. Reserve a multi-angle
+  Cycles/EEVEE batch for an acceptance pass once orientation, proportions, assembly and
+  materials are settled, or for one targeted render of a render-only effect (transmission,
+  reflection, baked normals). Do not rerender unrelated views after a small change; two
+  unchanged visual results mean diagnose the target, tool and prior evidence before another
+  batch.
 - Capture the baseline before editing. If no baseline is available, report that gap;
   do not present a reconstructed image as a before capture.
 
@@ -282,10 +357,28 @@ do not authorize edits; do not add wear or rework accepted geometry without appr
 
 ## Build protocol
 
+### Construction-method gate
+
+Before a primary form or change of construction method, complete
+[references/construction-brief.md](references/construction-brief.md). Choose from geometric
+drivers, compare the main alternative and test the difficult section/interface first.
+Reuse the brief for incremental edits; do not repeat it before every vertex movement.
+Changing methods does not reset the criterion's attempt budget. The brief must also decide
+which details are geometry and which are texture/material at the closest intended view.
+This documented gate is not automated builder enforcement or a validated pattern library.
+
 Work in stages: **blockout → construction → detail → UVs → materials**. Verify proportions,
 openings and assembly in neutral solid views before adding bevel detail, paint or lighting.
 Do not use polish to conceal weak construction. Plan major paintable panels, trim, glass,
 material boundaries and seams for the intended delivery before multiplying components.
+
+Classify the form first (fabricated hard surface, moulded product, or soft goods) and pass a
+shape gate before detail: primary silhouette, major sections, thickness and contact only,
+inspected in neutral front/side/top/three-quarter captures. Use `capture_review.py` for those
+cheap checks and `check_shape_gate.py` for bounds/hinge/scene hygiene. Capture manifests carry
+source fingerprints; approvals require fresh four-view evidence and are revalidated for
+detail/delivery. Materials, keys, bezels, seams and delivery exports come after the shell
+reads correctly.
 
 Prove one representative difficult part, including its interfaces, evaluated topology, UVs
 and requested export, before replicating it. Inspect modifier-generated bevel corners,
@@ -296,8 +389,10 @@ is a proposed design choice, not an automatic response to a diagnostic failure.
 1. One system or part per step (chassis, wheels, suspension, cage, body). Report and wait
    for the user's go before the next one, unless an approved chunk says otherwise.
 2. Prefer primitives and modifiers (Mirror, Bevel, Solidify, Array, Subdivision Surface,
-   Boolean) over editing individual vertices. Model symmetric parts as one half plus a
-   Mirror modifier with clipping on.
+   Boolean) for mechanical forms. For moulded and soft forms, deliberate cage, edge-loop and
+   proportional edits are appropriate when they establish the silhouette; avoid hand-wound
+   faces and primitive stacking that substitutes for the required form. Model symmetric parts
+   as one half plus a Mirror modifier with clipping on.
 3. Join section loops with Bridge Edge Loops. Do not hand-wind faces or build custom
    rim/flare strips in generator code. Where a surface will later be smoothed, subdivided,
    remeshed or boolean-cut as a solid, build it as a closed manifold solid. Intentional
@@ -324,6 +419,10 @@ is a proposed design choice, not an automatic response to a diagnostic failure.
 
 - Fit trim and flares to the approved host surface; do not reshape that surface merely to
   accommodate a convenient primitive without explicit approval.
+- Size structural joints against the bevel radius and reach the host member's centre or
+  deeper; a nominal overlap smaller than the combined bevel opens a visible gap. Align a
+  continuous stile with its leg, and use a Boolean-cut solid where joined objects would
+  leave visible intersecting faces. Hidden overlap is acceptable; visible flicker is not.
 - Measure the actual interface on evaluated geometry. A torus's full axial bounds do not
   describe its cross-section everywhere. Compare attachment and host surfaces locally,
   not just global X ranges or object bounds. Validate image/UV axes and local-to-world

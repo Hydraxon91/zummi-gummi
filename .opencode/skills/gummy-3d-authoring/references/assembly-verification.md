@@ -24,11 +24,55 @@ capture → **view captures** → measure interfaces → inspect neighboring/pro
 report each acceptance criterion → correct if necessary → proceed only after passing.
 
 Automatic progression requires an approved ordered chunk. Otherwise stop at the parent
-skill's step boundary. At most two fix attempts per failing stage; a newly introduced defect
-triggers the existing regression stop. Do not save a failed stage as the accepted delivery;
-clearly labeled diagnostic checkpoints are permitted.
+skill's step boundary. Two unchanged failures trigger diagnosis rather than another edit;
+continue within the parent guide's seven-attempt ceiling only with new evidence. A newly
+introduced defect triggers the existing regression stop. Do not save a failed stage as the
+accepted delivery; clearly labeled diagnostic checkpoints are permitted. Stage render work by
+decision: use bounds/viewport/solid checks during construction, and reserve multi-angle rendered
+batches for acceptance or a targeted render-only diagnosis. Do not rerender unrelated views after
+a small edit; two unchanged visual results mean diagnose the target and tool first.
+
+## Shape gate before assembly
+
+For assets where the visible form is the deliverable, separate primary-shape acceptance from
+assembly acceptance:
+
+1. Classify the form: fabricated hard surface, moulded product or soft goods.
+2. Build only the silhouette, major sections, thickness and contact surfaces.
+3. Capture neutral front, side, top and three-quarter views at matched framing. Use Workbench
+   or solid shading; do not mask a weak form with materials or lighting.
+4. Check the intended openings, hinge axes, seam placement and floor/seat contact.
+5. Add secondary details, materials, seams, rigging and final export only after the shape gate
+   is recorded as passed.
+
+The structural checker can confirm bounds and editable state; it cannot prove likeness. A
+failed silhouette is a stop, not a reason to add detail. Capture manifests carry a source
+fingerprint, so edits invalidate prior captures. Record a silhouette approval only after
+inspecting front/side/top/three-quarter views; `--stage detail` and `--stage delivery` refuse
+to proceed without a matching approval. Factory-startup scenes also contain a default 2 m cube,
+camera and light; remove them before capture or a review camera can sit inside the cube.
 
 ## Structural completeness and connectivity
+
+### Evaluated interfaces and movable assemblies
+
+Compare cage and evaluated surfaces before fitting subdivided shells. Cap shrinkage can
+leave a gap despite identical control rings. Fix support construction before concealing
+the symptom with trim. Check attachments with their host isolated and in all operating
+poses; a closed view cannot establish open-assembly integrity. Joining is not welding,
+and a separately seated component need not be welded.
+
+Distinguish signed gap/penetration from unsigned nearest distance. State units, tolerances,
+coverage and missing regions; inspect endpoints and transitions. Validate diagnostics on
+touching, separated and intersecting fixtures. The laptop's earlier nearest distances did
+not prove full perimeter contact. `check_interface.py` now provides an experimental local
+sampled estimate; it is fixture-tested but is not a complete-contact or watertightness
+guarantee.
+
+Keep a candidate ledger: unresolved criterion, parent checkpoint, attempt number,
+hypothesis, changed control and outcome. Filenames/techniques do not reset the budget.
+Report evaluated mesh health, interface fit, reference likeness, motion and user acceptance
+separately. Acceptance with reservations is not proof of perfect fit.
 
 - Trace functional chains from support to supported component. For mechanical assemblies,
   record both endpoints of every link/damper and the actual component each attaches to;
@@ -42,6 +86,44 @@ clearly labeled diagnostic checkpoints are permitted.
   regions; missing samples remain unverified.
 - Preserve approved component positions; do not move wheels or reshape a host merely to
   make connections easier. Escalate a genuine incompatible constraint for a decision.
+
+## Joints, bevels and continuous members
+
+- Prefer one continuous member where a post/leg, frame rail or stile is structurally
+  continuous. Two abutting bars with a small nominal overlap are not a joint once both
+  sides are beveled; the bevel can open a visible gap. Size each rail, apron or stretcher
+  to reach the centre of the member it joins, or deeper, and check both ends.
+- Keep bevel radius in the fit calculation. A nominal 0.5 mm overlap on 4 mm bevels is a
+  visible crease; a 20 mm overlap is a solid joint. Recess apron tops into the seat or
+  table volume by more than the bevel radius rather than butting them against its face.
+- Align a rear leg and back stile on the same axis. A 20–25 mm lateral offset reads as a
+  step at seat height even when both parts are individually valid.
+- Joining objects does not remove intersecting faces. `Ctrl+J` leaves internal surfaces
+  that can z-fight; use a single Boolean-cut solid or a unioned component where the
+  intersection would be visible.
+- Coplanar/overlap counts are diagnostic, not acceptance. Hidden overlap is acceptable;
+  visible flicker or z-fighting is the blocker. Confirm suspect joints through camera
+  motion, not a still image, and do not treat an uncalibrated checker's count as proof.
+
+## Enclosure footprints
+
+- For cutaway rooms, verify the exterior corner and floor perimeter, not only the
+  interior faces. Extend the meeting wall through the full thickness of the wall it
+  joins, and extend the floor to the outer wall faces. Inspect exterior and top views;
+  interior hero views hide both.
+- For clamshells, model the seam as a mating profile, not a flat gap. The base may thicken
+  toward the hinge and the lid toward the free edge; their outer widths should align when
+  closed. Verify the side profile and a 1–2 mm seam in closed views before adding details.
+
+## Capturing a placed asset
+
+- When the user has posed an imported assembly, capture the root and every child's local
+  transform, including rotation mode/quaternion, or export the posed hierarchy at
+  identity as a new source. Reapplying only the root rotation does not reproduce per-part
+  edits.
+- Rebuild and compare world matrices against the live placement; report the maximum
+  difference. Do not assume the imported child transforms match the saved source.
+
 
 ## Visual completeness and construction
 

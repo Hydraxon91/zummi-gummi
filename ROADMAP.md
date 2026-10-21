@@ -319,6 +319,12 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   42–68 m. Sectoring without culling is slower, so the split ships with per-pass
   frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
 
+**Known follow-ups — StableMaterials loader (needs diagnosis):** Earlier API requests
+failed at `LoadStableMaterials` with OOM, while subsequent UI and shared-runner requests
+succeeded on the same 16 GB server. The laptop job now matches successful UI settings
+(Standard loader, 4 steps, 1024², CFG 7.5). Changing steps does not explain a loader-stage
+failure; server/cache state remains unverified. Do not infer a larger-GPU requirement.
+
 **Known follow-ups — UV verification (fixed/untested):**
 Painting-guide delivery (2026-10-20, prototype-003 layout preserved): `paint_reference_guides.py`
 exports clean, labelled and legend PNGs at actual 1280² and 4096² from the unchanged authored
@@ -910,6 +916,102 @@ interpretation; the helper does not certify them. Affects
   warnings; shade p95 `3.411` at 1024). Two small dark shade marks remain in Blender
   Eevee close-ups; cause unresolved and accepted with the lamp. Evidence:
   `.dev-shots/asset-pipeline/phase7/benchmark/desk-lamp-005/7d-summary.json`.
+- **Phase 7B equipment-case tileable-versus-atlas (2026-10-21):** the tileable
+  baseline is `equipment-case-010` (3 objects, 3 materials, 77 UV islands, 1,428
+  triangles, 4,183,272 bytes). User inspection found no visible flicker or
+  z-fighting after the frames became single Boolean-cut solids and the handle
+  mounts were unioned; joining overlapping bars had caused the earlier
+  camera-motion z-fighting. The experimental coplanar checker is advisory only:
+  hidden overlap is acceptable, visible flicker is the blocker. The baked
+  comparison `equipment-case-atlas-008` flattens the case to one `AtlasUV`, 90
+  islands, one material and three 1024² images, with 19.34 px minimum padding at
+  1024 (9.67 px at 512), a clean audit and validator 0/0/0. It is 1,982,128 bytes
+  (52.6% smaller) and renders five meshes as one. Matched preview MAE is 0.00128
+  front, 0.00096 three-quarter and 0.00459 near; front-panel/handle close-ups show
+  softer silver grain, and those plus back, right-side and top captures show no
+  visible seam. This is a texel-density tradeoff, so tileable stays the accepted
+  baseline and the atlas is retained as a comparison candidate. Fidelity evidence is appearance-based
+  (matched previews and close-ups), not a per-channel source-to-baked MAE.
+  `equipment-case-atlas-007` is a rejected diagnostic: omitting pre-export
+  triangulation dropped tangents and produced a validator warning.
+- **Known follow-up — 7B tileable handle tangents (deferred):** the tileable
+  `equipment-case-010` handle is not triangulated before export, so its GLB carries
+  one `MESH_PRIMITIVE_GENERATED_TANGENT_SPACE` warning. Triangulating the handle in
+  `build_equipment_case.py` and rebuilding would remove it. Deferred because 010 is
+  a benchmark baseline, not a delivery, and the atlas comparison validates cleanly.
+- **Phase 7F shape-workflow trial (2026-10-21, prototypes only):** added
+  `tools/asset-pipeline/scripts/capture_review.py` (staged Workbench/material/final
+  captures with complete render-state restoration and temp datablock cleanup),
+  `asset_fingerprint.py` (deterministic source fingerprints), and
+  `check_shape_gate.py` (bounds, hinge, modifier, default-scene hygiene, stale-capture
+  rejection and recorded silhouette approval for detail/delivery). Approvals require a
+  fresh front/side/top/three-quarter manifest and store review/capture hashes; detail
+  revalidates them. Failed gates exit nonzero. The self-test
+  `tests/phase7/test_capture_review.py` covers success, exception and material-preset
+  cleanup, forced render errors, animated-frame framing, UV/material/transform/modifier-
+  operand fingerprint changes, stale review and deleted-capture rejection, and the detail
+  approval gate.
+  `retro-laptop-013` corrects the iBook-inspired layout to a 4:3 screen, left keyboard,
+  right trackpad and wide handle, but the lid, handle integration and segmented hinge
+  still fail the shape gate. The live MCP shell candidate `retro-laptop-shell-007` removes
+  the handle, thickens/flattens the lid section, lowers the hinge and adds a clean raised
+  bezel with a blank screen panel. A Boolean screen recess was rejected: after Subsurf it
+  produced degenerate faces, and before Subsurf it produced a teardrop recess; the frame is
+  a separate clean mesh. Open/closed `look` views and evaluated health checks pass; it
+  remains shell-only. `retro-laptop-shell-008` applies the additional reference finding:
+  base seam higher at the rear, lid bottom wedged to match, lid depth matched to the base
+  and hinge raised to the rear seam; closed width is flush with a 1 mm seam. Screen dressing
+  is hidden for this shape checkpoint and still needs re-seating. `retro-laptop-shell-014`
+  is the side-profile pass: curved base underside, a lid crown that varies around
+  the perimeter, and a matched seam with flush outer widths. `retro-laptop-shell-020`
+  added a seam gasket for the rounded-edge groove; it is retained but rejected because the
+  band floated off the base. `retro-laptop-shell-021` hides that band, supports the cap
+  perimeters with a fan and perimeter-only crease, and seats the lid bottom on the
+  evaluated base surface (0.35–1.4 mm clearance, perimeter about 0.7 mm inside the base
+  edge). Base/lid health and the structural gate pass. `009–020` are retained iterations.
+  Laptop review closeout: the user accepts shell 021 with reservations before detailing.
+  Construction-method gate and brief are documented in the authoring skill. Pose/evidence
+  checks, bounds-based focus captures, an experimental fixture-tested interface checker and
+  the construction gate are implemented. The moulded-shell pose set includes closed,
+  intermediate and open poses; the interface fixture suite includes a deliberately
+  unsupported cap-shrinkage case. The canonical exporter, office exporter, two prototype
+  builders and detail/delivery shape gate now require construction evidence bound to the
+  source `.blend`, and revalidate capture evidence before writing. Benchmark builders are
+  explicitly exempt in `tools/asset-pipeline/tests/phase7/ENFORCEMENT.md`. One manual
+  subdivided-shell test passed its stated structural/evidence checks, but it is not a reusable
+  pattern or likeness approval. Pattern libraries remain planned in
+  `docs/asset-pipeline-roadmap.md` under **Construction-method tooling status**.
+  Known follow-up (fixed): approvals now record their review frame and are validated at that
+  frame; an open-pose approval remains valid while the current frame is closed. Evidence
+  reports also carry the saved source hash, and the export fixture covers a positive export
+  plus unsaved geometry, changed-source, swapped-target and swapped-evidence negatives. The
+  brief now requires an explicit geometry-versus-material split at the intended viewing
+  distance.
+  Earlier cage-ring equality and unsigned nearest-distance claims did not establish
+  evaluated flushness or complete contact. The floating gasket remains rejected.
+  `frutiger-props-002`
+  adds a flat beanbag underside but still reads as a moulded bowl; it needs a quad cage
+  with folds and asymmetry. Both are preserved as prototypes, not deliveries. Findings: factory-startup default cube enclosed the review
+  camera; imported glTF empties used quaternion rotation so Euler placement was ignored;
+  default-cube removal is now required in builders; and on add-on 1.8/protocol 14, `look`
+  angles/frames work but `topology` mode is still unavailable, so wireframe/direct checks
+  are the fallback.
+  The prototype builders now save their source and block GLB export without a matching
+  approval; `export_approved_asset.py` is the gated delivery entry point. Blocking was
+  verified on `retro-laptop-014` (source saved, no GLB) and the old evidence-free
+  approval is rejected.
+- **Known follow-ups — Phase 7E chair/wall/lamp revision (built, pending
+  acceptance):** `office-corner-009` extends the back wall through the side-wall
+  thickness and the floor to the outer wall faces. The chair now uses continuous
+  rear stiles (no 25 mm post/leg step) with 22.5 mm joint overlaps, apron tops
+  20 mm inside the seat and longer stretchers; chair topology is clean, 1,916
+  evaluated triangles, and a six-angle orbit showed no joint gaps or flicker.
+  The builder imports the user-edited lamp hierarchy as a new GLB and reproduces
+  its world matrices within `2.4e-7`. The full-resolution GLB is built, but the
+  accepted optimized mixed/512/1024 deliveries still come from
+  `office-corner-006`; they have not been regenerated, and 7E density,
+  compression and exported-light checks remain open. Do not treat 009 as
+  accepted until the user approves it.
 - **Phase 7E mixed opaque/glass office corner (2026-10-21, accepted):** selected
   `office-corner-006`: a 3.6 x 3.0 m cutaway with floral Hungarian-style wallpaper
   (plaster outside), herringbone parquet, desk against the wall, oak chair with red

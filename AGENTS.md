@@ -120,6 +120,51 @@ checkpoint saves under new filenames (never overwriting an existing file).
 three.js version or other dependency changes, rebuilding or swapping `vendor/box3d/`
 WASM, CI/CD workflow changes, `git push`, and anything not listed in the chunk.
 
+### Efficient feature batches
+
+- **Approve a bounded outcome once.** Set behavior rules, affected files/systems,
+  persistence decisions, acceptance criteria and exclusions before implementation.
+  Execute the approved chunk without routine per-step check-ins; localized,
+  evidence-driven repairs within that scope are covered. New gameplay decisions and
+  individually gated actions still require approval.
+- **Map requirements to checks before editing.** For interactions, include eligibility,
+  acceptance/refusal, exactly-once effects, essential-needs priority, cancellation,
+  claim/pair cleanup, save/load, map/new-game isolation, supported representations,
+  feature disable/re-enable, enabled determinism/RNG and disabled parity. Mark each
+  criterion applicable, excluded with a reason, or pending; do not discover the missing
+  acceptance list only after calling the feature complete.
+- **Stage verification, not standards.** During edits, run affected Node tests and one
+  targeted browser/parity scenario. At feature review, run the full Node suite, smoke,
+  affected browser suites, inspected captures where applicable and short all-race parity.
+  At the batch boundary, run one fresh long parity matrix after simulation edits and
+  focused fixes are complete. Verify each intermediate step at its affected layer;
+  this does not require the entire acceptance suite after every step.
+- **Invalidate evidence by dependency.** Simulation changes invalidate affected behavior
+  evidence and long acceptance; UI-only changes require affected UI/browser/capture
+  checks, not automatically another simulation matrix. Prose-only changes do not
+  invalidate executed code evidence. Test-only edits require the changed tests and any
+  acceptance whose assertions they changed; never call stale evidence current.
+- **Test enabled features separately.** Disabled exact parity, enabled seeded
+  determinism/RNG accounting and functional acceptance establish different claims.
+  A long matrix with a feature off does not verify it on. Never filter away unexpected
+  mismatches or change retention/timing/gameplay policies solely to make parity pass;
+  apply the Fix-Classification Gate.
+- **Use deterministic fixtures without bypassing the target.** Arrange prerequisites
+  through existing helpers, then exercise real eligibility, transitions and cleanup.
+  A forced state demonstrates only the downstream path; it cannot prove natural
+  selection or acceptance. Include a natural opportunity check when that is a claim.
+- **Avoid verification contention.** Parallelize independent lightweight checks, but
+  serialize GPU-heavy browsers and avoid overlapping them with long CPU matrices.
+  Reuse a temporary server during active work; browser profiles remain isolated per
+  test. Tear down owned processes once the pass/batch ends, including on failure.
+- **Commit verified logical units.** Prefer data/save contract, behavior/UI and final
+  closeout boundaries when they are independently loadable. Do not create premature
+  completion commits or churn working changes merely to force that split. Existing
+  commit authorization rules remain authoritative; no push is implied.
+- **Time-box honestly.** An agreed hour is a target, not a guarantee or permission to
+  weaken acceptance. At the boundary report implemented, verified, blocked and deferred
+  work separately, with evidence and remaining checks. Do not start the next feature.
+
 ## 6. Fix-Classification Gate
 
 Before implementing a fix — whether from a review finding or a bug reported directly —
@@ -410,10 +455,18 @@ approved work chunk.
 - For any UI, visual or scene change, capture screenshots from the running app (headless
   Chrome is the established path; `scripts/` and `README.md`/`PERFORMANCE.md` describe the
   method) and **view them before reporting the task complete**.
-- **Builder agent: shoot more than one capture per visual pass.** A single hero frame is
-  not enough — capture before/after of the change, the changed element in close-up, one or
-  two other angles, and the relevant time-of-day or quality tier (dawn/day/dusk/night, UI
-  and UI-hidden). Name them `<step>_<what>_<view>.png` (e.g. `x3_no_backdrop_flowers.png`).
+- **Builder agent: shoot more than one capture per acceptance visual pass.** A single hero
+  frame is not enough at acceptance time — capture before/after of the change, the changed
+  element in close-up, one or two other angles, and the relevant time-of-day or quality
+  tier (dawn/day/dusk/night, UI and UI-hidden). Name captures
+  `<step>_<what>_<view>.png` (e.g. `x3_no_backdrop_flowers.png`).
+- **Stage render work by decision, not by edit.** While constructing, use transform/bounds
+  checks and viewport, solid-shading or material-preview captures. Run a multi-angle
+  Cycles/EEVEE batch when orientation, proportions, assembly and materials are settled, or
+  when one targeted render is needed to diagnose a render-only effect such as
+  transmission, reflection, a baked normal or a render-only artifact. Do not rerender
+  unrelated views after a small change. Two unchanged visual results mean diagnose the
+  target, tool and prior evidence before launching another batch.
 - Screenshots do not replace semantic success checks: assert the outcome through
   `window.__gummy` as well, and report anything you could not verify.
 - **A smoke or syntax pass is not a visual fix.** Do not report a rendering issue as fixed
@@ -452,6 +505,29 @@ approved work chunk.
 
 ## 15. 3D Asset Authoring
 
+- **Choose construction before editing shape.** State defining sections/silhouette,
+  chosen method and main alternative, editable controls, likely failure modes and a small
+  representative test. Use the authoring skill's construction brief. Prove the difficult
+  interface before replication. A topology pass does not establish method suitability;
+  record concise decisions and evidence, not an internal reasoning transcript. Decide what
+  must be geometry versus texture/material at the closest intended view; model silhouette,
+  openings, thickness, attachment, parallax and articulation, and use materials for printed
+  graphics, colour boundaries, fine relief and non-structural variation.
+
+- **Evaluated contact is a separate claim.** Matching cage rings, bounds, object joins or
+  clean topology do not prove flushness or attachment. Check evaluated mating surfaces,
+  coverage and operating poses; unsigned nearest distances prove neither clearance nor
+  penetration. Diagnose subdivision/cap shrinkage before adding filler or trim. Use
+  `check_evidence.py` for pose/frame/hash freshness; `check_interface.py` is experimental
+  local sampling, not a complete-contact proof.
+- **Attempts follow the unresolved criterion.** Candidate filenames, techniques and turns
+  do not reset the seven-attempt limit. Record hypothesis, changed control and evidence;
+  after two unchanged results validate the diagnostic before editing again.
+- **Separate acceptance evidence.** Report mesh health, interface fit, reference fidelity,
+  motion and user acceptance separately. A structural gate PASS is not visual approval.
+  Capture framing is not isolation; verify returned images and explicit poses. Revalidate
+  evidence against the final source after the last edit/save.
+
 - **Respect resource pauses.** If the user closes Blender for GPU/CPU headroom, do not
   launch live or background Blender, baking or rendering until they authorize resuming.
 - **Keep acceptance fixed.** Extra attempts do not authorize looser thresholds, overlap or
@@ -472,6 +548,11 @@ approved work chunk.
 - **Keep source editable.** Preserve source geometry/parameters before applying
   destructive booleans, remeshing or decimation. Use a separate export/evaluated copy
   where appropriate. A requested change to one part must not silently reshape others.
+- **A user-posed assembly is data.** When the user has moved or rotated an imported part,
+  capture the full hierarchy (root and children, including rotation mode/quaternion) or
+  export the posed hierarchy at identity as a new source. Reapplying only the root
+  transform does not reproduce per-part edits; compare rebuilt world matrices against the
+  live placement.
 - **Check shared data before edits.** Inventory mesh, material and image users, parents,
   constraints and modifier dependencies. Make an approved independent copy when necessary;
   changing one part must not silently change linked parts or their placement.
@@ -496,6 +577,13 @@ approved work chunk.
   across the complete interface, including endpoints. Do not reshape an approved host
   surface merely to accommodate a convenient primitive without explicit approval. Global
   bounds and sparse samples do not establish a correct fit.
+- **Account for bevels and continuous members.** A nominal joint overlap smaller than the
+  combined bevel radius reads as a gap; extend rails, aprons and stretchers to the host
+  member's centre or deeper. Align rear legs with back stiles. Joining objects does not
+  remove intersecting faces, so use a Boolean solid where the intersection would be
+  visible. For cutaway rooms, verify the exterior wall corner and floor perimeter from
+  top/exterior views, not only the interior faces. Hidden overlap is acceptable; visible
+  flicker or z-fighting is the blocker, and suspect joints need camera motion.
 - **Validate measurement coordinates before trusting results.** Verify image/UV axes and
   local-to-world transforms against visually identifiable landmarks. Never substitute a
   bounding range for the actual surface being tested. Missing samples are unverified
@@ -503,15 +591,45 @@ approved work chunk.
 - **Reference fidelity before optimisation.** Establish the silhouette and proportions
   first. Reduce geometry only while preserving the approved appearance; do not equate
   low-poly with flat shading or choose an arbitrary minimum triangle count.
+- **Classify the form and pass a shape gate before detail.** Fabricated hard surfaces use
+  panels/booleans/bevels; moulded products use a calibrated profile cage, lofted sections,
+  shell thickness and controlled subdivision; soft goods use a quad cage with broad
+  contact, deformation and folds. Build only the primary silhouette and major sections,
+  inspect neutral front/side/top/three-quarter captures, check thickness/openings/hinge
+  axes/contact, then add keys, bezels, textures, seams and delivery exports. Capture
+  manifests carry a source fingerprint; source edits invalidate them. Detail and delivery
+  require a matching recorded silhouette approval, and builders/export paths must refuse
+  unapproved GLB delivery. A topology or validator pass cannot override a failed shape gate.
+- **Factory-startup scenes contain a 2 m cube, camera and light.** Delete or explicitly
+  inventory them before building or capturing. A review camera placed inside the default
+  cube will make every capture look like a wall; automated bounds and topology checks will
+  not report it.
 - **Build for clean topology, one system per step.** Model symmetric parts as one half plus
   Mirror, as closed manifold solids where solid geometry is intended, using modifiers and
-  unapplied boolean cutters rather than hand-edited vertices or hand-wound faces.
-  Report non-manifold edges, loose vertices
-  and flipped faces after every step; all three must be 0 for intended closed solids before
-  continuing. Report intentional boundaries on open panels, references and construction
-  geometry separately; unexpected non-manifold edges, loose vertices and flipped faces
-  must still be 0. Check consistent winding and component orientation with Face Orientation
-  captures; positive signed volume alone does not prove correct normals.
+  unapplied boolean cutters. Deliberate cage, edge-loop and proportional edits are appropriate
+  for moulded and soft forms when they establish the silhouette; avoid hand-wound faces. Do
+  not use primitive stacking as a substitute for the required form. Report non-manifold edges,
+  loose vertices and flipped faces after every step; all three must be 0 for intended closed
+  solids before continuing. Report intentional boundaries on open panels, references and
+  construction geometry separately; unexpected non-manifold edges, loose vertices and flipped
+  faces must still be 0. Check consistent winding and component orientation with Face
+  Orientation captures; positive signed volume alone does not prove correct normals.
+- **Material splits follow shared boundaries.** When splitting geometry for a new material,
+  keep the boundary vertices shared: use one continuous mesh with an edge loop and material
+  slots, or coincident, welded mating boundaries. Do not duplicate coincident faces or
+  shells for a material-only change; separate pieces need a gap, offset or thickness reason.
+  A material change alone must not introduce a visible seam gap or z-fighting.
+- **Material ownership follows topology.** Identify actual face bands and shared boundary
+  loops before assigning materials. Do not classify rounded corners by face-centre or
+  bounding-box thresholds when an appropriate loop exists. Preserve unrelated assignments
+  and geometry. Teeth, isolated patches or unchanged results require ownership diagnosis,
+  not more subdivision or speculative shader changes. Use temporary flat-colour isolation
+  before blaming transparency or reflections; restore it afterward. Follow the authoring
+  skill's material-boundary procedure and inspect every affected corner.
+- **Use the live MCP loop for shape work.** Inspect the actual viewport with `look`, pick the
+  visible component, make a small editable change, and look again. Use scripts for repetition,
+  measurement, capture and export, not as a substitute for inspecting each form change. If MCP
+  disconnects, stop live editing and report rather than silently regenerating the whole asset.
 - **Regression recovery.** A new defect class requires stopping the current edit chain and
   safely restoring the last good scoped checkpoint before an evidence-based alternative.
   Preserve unrelated live changes; reopening a whole `.blend` requires approval if it would
@@ -551,6 +669,18 @@ approved work chunk.
   collision handling and rationale before approval. Preserve accepted checkpoints and
   important baseline/verification evidence; recency or a fixed capture count alone is not
   a retention policy. Inspect destinations and verify the resulting inventory afterward.
+- **Generated-material colour gate.** Treat raw generated base colour as a candidate, not
+  a delivery. StableMaterials colour drift is a known limitation, not a prompt failure;
+  skipping correction because the detail or tiling looks good is not acceptable. Inspect
+  the raw map and tiling/offset previews; record colour-only failures separately from
+  seam, stain, lighting or content failures. Correct only a `colour_only`
+  candidate against an approved target with a reproducible colour-correction script,
+  preserving the generated detail and the untouched raw file. Never use colour correction
+  to hide a texture, tiling or normal/roughness problem, and never alter those channels
+  merely to make colour pass. Re-inspect the corrected map before wiring it into Blender.
+  The established procedure is in `tools/asset-pipeline/tests/phase5/README.md`; use
+  `tools/asset-pipeline/scripts/run_comfy_workflow_stable_materials.py` for reusable
+  generation jobs and `review_colour.py` with an explicit review record for correction.
 - **Bake and export faithfully.** A new noise texture is a replacement, not a bake of the
   original shader. Preserve source graphs, transfer all required channels and compare under
   matching conditions; simplifications require approval. Verify self-contained exports in

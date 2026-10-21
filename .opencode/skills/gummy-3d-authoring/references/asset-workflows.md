@@ -47,6 +47,111 @@ recalculate-normals, merge-by-distance, fill-holes or scale application follows 
 Z-fighting, detached parts, penetration, duplicate vertices, UV overlaps, weights and
 Face Orientation remain separate inspections; the helper does not certify them.
 
+## Shape-first authoring
+
+Choose the construction method from the form, not from the previous asset:
+
+| Form | Starting method | Avoid |
+| --- | --- | --- |
+| Fabricated hard surface | panel blockout, booleans, bevels, mechanical joints | sculpting a product shell from primitives |
+| Moulded plastic product | calibrated plan/profile cage, lofted sections, shell thickness, controlled subdivision | stacking beveled boxes and calling it a shell |
+| Soft goods | quad cage with broad contact, seat/fold deformation, subdivision | Boolean subtraction from a sphere |
+
+Before adding detail, pass a **shape gate**:
+
+1. Build the primary silhouette and major cross-sections only.
+2. Inspect neutral front, side, top and three-quarter captures at matched framing.
+3. Check thickness, openings, hinge axes and the intended contact surfaces.
+4. Record the gate result, then add secondary geometry.
+5. Add materials, textures, seams and delivery exports only after the shape gate passes.
+
+Use `tools/asset-pipeline/scripts/capture_review.py` for cheap staged captures:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender --background asset.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/capture_review.py -- \
+  --out-dir .dev-shots/review --preset solid --prefix Asset_ \
+  --views front,side,top,three_quarter --isolate
+```
+
+Use `tools/asset-pipeline/scripts/check_shape_gate.py` for bounds, hinge presence,
+default-scene hygiene and editable-modifier state:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender --background asset.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/check_shape_gate.py -- \
+  --out .dev-shots/review/shape-gate.json --prefix Asset_ \
+  --hinge Asset_Hinge --stage silhouette \
+  --review-manifest .dev-shots/review/asset_captures.json
+```
+
+Captures embed a source fingerprint; a manifest is stale after a source edit. After
+inspecting the four shape views, record a silhouette approval. `--stage detail` and
+`--stage delivery` refuse to proceed without a matching approval:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender --background asset.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/check_shape_gate.py -- \
+  --out .dev-shots/review/shape-gate.json --prefix Asset_ --stage silhouette \
+  --review-manifest .dev-shots/review/asset_captures.json \
+  --record-approval .dev-shots/review/silhouette-approval.json \
+  --approved-by "your-name" --note "Reviewed front/side/top/three-quarter"
+```
+
+The approval records the review manifest hash, required views and capture hashes.
+`--stage detail` rechecks that evidence; deleting or editing a capture, or changing the
+source, invalidates the approval. The default required views are
+`front,side,top,three_quarter`.
+
+The fingerprint covers transforms, mesh/UV data, materials and shader graphs, modifiers,
+constraints and custom properties. It does not hash external image bytes, linked files or
+render-only state; document those separately when they matter. The gate is structural; it
+does not prove reference likeness, so inspect the captures before approving.
+
+Export only through the approved entry point:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender --background asset.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/export_approved_asset.py -- \
+  --root Asset_Root --glb out/asset.glb --report out/export.json \
+  --approval .dev-shots/review/silhouette-approval.json
+```
+
+The prototype builders save their source and block GLB export without a matching approval.
+
+**Scene hygiene:** a `--factory-startup` scene contains a 2 m default cube, camera and
+light. Delete them (or inventory them explicitly) before building or capturing. A review
+camera can end up inside the default cube, making every render look like a wall.
+
+**Source vs delivery:** keep cages, booleans, subdivision and hinge controls editable in the
+source. Triangulate, apply and merge only on an export copy.
+
+## Live MCP shape loop
+
+Use Blender MCP as the primary loop for form decisions:
+
+1. `get_scene_info` for file, dirty state, selection and object inventory.
+2. `look` at the viewport or `angles` for the actual target before editing. Use `topology`
+   when cage health matters and `frames` for hinge/motion checks.
+3. Establish or save a recoverable checkpoint before a destructive edit.
+4. Make one small, local cage/edge-loop/proportion change on the intended object.
+5. `look` again and compare against the reference landmarks. Correct before adding detail.
+
+Do not regenerate the whole asset after every observation. Scripts are appropriate for
+repetition, symmetry, measurements, captures and export preparation. Verify the installed
+add-on's actual `look` modes and returned image; the documented `angles`, `topology`, `rig` and
+`frames` modes are not proof that this build supports them. On add-on 1.8, including the
+protocol-14 build, `angles` and `frames` work but `topology` returns "There is no topology
+mode"; use `shading="wireframe"` and direct mesh checks there. MCP `look` restores temporary
+camera/shading settings, but confirm the viewport state after first use.
+
+Use `capture_review.py` when reproducible, hash-linked evidence is required; it does not replace
+live inspection during construction.
+
 ## Hard-surface modeling
 
 1. Choose the workflow before detailing: mid-poly bevel + normals for many game props;

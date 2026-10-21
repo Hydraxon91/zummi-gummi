@@ -20,6 +20,19 @@ anything into Gummy Bears.
 - `examples/provenance.example.json` — minimal provenance record.
 - `schemas/verification-report.schema.json` — Phase 2 report contract.
 - `scripts/audit_asset.py` — read-only Blender audit.
+- `scripts/capture_review.py` — staged Workbench/material/final captures with state restoration,
+  explicit frames, evaluated pose records and bounds-based focus captures.
+- `scripts/reference_sheet.py` — explicit view cropping, shared-scale validation and locked,
+  render-hidden Blender reference planes from author-supplied pixel rectangles.
+- `scripts/run_comfy_workflow_stable_materials.py` — reusable StableMaterials ComfyUI runner
+  driven by a job JSON; dry-run, validation, map download and hash manifest.
+- `examples/laptop-plastics-aged.job.json` — aged ivory/tangerine plastic prompts for the
+  laptop tooling test.
+- `scripts/check_evidence.py` — pose, frame, hash and frame-specific fingerprint validation.
+- `scripts/check_interface.py` — experimental local signed-surface interface diagnostic.
+- `scripts/construction_gate.py` — construction brief, candidate ledger and evidence validation.
+- `scripts/check_shape_gate.py` — read-only bounds, hinge, modifier and scene-hygiene gate.
+- `scripts/export_approved_asset.py` — gated GLB export; refuses without matching approval.
 - `scripts/density_policy.py` — pure percentile and advisory-policy evaluation.
 - `scripts/validate_documents.py` — dependency-free profile/provenance validation.
 - `scripts/verification_report.mjs` — pure status, disposition and inventory comparison.
@@ -30,6 +43,186 @@ anything into Gummy Bears.
 - `scripts/preview_capture.mjs` and `preview/` — standalone three.js preview harness.
 - `tests/` — pure document/policy/report tests, Blender fixtures, synthetic GLBs,
   Phase 3 bake fixtures and the Phase 4 crate material-zone trial.
+
+## Reference sheets
+
+`reference_sheet.py` cuts author-selected views out of a sheet and builds one new
+reference `.blend`. It does **not** detect views, infer dimensions or decide that a sheet
+is orthographic. Supply rectangles in sheet pixels (top-left origin), a shared origin
+pixel per view, and at least one real distance:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/reference_sheet.py -- \
+  --sheet path/to/sheet.jpg --views path/to/views.json \
+  --out-dir .dev-shots/reference-sheet/raptor-001 \
+  --prefix raptor --build .dev-shots/reference-sheet/raptor-001/references_001.blend \
+  --new-scene
+```
+
+Inspect dimensions before writing rectangles:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/reference_sheet.py -- \
+  --sheet path/to/sheet.jpg --inspect
+```
+
+`tools/asset-pipeline/examples/reference-views.example.json` is a generic schema example,
+not calibrated coordinates for a real sheet. The first calibrated view is the scale
+authority; every other calibrated view must agree within 0.5% or the tool refuses the
+build. Views marked `visual` are cropped but never built as measurement planes. The
+output manifest records the source/crop hashes, pixel rectangles, landmark points,
+mm-per-pixel, world origin and resulting dimensions.
+
+Reference planes use emission textures, `show_in_front`, locked transforms,
+`hide_render` and a render-hidden `Reference` collection. They are viewport guides, not
+renderable content. Temporarily showing them for a comparison capture is a diagnostic
+state that must be restored. Keep third-party sheets in gitignored `inspiration/` or
+`.dev-shots/`, and do not commit crops unless their rights are cleared.
+
+## StableMaterials via ComfyUI (optional)
+
+If you run ComfyUI with the `P5ina/comfyui-stable-materials` custom node and the
+`gvecchio/StableMaterials` model, the shared runner can execute any exported
+StableMaterials API workflow without adding another Python script per material set.
+The user's local server in these trials is `http://192.168.1.190:8188`; pass
+`--base-url` for another machine.
+
+```bash
+python3 tools/asset-pipeline/scripts/run_comfy_workflow_stable_materials.py \
+  --job tools/asset-pipeline/examples/laptop-plastics-aged.job.json \
+  --base-url http://192.168.1.190:8188 \
+  --out-dir .dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/materials/aged-plastic-001
+```
+
+Validate the job and write the API graph without contacting ComfyUI:
+
+```bash
+python3 tools/asset-pipeline/scripts/run_comfy_workflow_stable_materials.py \
+  --job tools/asset-pipeline/examples/laptop-plastics-aged.job.json \
+  --out-dir .dev-shots/laptop-material-dry --dry-run
+```
+
+The job JSON supplies the template path, prompts, negative prompt, seeds, mode, steps,
+size and output prefix. The runner infers the five `SaveImage` maps, refuses overwrite,
+records the template hash, prompt IDs, downloaded map hashes and failures, and does not
+start, restart, free or reconfigure ComfyUI. Raw maps are not a bake or game delivery.
+
+StableMaterials colour drift is expected. Inspect the raw base colour and 3×3/offset
+previews, record a colour-only review, then run the established bounded correction before
+wiring it into Blender. Raw files and the normal/roughness/height/metallic channels are
+left untouched:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python-exit-code 1 \
+  --python tools/asset-pipeline/tests/phase5/review_colour.py -- \
+  --run-dir .dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/materials/aged-plastic-003 \
+  --palette tools/asset-pipeline/examples/laptop-plastic-palette.json \
+  --review .dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/materials/aged-plastic-003/colour-review.json \
+  --out-dir .dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/materials/aged-plastic-003/corrected \
+  --report .dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/materials/aged-plastic-003/colour-review-report.json
+```
+
+The review record is required. A correction applies bounded luminance modulation and
+replaces chroma; it is not permission to hide a seam, stain, lighting or content defect.
+
+Hardware note: earlier API attempts failed at `LoadStableMaterials` despite 15.77 GB
+reported free. Subsequent UI history proves this same 16 GB server can run both loader
+modes at 1024² with 4 generation steps and CFG 7.5. The laptop job now matches the
+successful Standard-loader/4-step settings. The earlier loader failure's cause is
+unresolved; it does not establish a larger-GPU requirement. Loader mode and generation
+step count are separate settings. The runner does not clear cached models.
+
+The reusable runner's pure checks:
+
+```bash
+python3 tools/asset-pipeline/tests/phase7/test_comfy_stable_materials_runner.py
+```
+
+## Shape review
+
+Use staged captures during construction; do not run a multi-angle final render batch after
+every edit. `capture_review.py` snapshots and restores render state, supports `solid`,
+`material` and `final` presets, can isolate target meshes, refuses overwrites and writes a
+hash-linked manifest. `check_shape_gate.py` checks bounds, hinge presence, editable modifiers
+and whether a factory-startup 2 m cube remains in the scene.
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background asset.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/capture_review.py -- \
+  --out-dir .dev-shots/review --preset solid --prefix Asset_ \
+  --views front,side,top,three_quarter --isolate
+
+/Applications/Blender.app/Contents/MacOS/Blender --background asset.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/check_shape_gate.py -- \
+  --out .dev-shots/review/shape-gate.json --prefix Asset_ \
+  --hinge Asset_Hinge --stage silhouette
+```
+
+The gate is structural only; inspect the captures for silhouette and reference likeness.
+Captures include a deterministic source fingerprint. `--review-manifest` rejects stale
+captures after source edits. `--stage detail` requires a matching recorded silhouette
+approval; record one only after inspecting the shape captures:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background asset.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/check_shape_gate.py -- \
+  --out .dev-shots/review/shape-gate.json --prefix Asset_ --stage silhouette \
+  --review-manifest .dev-shots/review/asset_captures.json \
+  --record-approval .dev-shots/review/silhouette-approval.json \
+  --approved-by "your-name" --note "Reviewed front/side/top/three-quarter"
+```
+
+Export only through the approved path:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background asset.blend \
+  --factory-startup --python-exit-code 1 \
+  --python tools/asset-pipeline/scripts/export_approved_asset.py -- \
+  --root Asset_Root --glb out/asset.glb --report out/export.json \
+  --approval .dev-shots/review/silhouette-approval.json \
+  --construction-brief .dev-shots/review/construction-brief.json \
+  --candidate-ledger .dev-shots/review/candidate-ledger.json \
+  --evidence-report .dev-shots/review/evidence.json
+```
+
+The prototype builders save their source and intentionally block GLB export until
+`--shape-approval` and construction brief/ledger/evidence inputs are supplied, or
+`export_approved_asset.py` is used. The canonical exporter, office exporter and
+detail/delivery shape gate require all four inputs, bind evidence to the current source
+`.blend` and revalidate the capture manifests before writing. A missing, stale or swapped
+construction report blocks the GLB.
+
+Run the tooling self-tests with:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python-exit-code 1 \
+  --python tools/asset-pipeline/tests/phase7/test_capture_review.py
+
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python-exit-code 1 \
+  --python tools/asset-pipeline/tests/phase7/test_interface_check.py
+
+python3 tools/asset-pipeline/tests/phase7/test_construction_gate.py
+
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python-exit-code 1 \
+  --python tools/asset-pipeline/tests/phase7/test_export_guard.py
+```
+
+Approvals require a fresh review manifest with the default views
+`front,side,top,three_quarter`; the gate stores manifest and capture hashes and
+revalidates them for detail/delivery. A failed gate exits nonzero. Fingerprints cover
+transforms, mesh/UV data, material graphs, modifiers, constraints and custom properties;
+external image bytes, linked files and render-only state remain outside that coverage.
 
 ## Audit
 
@@ -283,6 +476,16 @@ Pure document tests:
 
 ```bash
 python3 -m unittest discover -s tools/asset-pipeline/tests -p 'test_*.py'
+```
+
+Reference-sheet checks:
+
+```bash
+python3 tools/asset-pipeline/tests/phase7/test_reference_sheet.py
+
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
+  --python-exit-code 1 \
+  --python tools/asset-pipeline/tests/phase7/test_reference_sheet_blender.py
 ```
 
 Blender fixture:

@@ -12,7 +12,7 @@ authorize implementation, installation, commits or pushes. For Blender asset che
 in-game result once integration is approved.
 Paths below are relative to the project root, not this skill directory.
 
-Last reviewed: 2026-10-19. Update this line when the commands, harnesses or coverage below
+Last reviewed: 2026-10-21. Update this line when the commands, harnesses or coverage below
 materially change; `AGENTS.md` remains the policy source.
 
 ## Pick checks from the approved change
@@ -26,6 +26,9 @@ materially change; `AGENTS.md` remains the policy source.
    built-in test runner, not a new dependency.
 
 ## Pure checks
+
+During iteration, run the affected test files first. Run the complete suite at feature
+review and after changes that invalidate its evidence, not after every small edit.
 
 Run the committed species/DNA/save/actor-view/asset checks before touching the browser:
 
@@ -171,6 +174,62 @@ files older than `DAYS` (default 14). `node scripts/prune-dev-shots.mjs --apply`
 those candidates. Curated files under `screenshots/` are never considered.
 
 ## Behaviour and regression checks
+
+### Batch acceptance contract
+
+Follow `AGENTS.md` sections 5 (Efficient feature batches) and 6 (Fix-Classification
+Gate). Before implementation, map approved requirements to named tests/assertions.
+For an interaction, cover eligibility and natural opportunity selection, acceptance
+and refusal, exactly-once resource/need/bond effects, essential-needs interruption,
+grab/removal/map-switch/disable cleanup, save/load and game isolation, supported
+species/representations, plus enabled determinism and RNG accounting. Record deliberate
+exclusions and missing evidence explicitly. One bounded approval covers in-scope
+mechanical repairs, not new gameplay or retention policies.
+
+Use deterministic fixtures to establish prerequisites, then run the real transition
+being verified. Do not count a forced pair/state as proof of eligibility or natural
+selection. Verify a failed helper before changing production behavior, and stop on a
+reproducible failure rather than retrying until green.
+
+### Verification stages and evidence reuse
+
+- **Focused/edit loop:** affected Node files, syntax where relevant, and one targeted
+  browser or parity scenario. Keep the server available during active iteration.
+- **Feature review:** full Node suite, HTTP smoke, affected browser suites, inspected
+  captures for UI/visual changes, and short all-race parity for behavior changes.
+- **Batch acceptance:** final applicable checks plus one fresh long matrix after
+  simulation-affecting edits are settled. A failed run is not acceptance; diagnose,
+  fix within approved scope and repeat the invalidated checks.
+
+Keep a small evidence ledger in the conversation/report: criterion, check, source state,
+result and whether a later edit invalidated it. Simulation edits invalidate affected
+behavior evidence and long parity; UI-only edits invalidate affected UI/capture evidence,
+not automatically the simulation matrix. Prose-only edits need direct document checks,
+not another long run. Test-only edits rerun the changed test and any acceptance whose
+assertions changed. Reuse evidence only when its tested dependencies and claims remain
+valid; scratch report existence alone is not proof.
+
+Treat these as separate lanes:
+
+| Claim | Required evidence |
+| --- | --- |
+| Disabled compatibility | Exact legacy/modules parity with the feature off |
+| Enabled reproducibility | Same-seed feature-on traces and actual instrumented RNG draws |
+| Functional correctness | Feature-on assertions for outcomes, interruptions and persistence |
+
+Do not describe a feature-off matrix as enabled acceptance, or weaken comparator
+coverage to hide a mismatch. Unintended history eviction or timing changes can affect
+other readers even when the new metadata is nominally display-only.
+
+Serialize GPU-heavy browser suites and avoid contending them with the long CPU matrix.
+Independent lightweight reads/tests may run together. Reuse an owned server only while
+actively working, keep each browser run's profile isolated, and clean up owned processes
+in failure paths and at the batch boundary. Do not kill user-owned processes.
+
+Commit at verified, independently loadable logical boundaries under the existing approval
+rules. At a time-box or final handoff distinguish implemented, verified, blocked and
+deferred work; name gaps instead of issuing another premature completion claim. No fixed
+duration is guaranteed, and no push is authorized by verification.
 
 Use three parity tiers, without repeatedly running the long matrix mid-edit:
 
