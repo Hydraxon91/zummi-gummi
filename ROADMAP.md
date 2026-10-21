@@ -399,12 +399,14 @@ without changing ownership or appearance; primitive count is unchanged. The mani
 beside it records the source hash, approval fingerprint, evidence manifests and
 limits. Approval scope: structure, material regions, geometry parity and export
 verification — not reference fidelity, contact or in-game use.
-**Desk-fan delivery (2026-10-24):** `deskfan-001/bake-003/delivery/deskfan_delivery_001.glb`,
+**Desk-fan delivery (2026-10-24):** `deskfan-001/bake-004/delivery/deskfan_delivery_002.glb`,
 11,799,256 bytes, sha256 `48a9d6ad…ddccbd1`, 9 meshes, 3 materials, 27,528 triangles,
 validator 0 errors and 9 generated-tangent warnings, clean import and three.js preview
-passing. Material ownership 9/9 and geometry exact at frames 1 and 20. The delivered
-colours come from the colour-gated maps; the Blender review captures still read the dark
-shell lighter than the GLB preview because of their broad key light, not a texture fault.
+passing. Material ownership 9/9 and geometry exact at frames 1 and 20. This candidate was
+baked from the unswapped source with `tile_materials` overrides and is **byte-identical**
+to the earlier hand-swapped `bake-003` delivery, so the colour correction is reproducible
+from the job alone. The Blender review captures still read the dark shell lighter than the
+GLB preview because of their broad key light, not a texture fault.
 **Approval attribution corrected (2026-10-21):** the first record attributed the
 silhouette approval to the user on the strength of an implementation go-ahead. That
 was wrong. The record now names the agent as the approver, carries
