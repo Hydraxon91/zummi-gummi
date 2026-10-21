@@ -3,13 +3,8 @@ name: Deploy Pages
 # Publishes the files the browser actually loads. /vendor and /src are copied
 # whole, so a new runtime module ships with no change to this workflow. Jekyll
 # is not involved (the artifact is served as static files), so no .nojekyll.
-#
-# Automatic deployment is gated on a successful "Smoke test" workflow run for
-# main. Manual dispatch is an explicit override for recovery.
 on:
-  workflow_run:
-    workflows: ["Smoke test"]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -26,15 +21,12 @@ concurrency:
 jobs:
   publish:
     name: Publish the app to GitHub Pages
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: actions/configure-pages@v6
 
