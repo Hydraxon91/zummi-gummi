@@ -18,12 +18,17 @@ from pathlib import Path
 
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 parse = argparse.ArgumentParser()
 parse.add_argument("--materials-json", required=True)
 parse.add_argument("--lamp-glb", required=True)
 parse.add_argument("--laptop-glb")
+parse.add_argument("--laptop-tag", default="retro-laptop-010")
+parse.add_argument("--laptop-hinge-degrees", type=float, default=-110.0)
+parse.add_argument("--laptop-y", type=float, default=1.02)
+parse.add_argument("--lamp-rotation", type=float, default=180.0)
+parse.add_argument("--lamp-tilt", type=float, default=-30.0)
 parse.add_argument("--beanbag-glb")
 parse.add_argument("--plant-glb")
 parse.add_argument("--mouse-glb")
@@ -533,11 +538,32 @@ for obj in [lamp_root, *lamp_parts]:
         collection.objects.unlink(obj)
     lamp_collection.objects.link(obj)
 lamp_root.location = (0.49528, 1.197138, 0.77)
-# 110 degrees turns the shade left, toward the chair and desk centre.
-lamp_root.rotation_euler[2] = math.radians(110)
+# glTF import leaves the root in QUATERNION mode; setting rotation_euler without
+# switching modes is a no-op, which is why earlier lamp "fixes" never applied.
+lamp_root.rotation_mode = "XYZ"
+lamp_root.rotation_euler[2] = math.radians(args.lamp_rotation)
 for obj in lamp_parts:
     obj["source"] = "desk-lamp-005"
     obj["source_glb_sha256"] = "1cb29a20f6e2d33f9d63f472d7842a6f86da85744f3056e1d9c7214af752c9cf"
+
+if args.lamp_tilt:
+    # The delivered lamp is a flat hierarchy: tilt the head group about the pivot.
+    pivot = bpy.data.objects.get("Export_DeskLamp_Pivot")
+    if pivot is None:
+        raise RuntimeError("Lamp pivot not found for --lamp-tilt")
+    bpy.context.view_layer.update()
+    pivot_points = [pivot.matrix_world @ Vector(corner) for corner in pivot.bound_box]
+    pivot_point = sum(pivot_points, Vector()) / len(pivot_points)
+    pivot_local = lamp_root.matrix_world.inverted() @ pivot_point
+    head = [obj for obj in lamp_parts
+            if obj.name.startswith(("Export_DeskLamp_Shade", "Export_DeskLamp_Reflector"))]
+    angle = math.radians(args.lamp_tilt)
+    for obj in head:
+        obj.matrix_basis = (Matrix.Translation(pivot_local) @
+                            Matrix.Rotation(angle, 4, "X") @
+                            Matrix.Translation(-pivot_local) @
+                            obj.matrix_basis)
+    bpy.context.view_layer.update()
 
 bpy.context.view_layer.update()
 
@@ -588,15 +614,15 @@ def import_placed_asset(path, root_name, location, rotation_z, tag):
 
 
 laptop_root, laptop_imported = import_placed_asset(
-    args.laptop_glb, "RetroLaptop_Root", (-0.58, 1.02, 0.776), 19.0,
-    "retro-laptop-010")
+    args.laptop_glb, "RetroLaptop_Root", (-0.58, args.laptop_y, 0.776), 19.0,
+    args.laptop_tag)
 laptop_hinge = next(
     (obj for obj in laptop_imported
-     if obj.type == "EMPTY" and obj.name.startswith("RetroLaptop_Hinge")), None)
+     if obj.type == "EMPTY" and "Hinge" in obj.name), None)
 if laptop_hinge is not None:
     laptop_hinge.animation_data_clear()
     laptop_hinge.rotation_mode = "XYZ"
-    laptop_hinge.rotation_euler = (math.radians(-110.0), 0.0, 0.0)
+    laptop_hinge.rotation_euler = (math.radians(args.laptop_hinge_degrees), 0.0, 0.0)
 
 beanbag_root, beanbag_imported = import_placed_asset(
     args.beanbag_glb, "Frutiger_Beanbag_Root", (0.95, 0.25, 0.015), 12.0,
@@ -716,11 +742,14 @@ report = {
         "light": "Office_DeskLamp_Light, 12 W warm point, parented to lamp root, not exported",
     },
     "retro_laptop": {
-        "source": "retro-laptop-010",
+        "source": args.laptop_tag,
         "root": laptop_root.name,
         "location": [round(float(value), 6) for value in laptop_root.location],
         "rotation_z_degrees": 19,
-        "hinge": "RetroLaptop_Hinge, static open at -110 degrees in the office scene",
+        "hinge": (f"{laptop_hinge.name}, static open at "
+                  f"{args.laptop_hinge_degrees:g} degrees in the office scene"
+                  if laptop_hinge is not None else
+                  "open pose baked into the imported GLB"),
         "bounds": objects_bounds([obj for obj in laptop_imported if obj.type == "MESH"]),
         "parts": len([obj for obj in laptop_imported if obj.type == "MESH"]),
     },
