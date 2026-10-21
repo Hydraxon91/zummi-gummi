@@ -155,15 +155,21 @@ try {
       carried: (g.carried() || []).filter(item => item.uid === giver.uid),
       giverUid: giver.uid,
       giver: { cx: +giver.cx.toFixed(2), cy: +giver.cy.toFixed(2), cz: +giver.cz.toFixed(2), scale: giver.scale },
-      visuals: g.giftVisuals(),
     };
   })()`);
   await new Promise(resolve => setTimeout(resolve, 900));
+  if (carrying.result?.ok) {
+    await page.waitFor(`(window.__gummy.giftVisuals() || []).some(item => item.uid === ${carrying.giverUid})`, 60000);
+  }
   await page.screenshot(`${ROOT}/.dev-shots/gifting_carried.png`);
+  const carriedVisual = await evaluate(`(() => ({
+    giverUid: ${carrying.giverUid},
+    visuals: window.__gummy.giftVisuals(),
+  }))()`);
   check('a carried gift is visible while the giver approaches',
     carrying.result?.ok === true && carrying.carried.length === 1 &&
-    (carrying.visuals || []).length > 0,
-    { value: JSON.stringify(carrying) });
+    (carriedVisual.visuals || []).some(item => item.uid === carriedVisual.giverUid && item.visible),
+    { value: JSON.stringify({ ...carrying, visuals: carriedVisual.visuals }) });
   await evaluate("window.__gummy.setBehaviorFeature('gifting', false)");
   await evaluate("window.__gummy.setBehaviorFeature('gifting', true)");
 
@@ -183,7 +189,7 @@ try {
     const payload = JSON.parse(g.exportSave());
     const actor = payload.worlds.field.bears.find(a => a.uid === ${setup.giverUid});
     return { version: actor?.actorVersion, lastGiftDay: actor?.lastGiftDay };
-  })()`);
+  })()`, 120000);
   check('the gift day persists in actorVersion 7', persisted.version === 7 &&
     Number.isFinite(persisted.lastGiftDay), { value: JSON.stringify(persisted) });
 

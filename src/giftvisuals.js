@@ -77,6 +77,7 @@ export function createGiftVisuals({ scene, getPortions, getActors, getMapId, get
         carried.set(actor.uid, mesh);
       }
       mesh.material = materialFor(food.kind);
+      mesh.userData.uid = actor.uid;
       const yaw = Number.isFinite(actor.ai?.faceYaw) ? actor.ai.faceYaw : 0;
       mesh.position.set(
         actor.cx + Math.sin(yaw) * .10,
@@ -104,6 +105,7 @@ export function createGiftVisuals({ scene, getPortions, getActors, getMapId, get
 
   function debugNow() {
     return group.children.map(mesh => ({
+      uid: Number.isInteger(mesh.userData.uid) ? mesh.userData.uid : null,
       position: [
         +mesh.position.x.toFixed(3),
         +mesh.position.y.toFixed(3),

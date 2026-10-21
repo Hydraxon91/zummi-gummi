@@ -325,6 +325,25 @@ succeeded on the same 16 GB server. The laptop job now matches successful UI set
 (Standard loader, 4 steps, 1024², CFG 7.5). Changing steps does not explain a loader-stage
 failure; server/cache state remains unverified. Do not infer a larger-GPU requirement.
 
+**Known follow-ups — reusable ComfyUI runners (needs decision):** the StableMaterials runner
+still passes `--seeds` strings to an integer-only validator, can lose the server prompt ID on a
+failed job, and infers outputs only from a direct `SaveImage` connection. The new
+`scripts/run_comfy_workflow_qwen_image_edit.py` handles all three for its own path (numeric-string
+seeds, prompt ID recorded on every outcome, output scan across nodes), but the StableMaterials
+runner was not changed in that scope. Decide whether to port the same handling.
+
+**Known follow-ups — laptop stickers (accepted tooling test, limits):** `_049` adds a
+`StickerDecal` UV layer (lid tangerine panel, palm front-left quadrant) and a UV-mapped decal mix
+in `Lid_Tangerine_Plastic` plus a `Shell_Clay_Base_Sticker` copy assigned to `Shell_Base` only, so
+`Shell_Base_Rear_Spine` keeps the original material. Artwork came from Qwen Image 2.1 at 1024²
+through the new runner with the labelled UV guide as image 1. Qwen's own placement drifted (the
+palm sprite sat under the trackpad, the lid sprite crossed the white arch boundary), so the
+sprites are re-composited in UV space at explicit world rectangles before use; raw output is kept
+as evidence. Limits: the lid bear reads pale and low-contrast on the tangerine plastic, a faint
+residual drop shadow remains inside the silhouette, the decal PNG is external and unpacked, and
+only `.dev-shots/` holds the checkpoint. Geometry, face assignments, alpha and transmission were
+preserved.
+
 **Known follow-ups — UV verification (fixed/untested):**
 Painting-guide delivery (2026-10-20, prototype-003 layout preserved): `paint_reference_guides.py`
 exports clean, labelled and legend PNGs at actual 1280² and 4096² from the unchanged authored
@@ -1292,6 +1311,13 @@ can proceed with the current runtime and assets.
   every `.dev-shots` capture. The remaining 30 s gates (`adoption`,
   `relationship`, `mourning`, `uid`, `glass-fast-parity`) are local/nightly only and
   still unaligned.
+- **Gifting harness follow-ups (fixed 2026-10-21).** Opening the Glass gate exposed two
+  more gifting-harness defects on the slow runner. `giftVisuals()` mirrors carried food
+  on the next animation frame, but the carried-gift check read the mirror synchronously
+  after `sim()`; it had only passed locally because the mirror already held an
+  unrelated mesh (a dropped portion) and the check merely required a non-empty list. The debug payload now carries the owner `uid` and the check waits
+  for that uid before asserting. The save/load evaluation also exceeded the 30 s
+  evaluate timeout and now uses the same 120 s allowance as the social suite.
 - **Citizen panel (fixed).** The two refresh signatures now share one helper, and rows
   are keyed by actor uid and updated in place instead of rebuilding the whole list.
   Browser checks keep an original row connected after idle and complete 10/10 CDP
