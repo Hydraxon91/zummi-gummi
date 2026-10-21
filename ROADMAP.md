@@ -1383,19 +1383,28 @@ contended CPU profile in `PERFORMANCE.md`. Gifting and rivalry remain later modu
 **Orphan adoption (Oct 2026, off by default):** modules-only automatic guardians
 for baby-stage actors with no active parent and no parent UID in the current
 game's roster for the other map. Same-species adult candidates prefer immediate
-family/grandparent, then same household, then a bond >= 0.35, with deterministic
-bond/UID ties; adults already holding more than two other babies are skipped.
-Assignment happens on the next think outside a pair or family task, with a
-one-game-hour retry when nobody qualifies. `guardianUid` is separate from
+family (siblings sharing stored parent UIDs), then same household, then a bond >=
+0.35, with deterministic bond/UID ties; adults already holding more than two
+other adopted babies are skipped. A grandparent is not recoverable without the
+absent linking parent record. Assignment happens on the next think outside a pair
+or family task, with a one-game-hour retry when nobody qualifies. `guardianUid` is separate from
 `parentUids` and home, clears on parent return, guardian departure or stage-up,
 and emits `actorVersion: 5` only when present. `follow.seek` stays at order 90 and
 targets the guardian when no parent is active; the off path adds no guardian
 fields and no RNG. Verified by Node save/behavior tests, `scripts/adoption-test.mjs`
 (guardian assignment, save/load, parent return, other-map parent, guardian
-removal, fresh game and off), the smoke test and a fresh long parity matrix.
-Known follow-up (deferred): Glass restore reuses saved uids without advancing
-`nextBearUid`, so a later birth after load could collide with a Glass uid;
-adoption currently assumes global uid uniqueness.
+removal, Glass assignment/stage-up, fresh game and off), the smoke test and a
+fresh long parity matrix.
+
+**Actor identity (Oct 2026, fixed):** a loaded save reserves the highest UID
+across both maps and Glass before any restored actor spawns; map activation
+reserves again, and a new game resets the allocator to its own identity space.
+Duplicate UIDs anywhere in a save are rejected before the live session changes.
+No automatic renumbering is performed, so an existing duplicate save fails to
+load with a clear error and needs a recovery decision. Verified by
+`scripts/uid-test.mjs` (high Glass UID on the active and inactive maps, soft-body
+and Glass spawns, parent/bond/guardian preservation, duplicate rejection, fresh
+game and both map-switch directions) and the Node save tests.
 
 **Mood (Oct 2026, off by default):** derived needs/bonds/history mood, 4 Hz target,
 8 s smoothing, 0.05 buckets, bounded offsets stacked after traits, runtime-only
@@ -2304,6 +2313,34 @@ accepted and declined invitations behave correctly; a group of at least three
 bears can start, participate, leave and recover from a grab or despawn without
 stale partners, trapped bears or overlapping activity positions. Provide debug
 hooks and timed checks alongside the eventual implementation.
+
+**Current model audit (2026-10-21, read-only):**
+
+| Question | Evidence | Result |
+| --- | --- | --- |
+| Are bonds symmetric? | `setBond` writes both keys; `addBond` moves the pair average; restores trust saved keys; social acceptance reads the initiator bond against partner thresholds. | Normal writes are symmetric. Old/asymmetric records are averaged only when read; the save keeps both keys. |
+| Are negative encounters remembered? | Conflict applies one symmetric `-0.08`; no history event or rivalry field. | No durable record; once the bond reaches 0 the encounter is indistinguishable from never meeting. |
+| Is partnership persistent? | `ai.partner` is runtime pair state; `mated` history, `fatherUid` and gestation persist. | No spouse/partner record. Partnership is an interaction, not a saved relationship. |
+| Can a change be explained accurately? | History kinds render, but only born/mated/child/meal/lesson/taught/playdate/stage/home/moved are written. `bond` and `visit` are declared and rendered but never written; social and conflict do not push history. | A panel can show current bonds and recorded events, but cannot explain every bond change without inventing a cause. |
+| What survives departure or a map change? | `pruneActorRefs` drops bonds, playdates and history that reference invalid UIDs, keeps `parentUids`, and drops an invalid guardian. Inactive maps keep actor snapshots; the family/lineage UI indexes only active-map actors. | Bonds to departed actors disappear; ancestry remains. Cross-map parents/siblings are not shown by the current family panel. |
+| Is household a relationship record? | `home` is a persisted string; household membership is recomputed from active actors. | No household record or history beyond optional `home`/`moved` events. |
+
+**Recommendation:** the smallest next feature is a **read-only relationship view**
+over current bonds, ancestry, guardian status and recorded history, labeling
+unrecorded or cross-map links as unknown instead of inventing a cause. It needs no
+new simulation state, thresholds or save fields. If the view must explain changes,
+the next increment is to write the already-declared `bond` and `visit` history
+kinds at the existing social, conflict and visit completion points; that is a
+separate, approval-gated simulation change.
+
+**Known follow-ups from this audit:** the family/lineage panel indexes only
+active-map actors, so a parent or sibling on the inactive map disappears from the
+panel and can change the computed generation; `bond`/`visit` history kinds are
+unused; conflict and social bond changes are not recorded. Guardian capacity still
+counts adopted babies only, and disabling adoption during an active guardian follow
+still lets that follow finish; both await a decision rather than a silent change.
+Duplicate-UID saves are now rejected at load with no automatic renumbering; any
+existing duplicate save needs a recovery decision.
 
 ## Village & placement editor (Phase 9)
 
