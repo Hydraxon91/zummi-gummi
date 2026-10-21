@@ -318,3 +318,17 @@ test('a committed farewell ends the partnership on both sides', () => {
   assert.equal(b.partnerUid, undefined);
   assert.equal(b.history.some(event => event.kind === 'separated'), true);
 });
+
+test('detaching a group member uses the same removal cleanup as a map switch', () => {
+  const members = [
+    actor(10), actor(11, { cx: 3.25 }), actor(12, { cx: 1.9, cz: 1.5 }), actor(13, { cx: 1.9, cz: -.5 }),
+  ];
+  const { engine } = setup(members, { groupActivities: true });
+  assert.equal(engine.forceGroup(members[0], members.slice(1)).ok, true);
+  engine.detach(members[1]);
+  assert.equal(members[0].ai.state, 'group');
+  assert.equal(members[0].ai.group.members.length, 3);
+  engine.detach(members[2]);
+  assert.equal(members[0].ai.state, 'wander');
+  assert.equal(members[3].ai.state, 'wander');
+});
