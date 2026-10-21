@@ -37,6 +37,19 @@ test('bond-delta history uses actorVersion 6 and round-trips', () => {
   assert.equal(ACTOR_SAVE_VERSION, 6);
 });
 
+test('a Glass record with a bond delta validates on v6', () => {
+  const record = snapshotActor(actor(9, {
+    kind: 'glass', species: 'glass', genome: defaultGenome('glass'), history: [delta],
+  }), { kind: 'glass', species: 'glass' });
+  assert.equal(record.actorVersion, 6);
+  const errors = [];
+  validateActorWorld({ bears: [], glass: [record] }, 'world', errors);
+  assert.deepEqual(errors, []);
+  const restored = actor(9, { kind: 'glass', species: 'glass' });
+  applyCommonActorState(restored, record);
+  assert.equal(restored.history[0].bondAfter, .52);
+});
+
 test('deltas require v6 and v6 requires at least one delta', () => {
   const record = snapshotActor(actor(1, { history: [delta] }), { flavor: 0 });
   const errors = [];

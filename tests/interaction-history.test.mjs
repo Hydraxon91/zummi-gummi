@@ -148,6 +148,20 @@ test('a completed social pair records one event with a bond delta for each parti
   assert.ok(eventB.bondAfter > eventB.bondBefore);
 });
 
+test('asymmetric bonds keep per-actor deltas', () => {
+  const { engine, a, b } = setup(10, 11);
+  a.bonds[11] = .2;
+  b.bonds[10] = .6;
+  engine.forceSocial(a, b);
+  tick(engine, a, 6);
+  const eventA = a.history.find(e => e.kind === 'social');
+  const eventB = b.history.find(e => e.kind === 'social');
+  assert.equal(eventA.bondBefore, .2);
+  assert.equal(eventB.bondBefore, .6);
+  assert.equal(eventA.bondAfter, eventB.bondAfter);
+  assert.ok(eventA.bondAfter > eventA.bondBefore);
+});
+
 test('a declined invitation records the two perspectives', () => {
   const { engine, a, b } = setup(10, 11);
   engine.forceSocial(a, b, false);
