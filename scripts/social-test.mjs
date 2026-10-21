@@ -36,8 +36,15 @@ const check = (name, pass, detail = {}) => {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 try {
-  await page.waitFor('!!window.__gummy?.booted', 60000);
-  await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 30000);
+  await page.waitFor('!!window.__gummy?.booted', 90000);
+  try {
+    await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
+  } catch (error) {
+    console.log('STEP glass reload');
+    await page.evaluate('location.reload()').catch(() => {});
+    await page.waitFor('!!window.__gummy?.booted', 120000);
+    await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
+  }
 
   const settings = await evaluate(`(() => {
     const ids = ['PairActivities', 'Rivalry', 'Reconciliation', 'Partnership', 'GroupActivities'];

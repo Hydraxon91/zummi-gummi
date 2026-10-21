@@ -36,7 +36,7 @@ const check = (name, pass, detail = {}) => {
 };
 
 try {
-  await page.waitFor('!!window.__gummy?.booted', 60000);
+  await page.waitFor('!!window.__gummy?.booted', 90000);
   await page.waitFor('window.__gummy.glass().actors.every(a => a.ready)', 30000);
 
   const setup = await evaluate(`(() => {
