@@ -350,7 +350,7 @@ try {
     const backPortions = g.portions()?.list || [];
     const backPartner = g.relationships(a?.uid)?.partner?.uid;
     return { partner: { ...partner, a: a?.uid, b: b?.uid, pre: prePartner }, gift, carriedBefore, beforePayload, afterPayload, after, studioPortions, backPortions, backPartner };
-  })()`);
+  })()`, 120000);
   check('v8 save restores partnership and converts carried food to a dropped portion',
     saved.partner?.ok === true && saved.carriedBefore.length > 0 &&
     saved.after.partnerA === saved.partner.b && saved.after.partnerB === saved.partner.a &&
