@@ -519,8 +519,22 @@ active. These rows are matched within the pass but are not a quiet baseline.
 
 The frame-time ordering reverses between baseline and repeat, so mood has **no
 demonstrated frame-time cost or win**. The AI delta is about 0.012 ms in this
-sample. Re-run in a genuinely quiet session before using these numbers for a
-performance decision.
+sample.
+
+Warm matched follow-up (2026-10-21, after Blender was closed): the machine still
+carried background load from the agent and desktop apps (1-minute average 2.2–3.2
+at run start, 1.8 at the end), so this is not a zero-load claim. The first run had
+a cold-start penalty; the warm pair below uses matched baseline/repeat conditions:
+
+| Warm run | Baseline median | Range | Repeat median |
+|---|---:|---:|---:|
+| Mood off | 22.53 ms | 22.41–22.86 | 22.59 ms |
+| Mood on | 22.51 ms | 22.46–22.55 | 22.45 ms |
+
+The difference is **0.14 ms at the repeat** with overlapping ranges, so the clean
+result agrees with the contended pass: no measurable mood frame-time cost. AI
+readings varied from 0.036 to 0.135 ms across runs and are not a stable signal at
+this scale.
 
 Natural-needs distribution, 20 days × 3 seeds per race, 1 s samples, 86,400
 samples and 18 actor-runs per race:
