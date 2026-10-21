@@ -1426,8 +1426,12 @@ consuming food. Successful gifts record `gift`/`receivedGift` history with bond
 deltas and persist the giver’s `lastGiftDay` on `actorVersion: 7`. There is one
 successful gift per giver per game day; feature-off actors carry no gift fields.
 The first version has no inventory: an interrupted offer drops the reservation
-rather than creating a loose food item. Verified by Node gift/save tests,
-`scripts/gifting-test.mjs`, the browser regressions and the long parity matrix.
+rather than creating a loose food item. Critical thirst, grabbing, departure,
+feature disable and map switches cancel an active offer and release its source;
+unreachable offers time out; competing givers cannot reserve one source; Glass can
+gift as well as receive; enabled gifting runs at the same seed with identical
+traces and no gift-path RNG draws. Verified by Node gift/save/determinism tests,
+`scripts/gifting-test.mjs`, both browser regressions and the long parity matrix.
 
 **Actor identity (Oct 2026, fixed):** a loaded save reserves the highest UID
 across both maps and Glass before any restored actor spawns; map activation
@@ -2354,7 +2358,7 @@ hooks and timed checks alongside the eventual implementation.
 | Are bonds symmetric? | `setBond` writes both keys; `addBond` moves the pair average; restores trust saved keys; social acceptance reads the initiator bond against partner thresholds. | Normal writes are symmetric. Old/asymmetric records are averaged only when read; the save keeps both keys. |
 | Are negative encounters remembered? | Conflict applies one symmetric `-0.08`; no history event or rivalry field. | No durable record; once the bond reaches 0 the encounter is indistinguishable from never meeting. |
 | Is partnership persistent? | `ai.partner` is runtime pair state; `mated` history, `fatherUid` and gestation persist. | No spouse/partner record. Partnership is an interaction, not a saved relationship. |
-| Can a change be explained accurately? | History kinds render; completed social/visit/decline/conflict outcomes are now written. `bond` is still declared but unused, and no direct bond-delta value is stored. | A panel can explain recorded interaction outcomes, but cannot reconstruct every past bond change or invent a cause for unrecorded ones. |
+| Can a change be explained accurately? | History kinds render; completed social/visit/decline/conflict/gift outcomes are written, and social/visit/conflict carry before/after bond deltas. The `bond` kind itself remains unused. | Recorded outcomes show their real bond movement; unrecorded history is still not reconstructed. |
 | What survives departure or a map change? | `pruneActorRefs` drops bonds, playdates and history that reference invalid UIDs, keeps `parentUids`, and drops an invalid guardian. Inactive maps keep actor snapshots; the family/lineage UI indexes only active-map actors. | Bonds to departed actors disappear; ancestry remains. Cross-map parents/siblings are not shown by the current family panel. |
 | Is household a relationship record? | `home` is a persisted string; household membership is recomputed from active actors. | No household record or history beyond optional `home`/`moved` events. |
 
@@ -2368,12 +2372,10 @@ only, but the new view resolves the current game’s inactive-map snapshots.
 **Known follow-ups from this audit:** the older family/lineage panel still indexes
 only active-map actors, so a parent or sibling on the inactive map can disappear
 from that panel and change its computed generation (the new relationship view does
-not have this gap). `bond` remains an unused history kind and no direct bond-delta
-value is stored. Guardian capacity still counts adopted babies only, and disabling
-adoption during an active guardian follow still lets that follow finish; both await
-a decision rather than a silent change. Duplicate-UID saves are now rejected at
-load with no automatic renumbering; any existing duplicate save needs a recovery
-decision.
+not have this gap). `bond` remains an unused history kind, although interaction
+records now carry explicit deltas. Duplicate-UID saves are rejected at load with no
+automatic renumbering; any existing duplicate save needs a recovery decision.
+Guardian capacity and feature-disable behavior are now implemented and tested.
 
 **Bond-delta history (Oct 2026):** completed social, visit and conflict events can
 carry `bondBefore`/`bondAfter` on the existing history entry. `normalizeHistory`
@@ -2386,6 +2388,36 @@ unchanged with logging on or off. The
 relationship and Recent events panels render the delta as `42% → 48%`. Validation
 rejects deltas on v5 and v6 without a delta. Older builds reject v6 rather than
 silently stripping the explanation.
+
+## Post-gifting interaction backlog (planned expansion)
+
+The modular engine and the first interaction set are complete. These are future
+modules or feature increments, not an engine redesign. Recommended order:
+
+1. **Friendship tiers and persistent rivalry.** Build on directional bonds and
+   interaction history; define thresholds, hysteresis, reciprocity, reconciliation
+   and decay before adding save fields. Negative encounters need their own retained
+   record rather than inferring a rival from a low bond.
+2. **Persistent partnership.** Decide whether mating creates a saved partnership
+   separate from friendship, and how it ends. Keep it distinct from `ai.partner`,
+   which is only an active pair.
+3. **Gifting v2.** Optional carried token/loose-food model, multiple servings,
+   recipient preferences and refusal reasons. The current v1 deliberately consumes
+   a reserved source at handover and has no inventory.
+4. **Reconciliation and comfort.** Use conflict outcomes plus mourning/comfort
+   history to define a clear recovery interaction without silently changing bond
+   semantics.
+5. **Richer pair activities.** Chat, cuddle and distinct visit outcomes, reusing
+   the pair/task protocol and display-only interaction records.
+6. **Group activities (3+).** Tag, dancing, group play and gatherings; define
+   joining/leaving, participant caps, interruption and cleanup, and spaced activity
+   positions. Group work should use the existing opportunity/state engine, not a
+   parallel scheduler.
+
+Each increment needs its own design decision, save-version review, focused browser
+coverage and a fresh long parity matrix. Group activities and partnership are the
+largest remaining steps; gifting v1, the relationship view and bond-delta history
+are the completed interaction foundation.
 
 ## Village & placement editor (Phase 9)
 

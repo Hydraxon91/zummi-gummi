@@ -217,9 +217,11 @@ Successful gifts add the configured small bond amount, record `gift` /
 `receivedGift` history with bond deltas, and set the giver's `lastGiftDay`.
 `lastGiftDay` uses `actorVersion: 7`; feature-off actors and saves keep the old
 versions. Turning gifting off cancels active offers and leaves no gift retry state
-on unaffected actors. The first version deliberately has no inventory: the
-reserved source is consumed at handover, so a picked-up/dropped item model is
-future work.
+on unaffected actors. Critical needs, grabs, departure, feature disable and map
+switches cancel an offer and release the reservation; unreachable offers time out,
+and two givers cannot claim one source. Glass can give as well as receive. The
+first version deliberately has no inventory: the reserved source is consumed at
+handover, so a picked-up/dropped item model is future work.
 
 ## Interaction history and the relationship view
 
@@ -317,3 +319,20 @@ stay empty; any `TEMPORARY(port)` marker fails CI.
 - **Open follow-up:** `interactions.js` is not yet the only writer of
   `ai.partner`/`ai.familyTask`; direct assignments remain in `social.js`,
   `mate.js`, `conflict.js`, `glass.js`, `ai.js` and legacy `behavior.js`.
+
+## Post-gifting expansion
+
+The interaction foundation now includes gifting v1, the read-only relationship
+view and versioned interaction history/deltas. Planned increments, each requiring
+its own design decision and save review:
+
+1. friendship tiers and persistent rivalry;
+2. persistent partnership separate from runtime `ai.partner`;
+3. gifting v2 with carried/loose food and preferences;
+4. reconciliation/comfort as a defined conflict-recovery path;
+5. richer pair activities (chat, cuddle, visit variants);
+6. group activities (tag, dancing, gatherings) with join/leave and spaced
+   participation.
+
+Use the existing opportunity/state/pair protocol for these; do not add a parallel
+scheduler or silently redefine bond semantics.
