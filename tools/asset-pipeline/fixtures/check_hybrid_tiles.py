@@ -69,4 +69,40 @@ with tempfile.TemporaryDirectory(prefix='hybrid-tile-fixture-') as directory:
         pass
     else:
         raise AssertionError('Unsupported projection was accepted')
-print('HYBRID_TILES_PASS: transformed source coordinates, source image identity, roughness remap, alpha, rejection control')
+    base.projection = 'FLAT'
+
+    # A corrected base map must be usable through the job override, and a missing one
+    # must fail instead of silently keeping the raw image.
+    override_path = Path(directory) / 'override_base.png'
+    override_image = bpy.data.images.new('FixtureOverride', width=4, height=4)
+    override_image.pixels = [0.1, 0.2, 0.3, 1.0] * 16
+    override_image.filepath_raw = str(override_path)
+    override_image.file_format = 'PNG'
+    override_image.save()
+
+    def fresh_part(name):
+        copy = source.copy()
+        copy.data = source.data.copy()
+        copy.name = name
+        bpy.context.scene.collection.objects.link(copy)
+        copy.data.materials[0] = material.copy()
+        copy.data.materials[0]['pipeline_source_material'] = material.name
+        return copy
+
+    overridden = fresh_part('FixtureOverridePart')
+    repeated_plastics([overridden], [source], [material.name], directory,
+                      {material.name: {'base': str(override_path)}})
+    shader2 = next(n for n in overridden.data.materials[0].node_tree.nodes
+                   if n.type == 'BSDF_PRINCIPLED')
+    bound = shader2.inputs['Base Color'].links[0].from_node.image
+    assert Path(bound.filepath).resolve() == override_path.resolve(), bound.filepath
+
+    rejected = fresh_part('FixtureMissingOverridePart')
+    try:
+        repeated_plastics([rejected], [source], [material.name], directory,
+                          {material.name: {'base': str(Path(directory) / 'missing.png')}})
+    except PipelineError:
+        pass
+    else:
+        raise AssertionError('Missing override map was accepted')
+print('HYBRID_TILES_PASS: transformed source coordinates, source image identity, roughness remap, alpha, rejection control, validated override map')

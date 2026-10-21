@@ -6,10 +6,10 @@ Height-derived tangent normals remain baked, not replaced by generated normals.
 """
 from pathlib import Path
 
-from .common import PipelineError
+from .common import PipelineError, resolve_path
 
 
-def tile_recipe(material):
+def tile_recipe(material, override=None):
     from .bake import principled
     shader = principled(material)
     base = shader.inputs['Base Color']
@@ -35,18 +35,33 @@ def tile_recipe(material):
         raise PipelineError('Base colour and roughness must share their mapping')
     if shader.inputs['Alpha'].is_linked:
         raise PipelineError('Tile alpha must be a constant; sticker materials must use a dedicated panel bake')
-    return {'base': image.image, 'rough': rough_image.image, 'mapping': mapping,
+    base_image = image.image
+    base_source = image.image.filepath or image.image.name
+    if override and override.get('base'):
+        # A colour-gated base map must replace the raw generated one, otherwise the
+        # rebuild below silently keeps the drifted colours.
+        path = resolve_path(override['base'])
+        if not path.is_file():
+            raise PipelineError(f'{material.name}: tile override map not found: {path}')
+        import bpy
+        base_image = bpy.data.images.load(str(path), check_existing=True)
+        base_image.colorspace_settings.name = 'sRGB'
+        base_source = str(path)
+    return {'base': base_image, 'base_source': base_source,
+            'rough': rough_image.image, 'mapping': mapping,
             'reference': coordinate.from_node.object, 'remap': remap,
             'alpha': shader.inputs['Alpha'].default_value}
 
 
-def repeated_plastics(parts, sources, material_names, directory):
+def repeated_plastics(parts, sources, material_names, directory, overrides=None):
     import bpy
     import numpy as np
     from mathutils import Matrix, Euler, Vector
     from .bake import principled, save_image
 
-    recipes = {name: tile_recipe(bpy.data.materials[name]) for name in material_names}
+    overrides = overrides or {}
+    recipes = {name: tile_recipe(bpy.data.materials[name], overrides.get(name))
+               for name in material_names}
     rough_images = {}
     for name, recipe in recipes.items():
         source = recipe['rough']
@@ -112,6 +127,7 @@ def repeated_plastics(parts, sources, material_names, directory):
             material['pipeline_tiled'] = True
             touched.append(material.name)
     return {'materials': touched, 'tile_uv': 'TileUV',
+            'base_sources': {name: recipe['base_source'] for name, recipe in recipes.items()},
             'normal_policy': 'Original height-derived normals baked in AtlasUV'}
 
 
@@ -120,6 +136,14 @@ def bake_hybrid(objects, job, out_dir):
     from .bake import bake_atlas
     groups = job.get('groups', [])
     by_name = {obj.name: obj for obj in objects}
+    tile_spec = job.get('tile_materials', [])
+    if isinstance(tile_spec, dict):
+        overrides = {name: (spec if isinstance(spec, dict) else {})
+                     for name, spec in tile_spec.items()}
+        tile_names = sorted(overrides)
+    else:
+        overrides = {}
+        tile_names = list(tile_spec)
     assigned = set()
     reports = []
     roots = []
@@ -136,7 +160,8 @@ def bake_hybrid(objects, job, out_dir):
         _, report = bake_atlas(sources, directory, resolution=group['resolution'],
                                margin=job.get('margin', 8), samples=job.get('samples', 8))
         parts = [bpy.data.objects[name] for name in report['parts']]
-        report['repeated_plastics'] = repeated_plastics(parts, sources, job.get('tile_materials', []), directory)
+        report['repeated_plastics'] = repeated_plastics(
+            parts, sources, tile_names, directory, overrides)
         roots.extend(bpy.data.objects[name] for name in report['assembly_roots'])
         all_parts.extend(parts)
         reports.append(report)

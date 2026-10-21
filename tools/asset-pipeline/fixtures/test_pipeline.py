@@ -39,6 +39,18 @@ class Contract(unittest.TestCase):
         with self.assertRaises(PipelineError):
             validate({'objects': ['Root'], 'out_dir': 'x', 'tangents': 'yes'}, 'export')
 
+    def test_tile_material_shapes(self):
+        base = {'objects': ['Root'], 'out_dir': 'x',
+                'groups': [{'objects': '*', 'resolution': 256}]}
+        validate(dict(base, tile_materials=['A']), 'hybrid')
+        validate(dict(base, tile_materials={'A': {'base': 'corrected.png'}, 'B': None}), 'hybrid')
+        with self.assertRaises(PipelineError):
+            validate(dict(base, tile_materials={'A': 'corrected.png'}), 'hybrid')
+        with self.assertRaises(PipelineError):
+            validate(dict(base, tile_materials={'A': {'base': ''}}), 'hybrid')
+        with self.assertRaises(PipelineError):
+            validate(dict(base, tile_materials='A'), 'hybrid')
+
 
 class ExportArguments(unittest.TestCase):
     """Authored tangents are opt-in because degenerate UVs produce zero-length ones."""

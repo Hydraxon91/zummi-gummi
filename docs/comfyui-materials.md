@@ -68,6 +68,26 @@ Measured on the desk fan (`pristine-004`):
 When adapting a runner output by hand, the summary needs
 `{"results": [{"material", "seed", "status": "success", "files": {"basecolor": {"path"}}}]}`.
 
+## Tile reuse and corrected maps
+
+A hybrid bake keeps tileable surfaces crisp by re-binding base colour to the **source
+image** through `TileUV` instead of sampling the atlas. The bake therefore only carries a
+colour-gated map when the material points at it. Use the job override rather than swapping
+image datablocks by hand:
+
+```json
+"tile_materials": {
+  "SM_shell_black": {"base": ".dev-shots/.../corrected/deskfan4_shell_black_..._basecolor_corrected.png"},
+  "SM_copper_metal": {"base": "..._copper_metal_..._basecolor_corrected.png"},
+  "SM_blade_dark": {"base": "..._blade_dark_..._basecolor_corrected.png"}
+}
+```
+
+- A plain list of names keeps the old behaviour (raw source image).
+- A missing override path fails the bake with `tile override map not found`.
+- The bake report records `repeated_plastics.base_sources`, so the reviewed file is
+  auditable in the candidate.
+
 ## Applying generated maps in Blender
 
 - **Tiling recipe:** Object coordinates → POINT Mapping → FLAT/REPEAT images for base

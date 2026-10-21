@@ -47,6 +47,18 @@ def validate(job, verb):
             require_int(group.get('resolution'), 'group.resolution', 64, 8192)
             if group.get('objects') != '*':
                 names(group)
-        if not isinstance(job.get('tile_materials', []), list):
-            raise PipelineError('tile_materials must be a list')
+        tiles = job.get('tile_materials', [])
+        if isinstance(tiles, dict):
+            for name, spec in tiles.items():
+                if not isinstance(name, str) or not name.strip():
+                    raise PipelineError('tile_materials keys must be material names')
+                if spec is None:
+                    continue
+                if not isinstance(spec, dict):
+                    raise PipelineError('tile_materials entries must be objects')
+                base = spec.get('base')
+                if base is not None and (not isinstance(base, str) or not base.strip()):
+                    raise PipelineError('tile_materials entry base must be a non-empty path')
+        elif not isinstance(tiles, list):
+            raise PipelineError('tile_materials must be a list or an object')
     return job

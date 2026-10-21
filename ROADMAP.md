@@ -423,14 +423,12 @@ Remaining pipeline follow-ups recorded by this pass:
   stand) stayed outside `DeskFan_Root` and were missed by capture and export. It now adopts
   parentless parts into the container with world transforms preserved; the rebuilt
   `bake-003` container holds all three roots and capture finds all nine parts.
-- **Hybrid tile reuse ignores a corrected base map.** `repeated_plastics` re-binds
-  base colour to the image found on the source material's Base Color link, so a
-  colour-corrected PNG is silently dropped for every tile material and the bake shows the
-  raw drift. Workaround: point the source material at the corrected file before baking
-  (done for the desk fan between `bake-001` and `bake-002`). The pipeline itself still
-  needs either a corrected-map input per tile material or a check that the bound image is
-  the reviewed one; until then a colour-corrected fan/laptop candidate must be
-  re-baked from swapped source images.
+- **Hybrid tile reuse and corrected maps (fixed 2026-10-24):** `repeated_plastics`
+  re-binds base colour to the source image, so a colour-corrected PNG is dropped unless
+  the material points at it. `tile_materials` now accepts per-material overrides
+  (`{"SM_shell_black": {"base": "…_basecolor_corrected.png"}}`); a missing path fails the
+  bake and the report records `base_sources`. The earlier fan delivery needed hand-swapped
+  image datablocks in the source material; that workaround is no longer required.
 - **Delivery approval binding (fixed 2026-10-21):** baked parts now receive their own
   persistent `asset_id` plus `pipeline_source_object` provenance, and approval, evidence
   and manifest targets name those parts, so the gate validates the artifact that ships.
