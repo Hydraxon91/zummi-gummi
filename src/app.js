@@ -27,6 +27,7 @@ import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persi
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
 import { snapshotActor, applyCommonActorState } from './actorrecord.js';
 import { maxActorUid } from './actorsave.js';
+import { buildRelationshipView } from './relationshipview.js';
 import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
@@ -59,6 +60,8 @@ const farewellSettings = {
 };
 let selectedBear = null;
 let directivePick = false;
+let relationshipTab = 'relationships';
+let expandedRelationshipKey = null;
 let clickMode = 'grab';
 try { clickMode = localStorage.getItem('gummy.clickMode') === 'select' ? 'select' : 'grab'; } catch (err) {}
 let possessedBear = null;
@@ -3687,6 +3690,9 @@ const directiveFamilyEl = document.getElementById('directiveFamily');
 const directiveHistoryEl = document.getElementById('directiveHistory');
 const directiveActionsEl = document.getElementById('directiveActions');
 const directiveCloseEl = document.getElementById('directiveClose');
+const relRelationshipsEl = document.getElementById('relRelationships');
+const relEventsEl = document.getElementById('relEvents');
+const relTabButtons = Array.from(document.querySelectorAll('[data-rel-tab]'));
 const possessBtnEl = document.getElementById('possessBtn');
 const possessHudEl = document.getElementById('possessHud');
 const possessStickEl = document.getElementById('possessStick');
@@ -4019,8 +4025,9 @@ function selectedBearIndex(){
   return selectedBear ? bears.indexOf(selectedBear) : -1;
 }
 function historyActorName(uid) {
-  const actor = uid ? actorView.byUid(uid) : null;
-  return actor ? actorName(actor) : (uid ? 'someone' : 'family');
+  if (!uid) return 'family';
+  const entry = gameActorIndex().get(Number(uid));
+  return entry && entry.actor ? actorName(entry.actor) : 'someone';
 }
 function historyLabel(event) {
   const name = historyActorName(event.uid);
@@ -4033,6 +4040,11 @@ function historyLabel(event) {
     case 'taught': return `learned from ${name}`;
     case 'playdate': return `played with ${name}`;
     case 'visit': return `visited ${name}`;
+    case 'hosted': return `was visited by ${name}`;
+    case 'social': return `spent time with ${name}`;
+    case 'decline': return `had an invitation declined by ${name}`;
+    case 'declined': return `declined an invitation from ${name}`;
+    case 'conflict': return `contested food with ${name}`;
     case 'stage': return 'grew up';
     case 'home': return 'went home';
     case 'moved': return 'moved home';
@@ -4040,6 +4052,186 @@ function historyLabel(event) {
     default: return event.kind;
   }
 }
+function speciesDisplay(entry) {
+  const species = entry && entry.actor ? entry.actor.species : null;
+  if (species === 'bear') return 'Bear';
+  if (species === 'msn') return 'Gummy';
+  if (species === 'glass') return 'Glass';
+  return species ? String(species) : '';
+}
+
+function mapDisplay(mapId) {
+  if (!mapId || mapId === activeWorld.mapId) return '';
+  return mapId === 'studio' ? 'Studio' : 'Meadow';
+}
+
+function relationshipMeta(row) {
+  const bits = [];
+  const species = row.species === 'bear' ? 'Bear'
+    : row.species === 'msn' ? 'Gummy'
+    : row.species === 'glass' ? 'Glass'
+    : row.species || '';
+  if (species) bits.push(species);
+  if (row.relation && row.relation !== 'Bond') bits.push(row.relation);
+  const map = mapDisplay(row.mapId);
+  if (map) bits.push(map);
+  if (row.missing) bits.push('record unavailable');
+  return bits.join(' · ');
+}
+
+function relationshipInteractions(actor, row) {
+  const box = document.createElement('div');
+  box.className = 'relInteractions';
+  const title = document.createElement('b');
+  title.textContent = 'Recent interactions';
+  box.append(title);
+  if (!row.interactions.length) {
+    const empty = document.createElement('span');
+    empty.className = 'hEmpty';
+    empty.textContent = 'No recent interactions recorded.';
+    box.append(empty);
+    return box;
+  }
+  for (const event of row.interactions) {
+    const line = document.createElement('span');
+    line.className = 'hLine';
+    const when = document.createElement('b');
+    when.textContent = `Day ${(event.day || 0) + 1} · ${formatClock(event.hour || 0)}`;
+    line.append(when, document.createTextNode(` — ${historyLabel(event)}`));
+    box.append(line);
+  }
+  return box;
+}
+
+function relationshipRow(actor, row, section) {
+  const key = `${section}:${row.uid}:${row.relation}`;
+  const item = document.createElement('div');
+  item.className = 'relItem';
+  const body = document.createElement(row.missing ? 'div' : 'button');
+  body.className = 'relRow' + (row.missing ? ' missing' : '');
+  body.dataset.uid = String(row.uid);
+  body.dataset.relation = row.relation;
+  if (!row.missing) body.type = 'button';
+  const main = document.createElement('span');
+  main.className = 'relMain';
+  const name = document.createElement('b');
+  name.className = 'relName';
+  name.textContent = row.name || 'Record unavailable';
+  const meta = document.createElement('span');
+  meta.className = 'relMeta';
+  meta.textContent = relationshipMeta(row);
+  main.append(name, meta);
+  body.append(main);
+
+  if (row.bond !== undefined) {
+    const percent = Math.round(row.bond * 100);
+    const value = document.createElement('span');
+    value.className = 'relValue';
+    value.textContent = `${percent}%`;
+    const meter = document.createElement('span');
+    meter.className = 'relMeter';
+    const fill = document.createElement('i');
+    fill.style.width = `${percent}%`;
+    meter.append(fill);
+    const detail = document.createElement('span');
+    detail.className = 'relDetail';
+    detail.textContent = row.asymmetric
+      ? `theirs ${Math.round(row.reverse * 100)}%`
+      : 'bond';
+    const bondBox = document.createElement('span');
+    bondBox.className = 'relBond';
+    bondBox.append(value, meter, detail);
+    body.append(bondBox);
+  } else if (!row.missing) {
+    const chevron = document.createElement('span');
+    chevron.className = 'relChevron';
+    chevron.textContent = expandedRelationshipKey === key ? '▾' : '▸';
+    body.append(chevron);
+  }
+  if (!row.missing) {
+    body.setAttribute('aria-expanded', String(expandedRelationshipKey === key));
+    body.addEventListener('click', () => {
+      expandedRelationshipKey = expandedRelationshipKey === key ? null : key;
+      renderRelationships(actor);
+    });
+  }
+  item.append(body);
+  if (!row.missing && expandedRelationshipKey === key) {
+    item.append(relationshipInteractions(actor, row));
+  }
+  return item;
+}
+
+function relationshipSection(title, rows, actor) {
+  if (!rows.length) return null;
+  const section = document.createElement('div');
+  section.className = 'relSection';
+  const head = document.createElement('h4');
+  head.textContent = title;
+  section.append(head);
+  for (const row of rows) section.append(relationshipRow(actor, row, title));
+  return section;
+}
+
+let relViewSig = '';
+
+function relationshipSignature(actor) {
+  const known = gameActorIndex();
+  const bonds = Object.entries(actor.bonds || {})
+    .map(([uid, value]) => `${uid}:${value}`).join(',');
+  const history = (actor.history || []).slice(-8)
+    .map(event => `${event.kind}:${event.uid}:${event.day}:${event.hour}`).join(',');
+  const others = [...known.values()].map(entry =>
+    `${entry.actor.uid}:${entry.mapId}:${entry.actor.guardianUid || 0}:${
+      (entry.actor.parentUids || []).join('.')}:${
+      entry.actor.bonds ? entry.actor.bonds[String(actor.uid)] || 0 : 0}`).join(',');
+  return [actor.uid, actor.name, actor.guardianUid || 0, bonds, history, others].join('|');
+}
+
+function renderRelationships(actor) {
+  if (!relRelationshipsEl || !actor) return;
+  const view = buildRelationshipView(actor, [...gameActorIndex().values()]);
+  relRelationshipsEl.replaceChildren();
+  const family = relationshipSection('Family', view.family, actor);
+  const care = relationshipSection('Care', view.care, actor);
+  const bonds = relationshipSection('Bonds', view.bonds, actor);
+  if (family) relRelationshipsEl.append(family);
+  if (care) relRelationshipsEl.append(care);
+  if (bonds) relRelationshipsEl.append(bonds);
+  if (!family && !care && !bonds) {
+    const empty = document.createElement('span');
+    empty.className = 'hEmpty';
+    empty.textContent = 'No recorded relationships yet.';
+    relRelationshipsEl.append(empty);
+  } else if (bonds) {
+    const note = document.createElement('p');
+    note.className = 'relNote';
+    note.textContent = 'Bond strength, not a friendship rank.';
+    relRelationshipsEl.append(note);
+  }
+  relViewSig = relationshipSignature(actor);
+}
+
+function syncRelationshipTabs() {
+  for (const button of relTabButtons) {
+    const active = button.dataset.relTab === relationshipTab;
+    button.classList.toggle('on', active);
+    button.setAttribute('aria-selected', String(active));
+    button.tabIndex = active ? 0 : -1;
+  }
+  if (relRelationshipsEl) relRelationshipsEl.hidden = relationshipTab !== 'relationships';
+  if (relEventsEl) relEventsEl.hidden = relationshipTab !== 'events';
+}
+
+function setRelationshipTab(tab) {
+  relationshipTab = tab === 'events' ? 'events' : 'relationships';
+  expandedRelationshipKey = null;
+  syncRelationshipTabs();
+  if (!selectedBear) return;
+  if (relationshipTab === 'relationships') renderRelationships(selectedBear);
+  else refreshDirectiveHistory(selectedBear);
+}
+
 function refreshDirectiveHistory(b) {
   if (!directiveHistoryEl) return;
   directiveHistoryEl.innerHTML = '';
@@ -4048,7 +4240,7 @@ function refreshDirectiveHistory(b) {
   if (!events.length) {
     const empty = document.createElement('span');
     empty.className = 'hEmpty';
-    empty.textContent = 'No family events yet.';
+    empty.textContent = 'No recorded events yet.';
     directiveHistoryEl.append(empty);
     return;
   }
@@ -4091,6 +4283,9 @@ function syncDirectivePanel(){
   if (directiveStatusEl) directiveStatusEl.textContent = text;
   if (directiveFamilyEl) directiveFamilyEl.textContent = familyLine(b);
   refreshDirectiveHistory(b);
+  syncRelationshipTabs();
+  if (relationshipTab === 'relationships' &&
+      relViewSig !== relationshipSignature(b)) renderRelationships(b);
   for (const btn of directiveButtons) {
     btn.classList.toggle('active', directivePick && btn.dataset.directive === 'go');
   }
@@ -4098,6 +4293,8 @@ function syncDirectivePanel(){
 function selectBear(b){
   selectedBear = b && b.active ? b : null;
   directivePick = false;
+  expandedRelationshipKey = null;
+  relViewSig = '';
   if (buddyListEl) {
     for (const row of buddyListEl.children) {
       row.classList.toggle('selected', !!b && row.dataset.uid === String(b.uid));
@@ -4145,6 +4342,22 @@ function issueSelectedDirective(kind){
 for (const btn of directiveButtons) {
   btn.addEventListener('click', () => issueSelectedDirective(btn.dataset.directive));
 }
+for (const btn of relTabButtons) {
+  btn.addEventListener('click', () => setRelationshipTab(btn.dataset.relTab));
+  btn.addEventListener('keydown', event => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' &&
+        event.key !== 'Home' && event.key !== 'End') return;
+    event.preventDefault();
+    const index = relTabButtons.indexOf(btn);
+    const last = relTabButtons.length - 1;
+    const next = event.key === 'Home' ? 0
+      : event.key === 'End' ? last
+      : (index + (event.key === 'ArrowRight' ? 1 : -1) + relTabButtons.length) % relTabButtons.length;
+    setRelationshipTab(relTabButtons[next].dataset.relTab);
+    relTabButtons[next].focus();
+  });
+}
+syncRelationshipTabs();
 directiveCloseEl?.addEventListener('click', () => {
   directivePick = false;
   selectBear(null);
@@ -5957,22 +6170,32 @@ function savedSkyState() {
 
 // Parent lookup across the current game, not across save slots. The active map
 // uses its live actors; the other map uses the snapshot taken when it was left.
-function gameActorUids(){
-  const uids = new Set();
+function gameActorIndex(){
+  const actors = new Map();
   for (const actor of actorView.all()) {
-    if (actor && Number.isFinite(actor.uid)) uids.add(actor.uid);
+    if (actor && Number.isFinite(actor.uid)) {
+      actors.set(actor.uid, { actor, mapId: activeWorld.mapId });
+    }
   }
   for (const id of ['field', 'studio']) {
     if (id === activeWorld.mapId) continue;
     const world = worlds[id];
     for (const actor of world.bears || []) {
-      if (actor && Number.isFinite(actor.uid)) uids.add(actor.uid);
+      if (actor && Number.isFinite(actor.uid) && !actors.has(actor.uid)) {
+        actors.set(actor.uid, { actor, mapId: id });
+      }
     }
     for (const actor of world.glass || []) {
-      if (actor && Number.isFinite(actor.uid)) uids.add(actor.uid);
+      if (actor && Number.isFinite(actor.uid) && !actors.has(actor.uid)) {
+        actors.set(actor.uid, { actor, mapId: id });
+      }
     }
   }
-  return uids;
+  return actors;
+}
+
+function gameActorUids(){
+  return new Set(gameActorIndex().keys());
 }
 
 function worldSaveState(id) {
@@ -6928,6 +7151,17 @@ window.__gummy = {
   launcher(){ return launcher ? launcher.state() : null; },
   foodRegistry(){ return field && field.food ? field.food : null; },
   selectBear(i){ const b = bears[i]; if (b && b.active) focusBuddy(b); return selectedBear ? selectedBear.name : null; },
+  selectGlass(i){
+    const a = glassColony && glassColony.actors[i];
+    if (a && a.active) focusBuddy(a);
+    return selectedBear ? selectedBear.name : null;
+  },
+  relationships(uid){
+    const actor = uid === undefined || uid === null
+      ? selectedBear
+      : actorView.all().find(item => String(item.uid) === String(uid));
+    return actor ? buildRelationshipView(actor, [...gameActorIndex().values()]) : null;
+  },
   directive(i, kind, target){ return ai ? ai.issueDirective(bears[i], kind, target) : null; },
   directives(i){ return ai ? ai.directiveState(i) : null; },
   cancelDirectives(i){ return ai ? ai.cancelDirectives(bears[i]) : false; },

@@ -198,6 +198,24 @@ targets the guardian when no parent is active. Adoption consumes no RNG.
 feature off suppresses assignment and guardian following without deleting the
 saved field.
 
+## Interaction history and the relationship view
+
+Completed social pairs, home visits, declined invitations and food conflicts append
+to the existing bounded actor history (16 entries); no new save field or actor
+version is introduced. Visits use `visit` for the guest and `hosted` for the host,
+and declines use `decline` for the inviter and `declined` for the responder.
+Interrupted/unfinished visits and interrupted social pairs are not recorded.
+Legacy does not write these module-only history kinds, so the parity harness
+excludes only this explicit set while still comparing state, needs, bonds,
+playdates, RNG and the rest of history.
+
+`relationshipview.js` is the pure read-only model behind the selected-actor
+**Relationships** tab. It resolves active and inactive-map records for the current
+game, keeps guardian/dependent links separate from ancestry, shows missing records
+as unavailable, and never averages asymmetric bonds. Pair-specific recent
+interactions come from the selected actor’s own history, so the panel does not
+claim a complete shared timeline.
+
 ## Config layers
 
 Later layers win:

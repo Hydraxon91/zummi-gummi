@@ -605,7 +605,39 @@
   .directiveBtn.active{background:#0d5b68;border-color:#0d5b68;color:#fff}
   .directiveStatus{margin:0;min-height:13px;font-size:10px;line-height:1.3;color:#527f88}
   .directiveFamily{margin:3px 0 0;font-size:9px;line-height:1.35;color:#5d858d}
-  .directiveHistory{margin:6px 0 0;padding-top:6px;border-top:1px solid rgba(53,145,161,.18);max-height:116px;overflow:auto}
+  .relTabs{display:flex;gap:4px;margin:7px 0 4px;border-bottom:1px solid rgba(53,145,161,.18)}
+  .relTab{
+    appearance:none;border:0;border-bottom:2px solid transparent;background:transparent;
+    color:#5d858d;font:650 8.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;
+    padding:4px 6px;cursor:pointer;
+  }
+  .relTab:hover{color:#0d5b68}
+  .relTab.on{color:#0d5b68;border-bottom-color:#0d7b76}
+  .relBody{margin-top:5px;max-height:150px;overflow:auto;padding-right:2px}
+  .relPane[hidden]{display:none}
+  .relSection{margin:0 0 8px}
+  .relSection h4{margin:0 0 3px;font:700 8px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#3f727c}
+  .relItem{margin:0 0 4px}
+  .relRow{
+    display:flex;align-items:center;gap:6px;width:100%;appearance:none;
+    border:1px solid rgba(53,145,161,.16);border-radius:9px;background:rgba(255,255,255,.55);
+    padding:5px 6px;color:inherit;font:inherit;text-align:left;cursor:pointer;
+  }
+  .relRow:hover{background:rgba(255,255,255,.82)}
+  .relRow.missing{cursor:default;background:rgba(255,255,255,.32);border-style:dashed}
+  .relMain{display:flex;flex-direction:column;min-width:0;flex:1}
+  .relName{font-size:9.5px;color:#10414c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .relMeta{font-size:8px;line-height:1.3;color:#6d8f97;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .relBond{display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:62px}
+  .relValue{font:650 8.5px var(--sans);color:#3f727c}
+  .relMeter{display:block;width:48px;height:4px;border-radius:999px;background:rgba(53,145,161,.16);overflow:hidden}
+  .relMeter i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#69c9c0,#0d7b76)}
+  .relDetail{font-size:7.5px;color:#7d9aa0}
+  .relChevron{font-size:10px;color:#5d858d;flex:none}
+  .relInteractions{margin:3px 0 6px 10px;padding-left:7px;border-left:1px solid rgba(53,145,161,.22)}
+  .relInteractions b{display:block;font:650 8px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#3f727c;margin-bottom:2px}
+  .relNote{margin:5px 0 0;font-size:8px;line-height:1.35;color:#7d9aa0;font-style:italic}
+  .directiveHistory{margin:2px 0 0;padding-top:4px;border-top:1px solid rgba(53,145,161,.18);max-height:140px;overflow:auto}
   .directiveHistory .hLine{display:block;font-size:8.5px;line-height:1.4;color:#5d858d}
   .directiveHistory .hLine b{font-weight:650;color:#3f727c}
   .directiveHistory .hEmpty{display:block;font-size:8.5px;line-height:1.4;color:#7d9aa0;font-style:italic}
@@ -645,6 +677,10 @@
     .possessStick{width:72px;height:72px}
     .possessCopy{display:none}
     .possessExit{padding:8px 10px}
+    .relBody{max-height:260px}
+    .relTab{padding:6px 8px;font-size:9px}
+    .relRow{padding:7px}
+    .relMeter{width:56px}
   }
   @media (max-width:900px){
     body.possessing #aeroHud,body.possessing #card{opacity:0;visibility:hidden;pointer-events:none}
@@ -945,7 +981,17 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
     </div>
     <p class="directiveStatus" id="directiveStatus">Pick a command.</p>
     <p class="directiveFamily" id="directiveFamily"></p>
-    <div class="directiveHistory" id="directiveHistory" aria-live="polite"></div>
+    <div class="relTabs" role="tablist" aria-label="Selected actor details">
+      <button class="relTab on" id="relTabRelationships" type="button" role="tab" data-rel-tab="relationships" aria-selected="true" aria-controls="relRelationships">Relationships</button>
+      <button class="relTab" id="relTabEvents" type="button" role="tab" data-rel-tab="events" aria-selected="false" aria-controls="relEvents" tabindex="-1">Recent events</button>
+    </div>
+    <div class="relBody">
+      <div class="relPane" id="relRelationships" role="tabpanel" aria-labelledby="relTabRelationships"></div>
+      <div class="relPane" id="relEvents" role="tabpanel" aria-labelledby="relTabEvents" hidden>
+        <p class="relNote">Recent recorded events — partial history; not every bond change is recorded.</p>
+        <div class="directiveHistory" id="directiveHistory" aria-live="polite"></div>
+      </div>
+    </div>
     <button class="directiveBtn wide" id="possessBtn" type="button">Control</button>
   </div>
   <div class="aeroPanel timePanel">

@@ -1396,6 +1396,23 @@ fields and no RNG. Verified by Node save/behavior tests, `scripts/adoption-test.
 removal, Glass assignment/stage-up, fresh game and off), the smoke test and a
 fresh long parity matrix.
 
+**Relationship view and interaction memory (Oct 2026, modules):** the selected
+actor panel now has **Relationships** and **Recent events** tabs. The read-only
+model resolves family, guardian/dependent links, directional bonds and pair
+interactions from live actors plus the current game’s inactive-map snapshots;
+missing records are labelled unavailable and asymmetric bonds show both values.
+Expanding a relationship shows that actor’s latest three recorded interactions.
+Completed social pairs, home visits, declined invitations and food conflicts
+append to the existing 16-entry history; visits use `visit`/`hosted`, declines
+use `decline`/`declined`, and interrupted/unfinished interactions are not
+recorded. `bond` remains an unused history kind. No new actor field or actor
+version was needed. Legacy does not write these module-only history kinds, so the
+parity comparator excludes only that explicit set while still comparing state,
+needs, bonds, playdates, RNG and other history. Verified by Node view/history
+tests, `scripts/relationship-test.mjs` (tabs, keyboard, pair expansion, cross-map
+and missing relatives, asymmetric bonds, Glass and mobile), both browser
+regressions, seeded browser parity and the all-race parity suites.
+
 **Actor identity (Oct 2026, fixed):** a loaded save reserves the highest UID
 across both maps and Glass before any restored actor spawns; map activation
 reserves again, and a new game resets the allocator to its own identity space.
@@ -2321,26 +2338,26 @@ hooks and timed checks alongside the eventual implementation.
 | Are bonds symmetric? | `setBond` writes both keys; `addBond` moves the pair average; restores trust saved keys; social acceptance reads the initiator bond against partner thresholds. | Normal writes are symmetric. Old/asymmetric records are averaged only when read; the save keeps both keys. |
 | Are negative encounters remembered? | Conflict applies one symmetric `-0.08`; no history event or rivalry field. | No durable record; once the bond reaches 0 the encounter is indistinguishable from never meeting. |
 | Is partnership persistent? | `ai.partner` is runtime pair state; `mated` history, `fatherUid` and gestation persist. | No spouse/partner record. Partnership is an interaction, not a saved relationship. |
-| Can a change be explained accurately? | History kinds render, but only born/mated/child/meal/lesson/taught/playdate/stage/home/moved are written. `bond` and `visit` are declared and rendered but never written; social and conflict do not push history. | A panel can show current bonds and recorded events, but cannot explain every bond change without inventing a cause. |
+| Can a change be explained accurately? | History kinds render; completed social/visit/decline/conflict outcomes are now written. `bond` is still declared but unused, and no direct bond-delta value is stored. | A panel can explain recorded interaction outcomes, but cannot reconstruct every past bond change or invent a cause for unrecorded ones. |
 | What survives departure or a map change? | `pruneActorRefs` drops bonds, playdates and history that reference invalid UIDs, keeps `parentUids`, and drops an invalid guardian. Inactive maps keep actor snapshots; the family/lineage UI indexes only active-map actors. | Bonds to departed actors disappear; ancestry remains. Cross-map parents/siblings are not shown by the current family panel. |
 | Is household a relationship record? | `home` is a persisted string; household membership is recomputed from active actors. | No household record or history beyond optional `home`/`moved` events. |
 
-**Recommendation:** the smallest next feature is a **read-only relationship view**
-over current bonds, ancestry, guardian status and recorded history, labeling
-unrecorded or cross-map links as unknown instead of inventing a cause. It needs no
-new simulation state, thresholds or save fields. If the view must explain changes,
-the next increment is to write the already-declared `bond` and `visit` history
-kinds at the existing social, conflict and visit completion points; that is a
-separate, approval-gated simulation change.
+**Delivered:** the read-only **relationship view** is implemented with family/care
+sections, directional bonds, missing/cross-map labels and pair-specific recent
+interactions. Completed social, visit, decline and conflict outcomes are now
+recorded using existing history entries; no new simulation state, thresholds or
+save fields were added. The old family/lineage API still indexes active-map actors
+only, but the new view resolves the current game’s inactive-map snapshots.
 
-**Known follow-ups from this audit:** the family/lineage panel indexes only
-active-map actors, so a parent or sibling on the inactive map disappears from the
-panel and can change the computed generation; `bond`/`visit` history kinds are
-unused; conflict and social bond changes are not recorded. Guardian capacity still
-counts adopted babies only, and disabling adoption during an active guardian follow
-still lets that follow finish; both await a decision rather than a silent change.
-Duplicate-UID saves are now rejected at load with no automatic renumbering; any
-existing duplicate save needs a recovery decision.
+**Known follow-ups from this audit:** the older family/lineage panel still indexes
+only active-map actors, so a parent or sibling on the inactive map can disappear
+from that panel and change its computed generation (the new relationship view does
+not have this gap). `bond` remains an unused history kind and no direct bond-delta
+value is stored. Guardian capacity still counts adopted babies only, and disabling
+adoption during an active guardian follow still lets that follow finish; both await
+a decision rather than a silent change. Duplicate-UID saves are now rejected at
+load with no automatic renumbering; any existing duplicate save needs a recovery
+decision.
 
 ## Village & placement editor (Phase 9)
 
