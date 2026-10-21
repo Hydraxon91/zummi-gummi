@@ -161,9 +161,10 @@ their deadline. Mood reads a bounded mourning penalty (`<= 0.55`), and grief
 does not change needs, health or departure eligibility.
 
 Successful social contact between a grieving actor and a close family member
-or bonded friend (bond `>= 0.35`) shortens the remaining grief by six game-hours,
-at most once per game day. Comfort does not erase the loss immediately. The
-layer consumes no RNG and is inert in the legacy engine or with the feature off;
+or bonded friend (bond `>= 0.35`) shortens the remaining grief by up to six
+game-hours, at most once per game day, clamped to the current time. Nearly
+expired grief can therefore end immediately; comfort never extends a deadline.
+This layer consumes no RNG and is inert in the legacy engine or with the feature off;
 turning Mourning off suppresses the mood penalty and comfort without deleting the
 saved records, so re-enabling it resumes the same grief. `actorVersion: 4` records
 are emitted only when a mourning list is present.

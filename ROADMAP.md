@@ -1353,19 +1353,32 @@ or RNG. Closeout (2026-10-21): 173 Node checks, the stars browser lifecycle and
 normal-rendering Glass **20/20 modules + 20/20 legacy**, both standard browser
 regressions and inspected fading/rise/night captures pass. The bear-mother forced
 birth fixture now resets safe food and waits for a grounded mother; the Glass/bear
-collision probe waits for measured separation instead of a fixed sample. Orphan
-adoption remains a later module.
+collision probe waits for measured separation instead of a fixed sample. The 0/20
+legacy and 0/20 modules Glass results came **after** those assertion changes, and a
+single legacy collision failure at 0.207 versus the required 0.25 remains
+unexplained. The household safeguard also only checks for any other adult in the
+baby's home; it does not require a parent or the same species. That gap is noted
+here and is not changed. Orphan adoption remains a later module.
 
 **Mourning (Oct 2026, off by default):** stars-only grief for immediate family or
 survivors with bond >= 0.18, scaling from a few game-hours to 14 days by closeness.
 Records are per saved actor (`actorVersion: 4`), so separate saves keep separate
 grief and new games start clean. Mood subtracts a bounded penalty; close social
-contact comforts a survivor by six game-hours at most once per game day. Grief does
-not alter needs, health or departure eligibility and consumes no RNG. Settings
+contact comforts a survivor by up to six game-hours at most once per game day, and
+the shortened deadline clamps to the current time, so nearly expired grief can end
+immediately. Grief does not alter needs, health or departure eligibility and
+consumes no RNG. Settings
 expose the feature under Farewells; legacy remains inert, and turning the feature
 off suppresses its effects without deleting saved records. Verified by Node save
 tests, `scripts/mourning-test.mjs`, both browser regressions and the stars
-lifecycle. Orphan adoption, gifting and rivalry remain later modules.
+lifecycle. Follow-up (2026-10-21): the browser harness now exits non-zero on any
+failed check (demonstrated with a deliberate failure) and covers a Glass-survivor
+save/load and fresh-game isolation; `tests/mourning-determinism.test.mjs` proves
+same-seed trace identity with mourning enabled and zero RNG draws for the
+departure and tick-time pruning paths; `--validate` also cross-checks the direct
+comparator against JSON every tick. `scripts/mourning-profile.mjs` records the
+contended CPU profile in `PERFORMANCE.md`. Orphan adoption, gifting and rivalry
+remain later modules.
 
 **Mood (Oct 2026, off by default):** derived needs/bonds/history mood, 4 Hz target,
 8 s smoothing, 0.05 buckets, bounded offsets stacked after traits, runtime-only

@@ -148,6 +148,58 @@ try {
     value: JSON.stringify(isolated),
   });
   report.isolation = isolated;
+
+  // A Glass survivor must persist its own record through the shared actor save.
+  const glassSetup = await evaluate(`(() => {
+    const g = window.__gummy;
+    const glassActors = g.glass()?.actors || [];
+    const survivorIndex = glassActors.findIndex(a => a.stage === 'adult');
+    const bears = g.traits();
+    const departedIndex = bears.findIndex((a, i) => a.stage === 'adult' && !g.starsBlock(i));
+    if (survivorIndex < 0 || departedIndex < 0) return { found: false };
+    const survivorUid = glassActors[survivorIndex].uid;
+    const departedUid = bears[departedIndex].uid;
+    g.glassSetBond(survivorIndex, departedUid, .9);
+    g.setAge(departedIndex, 99999);
+    g.sim(.2, 0);
+    const startFading = g.fading(departedIndex);
+    g.starsAdvance(departedIndex, 30.5);
+    return { found: true, survivorIndex, survivorUid, departedIndex, departedUid, startFading };
+  })()`);
+  if (glassSetup.found) await page.waitFor('window.__gummy.farewellVisuals() === 0', 8000);
+  const glassAfter = glassSetup.found ? await evaluate(`(() => {
+    const g = window.__gummy;
+    const actors = g.glass()?.actors || [];
+    const index = actors.findIndex(a => a.uid === ${glassSetup.survivorUid});
+    return {
+      present: g.traits().some(a => a.uid === ${glassSetup.departedUid}),
+      mourning: index >= 0 ? g.glassMourning(index) : [],
+    };
+  })()`) : { present: null, mourning: [] };
+  check('a Glass survivor mourns a bonded stars departure',
+    glassSetup.found && glassSetup.startFading?.fading === true && glassAfter.present === false &&
+    glassAfter.mourning.length === 1 && glassAfter.mourning[0].uid === glassSetup.departedUid, {
+      value: JSON.stringify({ glassSetup, glassAfter }),
+    });
+  const glassSave = glassSetup.found ? await evaluate(`(async () => {
+    const g = window.__gummy;
+    await g.save('slot3', 'glass-mourning');
+    await g.load('slot3');
+    const index = (g.glass()?.actors || []).findIndex(a => a.uid === ${glassSetup.survivorUid});
+    const restored = index >= 0 ? g.glassMourning(index) : [];
+    await g.newGame();
+    const fresh = (g.glass()?.actors || []).every((a, i) => g.glassMourning(i).length === 0);
+    await g.load('slot3');
+    const againIndex = (g.glass()?.actors || []).findIndex(a => a.uid === ${glassSetup.survivorUid});
+    const again = againIndex >= 0 ? g.glassMourning(againIndex) : [];
+    return { restored, fresh, again };
+  })()`) : { restored: [], fresh: null, again: [] };
+  check('Glass grief survives its save slot and a new game starts clean',
+    glassSave.restored.length === 1 && glassSave.restored[0].uid === glassSetup.departedUid &&
+    glassSave.fresh === true && glassSave.again.length === 1, {
+      value: JSON.stringify(glassSave),
+    });
+  report.glass = { setup: glassSetup, after: glassAfter, save: glassSave };
   report.errors = browser.pageErrors;
   console.log('REPORT', REPORT);
 } catch (error) {
@@ -158,3 +210,5 @@ try {
   await writeFile(REPORT, JSON.stringify(report, null, 2));
   await browser.close();
 }
+// A recorded failure is a failed run even when no exception was thrown.
+if (report.checks.some(entry => !entry.pass)) process.exitCode = 1;

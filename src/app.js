@@ -7117,6 +7117,7 @@ window.__gummy = {
   },
   glass(){ return glassColony ? glassColony.state() : null; },
   glassSetNeed(i, key, value){ return glassColony ? glassColony.setNeed(i, key, value) : false; },
+  glassSetBond(i, uid, value){ return glassColony ? glassColony.setBond(i, uid, value) : false; },
   glassFading(i){
     const a = glassColony && glassColony.actors[i];
     return a && behavior && behavior.api && typeof behavior.api.starsState === 'function'

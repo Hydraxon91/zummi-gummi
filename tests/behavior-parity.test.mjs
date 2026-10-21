@@ -19,7 +19,18 @@ test('legacy-vs-legacy is deterministic and a perturbation is detected', () => {
   assert.equal(result.legacyVsLegacy.ok, true, 'same engine must be deterministic');
   assert.equal(result.legacyVsModules.ok, true, 'modules must match legacy');
   assert.equal(result.perturbationDetected.ok, true, 'the diff must catch a changed need value');
+  assert.equal(result.comparator.equal.ok, true, 'direct and JSON comparators agree on equal runs');
+  assert.equal(result.comparator.perturbed.ok, true, 'direct and JSON comparators agree on perturbed runs');
+  assert.equal(result.comparator.perturbed.detected, true, 'the cross-check must also detect the perturbation');
   assert.equal(result.ok, true);
+});
+
+test('JSON snapshots are compared every tick, not only at verbose samples', () => {
+  const result = runParity({
+    race: 'bear', seed: 5, days: 1, sampleEvery: 17, perturb: .001,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.firstTick, 0, 'the first-tick perturbation is not hidden by sample intervals');
 });
 
 test('temporary port markers match the expected step-3 list', () => {

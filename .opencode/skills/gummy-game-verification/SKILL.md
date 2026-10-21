@@ -201,14 +201,23 @@ Caches live in `.dev-shots/parity-cache/`. `--comparator validate` cross-checks
 the candidate structural comparator against JSON each tick; `exact` is experimental
 and not the default; the initial projected comparator was slower, while the newer
 direct-field implementation passed its long matrix and reference cross-check.
-Use `--comparator exact` explicitly to benchmark it. Never use reduced
-tick frequency, larger timesteps or hash-only comparisons as parity acceptance.
+Use `--comparator exact` explicitly to benchmark it. `node scripts/behavior-parity.mjs
+--validate --race bear,gummy,glass` also runs that agreement check on both an equal
+and a +0.001 perturbed pair, so a pass covers detection and comparator agreement.
+Never use reduced tick frequency, larger timesteps or hash-only comparisons as
+parity acceptance.
 
 Stars/mourning: `node scripts/stars-test.mjs` covers the farewell lifecycle and
-`node scripts/mourning-test.mjs` covers departure, grief, comfort and save/load
-isolation. Both need a served build (`GAME_URL`). Mourning is off by default and
+`node scripts/mourning-test.mjs` covers departure, grief, comfort, save/load
+isolation and a Glass-survivor round trip. `mourning-test.mjs` exits non-zero when
+any recorded check fails, so inspect both the exit code and its report. Both browser
+scripts need a served build (`GAME_URL`). Mourning is off by default and
 modules-only; browser checks must enable the Farewells master, the stars reason and
 Mourning in the Settings panel (or dispatch those change events).
+`node --test tests/mourning-determinism.test.mjs` proves same-seed trace identity
+with enabled mourning and zero RNG draws for the departure/pruning path.
+`node scripts/mourning-profile.mjs` records the focused CPU profile (not a frame
+rate); state the observed machine load when reporting it.
 
 - Drive the served app through a browser and verified `window.__gummy` hooks.
   Record concrete outcomes, console errors and non-finite/bounds failures.

@@ -1223,6 +1223,17 @@ export function createGlassColony({
     return a[key];
   }
 
+  function setBond(index, uidValue, value) {
+    const a = actors[index];
+    const uid = Number(uidValue);
+    const n = Number(value);
+    if (!a || !Number.isFinite(uid) || uid <= 0 || !Number.isFinite(n)) return false;
+    a.bonds = a.bonds && typeof a.bonds === 'object' ? a.bonds : {};
+    if (n > 0) a.bonds[String(uid)] = clamp(n, 0, 1);
+    else delete a.bonds[String(uid)];
+    return true;
+  }
+
   function setStage(index, stage) {
     const a = actors[index];
     if (!a || !['baby', 'teen', 'adult'].includes(stage)) return false;
@@ -1446,6 +1457,7 @@ export function createGlassColony({
     blastImpulse,
     spawnChild(opts = {}) { return makeActor({ ...opts, stage: opts.stage || 'baby' }); },
     setNeed,
+    setBond,
     setStage,
     setPosition,
     walkTo,

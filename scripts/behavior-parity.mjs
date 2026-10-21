@@ -1187,17 +1187,38 @@ export function runMoodScenario({ race = 'bear', mode = 'content', days = 2, see
 
 /* --------------------------------------------------------------- validate */
 
+// The direct comparator is experimental; `validate` mode compares it with the
+// JSON snapshot at every tick and throws if the two disagree. Run it for both an
+// equal pair and a deliberately perturbed pair so agreement is exercised on
+// matching and differing runs.
+function comparatorAgreement(args) {
+  try {
+    const result = runParity({ ...args, comparator: 'validate' });
+    return { ok: true, detected: !result.ok, tick: result.ticks };
+  } catch (error) {
+    return { ok: false, error: String(error && error.message || error) };
+  }
+}
+
 export function validateParity({ race = 'bear', seed = 7, days = 1, verbose = false } = {}) {
   const sameEngine = runParity({ race, seed, days, engineA: 'legacy', engineB: 'legacy', verbose });
   const parity = runParity({ race, seed, days, engineA: 'legacy', engineB: 'modules', verbose });
   const perturbed = runParity({
     race, seed, days, engineA: 'legacy', engineB: 'modules', perturb: .001, verbose,
   });
+  const comparator = {
+    equal: comparatorAgreement({ race, seed, days, engineA: 'legacy', engineB: 'legacy', verbose }),
+    perturbed: comparatorAgreement({
+      race, seed, days, engineA: 'legacy', engineB: 'modules', perturb: .001, verbose,
+    }),
+  };
   return {
     legacyVsLegacy: { ok: sameEngine.ok, diff: sameEngine.diffs[0] || null },
     legacyVsModules: { ok: parity.ok, diff: parity.diffs[0] || null },
     perturbationDetected: { ok: !perturbed.ok, diff: perturbed.diffs[0] || null },
-    ok: sameEngine.ok && parity.ok && !perturbed.ok,
+    comparator,
+    ok: sameEngine.ok && parity.ok && !perturbed.ok && comparator.equal.ok &&
+      comparator.perturbed.ok && comparator.perturbed.detected,
   };
 }
 
@@ -1768,10 +1789,15 @@ async function main(argv) {
       for (const result of results) {
         console.log(`${result.race}: legacy-vs-legacy ${result.legacyVsLegacy.ok ? 'PASS' : 'FAIL'}, ` +
           `legacy-vs-modules ${result.legacyVsModules.ok ? 'PASS' : 'FAIL'}, ` +
-          `perturbation ${result.perturbationDetected.ok ? 'DETECTED' : 'MISSED'}`);
+          `perturbation ${result.perturbationDetected.ok ? 'DETECTED' : 'MISSED'}, ` +
+          `comparators ${result.comparator.equal.ok && result.comparator.perturbed.ok ? 'AGREE' : 'DISAGREE'}`);
         for (const key of ['legacyVsLegacy', 'legacyVsModules', 'perturbationDetected']) {
           const diff = result[key].diff;
           if (diff) console.log(`  ${key}: ${formatDiff(diff)}`);
+        }
+        for (const key of ['equal', 'perturbed']) {
+          const entry = result.comparator[key];
+          if (!entry.ok) console.log(`  comparator ${key}: ${entry.error}`);
         }
       }
       console.log(ok ? 'VALIDATION PASS' : 'VALIDATION FAIL');

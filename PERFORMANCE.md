@@ -536,6 +536,30 @@ result agrees with the contended pass: no measurable mood frame-time cost. AI
 readings varied from 0.036 to 0.135 ms across runs and are not a stable signal at
 this scale.
 
+### Mourning cost (contended, no performance claim)
+
+Method: `node scripts/mourning-profile.mjs`, 40 adult Bear actors, mood and
+mourning enabled, 200 engine ticks at 20 Hz (one sim-hour) per batch, five
+batches per row; medians reported. Pure rows call `mourningMood` plus
+`pruneMourning` once per actor and pass. The machine was **not quiet**: the
+1-minute load average was 6.88 before and after (8-core host) with opencode,
+WindowServer and Terminal active. These are matched within the pass but not a
+quiet or frame-time baseline; the engine rows exclude physics and rendering.
+
+| Work | Per actor pass | Per sim-hour (40 actors) | Per tick |
+|---|---:|---:|---:|
+| Pure mourning pass, no records | 0.031 µs | — | — |
+| Pure mourning pass, 1 record | 0.925 µs | — | — |
+| Pure mourning pass, 8 records | 6.19 µs | — | — |
+| Engine, mourning off | — | 7.55 ms | 0.038 ms |
+| Engine, 1 record each | — | 12.57 ms | 0.063 ms |
+| Engine, 8 records each (record cap) | — | 38.74 ms | 0.194 ms |
+
+The worst supported case (all 40 actors at the 8-record cap) adds about
+**31 ms per simulated hour**, or **0.156 ms per 20 Hz tick**, in the behavior
+layer. That is well below a rendered frame, but it is not an FPS claim and the
+contended host makes small deltas unreliable.
+
 Natural-needs distribution, 20 days × 3 seeds per race, 1 s samples, 86,400
 samples and 18 actor-runs per race:
 
