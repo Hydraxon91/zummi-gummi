@@ -279,15 +279,18 @@ export function pushHistory(actor, event, limit = HISTORY_LIMIT) {
   };
   const delta = bondDeltaFields(event);
   if (delta) Object.assign(entry, delta);
-  list.push(entry);
   const max = Math.max(1, limit | 0);
+  const interaction = INTERACTION_HISTORY_KINDS.has(entry.kind);
+  if (interaction && list.length >= max) {
+    // Display records never displace behavior history. If there is no older
+    // interaction slot to recycle, skip this record.
+    const recycle = list.findIndex(item => INTERACTION_HISTORY_KINDS.has(item.kind));
+    if (recycle < 0) return entry;
+    list.splice(recycle, 1);
+  }
+  list.push(entry);
   if (list.length > max) {
-    const oldest = list[0];
-    const protectsLesson = oldest && (oldest.kind === 'lesson' || oldest.kind === 'taught');
-    const alternate = protectsLesson
-      ? list.findIndex((item, index) => index !== list.length - 1 &&
-        INTERACTION_HISTORY_KINDS.has(item.kind))
-      : -1;
+    const alternate = list.findIndex(item => INTERACTION_HISTORY_KINDS.has(item.kind));
     if (alternate >= 0) list.splice(alternate, 1);
     else list.shift();
   }

@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import { createBehavior } from '../src/behaviors/index.js';
 import { createBehaviorConfig } from '../src/behaviors/config.js';
 import { createWorld } from '../scripts/behavior-parity.mjs';
-import { normalizeHistory, pushHistory, HISTORY_KINDS, HISTORY_LIMIT } from '../src/family.js';
+import {
+  normalizeHistory, pushHistory, HISTORY_KINDS, HISTORY_LIMIT,
+  INTERACTION_HISTORY_KINDS,
+} from '../src/family.js';
 import { snapshotActor } from '../src/actorrecord.js';
+import { moodFor } from '../src/behaviors/mood.js';
 
 function actor(uid, home, extra = {}) {
   return {
@@ -82,21 +86,54 @@ test('interaction history off writes nothing to either actor', () => {
   assert.deepEqual(b.history, []);
 });
 
-test('interaction history evicts itself before a lesson record', () => {
+test('interaction history never displaces behavior history', () => {
   const a = actor(10, 'Home 1');
-  const meals = Array.from({ length: 14 }, (_, index) =>
+  const meals = Array.from({ length: 15 }, (_, index) =>
     ({ kind: 'meal', uid: 20 + index, day: 1, hour: 8 }));
   a.history = [
     { kind: 'lesson', uid: 2, day: 1, hour: 7 },
-    { kind: 'social', uid: 2, day: 1, hour: 8 },
     ...meals,
   ];
+  const before = JSON.stringify(a.history);
   assert.equal(a.history.length, HISTORY_LIMIT);
   pushHistory(a, { kind: 'social', uid: 3, day: 1, hour: 9 });
   assert.equal(a.history.length, HISTORY_LIMIT);
+  assert.equal(JSON.stringify(a.history), before, 'a full behavior buffer is unchanged');
+  assert.equal(a.history.some(event => event.kind === 'social'), false);
+
+  a.history[5] = { kind: 'social', uid: 2, day: 1, hour: 8 };
+  pushHistory(a, { kind: 'meal', uid: 30, day: 1, hour: 9 });
+  assert.equal(a.history.some(event => event.kind === 'social'), false);
+  assert.equal(a.history.some(event => event.kind === 'meal' && event.uid === 30), true);
   assert.equal(a.history.some(event => event.kind === 'lesson'), true);
-  assert.equal(a.history.some(event => event.kind === 'social' && event.uid === 2), false);
-  assert.equal(a.history.some(event => event.kind === 'social' && event.uid === 3), true);
+});
+
+test('logging leaves the non-interaction history and mood identical', () => {
+  const base = Array.from({ length: HISTORY_LIMIT }, (_, index) => ({
+    kind: index === 0 ? 'lesson' : 'meal',
+    uid: 20 + index,
+    day: 1,
+    hour: 8,
+  }));
+  const logged = actor(10, 'Home 1', { history: structuredClone(base) });
+  const plain = actor(10, 'Home 1', { history: structuredClone(base) });
+  const events = [
+    { kind: 'social', uid: 2, day: 1, hour: 9 },
+    { kind: 'meal', uid: 30, day: 1, hour: 10 },
+    { kind: 'social', uid: 3, day: 1, hour: 11 },
+    { kind: 'playdate', uid: 31, day: 1, hour: 12 },
+    { kind: 'social', uid: 4, day: 2, hour: 9 },
+    { kind: 'lesson', uid: 32, day: 2, hour: 10 },
+  ];
+  for (const event of events) {
+    if (!INTERACTION_HISTORY_KINDS.has(event.kind)) pushHistory(plain, event);
+    pushHistory(logged, event);
+    assert.deepEqual(
+      logged.history.filter(item => !INTERACTION_HISTORY_KINDS.has(item.kind)),
+      plain.history,
+    );
+  }
+  assert.equal(moodFor(logged, { day: 3, hours: 12 }), moodFor(plain, { day: 3, hours: 12 }));
 });
 
 test('a completed social pair records one event with a bond delta for each participant', () => {
