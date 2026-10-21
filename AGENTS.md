@@ -540,6 +540,18 @@ approved work chunk.
   tolerances and expected results on known-good and deliberately failing fixtures. A failed
   helper may indicate a tool defect, not a mesh defect. Reusing the same core calculation is
   not independent verification. Keep experimental helpers distinct from supported tooling.
+- **Geometry contradictions block repairs.** Compare raw source, evaluated source, bake
+  candidate and re-imported export as distinct representations, at explicit poses and
+  modifier settings. Never infer duplication from raw-versus-evaluated counts. If a
+  summary contradicts a named-part result, stop edits and rebuilds until one same-snapshot
+  inventory (object/mesh identity, representation, frame and counts) resolves it. Counts
+  and nearest distances alone do not prove preservation: verify multiplicity or explicit
+  correspondence, connectivity, face/material ownership, UVs and parent transforms.
+  Prove ownership survives each topology-changing operation; do not assume index ranges
+  survive join or triangulation, or invent count multipliers as guards. Reproduce a
+  candidate defect independently on the evaluated source before proposing source repair;
+  classify it as inherited, introduced or uncertain. Follow the 3D skill's geometry
+  transfer verification procedure and realistic positive/negative fixture requirements.
 - **The same scope and approval rules apply to Blender.** Inspect the live file path,
   unsaved state, scene inventory and target objects before editing. Establish a
   recoverable checkpoint before destructive work (a new, incrementally named `.blend`,
@@ -626,6 +638,15 @@ approved work chunk.
   not more subdivision or speculative shader changes. Use temporary flat-colour isolation
   before blaming transparency or reflections; restore it afterward. Follow the authoring
   skill's material-boundary procedure and inspect every affected corner.
+- **Live Blender MCP is the default for shape authoring.** Choose construction from the
+  requested form and references, not from an existing generator or historical prototype.
+  MCP may execute Python: the requirement is visually guided incremental modeling, not
+  avoiding scripts. Keep source editable and pass silhouette review before detail/polish.
+  Python supports scoped edits, repetition, measurement, checks, captures and export;
+  it must not substitute for inspecting form changes. Live MCP can perform verification;
+  headless batches are optional. Keep asset-specific trial history and benchmark status in
+  project reports, not general instructions. Load optional recipes from the authoring skill
+  only when relevant to the task.
 - **Use the live MCP loop for shape work.** Inspect the actual viewport with `look`, pick the
   visible component, make a small editable change, and look again. Use scripts for repetition,
   measurement, capture and export, not as a substitute for inspecting each form change. If MCP

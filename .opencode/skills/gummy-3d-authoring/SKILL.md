@@ -17,7 +17,52 @@ species-variant rig/export notes are in "Character and variant authoring" and
 Last reviewed: 2026-10-21. Update this line when the commands, scripts or delivery
 contract below materially change; `AGENTS.md` remains the policy source.
 
-## Supporting workflows and tools
+## Default authoring workflow: live MCP first
+
+Use live Blender MCP as the primary shape-authoring workflow. MCP can execute Python;
+the distinction is visually guided, incremental modeling versus blind batch generation,
+not Python versus Blender. Choose construction from the requested form and references,
+not from whichever existing builder or prototype happens to be available.
+
+1. Inspect the live scene, unsaved state and references; agree on scope, construction,
+   dimensions, axes and acceptance criteria before editing.
+2. Establish a recoverable checkpoint. Build an editable primary form with small scoped
+   changes through MCP: inspect with `look`, edit, then inspect again.
+3. Review the silhouette, contact and major sections in neutral multi-angle views and
+   obtain silhouette approval before detail or material polish.
+4. Add details, UVs and materials only as needed for the approved outcome. Continue
+   inspecting affected areas and preserve unrelated geometry and placement.
+5. Check mesh health and inspect final multi-angle captures. Numerical checks support
+   visual judgment; successful scripts and populated reports do not establish likeness.
+6. Bake, export or integrate only when separately in scope; report each delivery state.
+
+Python is appropriate for scoped modeling operations, repetition, measurement, diagnostics,
+captures and export. It must not replace inspecting form changes or repeatedly regenerate
+the whole asset to avoid looking. Live MCP can also run checks and capture views; headless
+Blender is optional, not a prerequisite for verification. Procedural construction is an
+explicit method choice to justify and test, not the default for every asset.
+
+For soft goods, prefer an editable quad cage with broad contact, controlled subdivision,
+deformation and folds. Test the seat/contact transition first: subtracting a cavity from
+a smooth primitive can read as a rigid bowl rather than a yielding fabric form.
+
+## Optional workflows and tools
+
+Load focused references only when the task needs them. Asset-specific trial histories,
+revision status and benchmark numbers belong in project reports, not general authoring
+instructions. A historical builder is neither a required starting point nor proof that
+its construction method suits a new asset.
+
+The experimental unified entry point is `tools/asset-pipeline/pipeline.py`, driven
+by JSON jobs (inspect/uv/bake/hybrid/check/render/export/verify). See the pipeline
+README for exact supported graph patterns and limitations. `hybrid` keeps source
+parts/material classes and combines dedicated panel bakes with repeated UV image
+sampling for plain plastics; it is not general shader conversion. Export still
+delegates to the existing approval gate. New generic regression fixtures live in
+`tools/asset-pipeline/fixtures/`; old phase scripts stay in `tests/`.
+Vertex-distance preservation and an inspected Blender candidate are not clean-import
+or destination-engine verification. Inherited zero-area geometry remains a delivery
+finding, not permission to change a protected source or waive acceptance.
 
 For shared-atlas delivery copies, selectable atlas/guide resolutions and staged publication,
 follow [references/atlas-delivery.md](references/atlas-delivery.md). Existing source UVs and
@@ -59,60 +104,17 @@ locked, render-hidden reference planes; it does not detect views or infer dimens
 `run_comfy_workflow_stable_materials.py` does the same for StableMaterials map sets. Both
 are dry-runnable and write a manifest; neither starts or reconfigures ComfyUI.
 
-For Phase 2 export verification, use
+For requested export verification, use
 `tools/asset-pipeline/scripts/verify_asset.mjs` with the workflow in
 `tools/asset-pipeline/README.md`. It links node/Python GLB inventories, the pinned
 Khronos validator, a disposable clean import and a standalone three.js preview. Validator
 conformance, preview compatibility and human visual inspection remain separate claims;
 the preview does not modify the game loader or authorize integration.
 
-Phase 3 synthetic crate/curved bake fixtures live under
-`tools/asset-pipeline/tests/phase3/`. They exercise the pipeline; they are not house
-assets, reference-fidelity evidence or game integration. Their seam diagnostics, channel
-re-sampling, negative controls and reproducibility commands are documented in that
-directory's `README.md`.
-
-The Phase 4 crate material-zone trial lives under
-`tools/asset-pipeline/tests/phase4/`. It uses ordinary Blender slots and a preserved
-source checkpoint; it is a crate-only pattern, not a house zone map or game integration.
-Its build, export-zone verification, Blender render and preview-review commands are in
-that directory's `README.md`.
-
-The Phase 5 material pilot lives under `tools/asset-pipeline/tests/phase5/`. It covers
-Qwen, StableMaterials and SDXL-seamless candidates, with tiling/offset checks and an
-approved palette plus documented colour correction. Colour correction is post-processing,
-not pure generation; raw maps and rejected candidates remain review evidence.
-
-The Phase 6 crate delivery trial lives under `tools/asset-pipeline/tests/phase6/`. It
-normalizes six UV islands for repeated tileable mapping, uses approved StableMaterials
-image maps, and verifies a self-contained GLB. Embedded channels match the sources with
-MAE 0.0. V4 512 px silver is selected: it cuts download bytes by 34.9% and decoded
-texture storage by 37.5% while keeping visible grain and one UV set. A 256 px test is
-softer; a 512 + independent trim UV 0.8 test clears the advisory p95 but lowers the
-median and adds `TEXCOORD_1`. Camera-projected density still does not satisfy both
-advisory bounds, and the teal zone is under-sampled. For future assets, preserve
-high-resolution sources and choose delivery resolution per material from the closest
-intended views. It is crate-only; overlapping UVs are intentional, no new bake was
-performed, and game integration is not authorized.
-
-Phase 7A tool-validation fixtures and the Phase 7B equipment-case benchmark live under
-`tools/asset-pipeline/tests/phase7/`. 7A covers linear/sRGB downsampling, orientation,
-normal renormalisation, channel negative controls, planar density and material-specific
-UV exports. 7B's tileable baseline has 77 islands and 1,428 triangles, with 5.53 px
-minimum padding at 512; a 1024² baked atlas is 52.6% smaller and validates 0/0/0, but
-is softer on the silver frame near view because a single atlas has lower texel density
-than repeated tileable maps. Density remains review, and the flicker fix was geometry
-(single Boolean-cut frames), not UV mapping. 7C passes with a procedural 3D source baked
-to a six-island atlas: source-to-baked channels and 802 seam-pair samples pass, and
-visual review found no island cuts. Density remains review. Passing these does not
-establish arbitrary-asset support. 7D adds a 24-part desk-lamp assembly accepted with
-density review. 7E adds a mixed opaque/glass office corner: wallpaper/parquet,
-transmission window, rug, open book, chair and ceiling fan/light; `office-corner-006`
-is accepted with a 16.1 MB / 58-call mixed delivery and 512/1024 variants retained,
-while the chair/wall/lamp revision `office-corner-009` is built and pending acceptance.
-Frutiger prop revisions `office-corner-010`–`012` (beanbag, plant, mouse, desk
-laptop) are full-resolution builds only; `-012` is the newest scene and none of them
-is accepted or delivers optimized maps.
+Fixture passes establish only their tested scope, not arbitrary-asset support or user
+acceptance. Preserve high-resolution material sources and choose delivery resolution
+from the closest intended views. Atlas size reductions do not prove adequate texel
+density, and a successful bake does not prove faithful transfer of every channel.
 
 For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
 [references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are
@@ -477,6 +479,51 @@ is a proposed design choice, not an automatic response to a diagnostic failure.
   silhouette must be re-inspected after reduction. Budget triangles, material primitives and
   exported vertices, not Blender polygon count alone. Do not invent a universal triangle
   budget; ask the user for one if none is given.
+
+## Geometry transfer verification
+
+Apply before accepting a join, split, bake preparation, topology conversion or export,
+and before attributing a candidate failure to the source asset.
+
+1. **Compare equivalent representations.** Label raw source mesh, evaluated source,
+   bake candidate and re-imported export separately. Record source filepath, exact
+   object and mesh datablock names, coordinate space, frame/pose, modifier configuration
+   and whether each count is raw or evaluated. Compare matching evaluated states;
+   bevels/subdivision and export UV/normal splits can legitimately increase counts.
+   Raw-versus-evaluated count growth is not evidence of duplicated geometry.
+2. **Resolve contradictions before repairs.** If a summary says all counts match but
+   a named part disagrees, invalidate that diagnostic and stop edits, rebuilds and
+   architectural changes. Produce the summary and per-part evidence from the same
+   captured snapshot and exact identities, not separate queries with ambiguous name
+   matching. Check stale datablocks, aliases, grouping and evaluation state before
+   proposing a fix. Correct the report and withdraw unsupported earlier claims.
+3. **Prove ownership through each operation.** Do not assume face or vertex ranges
+   survive join, triangulation or modifier evaluation. Verify source-to-candidate
+   ownership before and after every topology-changing step. Detect missing faces,
+   foreign faces, duplicated parts and loss of material boundaries. Record any supported
+   one-to-many mapping explicitly; index ranges require demonstrated order stability.
+4. **Use independent preservation checks.** Equal counts plus zero nearest distance
+   do not prove identical meshes: coincident duplicates can satisfy both. Verify vertex
+   multiplicity or explicit correspondence, face connectivity, face/material ownership,
+   UV correspondence, transforms and parents. Report point-distance bounds separately
+   from topology and identity claims. Explain legitimate representation differences
+   rather than inventing a vertex/face-count multiplier or offset as an acceptance guard
+   (for example, `source_faces * 1.5 + 8` has no geometric justification).
+5. **Exercise realistic fixtures.** Test bevel and subdivision modifiers, multiple
+   materials, named UV layers, overlapping coordinates and animated parents, including
+   their interaction in one fixture. Use known-good fixtures and deliberately duplicated,
+   misassigned or missing outputs that must fail. Two separated unmodified cubes cannot
+   establish arbitrary-assembly support. Validate diagnostic units and tolerances on
+   those controls before treating a reported failure as an asset defect.
+6. **Establish source responsibility.** Reproduce the suspected defect independently
+   on the evaluated source at the same pose before requesting or performing a source
+   repair. Classify the finding as inherited, introduced by the pipeline, or uncertain.
+   A failed candidate or an unvalidated helper is not authorization to change a clean
+   source. Correct the pipeline first when it introduced the defect; unresolved
+   responsibility blocks source repair, not merely delivery.
+
+These checks supplement the mesh-health gate; they do not replace visual, interface,
+motion, material-transfer or user-acceptance evidence, and do not reset attempt limits.
 
 ## Regression stop
 
