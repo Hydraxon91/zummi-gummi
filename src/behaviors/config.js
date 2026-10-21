@@ -34,6 +34,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
   starsOldAge: false,          // old-age fading
   starsStarvation: false,      // starvation fading
   starsStings: false,          // sting acceleration while already fading
+  mourning: false,             // per-save grief after stars departures
 });
 
 const MODULE_DEFAULTS = Object.freeze({

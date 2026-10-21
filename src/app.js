@@ -48,9 +48,11 @@ const FAREWELL_FEATURES = {
   starsOldAge: 'starsOldAge',
   starsStarvation: 'starsStarvation',
   starsStings: 'starsStings',
+  mourning: 'mourning',
 };
 const farewellSettings = {
   farewells: false, starsOldAge: false, starsStarvation: false, starsStings: false,
+  mourning: false,
 };
 let selectedBear = null;
 let directivePick = false;
@@ -692,6 +694,7 @@ function clearFarewellRuntime(actor){
   delete actor.starsAgeReprieveUntil;
   delete actor.stay;
   delete actor.farewellLift;
+  delete actor.mourning;
 }
 
 function cancelFarewellFor(actor){
@@ -742,6 +745,7 @@ function startFarewell(actor, info = {}){
   // Commit cleanup happens before this callback returns; the actor can no
   // longer be rescued once `fading.committed` is set by the stars module.
   behavior?.api?.commitFarewell(actor);
+  behavior?.api?.mournDeparture?.(actor, { cause: 'stars', reason: info.reason });
   let fx = farewells.get(actor);
   if (!fx) {
     fx = makeFarewellFx(actor, info.reason);
@@ -3537,7 +3541,7 @@ function syncFarewellSettingsUI(){
   }
   const masterVal = document.getElementById('settingsFarewellsVal');
   if (masterVal) masterVal.textContent = farewellSettings.farewells ? 'On' : 'Off';
-  for (const key of ['starsOldAge', 'starsStarvation', 'starsStings']) {
+  for (const key of ['starsOldAge', 'starsStarvation', 'starsStings', 'mourning']) {
     const box = document.getElementById(`settings${key[0].toUpperCase()}${key.slice(1)}`);
     if (box) {
       box.checked = !!farewellSettings[key];
@@ -7019,10 +7023,26 @@ window.__gummy = {
   stars(){
     return behavior && behavior.stars ? behavior.stars.stats() : null;
   },
+  mourning(i){
+    const b = bears[i];
+    return b && behavior && behavior.api && typeof behavior.api.mourning === 'function'
+      ? behavior.api.mourning(b) : [];
+  },
+  mourningLabel(i){
+    const b = bears[i];
+    return b && behavior && behavior.api && typeof behavior.api.mourningLabel === 'function'
+      ? behavior.api.mourningLabel(b) : null;
+  },
   skyFarewells(){
     return sky && typeof sky.farewellStats === 'function' ? sky.farewellStats() : null;
   },
   farewellVisuals(){ return farewells.size; },
+  farewellDetails(){
+    return [...farewells].map(([actor, fx]) => ({
+      uid: actor.uid, phase: fx.phase, elapsed: +fx.elapsed.toFixed(2),
+      duration: fx.duration, committed: !!actor.fading?.committed,
+    }));
+  },
   setHealth(i, v){
     const b = bears[i]; if (!b) return false;
     const n = Number(v); if (!Number.isFinite(n)) return false;
@@ -7112,6 +7132,11 @@ window.__gummy = {
     if (!a || !behavior || !behavior.api || typeof behavior.api.starsUpdate !== 'function') return null;
     behavior.api.starsUpdate(a, Math.max(0, Number(seconds) || 0));
     return this.glassFading(i);
+  },
+  glassMourning(i){
+    const a = glassColony && glassColony.actors[i];
+    return a && behavior && behavior.api && typeof behavior.api.mourning === 'function'
+      ? behavior.api.mourning(a) : [];
   },
   glassSetStage(i, stage){ return glassColony ? glassColony.setStage(i, stage) : false; },
   glassSetPosition(i, x, z, exact){ return glassColony ? glassColony.setPosition(i, x, z, !!exact) : false; },

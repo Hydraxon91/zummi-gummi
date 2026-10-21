@@ -116,6 +116,12 @@ try {
   report.nightShot = await shot('d_star_night');
   const night = await evaluate('window.__gummy.skyFarewells()');
   check('night star is shown', night && night.shown > 0, { value: JSON.stringify(night) });
+  // Removal runs on the capped animation clock, so wait for the commit rather
+  // than sampling after a fixed real-time sleep.
+  try {
+    await waitFor(`window.__gummy.farewellVisuals() === 0 &&
+      !window.__gummy.traits().some(actor => actor.uid === ${setup.uid})`, 20000);
+  } catch (err) {}
   const removed = await evaluate(`({ visuals: window.__gummy.farewellVisuals(),
     present: window.__gummy.traits().some(actor => actor.uid === ${setup.uid}) })`);
   check('farewell visual ends with actor removal', removed.visuals === 0 && !removed.present, {

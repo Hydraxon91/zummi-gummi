@@ -3,6 +3,8 @@
 // `moodFor` is pure. The engine smooths it into runtime-only ai.mood/ai.mood*
 // fields; those fields are deliberately excluded from actor snapshots.
 
+import { mourningMood } from './mourning.js';
+
 export const MOOD_TAU = 8;
 export const MOOD_UPDATE_INTERVAL = 0.25;
 export const MOOD_BUCKET = 0.05;
@@ -25,7 +27,7 @@ export function moodLabel(value) {
   return { key: 'cheerful', label: 'cheerful' };
 }
 
-export function moodFor(actor, { day = 0, hours = 12 } = {}) {
+export function moodFor(actor, { day = 0, hours = 12, mourning = true } = {}) {
   if (!actor) return 0;
   let target = 0;
   target -= .35 * clamp((finite(actor.hunger, .3) - .55) / .40, 0, 1);
@@ -50,6 +52,7 @@ export function moodFor(actor, { day = 0, hours = 12 } = {}) {
     eventMood += EVENT_WEIGHTS[event.kind] * Math.exp(-ageDays / 2);
   }
   target += clamp(eventMood, -.20, .20);
+  if (mourning) target -= mourningMood(actor, { day, hours });
   return +clamp(target, -1, 1).toFixed(3);
 }
 

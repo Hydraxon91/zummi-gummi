@@ -6,6 +6,7 @@
 
 import { normalizeSkills, normalizeHistory, normalizePlaydates } from './family.js';
 import { normalizeTraits } from './behaviors/traits.js';
+import { normalizeMourning } from './behaviors/mourning.js';
 
 function round(value, digits = 4) {
   const n = Number(value);
@@ -18,10 +19,11 @@ function finite(value, fallback) {
 
 export function snapshotActor(actor, extra = {}) {
   if (!actor) return null;
+  const mourning = normalizeMourning(actor.mourning);
   const record = {
-    // Trait-free records remain v2 so older builds can load personality-off
-    // saves; only records carrying traits use v3.
-    actorVersion: actor.traits ? 3 : 2,
+    // Trait-free records remain v2; traits use v3; grief records use v4 so an
+    // older build cannot silently load them without mourning support.
+    actorVersion: mourning.length ? 4 : (actor.traits ? 3 : 2),
     species: actor.species,
     uid: actor.uid,
     name: actor.name,
@@ -52,6 +54,7 @@ export function snapshotActor(actor, extra = {}) {
     ...extra,
   };
   if (actor.traits) record.traits = normalizeTraits(actor.traits);
+  if (mourning.length) record.mourning = mourning;
   if (actor.kind === 'glass') {
     record.kind = 'glass';
     record.species = 'glass';
@@ -76,5 +79,7 @@ export function applyCommonActorState(actor, record) {
   actor.playdates = normalizePlaydates(record.playdates);
   actor.fatherUid = Number.isFinite(record.fatherUid) ? record.fatherUid : 0;
   if (record.traits) actor.traits = normalizeTraits(record.traits);
+  if (record.mourning !== undefined) actor.mourning = normalizeMourning(record.mourning);
+  else delete actor.mourning;
   return actor;
 }

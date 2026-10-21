@@ -33,6 +33,7 @@ import { fleeModule } from './flee.js';
 import { planReason } from './reason.js';
 import { ensureTraits } from './traits.js';
 import { moodFor, moodLabel, MOOD_BUCKET, MOOD_TAU, MOOD_UPDATE_INTERVAL } from './mood.js';
+import { addMourning, pruneMourning, mourningLabel } from './mourning.js';
 import { createStars } from './stars.js';
 
 const STUCK_DIST2 = .04;
@@ -934,7 +935,20 @@ export function createBehaviorModules({
 
   /* ------------------------------------------------------------- per tick */
 
+  function mournDeparture(departed, info = {}) {
+    if (!features.mourning || !departed || info.cause !== 'stars') return 0;
+    const day = dayNow();
+    const hours = hoursNow();
+    let count = 0;
+    for (const actor of actors()) {
+      if (!actor || actor === departed || actor.active === false) continue;
+      if (addMourning(actor, departed, { day, hours })) count++;
+    }
+    return count;
+  }
+
   function updateMood(actor, dt) {
+    if (features.mourning && actor) pruneMourning(actor, dayNow(), hoursNow());
     if (!features.mood || !actor || !actor.ai) return;
     const ai = actor.ai;
     if (!Number.isFinite(ai.mood)) ai.mood = 0;
@@ -944,7 +958,7 @@ export function createBehaviorModules({
     if (ai.moodClock < MOOD_UPDATE_INTERVAL) return;
     const elapsed = ai.moodClock;
     ai.moodClock = 0;
-    const target = moodFor(actor, { day: dayNow(), hours: hoursNow() });
+    const target = moodFor(actor, { day: dayNow(), hours: hoursNow(), mourning: features.mourning });
     const alpha = 1 - Math.exp(-elapsed / MOOD_TAU);
     ai.mood = clamp(ai.mood + (target - ai.mood) * alpha, -1, 1);
     const bucket = Math.round(ai.mood / MOOD_BUCKET) * MOOD_BUCKET;
@@ -1457,8 +1471,11 @@ export function createBehaviorModules({
       bucket: finite(actor.ai.moodBucket, 0),
       at: finite(actor.ai.moodAt, 0),
       label: moodLabel(finite(actor.ai.mood, 0)).key,
-      target: moodFor(actor, { day: dayNow(), hours: hoursNow() }),
+      target: moodFor(actor, { day: dayNow(), hours: hoursNow(), mourning: features.mourning }),
     } : null,
+    mournDeparture,
+    mourning: (actor) => actor ? (actor.mourning || []).map(record => ({ ...record })) : [],
+    mourningLabel: (actor) => mourningLabel(actor, { day: dayNow(), hours: hoursNow() }),
     coverSlot, coverConflictOutcome, coverHour, coverFlee,
     adapterSleepDone, adapterOnSleep, adapterOnWake, adapterHungerOpportunity,
     noteDoorTransition,

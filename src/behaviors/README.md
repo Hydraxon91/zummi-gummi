@@ -87,8 +87,9 @@ is applied once in `config.resolve()`, cached like every other per-actor layer,
 and invalidated when traits change.
 
 Trait-free actor records stay `actorVersion: 2` for older-build compatibility;
-records with traits use `actorVersion: 3`. Old saves load without traits and
-get the same hashed founder values once personality is enabled.
+records with traits use `actorVersion: 3`; records carrying mourning use
+`actorVersion: 4`. Old saves load without traits and get the same hashed founder
+values once personality is enabled.
 
 ## Mood (off by default)
 
@@ -142,6 +143,30 @@ food/water claims are released before the glow/rise/fade visual starts. Stars
 are transient objects under the sky group, queued until night, positioned and
 tinted only from a uid hash. No new history kind, no save-version change, and no
 RNG are used. `?behaviors=legacy` leaves farewells disabled.
+
+## Mourning (off by default)
+
+`mourning` is a modules-only, **off-by-default** layer triggered only by a
+committed stars farewell. A survivor qualifies when they are immediate family
+(parent/child/sibling) or have a bond of at least `0.18` to the departed actor.
+Closeness sets both the initial sadness and its duration: `0.2` days at the
+floor up to `14` days for an exceptionally close bond. Family without a bond
+still gets a small floor; distant acquaintances are unaffected.
+
+Each record stores the departed uid/name/species, start day/hour, absolute
+`untilDay`, duration and closeness. Records are **per saved actor**, so Game 1
+does not inherit Game 2's grief; a new game starts clean and loading restores
+only that save's records. Expired records are pruned at the first update after
+their deadline. Mood reads a bounded mourning penalty (`<= 0.55`), and grief
+does not change needs, health or departure eligibility.
+
+Successful social contact between a grieving actor and a close family member
+or bonded friend (bond `>= 0.35`) shortens the remaining grief by six game-hours,
+at most once per game day. Comfort does not erase the loss immediately. The
+layer consumes no RNG and is inert in the legacy engine or with the feature off;
+turning Mourning off suppresses the mood penalty and comfort without deleting the
+saved records, so re-enabling it resumes the same grief. `actorVersion: 4` records
+are emitted only when a mourning list is present.
 
 ## Config layers
 

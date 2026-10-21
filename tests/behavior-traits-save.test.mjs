@@ -66,16 +66,16 @@ test('a v2 record carrying traits migrates to v3; a v3 without traits falls back
 
 test('v3 validation requires complete bounded traits', () => {
   const okay = [];
-  validateActorWorld({ bears: [saved({ actorVersion: ACTOR_SAVE_VERSION, traits: { ...TRAITS } })] }, 'world', okay);
+  validateActorWorld({ bears: [saved({ actorVersion: 3, traits: { ...TRAITS } })] }, 'world', okay);
   assert.deepEqual(okay, []);
 
   const missing = [];
-  validateActorWorld({ bears: [saved({ actorVersion: ACTOR_SAVE_VERSION })] }, 'world', missing);
+  validateActorWorld({ bears: [saved({ actorVersion: 3 })] }, 'world', missing);
   assert.match(missing.join('; '), /traits is required/);
 
   const bad = [];
   validateActorWorld({
-    bears: [saved({ actorVersion: ACTOR_SAVE_VERSION, traits: { ...TRAITS, greed: 2 } })],
+    bears: [saved({ actorVersion: 3, traits: { ...TRAITS, greed: 2 } })],
   }, 'world', bad);
   assert.match(bad.join('; '), /traits\.greed is invalid/);
 });

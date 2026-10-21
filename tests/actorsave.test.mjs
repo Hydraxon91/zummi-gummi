@@ -40,8 +40,8 @@ test('legacy actors validate and the current actor version is accepted', () => {
   assert.deepEqual(errors, []);
 
   const traits = { bold: .5, greed: .5, curiosity: .5 };
-  const versioned = bear({ actorVersion: ACTOR_SAVE_VERSION, traits });
-  const versionedGlass = glass({ actorVersion: ACTOR_SAVE_VERSION, traits });
+  const versioned = bear({ actorVersion: 3, traits });
+  const versionedGlass = glass({ actorVersion: 3, traits });
   const versionErrors = [];
   validateActorWorld({ bears: [versioned], glass: [versionedGlass] }, 'world', versionErrors);
   assert.deepEqual(versionErrors, []);

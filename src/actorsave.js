@@ -7,13 +7,14 @@ import { DNA_VERSION } from './dna.js';
 import { getSpecies } from './species.js';
 import { normalizeSkills, normalizeHistory, normalizePlaydates } from './family.js';
 import { normalizeTraits, TRAIT_AXES } from './behaviors/traits.js';
+import { normalizeMourning } from './behaviors/mourning.js';
 
-// 3 is used only for records that carry traits. Trait-free records stay at 2
-// so older builds can still load personality-off saves.
-export const ACTOR_SAVE_VERSION = 3;
+// 2 is trait/grief-free, 3 carries traits, and 4 carries per-save mourning
+// (with traits as well when personality generated them).
+export const ACTOR_SAVE_VERSION = 4;
 
 const STAGES = new Set(['baby', 'teen', 'adult']);
-const SUPPORTED_VERSIONS = new Set([1, 2, 3]);
+const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4]);
 const NUMERIC_FIELDS = [
   'scale', 'health', 'hunger', 'thirst', 'energy', 'age',
   'gestation', 'mateCooldown', 'social', 'affection', 'bold',
@@ -83,6 +84,28 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
     }
   }
 
+  if (a.mourning !== undefined) {
+    if (!Array.isArray(a.mourning)) errors.push(`${where}.mourning is invalid`);
+    else a.mourning.forEach((record, index) => {
+      if (!isObj(record) || !isNum(record.uid) || record.uid <= 0 ||
+          record.cause !== 'stars' || !isNum(record.day) ||
+          !isNum(record.hours) || record.hours < 0 || record.hours > 24 ||
+          !isNum(record.untilDay) || record.untilDay <= record.day ||
+          !isNum(record.duration) || record.duration <= 0 ||
+          !isNum(record.closeness) || record.closeness < 0 || record.closeness > 1 ||
+          record.name !== undefined && typeof record.name !== 'string' ||
+          record.species !== undefined && typeof record.species !== 'string' ||
+          record.lastComfortDay !== undefined && record.lastComfortDay !== null &&
+            !isNum(record.lastComfortDay)) {
+        errors.push(`${where}.mourning[${index}] is invalid`);
+      }
+    });
+    if (a.actorVersion !== 4) errors.push(`${where}.mourning requires actorVersion 4`);
+  }
+  if (a.actorVersion === 4 && !Array.isArray(a.mourning)) {
+    errors.push(`${where}.mourning is required for actorVersion 4`);
+  }
+
   if (a.kind !== undefined && a.kind !== kind &&
       !(kind === 'softbody' && a.kind === 'bear') &&
       !(kind === 'skinned' && a.kind === 'glass')) {
@@ -120,14 +143,19 @@ export function migrateActorRecord(record) {
   const version = Number.isFinite(record.actorVersion) ? record.actorVersion : 1;
   if (version > ACTOR_SAVE_VERSION) return record;
   const hasTraits = isObj(record.traits);
-  return {
+  const mourning = normalizeMourning(record.mourning);
+  const versioned = mourning.length ? 4 : (hasTraits ? 3 : 2);
+  const migrated = {
     ...record,
-    actorVersion: hasTraits ? 3 : 2,
+    actorVersion: versioned,
     ...(hasTraits ? { traits: normalizeTraits(record.traits) } : {}),
     skills: normalizeSkills(record.skills),
     history: normalizeHistory(record.history),
     playdates: normalizePlaydates(record.playdates),
   };
+  if (mourning.length) migrated.mourning = mourning;
+  else delete migrated.mourning;
+  return migrated;
 }
 
 export function migrateActorWorld(world) {

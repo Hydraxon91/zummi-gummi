@@ -10,6 +10,7 @@ import {
   nextPlaydateDay, PLAYDATE_WINDOW,
 } from '../family.js';
 import { pairAvailable, beginPair, endPair } from '../interactions.js';
+import { comfortMourning } from './mourning.js';
 import { defineBehaviorModule } from './module.js';
 
 const COMPANY_STATES = ['wander', 'seekCompany', 'stargaze', 'seekSocial'];
@@ -171,6 +172,11 @@ function beginSocialPair(ctx, partner, familyPlay = false, playmateKind = null) 
   partner.ai.animT = 0;
   ai.target = { x: partner.cx, z: partner.cz };
   partner.ai.target = { x: actor.cx, z: actor.cz };
+  if (api.features.mourning) {
+    const now = { day: api.dayNow(), hours: api.hoursNow() };
+    comfortMourning(actor, partner, now);
+    comfortMourning(partner, actor, now);
+  }
   api.emit(actor, 'heart', .9);
   return true;
 }

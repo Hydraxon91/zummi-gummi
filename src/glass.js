@@ -9,7 +9,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { getSpecies } from './species.js';
 import { defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { assetStore, disposeInstanceSkeletons } from './assetstore.js';
-import { snapshotActor } from './actorrecord.js';
+import { snapshotActor, applyCommonActorState } from './actorrecord.js';
 import { pushHistory } from './family.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 import {
@@ -837,7 +837,7 @@ export function createGlassColony({
     if (!Array.isArray(states)) return 0;
     for (const state of states.slice(0, MAX_ACTORS)) {
       if (!state || state.kind === 'bear' || state.species && state.species !== 'glass') continue;
-      makeActor({
+      const actor = makeActor({
         x: state.x, z: state.z, uid: state.uid, name: state.name,
         sex: state.sex, stage: state.stage, age: state.age, scale: state.scale,
         genome: state.genome,
@@ -849,6 +849,7 @@ export function createGlassColony({
         mateCooldown: state.mateCooldown, fatherUid: state.fatherUid,
         parentUids: state.parentUids,
       });
+      if (actor) applyCommonActorState(actor, state);
     }
     return actors.length;
   }
@@ -874,6 +875,7 @@ export function createGlassColony({
       social: +a.social.toFixed(3),
       affection: +a.affection.toFixed(3),
       bonds: { ...(a.bonds || {}) },
+      mourning: (a.mourning || []).map(record => ({ ...record })),
       home: a.home,
       inside: !!a.inside,
       grabbing: !!a.grabbing,
