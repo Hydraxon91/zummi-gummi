@@ -43,6 +43,8 @@ let departures = null;
 const farewells = new Map();
 let farewellGlowTex = null;
 const FAREWELL_KEY = 'gummy.farewells';
+const ADOPTION_KEY = 'gummy.adoption';
+let adoptionEnabled = false;
 const FAREWELL_FEATURES = {
   farewells: 'farewells',
   starsOldAge: 'starsOldAge',
@@ -615,6 +617,7 @@ function spawn(x, z, y, flavor, opts={}){
   b.birthRetryT=0;
   b.parentUids=Array.isArray(opts.parentUids) ? opts.parentUids.slice() : [];
   b.fatherUid=Number.isFinite(opts.fatherUid) ? opts.fatherUid : 0;
+  delete b.guardianUid;
   b.bedtime=Number.isFinite(opts.bedtime) ? opts.bedtime : 20+Math.random()*2.5;
   b.wakeTime=Number.isFinite(opts.wakeTime) ? opts.wakeTime : 5+Math.random()*2;
   b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
@@ -840,6 +843,10 @@ function applyBearStage(b, nextStage) {
   b.scale = nextScale;
   b.stage = nextStage;
   b.pendingStage = null;
+  if (nextStage !== 'baby') {
+    delete b.guardianUid;
+    if (b.ai) b.ai.adoptionRetryAt = 0;
+  }
   if (nextStage !== 'baby' && b.ai && b.ai.state === 'follow') {
     b.ai.follow = null;
     b.ai.state = 'wander';
@@ -3519,6 +3526,41 @@ limitEl.addEventListener('input', ()=>setCeiling(+limitEl.value, true));
   setCeiling(v, false);
 })();
 
+function readAdoptionSetting(){
+  try { adoptionEnabled = localStorage.getItem(ADOPTION_KEY) === '1'; } catch (err) {}
+}
+
+function applyAdoptionSetting(){
+  if (!behavior || BEHAVIOR_ENGINE !== 'modules') return false;
+  behavior.setFeature('adoption', !!adoptionEnabled);
+  return true;
+}
+
+function syncAdoptionSettingsUI(){
+  const legacy = BEHAVIOR_ENGINE !== 'modules';
+  const box = document.getElementById('settingsAdoption');
+  if (box) {
+    box.checked = !!adoptionEnabled;
+    box.disabled = legacy;
+  }
+  const value = document.getElementById('settingsAdoptionVal');
+  if (value) value.textContent = adoptionEnabled ? 'On' : 'Off';
+  const note = document.getElementById('settingsAdoptionNote');
+  if (note) {
+    note.textContent = legacy
+      ? 'Guardians need the modules engine; they are disabled with ?behaviors=legacy.'
+      : 'Off by default. A parentless baby gets an automatic same-species guardian.';
+  }
+}
+
+function setAdoptionSetting(value){
+  adoptionEnabled = !!value;
+  try { localStorage.setItem(ADOPTION_KEY, adoptionEnabled ? '1' : '0'); } catch (err) {}
+  applyAdoptionSetting();
+  syncAdoptionSettingsUI();
+  return adoptionEnabled;
+}
+
 function readFarewellSettings(){
   try {
     const saved = JSON.parse(localStorage.getItem(FAREWELL_KEY) || 'null');
@@ -3584,6 +3626,11 @@ for (const key of Object.keys(FAREWELL_FEATURES)) {
   });
 }
 syncFarewellSettingsUI();
+readAdoptionSetting();
+document.getElementById('settingsAdoption')?.addEventListener('change', event => {
+  setAdoptionSetting(event.target.checked);
+});
+syncAdoptionSettingsUI();
 
 /* ------------------------------ Aero / MSN -------------------------------- */
 const skyClockEl = document.getElementById('skyClock');
@@ -5865,6 +5912,26 @@ function savedSkyState() {
   return sky ? { hours: sky.hours, day: sky.day, auto: sky.auto, speed: sky.speed, look } : null;
 }
 
+// Parent lookup across the current game, not across save slots. The active map
+// uses its live actors; the other map uses the snapshot taken when it was left.
+function gameActorUids(){
+  const uids = new Set();
+  for (const actor of actorView.all()) {
+    if (actor && Number.isFinite(actor.uid)) uids.add(actor.uid);
+  }
+  for (const id of ['field', 'studio']) {
+    if (id === activeWorld.mapId) continue;
+    const world = worlds[id];
+    for (const actor of world.bears || []) {
+      if (actor && Number.isFinite(actor.uid)) uids.add(actor.uid);
+    }
+    for (const actor of world.glass || []) {
+      if (actor && Number.isFinite(actor.uid)) uids.add(actor.uid);
+    }
+  }
+  return uids;
+}
+
 function worldSaveState(id) {
   const w = worlds[id];
   const l = w.launcher;
@@ -6293,6 +6360,7 @@ async function bootGame(){
     getHours: () => (sky ? sky.hours : 12),
     getDay: () => (sky ? sky.day : 0),
     getPopulationCap: () => bearCeiling,
+    getKnownActorUids: gameActorUids,
     daySeconds: DAY_SECONDS,
     onFarewell: (actor, info) => startFarewell(actor, info),
     // Read Math.random at call time so __gummy.seed() also drives the engine.
@@ -6307,6 +6375,8 @@ async function bootGame(){
   });
   applyFarewellSettings();
   syncFarewellSettingsUI();
+  applyAdoptionSetting();
+  syncAdoptionSettingsUI();
   ai = createBearAI({
     field,
     getBears: () => bears,
@@ -7032,6 +7102,24 @@ window.__gummy = {
     const b = bears[i];
     return b && behavior && behavior.api && typeof behavior.api.mourningLabel === 'function'
       ? behavior.api.mourningLabel(b) : null;
+  },
+  adoption(i){
+    const b = bears[i];
+    return b && behavior && behavior.api && typeof behavior.api.adoption === 'function'
+      ? behavior.api.adoption(b) : null;
+  },
+  guardian(i){
+    const info = this.adoption(i);
+    return info ? info.guardianUid : null;
+  },
+  glassAdoption(i){
+    const a = glassColony && glassColony.actors[i];
+    return a && behavior && behavior.api && typeof behavior.api.adoption === 'function'
+      ? behavior.api.adoption(a) : null;
+  },
+  glassGuardian(i){
+    const info = this.glassAdoption(i);
+    return info ? info.guardianUid : null;
   },
   skyFarewells(){
     return sky && typeof sky.farewellStats === 'function' ? sky.farewellStats() : null;

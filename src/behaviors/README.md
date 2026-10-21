@@ -171,6 +171,30 @@ turning Mourning off suppresses the mood penalty and comfort without deleting th
 saved records, so re-enabling it resumes the same grief. `actorVersion: 4` records
 are emitted only when a mourning list is present.
 
+## Adoption (off by default)
+
+`adoption` is a modules-only, **off-by-default** layer for baby-stage actors with
+no surviving parent. A baby is an orphan when no parent is active on its map and
+no parent UID appears in the current game's roster for the other map. The active
+map uses live actors; an inactive map uses the snapshot taken when it was left.
+If the roster cannot be read while the baby has parent UIDs, assignment is
+deferred instead of treating the baby as an orphan.
+
+An automatic guardian is a same-species adult. Preference is immediate family or
+grandparent, then a same-household adult, then an adult with a bond of at least
+`0.35`; ties use the stronger bond and then the lowest UID. Candidates already
+holding more than two other baby dependents are skipped. A guardian is assigned
+on the baby's next think, only while it is free of a pair or family task; with no
+candidate the baby keeps its normal behavior and retries after one game-hour.
+
+`guardianUid` is separate from `parentUids`; ancestry and home are never
+rewritten. It clears when a parent is active again, when the guardian departs or
+is no longer a valid adult, and on stage-up. `follow.seek` stays at order 90 but
+targets the guardian when no parent is active. Adoption consumes no RNG.
+`actorVersion: 5` is written only for a baby carrying `guardianUid`; turning the
+feature off suppresses assignment and guardian following without deleting the
+saved field.
+
 ## Config layers
 
 Later layers win:

@@ -47,6 +47,21 @@ function thinkFollow(ctx) {
     api.stop(actor);
     return;
   }
+  // Adoption can swap the target while the child is already following: a
+  // returning parent replaces the guardian, and a new guardian replaces a
+  // departed one. The off path never enters this branch.
+  if (ctx.api.adoptionActive && ctx.api.adoptionActive()) {
+    const nextTarget = ctx.api.followTargetFor(actor);
+    if (nextTarget && nextTarget !== parent) {
+      ai.follow = null;
+      ai.state = 'wander';
+      ai.idleT = .5;
+      ai.nextThink = 0;
+      ai.followRetryT = 0;
+      api.stop(actor);
+      return;
+    }
+  }
   if (parent.inside || parent.sleeping) {
     ai.follow = null;
     ai.state = 'wander';
@@ -88,14 +103,16 @@ export const followModule = defineBehaviorModule({
     canRun: (ctx) => {
       const { actor, p } = ctx;
       if (!actor || actor.stage !== 'baby') return false;
-      const parent = ctx.api.parentFor(actor);
+      const parent = ctx.api.followTargetFor ? ctx.api.followTargetFor(actor)
+        : ctx.api.parentFor(actor);
       if (!parent || parent.inPond || parent.grabs > 0) return false;
       const far = Math.hypot(parent.cx - actor.cx, parent.cz - actor.cz) > p.mate.followDist;
       if (far) ctx.api.coverSlot('follow');
       return far;
     },
     enter: (ctx) => {
-      const parent = ctx.api.parentFor(ctx.actor);
+      const parent = ctx.api.followTargetFor ? ctx.api.followTargetFor(ctx.actor)
+        : ctx.api.parentFor(ctx.actor);
       return parent ? startFollow(ctx, parent) : false;
     },
   }],

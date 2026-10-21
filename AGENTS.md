@@ -179,7 +179,8 @@ existing stack and structure.
   decisions: `engine.js` is the default tick/needs/opportunity host, `index.js` selects
   `modules` or the legacy oracle (`?behaviors=legacy`), and each behavior is a module
   (`rest`, `forage`, `water`, `wander`, `social`, `mate`, `conflict`, `hive`, `flee`,
-  `follow`, `stargaze`, `family`, `directives`). `behavior.js` is the untouched legacy
+  `follow`, `stargaze`, `family`, `directives`, `adoption`). `adoption.js` owns automatic
+  guardians and the `guardianUid` save field. `behavior.js` is the untouched legacy
   reference implementation, `behaviorprofiles.js` owns per-species balance/schedule data,
   `family.js` owns relations,
   households, lineage, skills, history and schedules, and `interactions.js` owns the shared

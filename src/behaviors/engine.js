@@ -34,6 +34,9 @@ import { planReason } from './reason.js';
 import { ensureTraits } from './traits.js';
 import { moodFor, moodLabel, MOOD_BUCKET, MOOD_TAU, MOOD_UPDATE_INTERVAL } from './mood.js';
 import { addMourning, pruneMourning, mourningLabel } from './mourning.js';
+import {
+  ADOPTION_DEFAULTS, adoptionStatus, guardianCandidate,
+} from './adoption.js';
 import { createStars } from './stars.js';
 
 const STUCK_DIST2 = .04;
@@ -53,6 +56,7 @@ export function createBehaviorModules({
   getDay,
   getPopulationCap,
   getAdapter,
+  getKnownActorUids = null,
   rng = Math.random,
   daySeconds = 600,
   onFarewell = null,
@@ -247,6 +251,7 @@ export function createBehaviorModules({
   const populationCap = () => Math.max(1, Number(typeof getPopulationCap === 'function'
     ? getPopulationCap() : getPopulationCap) || 40);
   const stats = { ticks: 0, ms: 0 };
+  let adoptionAssignments = 0;
   const coverage = {
     states: new Map(), entries: new Map(), opportunities: new Map(),
     taskPhases: new Map(), tasks: new Map(), taskEntries: new Map(),
@@ -365,6 +370,7 @@ export function createBehaviorModules({
       visitRetryT: 0,
       follow: null,
       followRetryT: 0,
+      adoptionRetryAt: 0,
       mateT: 0,
       shove: null,
       lastX: actor.cx,
@@ -435,6 +441,113 @@ export function createBehaviorModules({
       if (parent) return parent;
     }
     return null;
+  }
+
+  function gameActorUids() {
+    if (typeof getKnownActorUids !== 'function') return null;
+    return getKnownActorUids();
+  }
+
+  function followTargetFor(actor) {
+    if (!actor) return null;
+    const parent = parentFor(actor);
+    if (parent || !features.adoption) return parent;
+    if (!Number.isFinite(actor.guardianUid)) return null;
+    return actors().find(other => other && other.active && other.uid === actor.guardianUid &&
+      other.stage === 'adult' && other.species === actor.species) || null;
+  }
+
+  function dropGuardian(actor, guardianUid) {
+    delete actor.guardianUid;
+    const ai = actor.ai;
+    actor.ai.followRetryT = 0;
+    if (ai.follow && ai.follow.uid === guardianUid) {
+      ai.follow = null;
+      if (ai.state === 'follow') {
+        ai.state = 'wander';
+        ai.idleT = .5;
+        ai.nextThink = 0;
+        ai.moving = false;
+        ai.path = null;
+        ai.target = null;
+        stop(actor);
+      }
+    }
+  }
+
+  // Runs on the child's next think. Guardians are assigned only while the child
+  // is free of a pair/task; an existing guardian is cleared when a parent is
+  // active again or the guardian is no longer a valid same-species adult.
+  function reconcileAdoption(actor) {
+    if (!features.adoption || !actor || !actor.ai) return false;
+    let changed = false;
+    if (actor.stage !== 'baby') {
+      if (actor.guardianUid !== undefined) {
+        delete actor.guardianUid;
+        changed = true;
+      }
+      actor.ai.adoptionRetryAt = 0;
+      return changed;
+    }
+
+    const list = actors();
+    // An active parent settles the question without scanning other maps.
+    const knownUids = parentFor(actor) ? null : gameActorUids();
+    const status = adoptionStatus(actor, list, { knownUids });
+    if (actor.guardianUid !== undefined) {
+      const guardian = list.find(other => other && other.active &&
+        other.uid === actor.guardianUid && other.stage === 'adult' &&
+        other.species === actor.species);
+      if (status.activeParent || !guardian) {
+        dropGuardian(actor, actor.guardianUid);
+        changed = true;
+      }
+    }
+    if (actor.guardianUid !== undefined) return changed;
+    if (status.activeParent || status.parentElsewhere || status.rosterUnknown) {
+      actor.ai.adoptionRetryAt = 0;
+      return changed;
+    }
+
+    const now = dayNow() * 24 + hoursNow();
+    if (Number.isFinite(actor.ai.adoptionRetryAt) && actor.ai.adoptionRetryAt > now) {
+      return changed;
+    }
+    if (actor.ai.partner || actor.ai.familyTask) return changed;
+
+    const guardian = guardianCandidate(actor, list, { knownUids });
+    if (guardian) {
+      actor.guardianUid = guardian.uid;
+      actor.ai.adoptionRetryAt = 0;
+      actor.ai.followRetryT = 0;
+      adoptionAssignments++;
+      changed = true;
+    } else {
+      actor.ai.adoptionRetryAt = now + ADOPTION_DEFAULTS.retryHours;
+    }
+    return changed;
+  }
+
+  function adoptionInfo(actor) {
+    if (!actor) return null;
+    const list = actors();
+    const status = adoptionStatus(actor, list, { knownUids: gameActorUids() });
+    const target = followTargetFor(actor);
+    const guardian = Number.isFinite(actor.guardianUid)
+      ? list.find(other => other && other.active && other.uid === actor.guardianUid) : null;
+    return {
+      enabled: !!features.adoption,
+      stage: actor.stage || null,
+      guardianUid: Number.isFinite(actor.guardianUid) ? actor.guardianUid : null,
+      guardian: guardian ? guardian.uid : null,
+      parent: status.activeParent ? status.activeParent.uid : null,
+      parentElsewhere: !!status.parentElsewhere,
+      rosterUnknown: !!status.rosterUnknown,
+      orphan: !!status.orphan,
+      retryAt: actor.ai && Number.isFinite(actor.ai.adoptionRetryAt) && actor.ai.adoptionRetryAt > 0
+        ? actor.ai.adoptionRetryAt : null,
+      target: target ? target.uid : null,
+    };
   }
 
   function assignHome(actor) {
@@ -916,6 +1029,7 @@ export function createBehaviorModules({
 
   function think(actor) {
     if (!actor || !actor.ai) return;
+    if (features.adoption) reconcileAdoption(actor);
     const state = actor.ai.state;
     if (state === 'familyTask') {
       const adapter = adapterOf(actor);
@@ -1193,7 +1307,10 @@ export function createBehaviorModules({
       if (typeof filter === 'function' && !filter(actor)) continue;
       list.push({ index: list.length, uid: actor.uid, name: actor.name, species: actor.species, ...plan(actor) });
     }
-    return { enabled, ticks: stats.ticks, ms: +stats.ms.toFixed(3), actors: list };
+    return {
+      enabled, ticks: stats.ticks, ms: +stats.ms.toFixed(3),
+      adoptions: adoptionAssignments, actors: list,
+    };
   }
 
   function resumeTask(actor) {
@@ -1442,7 +1559,9 @@ export function createBehaviorModules({
   const api = {
     field, profile, actors, hoursNow, dayNow, rng,
     pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
-    homeFor, assignHome, parentFor, safeFoodCount, needsReplan, populationCap,
+    homeFor, assignHome, parentFor, followTargetFor, adoption: adoptionInfo,
+    reconcileAdoption, adoptionActive: () => !!features.adoption,
+    safeFoodCount, needsReplan, populationCap,
     startEat,
     acquireFood, acquireWater, acquireHive, acquireContest,
     acquireFamilyPlaymate: (actor) => familyTaskModule.acquireFamilyPlaymate(contextFor(actor)),
@@ -1492,6 +1611,8 @@ export function createBehaviorModules({
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
     invalidateActor: (actor) => config.invalidateActor(actor),
     stars,
+    adoption: adoptionInfo,
+    followTargetFor,
     commitFarewell,
     cancelFarewells,
     get enabled() { return enabled; },

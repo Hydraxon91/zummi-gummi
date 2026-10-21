@@ -1358,7 +1358,8 @@ legacy and 0/20 modules Glass results came **after** those assertion changes, an
 single legacy collision failure at 0.207 versus the required 0.25 remains
 unexplained. The household safeguard also only checks for any other adult in the
 baby's home; it does not require a parent or the same species. That gap is noted
-here and is not changed. Orphan adoption remains a later module.
+here and is not changed. Orphan adoption is implemented as an off-by-default
+layer below.
 
 **Mourning (Oct 2026, off by default):** stars-only grief for immediate family or
 survivors with bond >= 0.18, scaling from a few game-hours to 14 days by closeness.
@@ -1377,8 +1378,24 @@ save/load and fresh-game isolation; `tests/mourning-determinism.test.mjs` proves
 same-seed trace identity with mourning enabled and zero RNG draws for the
 departure and tick-time pruning paths; `--validate` also cross-checks the direct
 comparator against JSON every tick. `scripts/mourning-profile.mjs` records the
-contended CPU profile in `PERFORMANCE.md`. Orphan adoption, gifting and rivalry
-remain later modules.
+contended CPU profile in `PERFORMANCE.md`. Gifting and rivalry remain later modules.
+
+**Orphan adoption (Oct 2026, off by default):** modules-only automatic guardians
+for baby-stage actors with no active parent and no parent UID in the current
+game's roster for the other map. Same-species adult candidates prefer immediate
+family/grandparent, then same household, then a bond >= 0.35, with deterministic
+bond/UID ties; adults already holding more than two other babies are skipped.
+Assignment happens on the next think outside a pair or family task, with a
+one-game-hour retry when nobody qualifies. `guardianUid` is separate from
+`parentUids` and home, clears on parent return, guardian departure or stage-up,
+and emits `actorVersion: 5` only when present. `follow.seek` stays at order 90 and
+targets the guardian when no parent is active; the off path adds no guardian
+fields and no RNG. Verified by Node save/behavior tests, `scripts/adoption-test.mjs`
+(guardian assignment, save/load, parent return, other-map parent, guardian
+removal, fresh game and off), the smoke test and a fresh long parity matrix.
+Known follow-up (deferred): Glass restore reuses saved uids without advancing
+`nextBearUid`, so a later birth after load could collide with a Glass uid;
+adoption currently assumes global uid uniqueness.
 
 **Mood (Oct 2026, off by default):** derived needs/bonds/history mood, 4 Hz target,
 8 s smoothing, 0.05 buckets, bounded offsets stacked after traits, runtime-only

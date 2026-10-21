@@ -1190,6 +1190,11 @@ try { if (localStorage.getItem('gummy.uiHidden') === '1') document.body.classLis
           <label class="settingsRow"><span>Automatic time</span><input id="settingsTimeAuto" type="checkbox" checked></label>
         </section>
         <section class="settingsSection">
+          <h3>Family</h3>
+          <label class="settingsRow"><span>Guardians</span><input id="settingsAdoption" type="checkbox" aria-label="Adopt parentless babies"><b id="settingsAdoptionVal">Off</b></label>
+          <p class="settingsNote" id="settingsAdoptionNote">Off by default. A parentless baby gets an automatic same-species guardian.</p>
+        </section>
+        <section class="settingsSection">
           <h3>Farewells</h3>
           <label class="settingsRow"><span>Stars</span><input id="settingsFarewells" type="checkbox" aria-label="Enable farewells"><b id="settingsFarewellsVal">Off</b></label>
           <label class="settingsRow"><span>Old age</span><input id="settingsStarsOldAge" type="checkbox" aria-label="Old-age farewells"><b id="settingsStarsOldAgeVal">Off</b></label>

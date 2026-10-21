@@ -35,6 +35,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
   starsStarvation: false,      // starvation fading
   starsStings: false,          // sting acceleration while already fading
   mourning: false,             // per-save grief after stars departures
+  adoption: false,             // automatic guardians for parentless babies
 });
 
 const MODULE_DEFAULTS = Object.freeze({
