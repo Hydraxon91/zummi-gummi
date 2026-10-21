@@ -35,6 +35,7 @@ pipeline.
 - Phase 4 crate zone trial: `tools/asset-pipeline/tests/phase4/`
 - Phase 5 material pilot: `tools/asset-pipeline/tests/phase5/`
 - Phase 6 crate delivery trial: `tools/asset-pipeline/tests/phase6/`
+- Phase 7A/7B validation, procedural 7C pebble, 7D desk-lamp and 7E office-corner benchmarks: `tools/asset-pipeline/tests/phase7/`
 - Blender fixtures: `BLENDER=/path/to/blender tools/asset-pipeline/tests/blender/run.sh`
 
 This tooling is read-only and does not export, repair, generate textures, modify the game

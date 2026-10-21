@@ -84,6 +84,18 @@ high-resolution sources and choose delivery resolution per material from the clo
 intended views. It is crate-only; overlapping UVs are intentional, no new bake was
 performed, and game integration is not authorized.
 
+Phase 7A tool-validation fixtures and the Phase 7B equipment-case benchmark live under
+`tools/asset-pipeline/tests/phase7/`. 7A covers linear/sRGB downsampling, orientation,
+normal renormalisation, channel negative controls, planar density and material-specific
+UV exports. 7B is a 108-island hard-surface case with clean topology and 5.57 px minimum
+padding at 512; density remains review. 7C passes with a procedural 3D source baked to a
+six-island atlas: source-to-baked channels and 802 seam-pair samples pass, and visual
+review found no island cuts. Density remains review. Passing these does not establish
+arbitrary-asset support. 7D adds a 24-part desk-lamp assembly accepted with density
+review. 7E adds a mixed opaque/glass office corner: wallpaper/parquet, transmission
+window, rug, open book, chair and ceiling fan/light; it is accepted with a 16.1 MB
+/ 58-call mixed delivery and 512/1024 variants retained.
+
 For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
 [references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are
 external and do not authorize game integration, material transfer or a bake.

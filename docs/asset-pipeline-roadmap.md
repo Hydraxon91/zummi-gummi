@@ -3,9 +3,13 @@
 Status: **Phase 3 implemented and verified**, with resource/density checks still advisory;
 **Phase 4 crate material-zone trial implemented**; **Phase 5 pilot accepted** (8 candidates,
 with corrected ceramic seed `20261021` rejected); **Phase 6 crate-only mapping trial
-implemented and v4 512 px silver selected, with density still in review**; house/game
-integration remains gated.
-Date: 2026-10-20
+implemented and v4 512 px silver selected, with density still in review**; **Phase 7A
+tool validation passed; 7B many-island case passed with density review; 7C
+procedural-source bake passed channel, seam-pair and visual checks with density
+review; 7D desk-lamp assembly accepted with density review; 7E office corner accepted,
+with 16.1 MB/58-call mixed delivery selected and 512/1024 variants retained**;
+house/game integration remains gated.
+Date: 2026-10-21
 Owner: Hydraxon
 
 This is a separate roadmap for the Blender → AI-assisted materials → glTF delivery
@@ -786,6 +790,97 @@ Automatic routing until benchmarks justify rules.
 
 Approve benchmark sources and acceptance results.
 
+### Implementation (2026-10-20, 7A–7C)
+
+- Added a generated fixture set: sRGB checker, asymmetric orientation quadrants,
+  tilted normal, gradient/flipped normal, and a planar UV-density pair.
+- Verified the downsample path: checker linear mean `0.501961` with zero spread,
+  orientation corners preserved, normal mean length `0.9978`, positive Z.
+- Added source-hash validation to `verify_export_channels.py`. Negative controls for
+  wrong base colour, metallic, normal and hash all fail for the expected reason.
+- Added a 2×2-subdivided 1 m plane fixture with analytical camera density. The audit
+  reports `512`/`256 px/m` for the two UV spans and `888.889 px/m` projected density;
+  eight samples per zone.
+- Verified material-specific UV exports: V4 uses `TEXCOORD_0` at 512/1024; V6 silver
+  uses `TEXCOORD_1` at 512 and teal `TEXCOORD_0` at 1024.
+- Extended `make_visual_review.mjs` with `--views`/`--lights` filtering so a review
+  records only the captures inspected. 7A evidence is under
+  `.dev-shots/asset-pipeline/phase7/7a-summary.json`.
+- 7B built a project-authored beveled equipment case with two recessed panel assemblies,
+  a U-handle and four rubber feet. It has 3 objects, 3 materials, 108 UV islands and
+  1,580 triangles. Topology has zero boundary edges, loose vertices, degenerate faces
+  or winding conflicts; UVs have zero overlaps, out-of-bounds corners or degenerate
+  triangles. Minimum inter-island padding at 512 is `8.44` px (case), `5.57` px
+  (handle) and `8.16` px (feet); minimum border margin is `0.00544`.
+- The 7B GLB is `4,215,116` bytes with a `15,728,640` byte decoded texture estimate,
+  6 embedded images and 5 draw calls. Validator reports 0 errors/0 warnings and 4
+  unused-tangent/UV infos on the untextured dark primitives. Clean import, preview and
+  visual review pass. The 2 m density review still reports under/over and anisotropy
+  warnings from mixed 1024/512 maps and Smart UV variation, so density remains review.
+- 7B uses tileable materials, not a baked non-overlapping atlas.
+- 7C selected `pebble-procedural-004` as `pass_with_density_review`. It is a pole-free
+  quad sphere with an asymmetric dimple, frozen low triangulation and a 3D analytic source
+  (`pebble_fields.py`) evaluated through shader groups. The final atlas has one UV set and
+  six islands; the source pattern is no longer UV-space, so island boundaries do not cut
+  it.
+- 7C bake: 1024², Cycles 32 samples, 6 px margin; albedo/roughness/metallic emission
+  passes and selected-to-active tangent normals at strength `1.0`. Source-to-baked albedo
+  mean `0.00222`/p95 `0.00412`, roughness `0.000807`/`0.00179`, metallic
+  `0.00134`/`0.00267`. The 802 seam-pair samples (401 edges) pass; baked-to-export MAE is
+  `0.0`; normal RG std `0.01464`, positive Z.
+- 7C export: `1,196,468` bytes, 6,551 vertices, 12,288 triangles, 3 images, single-sided,
+  normal scale `1.0`; validator 0 errors/warnings; clean import and preview pass.
+  Approximate UV padding is `12.65 px` at 1024 (`6.32 px` at 512), border `6.31 px`, bake
+  margin `6 px` (below half the island gap). Visual review inspected 18 day/night views,
+  eight close-ups, neutral
+  shading and matched source/baked renders; no island cuts or pole wedges.
+- 7C density remains review: 1024 p05/p95 `0.399`/`2.193`, 2048 `0.798`/`4.386`. This is
+  not a density pass.
+- The earlier UV-space 7C candidates remain failed diagnostics in
+  `.dev-shots/asset-pipeline/phase7/benchmark/7c-failure.json`; the accepted procedural
+  summary is `.dev-shots/asset-pipeline/phase7/benchmark/pebble-procedural-004/7c-summary.json`.
+- 7D selected `desk-lamp-005` as `accepted_with_density_review`. The lamp has 24 separate
+  parts, one hierarchy and four materials: teal maps on the base/shade, silver maps on the
+  structure/fasteners, constant rubber pads and one analytic procedural reflector baked to
+  a six-island atlas.
+- The first 7D bracket merged the rectangular head arm into the teal shade. The accepted
+  revision pulls it back and adds a silver shade neck and round mount plate, giving a
+  visible mechanical metal-to-teal boundary. Assembly checks pass for all expected
+  interfaces, all 24 parts are connected, the reflector has `6.15 mm` clearance and zero
+  shade intersections, and material/source-export checks have zero mismatches.
+- 7D reflector bake: 1024², Cycles 32 samples, 4 px margin; source-to-baked albedo mean
+  `0.00174`/p95 `0.00237`, roughness `0.00251`/`0.00669`, metallic
+  `0.00164`/`0.00285`; 264 seam-pair samples and baked-to-export MAE `0.0` pass. UV
+  padding is `8.49 px` at 1024 (`4.25 px` at 512), border `4.25 px`.
+- 7D export: `5,415,096` bytes, 18,570 vertices, 10,648 triangles, 4 materials, 8 images;
+  validator 0 errors/warnings plus 9 unused-tangent/UV infos; clean import passes. Final
+  verification did not rerun the 18-view preview; the user accepted the 005 interface and
+  overall renders.
+- 7D density remains review (18 warnings; shade 1024 p95 `3.411`, base `4.225`). Known
+  finding: two small dark triangular marks remain on the shade in Blender Eevee close-ups;
+  their cause was not resolved and they were accepted with the lamp. Evidence:
+  `.dev-shots/asset-pipeline/phase7/benchmark/desk-lamp-005/7d-summary.json`.
+- 7E selected `office-corner-006` as `accepted`. The cutaway room has floral
+  Hungarian-style wallpaper inside and plaster outside, a herringbone parquet floor,
+  a desk against the rear wall, a red-cushioned oak chair, a 29-book oak bookcase, a
+  grey oval rug, an open book and a four-blade ceiling fan/light. The accepted lamp
+  transform is `(0.49528, 1.197138, 0.77)` at `110°`; 12 W and 35 W point lights are
+  parented to the lamp and fan in the source and are not exported.
+- 7E original export: `32,060,220` bytes, 202 mesh objects/207 primitives, 33,522
+  vertices, 18,916 triangles, 21 materials, 27 images. Uses
+  `KHR_materials_transmission`, `KHR_materials_ior` and
+  `KHR_materials_emissive_strength`. The selected optimized delivery merges static
+  meshes by material and keeps wallpaper/parquet at 1024 with other maps at 512:
+  `16,062,484` bytes, 24 meshes/29 primitives, 39,433 vertices, 21 materials,
+  27 images, 58 preview draw calls, 0 errors/warnings and 31 unused-tangent/UV
+  infos. A 512-everywhere variant is `10,518,536` bytes with the same 58 calls; its
+  wallpaper is visibly softer. Clean import and standalone preview pass. Eight
+  Blender views, day/night preview captures and glass-from-outside were inspected.
+  Texel density remains unaudited. Evidence:
+  `.dev-shots/asset-pipeline/phase7/benchmark/office-corner-006/7e-summary.json`.
+- 7E is accepted: mixed is the default delivery, 512 the lightweight variant and 1024
+  the full-resolution baseline. House and game integration remain gated.
+
 ---
 
 ## Phase 8 — Optional expansion
@@ -929,6 +1024,10 @@ authorize game integration, dependency changes, commits or pushes.
 - **Phase 6** selected v4 512 px silver for the crate; channels are verified and density
   remains a reviewed limitation. House application and game integration remain separate
   decisions.
+- **Phase 7A**, **7B**, **7C**, **7D** and **7E** pass their implemented checks;
+  7B–7D retain density-review limitations. 7E is accepted with a 16.1 MB/58-call
+  mixed delivery; the 512 and 1024 variants are retained, and texel density is not
+  audited.
 - No house modeling or game integration at this stage.
 - No commit or push without explicit approval.
 - Validator provisioning is approved; loader/runtime changes remain separate.
@@ -945,7 +1044,13 @@ trial is under `tools/asset-pipeline/tests/phase4/`; the Phase 5 pilot is accept
 pass with MAE 0.0 and density remains a reviewed limitation. V5 (256) is softer; V6
 (512 + independent trim UV 0.8) is retained as a density experiment. Review
 `selection.json`, `candidate-comparison.json`, close-ups, density audits and verification
-evidence. House application and game integration remain separately gated.
+evidence. Phase 7A/7B/7C evidence is under `tools/asset-pipeline/tests/phase7/`; the
+accepted 7C procedural result and limitations are in
+`.dev-shots/asset-pipeline/phase7/benchmark/pebble-procedural-004/7c-summary.json`.
+7D is accepted as `desk-lamp-005` with density review. 7E is accepted as
+`office-corner-006`: mixed 1024/512 is the default delivery at 16.1 MB and 58
+preview draw calls, with 512 and 1024 variants retained. Texel density remains
+unaudited. House application and game integration remain separately gated.
 
 Density thresholds remain advisory; no compression variant, loader change or house
 modeling has started.

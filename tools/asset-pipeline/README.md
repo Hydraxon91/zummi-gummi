@@ -2,8 +2,8 @@
 
 Phase 1a, Phase 1b and Phase 2 of
 [`docs/asset-pipeline-roadmap.md`](../../docs/asset-pipeline-roadmap.md), with Phase 3
-bake fixtures, a Phase 4 crate material-zone trial, a Phase 5 material-generation pilot
-and a Phase 6 crate GLB-delivery trial under `tests/`.
+bake fixtures, a Phase 4 crate material-zone trial, a Phase 5 material-generation pilot,
+a Phase 6 crate GLB-delivery trial and Phase 7A tool-validation fixtures under `tests/`.
 
 This directory contains the **read-only asset audit**, delivery profiles, provenance
 schema, advisory texel-density policy and unified export verification. It does not
@@ -355,4 +355,14 @@ directory is relocated; the extractor path is derived from the repository root.
   close/far seams pass; density is still review.
 - Future assets should preserve high-resolution sources and choose delivery resolution
   per material from the closest intended views, not one global resolution.
+- Phase 7A validates downsampling/orientation, source-hash and channel negatives, planar
+  density and material-specific UV exports. Phase 7B adds a 108-island equipment case with
+  clean topology, 5.57 px minimum padding at 512, validator/clean-import/preview passes and
+  a density-review limitation. Phase 7C passes with a procedural 3D source baked to a
+  six-island atlas: source-to-baked channels and 802 seam-pair samples pass, visual
+  review found no island cuts, and density remains review. It does not establish
+  arbitrary-asset support. Phase 7D adds a 24-part desk lamp accepted with density
+  review. Phase 7E renders a mixed opaque/glass office corner with wallpaper,
+  herringbone parquet, transmission glazing and an emissive fan/light; it is accepted
+  with a 16.1 MB/58-call mixed delivery and 512/1024 variants retained.
 - No compression variant, house modeling or game integration.

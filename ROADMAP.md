@@ -883,6 +883,49 @@ interpretation; the helper does not certify them. Affects
   pass. Future assets should preserve high-resolution sources, choose delivery resolution
   per material from the closest gameplay views, prefer the simplest UV/material setup,
   and validate all channels, seams, tiling and mips after downsampling.
+- **Phase 7C procedural curved bake (2026-10-20, density review):** selected
+  `pebble-procedural-004`, a pole-free quad sphere with an asymmetric dimple and an
+  analytic 3D source (`pebble_fields.py`) baked to a six-island atlas. Source-to-baked
+  albedo mean `0.00222`/p95 `0.00412`, roughness `0.000807`/`0.00179`, metallic
+  `0.00134`/`0.00267`; 802 seam-pair samples and baked-to-export MAE `0.0` pass.
+  The GLB is `1,196,468` bytes, 12,288 triangles, 3 images, single-sided, validator
+  0 errors/warnings. Density remains review (1024 p05/p95 `0.399`/`2.193`), so this is
+  not a density pass. The earlier UV-space candidates remain failed diagnostics in
+  `.dev-shots/asset-pipeline/phase7/benchmark/7c-failure.json`; accepted evidence is in
+  `.dev-shots/asset-pipeline/phase7/benchmark/pebble-procedural-004/7c-summary.json`.
+- **Known follow-ups — Phase 7E blockout (fixed):** the office sill's rear face
+  coincided with the back wall exterior at Y `1.68 m`, producing a black strip in
+  the exterior Cycles capture. Moving the sill inward by `30 mm` removes that
+  coplanarity; inspected interior/exterior `_003` captures confirm the strip is
+  gone. Later candidates also moved wallpaper to interior faces only and plastered
+  the exterior. Final 7E evidence is in `office-corner-006`.
+- **Phase 7D multi-part desk lamp (2026-10-20, accepted with density review):**
+  selected `desk-lamp-005`: 24 separate parts, four materials, 10,648 triangles,
+  5,415,096 bytes, validator 0 errors/warnings plus 9 unused-tangent/UV infos. The
+  bracket was pulled back and a silver neck plus round shade-mount plate replaced the
+  unnatural teal/metal merge; all expected interfaces overlap, all parts are connected,
+  and the reflector clears the shade by `6.15 mm` with zero intersections. Reflector
+  bake source-to-baked albedo `0.00174`/`0.00237`, roughness `0.00251`/`0.00669`,
+  metallic `0.00164`/`0.00285`; 264 seam samples pass. Density remains review (18
+  warnings; shade p95 `3.411` at 1024). Two small dark shade marks remain in Blender
+  Eevee close-ups; cause unresolved and accepted with the lamp. Evidence:
+  `.dev-shots/asset-pipeline/phase7/benchmark/desk-lamp-005/7d-summary.json`.
+- **Phase 7E mixed opaque/glass office corner (2026-10-21, accepted):** selected
+  `office-corner-006`: a 3.6 x 3.0 m cutaway with floral Hungarian-style wallpaper
+  (plaster outside), herringbone parquet, desk against the wall, oak chair with red
+  cushion, 29-book oak bookcase, grey oval rug, open book, transmission window and
+  four-blade ceiling fan/light. Lamp placement is saved at
+  `(0.49528, 1.197138, 0.77)` / `110°`; 12 W and 35 W point lights are parented to
+  lamp/fan in the source but not exported. The original 1024 GLB is `32,060,220`
+  bytes, 202 meshes/207 primitives, 18,916 triangles, 21 materials and 27 images.
+  The accepted default is the merged mixed delivery: `16,062,484` bytes, 24
+  meshes/29 primitives, 58 preview draw calls, 21 materials, 27 images; validator
+  0 errors/warnings and 31 unused-tangent/UV infos; clean import and standalone
+  preview pass. The merged 512-everywhere variant is `10,518,536` bytes with softer
+  wallpaper; both 512 and 1024 variants are retained. Eight Blender views and
+  day/night preview captures were inspected. Texel density remains unaudited.
+  Evidence:
+  `.dev-shots/asset-pipeline/phase7/benchmark/office-corner-006/delivery-opt-002/selection.json`.
 - **Species registry — first layer (Oct 2026, done):** `src/species.js` registers
   **bear**, **msn** (Gummy) and **glass** definitions with kind, cast group,
   rig/asset, material, studio/meadow/roster availability, grab/possession/
