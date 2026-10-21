@@ -172,6 +172,44 @@ those candidates. Curated files under `screenshots/` are never considered.
 
 ## Behaviour and regression checks
 
+Use three parity tiers, without repeatedly running the long matrix mid-edit:
+
+1. **Edit loop:** affected Node tests plus one targeted parity case, for example
+   `node scripts/behavior-parity.mjs --race bear --days 1 --seed 1` or an existing
+   `--scenario` pack. Choose the race/branch affected; do not substitute this for
+   all-race review.
+2. **Feature review:** `node scripts/parity-matrix.mjs --jobs 2` (two days,
+   three seeds, all races). This is development evidence, not long acceptance.
+3. **Final acceptance:** once the feature and focused checks are complete, run
+   `node scripts/parity-matrix.mjs --long --jobs 2` once, fresh. A subsequent edit
+   that invalidates that evidence requires re-verification; unrelated documentation
+   changes do not. Resume output never counts as fresh acceptance.
+
+Matrix reports distinguish `fresh`, `tier` and `acceptance`; a fresh short run
+must not be described as a long acceptance pass.
+
+Parity iteration: use `node scripts/parity-matrix.mjs --jobs 2` for the two-day,
+three-seed, all-race baseline. `--long` retains 20 days × five seeds × three races
+and exact per-tick JSON comparison. `--jobs 1` is the low-contention default;
+workers keep both engines of each case together. The matrix stops scheduling at
+the first mismatch and terminates other workers. Existing targeted branch packs
+remain in `behavior-parity.mjs --scenario ...`.
+
+`--resume` is explicitly developmental, never fresh acceptance: completed cases
+are reused only with matching source, harness, Node/V8, flags and case options.
+Caches live in `.dev-shots/parity-cache/`. `--comparator validate` cross-checks
+the candidate structural comparator against JSON each tick; `exact` is experimental
+and not the default; the initial projected comparator was slower, while the newer
+direct-field implementation passed its long matrix and reference cross-check.
+Use `--comparator exact` explicitly to benchmark it. Never use reduced
+tick frequency, larger timesteps or hash-only comparisons as parity acceptance.
+
+Stars/mourning: `node scripts/stars-test.mjs` covers the farewell lifecycle and
+`node scripts/mourning-test.mjs` covers departure, grief, comfort and save/load
+isolation. Both need a served build (`GAME_URL`). Mourning is off by default and
+modules-only; browser checks must enable the Farewells master, the stars reason and
+Mourning in the Settings panel (or dispatch those change events).
+
 - Drive the served app through a browser and verified `window.__gummy` hooks.
   Record concrete outcomes, console errors and non-finite/bounds failures.
 - For physics/rig/solver changes, establish a baseline and rerun the applicable

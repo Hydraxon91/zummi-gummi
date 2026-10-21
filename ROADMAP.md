@@ -1423,6 +1423,31 @@ instrumentation did not reproduce the real stall; no speculative game fix applie
 
 ## Content extensibility track (implemented, Oct 2026)
 
+**Known follow-ups — parity test tiers (2026-10-21, fixed):** the matrix previously
+labeled any fresh run `acceptance: true`, even a short development probe. Reports
+now distinguish freshness, development/long tier and successful full acceptance.
+Use targeted checks during edits, the two-day × three-seed all-race matrix at
+feature review, and one fresh long matrix only after the feature is ready. This
+changes scheduling and evidence labels, not timestep, coverage or comparison rules.
+
+**Parity follow-up:** the direct-field comparator passed all 15 long cases in
+341 s (earlier JSON matrix 427 s); a full-length Glass reference cross-check
+compared both methods at every tick with identical RNG counts. Default remains
+JSON. Glass-first scheduling and nonverbose transition counting avoid excess
+tail work/log retention. Persistent worker pools and three-worker tuning remain
+unmeasured. Mourning is completed and verified separately; see its entry above.
+
+**Known follow-ups — parity runtime (2026-10-21, optimized):** profiling confirmed
+snapshot serialization/projection costs dominate the short baseline. Reused Map
+bookkeeping, immediate matrix failure, optional bounded workers and fingerprinted
+development-only resume are implemented without changing tick/day length or seed
+coverage. Two-day all-race × three-seed wall time was 7.29 s with one worker versus
+4.18 s with two; a fresh long matrix passed all 15 cases in 427 s. The candidate
+structural comparator was slower in its short probe and stays experimental;
+default acceptance uses JSON each tick. Snapshot caching and hash-only equality
+were rejected because they could hide state mutations or collisions. Mourning
+was completed in its own scoped change; this tooling pass does not cover it.
+
 Extend the existing ES modules, not the engine stack. Stable definition IDs must
 remain separate from placed instance IDs and mutable save state. Preserve current
 visuals, balance, authored layouts, batching and save compatibility during extraction.

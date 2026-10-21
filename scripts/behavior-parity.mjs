@@ -542,7 +542,7 @@ function playdateSnapshot(actor) {
     .map(uid => [uid, actor.playdates[uid].day, actor.playdates[uid].hour]);
 }
 
-function actorSnapshot(actor) {
+export function actorSnapshot(actor) {
   const ai = actor.ai;
   const task = ai.familyTask;
   return {
@@ -600,6 +600,123 @@ function snapshot(run) {
       source.id, !!source.ripe, source.claim ? source.claim.uid : 0,
     ]),
   });
+}
+
+// Match JSON's primitive semantics without serializing whole snapshots. The
+// projected schema contains only plain objects/arrays and JSON primitives.
+export function jsonEqual(a, b, inArray = false) {
+  const normalize = value => value === undefined && inArray ||
+    typeof value === 'number' && !Number.isFinite(value) ? null : value;
+  a = normalize(a); b = normalize(b);
+  if (a === b) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!jsonEqual(a[i], b[i], true)) return false;
+    return true;
+  }
+  const ak = Object.keys(a).filter(key => a[key] !== undefined);
+  const bk = Object.keys(b).filter(key => b[key] !== undefined);
+  if (ak.length !== bk.length) return false;
+  for (let i = 0; i < ak.length; i++) {
+    if (ak[i] !== bk[i] || !jsonEqual(a[ak[i]], b[bk[i]])) return false;
+  }
+  return true;
+}
+
+const ACTOR_NUMBERS = ['hunger', 'thirst', 'health', 'energy', 'social', 'affection',
+  'gestation', 'mateCooldown', 'bedtime', 'wakeTime', 'shelterCheckT'];
+const ACTOR_FLAGS = ['sleeping', 'inside', 'pregnant', 'shelteredToday'];
+const AI_FLAGS = ['familyPlay', 'playdate', 'interrupted', 'possessed', 'directiveHome',
+  'visitArrived', 'moving', 'arrived'];
+const AI_TEXT = ['playmateKind', 'visitPhase', 'visitRole', 'restKind', 'visitHome'];
+const AI_TIMERS = ['eatT', 'drinkT', 'inviteT', 'socialT', 'declineT', 'conflictT',
+  'mateT', 'raidT', 'fleeT', 'stungT', 'idleT', 'nextThink', 'taskCooldown',
+  'socialCooldown', 'conflictCooldown', 'familyPlayCooldown', 'followRetryT',
+  'restCooldown', 'avoidSourceT', 'noProgressT', 'insideT', 'clock', 'doorEntries', 'doorExits'];
+const primitive = value => typeof value === 'number' && !Number.isFinite(value) ? null : value;
+const sameArrayValue = (a, b) => (a === undefined ? null : primitive(a)) === (b === undefined ? null : primitive(b));
+function pointEqual(a, b, x = 'x', z = 'z') {
+  if (!a || !b) return !a && !b;
+  return sameArrayValue(a[x], b[x]) && sameArrayValue(a[z], b[z]);
+}
+function keyedEqual(a = {}, b = {}, playdates = false) {
+  const rawA = Object.keys(a), rawB = Object.keys(b);
+  const canonical = keys => keys.every(key => Number.isFinite(Number(key)) && String(Number(key)) === key);
+  if (canonical(rawA) && canonical(rawB)) {
+    if (rawA.length !== rawB.length) return false;
+    for (const key of rawA) {
+      if (!Object.hasOwn(b, key)) return false;
+      if (playdates ? !sameArrayValue(a[key].day, b[key].day) || !sameArrayValue(a[key].hour, b[key].hour)
+        : !sameArrayValue(Number(a[key]), Number(b[key]))) return false;
+    }
+    return true;
+  }
+  // Match numeric-key normalization, but avoid allocating sorted entry arrays.
+  const ak = Object.keys(a).map(Number).filter(Number.isFinite).sort((x, y) => x - y);
+  const bk = Object.keys(b).map(Number).filter(Number.isFinite).sort((x, y) => x - y);
+  if (ak.length !== bk.length) return false;
+  for (let i = 0; i < ak.length; i++) {
+    if (ak[i] !== bk[i]) return false;
+    if (playdates ? !sameArrayValue(a[ak[i]].day, b[bk[i]].day) ||
+        !sameArrayValue(a[ak[i]].hour, b[bk[i]].hour)
+      : !sameArrayValue(Number(a[ak[i]]), Number(b[bk[i]]))) return false;
+  }
+  return true;
+}
+export function actorsEqual(a, b) {
+  const x = a.ai, y = b.ai;
+  if (a.uid !== b.uid || primitive(x.state) !== primitive(y.state) || a.stage !== b.stage ||
+      (a.home || '') !== (b.home || '')) return false;
+  for (const key of ACTOR_NUMBERS) if (number(a[key]) !== number(b[key])) return false;
+  for (const key of ACTOR_FLAGS) if (!!a[key] !== !!b[key]) return false;
+  for (const key of AI_FLAGS) if (!!x[key] !== !!y[key]) return false;
+  for (const key of AI_TEXT) if ((x[key] || '') !== (y[key] || '')) return false;
+  for (const key of AI_TIMERS) if (timer(x[key]) !== timer(y[key])) return false;
+  if ((x.pathIndex | 0) !== (y.pathIndex | 0) || number(x.animT) !== number(y.animT) ||
+      !sameArrayValue(x.faceYaw, y.faceYaw)) return false;
+  for (const key of ['source', 'contestSource', 'conflictSource']) {
+    if ((x[key] ? x[key].id : null) !== (y[key] ? y[key].id : null)) return false;
+  }
+  for (const key of ['partner', 'follow', 'contestBear']) {
+    if ((x[key] ? x[key].uid : null) !== (y[key] ? y[key].uid : null)) return false;
+  }
+  for (const key of ['avoidSourceId', 'lastMealWindow']) if ((x[key] || null) !== (y[key] || null)) return false;
+  for (const key of ['target', 'waterSpot', 'fleeFrom', 'shove']) if (!pointEqual(x[key], y[key])) return false;
+  const p = x.path || [], q = y.path || [];
+  if (p.length !== q.length) return false;
+  for (let i = 0; i < p.length; i++) if (!pointEqual(p[i], q[i])) return false;
+  const t = x.familyTask, u = y.familyTask;
+  if (!!t !== !!u) return false;
+  if (t) {
+    for (const key of ['id', 'phase', 'role', 't']) if (!sameArrayValue(t[key], u[key])) return false;
+    if (!pointEqual(t.anchor, u.anchor)) return false;
+  }
+  if (!keyedEqual(a.bonds || {}, b.bonds || {}) || !keyedEqual(a.playdates || {}, b.playdates || {}, true)) return false;
+  const h = a.history || [], j = b.history || [];
+  if (h.length !== j.length) return false;
+  for (let i = 0; i < h.length; i++) for (const key of ['kind', 'uid', 'day', 'hour']) {
+    if (!sameArrayValue(h[i][key], j[i][key])) return false;
+  }
+  if (!!a.skills !== !!b.skills) return false;
+  if (a.skills) for (const key of ['forage', 'courage', 'social']) {
+    if (!sameArrayValue(a.skills[key], b.skills[key])) return false;
+  }
+  return true;
+}
+
+function equalRuns(a, b) {
+  if (a.roster.length !== b.roster.length || a.world.food.sources.length !== b.world.food.sources.length) return false;
+  for (let i = 0; i < a.roster.length; i++) {
+    if (!actorsEqual(a.roster[i], b.roster[i])) return false;
+  }
+  for (let i = 0; i < a.world.food.sources.length; i++) {
+    const x = a.world.food.sources[i], y = b.world.food.sources[i];
+    if (!jsonEqual([x.id, !!x.ripe, x.claim ? x.claim.uid : 0],
+      [y.id, !!y.ripe, y.claim ? y.claim.uid : 0])) return false;
+  }
+  return true;
 }
 
 function summarize(run) {
@@ -671,7 +788,7 @@ function createRun({ race, seed, perturb = 0, engine = 'legacy', daySeconds = DA
   const run = {
     race, seed, engine, world, roster, engineApi, traced, daySeconds, collectSamples, clock, startHour,
     rngValue, populationCap,
-    transitions: [], samples: [], warnings: [], lastState: new Map(), grabHold: new Map(),
+    transitions: [], transitionCount: 0, samples: [], warnings: [], lastState: new Map(), grabHold: new Map(),
     life: { pregnancies: 0, births: 0, stageUps: 0, blockedBirths: 0 }, nextBirthUid: 1000,
     pregnancySeen: new Set(),
     initialSkills: new Map(roster.map(actor => [actor.uid, { ...(actor.skills || {}) }])),
@@ -692,7 +809,9 @@ function captureWarnings(run, fn) {
 }
 
 function stepRun(run, { dt, sampleEvery, sampleAcc }) {
-  const before = new Map(run.roster.map(actor => [actor.uid, actor.ai ? actor.ai.state : null]));
+  const before = run.lastState;
+  before.clear();
+  for (const actor of run.roster) before.set(actor.uid, actor.ai ? actor.ai.state : null);
   captureWarnings(run, () => hostTick(run, dt));
   for (const actor of run.roster) {
     if (actor.pregnant) {
@@ -709,7 +828,8 @@ function stepRun(run, { dt, sampleEvery, sampleAcc }) {
     const state = actor.ai ? actor.ai.state : null;
     const previous = before.get(actor.uid);
     if (state !== previous) {
-      run.transitions.push({ t, uid: actor.uid, from: previous, to: state,
+      run.transitionCount++;
+      if (run.collectSamples) run.transitions.push({ t, uid: actor.uid, from: previous, to: state,
         task: actor.ai && actor.ai.familyTask ? actor.ai.familyTask.id : null });
     }
     run.lastState.set(actor.uid, state);
@@ -753,6 +873,7 @@ export function runParity({
   allAdults = false,
   rngValue = null,
   populationCap = POPULATION_CAP,
+  comparator = 'json',
 } = {}) {
   const a = createRun({ race, seed, engine: engineA, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults, rngValue, populationCap });
   const b = createRun({ race, seed, engine: engineB, perturb, daySeconds, collectSamples: verbose, flowers, social, seedBonds, startHour, allAdults, rngValue, populationCap });
@@ -773,16 +894,20 @@ export function runParity({
         hook.run(a);
         hook.run(b);
       }
-      const left = snapshot(a);
-      const right = snapshot(b);
+      const exact = comparator === 'json' ? null : equalRuns(a, b);
+      const left = comparator === 'exact' && exact ? null : snapshot(a);
+      const right = comparator === 'exact' && exact ? null : snapshot(b);
+      if (comparator === 'validate' && exact !== (left === right)) {
+        throw new Error(`Comparator disagreement at ${race}/${seed}/${tick}`);
+      }
       if (left !== right) {
         const leftJson = JSON.parse(left);
         const rightJson = JSON.parse(right);
         const diffs = firstDiffPath(leftJson, rightJson);
         return {
           race, seed, ticks: tick + 1, ok: false,
-          transitionsA: a.transitions.length,
-          transitionsB: b.transitions.length,
+          transitionsA: a.transitionCount,
+          transitionsB: b.transitionCount,
           drawsA: a.traced.draws, drawsB: b.traced.draws,
           warningsA: a.warnings.length, warningsB: b.warnings.length,
           coverage: typeof b.engineApi.coverage === 'function' ? b.engineApi.coverage() : null,
@@ -803,8 +928,8 @@ export function runParity({
   }
   return {
     race, seed, ticks, ok: true,
-    transitionsA: a.transitions.length,
-    transitionsB: b.transitions.length,
+    transitionsA: a.transitionCount,
+    transitionsB: b.transitionCount,
     drawsA: a.traced.draws, drawsB: b.traced.draws,
     warningsA: a.warnings.length, warningsB: b.warnings.length,
     coverage: typeof b.engineApi.coverage === 'function' ? b.engineApi.coverage() : null,
@@ -1615,10 +1740,10 @@ function printHelp() {
   --days N                  simulated days per seed (default 3)
   --dt S                    fixed step (default 1/20)
   --day-seconds S           wall-clock seconds per in-game day (default 240)
-  --sample N                snapshot every N ticks (default 1)
+  --sample N                verbose diagnostic sample interval; parity checks every tick
   --cap N                   population cap (default 40; Glass baseline uses 80)
   --validate                legacy/legacy, legacy/modules, perturbation check
-  --long                    20 days x 5 seeds, sampled every 5 ticks, coverage on
+  --long                    20 days x 5 seeds, verbose samples every 5 ticks, coverage on
   --coverage                print per-state and per-opportunity hit counts
   --scenario mate           dedicated branch pack (rich food, rested adults)
   --json                    machine-readable summary
@@ -1682,6 +1807,10 @@ async function main(argv) {
           console.log(`  history: ${history || 'none'}; skills: ${skills || 'none'}`);
         }
         for (const diff of result.diffs.slice(0, 3)) console.log(`  ${formatDiff(diff)}`);
+      }
+      if (!result.ok) {
+        if (options.json) console.log(JSON.stringify({ results, ok: false }, null, 2));
+        return 1;
       }
     }
   }

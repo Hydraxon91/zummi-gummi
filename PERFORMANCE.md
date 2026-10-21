@@ -552,6 +552,39 @@ long-session percentiles.
 
 ## Interpretation
 
+### Parity tooling (2026-10-21)
+
+Follow-up: a full-length Glass profile showed playdate projection 15,927 samples,
+snapshot serialization 15,393, bond projection 13,906 and GC 1,528. A direct-field
+comparator now avoids actor snapshot allocation, with an unsorted exact key-set
+comparison for canonical numeric relationship keys and the original normalization
+for unusual keys. Sequential 20-day Glass/seed-1 runs measured JSON 85,149 ms,
+direct 55,682 ms; a third run compared both methods at every tick and passed with
+462,932 RNG draws in each engine. Mutation tests cover scalar and nested groups.
+The direct 15-case long matrix (`--comparator exact --jobs 2`) passed in 341,361 ms
+versus the earlier JSON matrix's 427,097 ms (about 20% less elapsed time; separate
+runs, not a controlled end-to-end speedup guarantee). Glass jobs now dispatch
+first, and nonverbose runs count transitions without retaining full logs. JSON
+remains the default/reference; direct comparison is explicitly selected. Persistent
+workers and three-worker benchmarking have not been implemented/measured in this
+follow-up; no speed claim is made for those proposals.
+
+Built-in Node CPU profiling of a two-day Bear case identified snapshot
+serialization/projection as the dominant sampled work: snapshot 208 samples,
+playdates 107, bonds 44, step bookkeeping 32 and GC 21. A candidate structural
+comparator matched JSON at each tested tick and detected injected divergence,
+but measured 797 ms versus JSON 734 ms in the initial short probe; it remains
+experimental. The reference JSON comparator is still the default.
+
+Reusable transition bookkeeping removes two per-tick Map allocations without
+changing hook/birth semantics. The optional worker matrix measured 7,289 ms with
+one worker versus 4,180 ms with two for the same two-day × three-seed × three-race
+matrix. A fresh two-worker long matrix passed all 15 cases in 427,097 ms. These
+are local wall times, not a guaranteed speedup on contended machines. Resume is
+per completed case with source/runtime fingerprints, explicitly non-acceptance;
+fresh acceptance never loads cached results. Previous game rendering profiles
+remain valid and are not superseded by these tooling measurements.
+
 - The meadow remains **fill/overdraw and grass-geometry bound**.
 - The Meadow-detail controls (canopy fullness, leaf size, grass coverage and
   draw distance) and quality tiers are the first response.
