@@ -184,11 +184,13 @@ An automatic guardian is a same-species adult. Preference is immediate family
 (a sibling sharing stored parent UIDs), then a same-household adult, then an
 adult with a bond of at least `0.35`; ties use the stronger bond and then the
 lowest UID. A grandparent cannot be recovered while the linking parent record is
-absent. Candidates already holding more than two other adopted baby dependents
-are skipped. A guardian is assigned on the baby's next think, only while it is
-free of a pair or family task; with no candidate the baby keeps its normal
-behavior and retries after one game-hour. The retry field is created only while
-the feature is enabled.
+absent. Candidates already holding more than two other active baby dependents
+are skipped; biological children and adopted babies both count, deduplicated per
+baby. A guardian is assigned on the baby's next think, only while it is free of a
+pair or family task; with no candidate the baby keeps its normal behavior and
+retries after one game-hour. The retry field is created only while the feature is
+enabled. Turning the feature off cancels an active guardian follow, preserves
+`guardianUid`, and leaves parent-follow and unrelated tasks untouched.
 
 `guardianUid` is separate from `parentUids`; ancestry and home are never
 rewritten. It clears when a parent is active again, when the guardian departs or
@@ -210,7 +212,9 @@ The `interactionHistory` feature is off in the engine defaults and enabled by
 off so the legacy oracle has no extra history eviction. Legacy does not write
 these module-only history kinds, so the parity comparator also excludes only this
 explicit set while still comparing state, needs, bonds, playdates, RNG and the
-rest of history.
+rest of history. At the 16-entry cap, an interaction record is evicted before a
+`lesson`/`taught` record so display logging cannot reopen same-day teaching.
+Interaction kinds are not mood inputs; `visit` was removed from `EVENT_WEIGHTS`.
 
 `relationshipview.js` is the pure read-only model behind the selected-actor
 **Relationships** tab. It resolves active and inactive-map records for the current

@@ -1385,13 +1385,15 @@ for baby-stage actors with no active parent and no parent UID in the current
 game's roster for the other map. Same-species adult candidates prefer immediate
 family (siblings sharing stored parent UIDs), then same household, then a bond >=
 0.35, with deterministic bond/UID ties; adults already holding more than two
-other adopted babies are skipped. A grandparent is not recoverable without the
-absent linking parent record. Assignment happens on the next think outside a pair
+other active baby dependents are skipped, counting biological children and
+adopted babies once each. A grandparent is not recoverable without the absent
+linking parent record. Assignment happens on the next think outside a pair
 or family task, with a one-game-hour retry when nobody qualifies. `guardianUid` is separate from
 `parentUids` and home, clears on parent return, guardian departure or stage-up,
 and emits `actorVersion: 5` only when present. `follow.seek` stays at order 90 and
-targets the guardian when no parent is active; the off path adds no guardian
-fields and no RNG. Verified by Node save/behavior tests, `scripts/adoption-test.mjs`
+targets the guardian when no parent is active; disabling the feature cancels an
+active guardian follow while preserving the saved link, and leaves parent-follow
+untouched. The off path adds no guardian fields and no RNG. Verified by Node save/behavior tests, `scripts/adoption-test.mjs`
 (guardian assignment, save/load, parent return, other-map parent, guardian
 removal, Glass assignment/stage-up, fresh game and off), the smoke test and a
 fresh long parity matrix.
@@ -2359,6 +2361,15 @@ adoption during an active guardian follow still lets that follow finish; both aw
 a decision rather than a silent change. Duplicate-UID saves are now rejected at
 load with no automatic renumbering; any existing duplicate save needs a recovery
 decision.
+
+**Bond-delta design (deferred):** recording before/after bond values cannot ride
+on the current history entry shape, because `normalizeHistory` keeps only
+`kind`/`uid`/`day`/`hour` and would strip extra fields on an older build. It needs
+an explicit history/actor version or a lossless envelope. Mood reads event kinds
+only; interaction-history kinds are excluded from `EVENT_WEIGHTS`, and
+`pushHistory` now evicts an interaction record before a `lesson`/`taught` record so
+display logging cannot silently reopen same-day teaching. Any future bond delta
+must remain display-only and be audited against mood and lesson readers first.
 
 ## Village & placement editor (Phase 9)
 
