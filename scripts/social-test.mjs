@@ -302,7 +302,7 @@ try {
     glass.ok === true && glass.history === true && glass.glassHistory === true,
     { value: JSON.stringify(glass) });
 
-  const saved = await evaluate(`(async () => {
+  const savedSetup = await evaluate(`(async () => {
     const g = window.__gummy;
     g.setBehaviorFeature('gifting', true);
     g.setBehaviorFeature('partnership', true);
@@ -331,26 +331,52 @@ try {
       .filter(row => row.uid === a?.uid || row.uid === b?.uid)
       .map(row => ({ uid: row.uid, partnerUid: row.partnerUid, actorVersion: row.actorVersion }));
     await g.save('slot4', 'social');
+    return {
+      partner: { ...partner, a: a?.uid, b: b?.uid, pre: prePartner },
+      gift, carriedBefore, beforePayload,
+    };
+  })()`, 120000);
+
+  const savedAfter = await evaluate(`(async () => {
+    const g = window.__gummy;
+    const a = ${JSON.stringify(savedSetup.partner.a)};
+    const b = ${JSON.stringify(savedSetup.partner.b)};
     await g.load('slot4');
     const afterPayload = JSON.parse(g.exportSave()).worlds.field.bears
-      .filter(row => row.uid === a?.uid || row.uid === b?.uid)
+      .filter(row => row.uid === a || row.uid === b)
       .map(row => ({ uid: row.uid, partnerUid: row.partnerUid, actorVersion: row.actorVersion }));
-    const after = {
-      partnerA: g.relationships(a?.uid)?.partner?.uid,
-      partnerB: g.relationships(b?.uid)?.partner?.uid,
-      carried: g.carried(),
-      portions: g.portions()?.list || [],
-      version: JSON.parse(g.exportSave()).worlds.field.bears.find(row => row.uid === a?.uid)?.actorVersion,
+    return {
+      afterPayload,
+      after: {
+        partnerA: g.relationships(a)?.partner?.uid,
+        partnerB: g.relationships(b)?.partner?.uid,
+        carried: g.carried(),
+        portions: g.portions()?.list || [],
+        version: JSON.parse(g.exportSave()).worlds.field.bears.find(row => row.uid === a)?.actorVersion,
+      },
     };
-    g.setMap('studio');
-    await new Promise(resolve => setTimeout(resolve, 700));
-    const studioPortions = g.portions()?.list || [];
-    g.setMap('field');
-    await new Promise(resolve => setTimeout(resolve, 700));
-    const backPortions = g.portions()?.list || [];
-    const backPartner = g.relationships(a?.uid)?.partner?.uid;
-    return { partner: { ...partner, a: a?.uid, b: b?.uid, pre: prePartner }, gift, carriedBefore, beforePayload, afterPayload, after, studioPortions, backPortions, backPartner };
   })()`, 120000);
+
+  await evaluate("window.__gummy.setMap('studio')");
+  await page.waitFor("window.__gummy.map().id === 'studio'", 30000);
+  const studioPortions = await evaluate("window.__gummy.portions()?.list || []");
+  await evaluate("window.__gummy.setMap('field')");
+  await page.waitFor("window.__gummy.map().id === 'field'", 30000);
+  const back = await evaluate(`(() => {
+    const g = window.__gummy;
+    return {
+      portions: g.portions()?.list || [],
+      partner: g.relationships(${JSON.stringify(savedSetup.partner.a)})?.partner?.uid,
+    };
+  })()`);
+
+  const saved = {
+    ...savedSetup,
+    ...savedAfter,
+    studioPortions,
+    backPortions: back.portions,
+    backPartner: back.partner,
+  };
   check('v8 save restores partnership and converts carried food to a dropped portion',
     saved.partner?.ok === true && saved.carriedBefore.length > 0 &&
     saved.after.partnerA === saved.partner.b && saved.after.partnerB === saved.partner.a &&

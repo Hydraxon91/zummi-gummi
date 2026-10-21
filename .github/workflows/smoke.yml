@@ -61,7 +61,7 @@ jobs:
     name: Browser regression (core)
     needs: serve-and-load
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v7
 
@@ -121,27 +121,93 @@ jobs:
           HEIGHT: "600"
         run: node scripts/behavior-browser-parity.mjs
 
-      - name: Run social interaction acceptance
-        env:
-          TAG: ci-social
-          LOW_QUALITY: "1"
-          WIDTH: "900"
-          HEIGHT: "600"
-        run: node scripts/social-test.mjs
-
-      - name: Run physical gifting acceptance
-        env:
-          TAG: ci-gifting
-          LOW_QUALITY: "1"
-          WIDTH: "900"
-          HEIGHT: "600"
-        run: node scripts/gifting-test.mjs
-
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: smoke-browser-artifacts-${{ github.run_attempt }}
+          path: |
+            .dev-shots/*.json
+            .dev-shots/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat server.log
+
+  interaction-regression:
+    name: Interaction regression (${{ matrix.name }})
+    needs: serve-and-load
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Social
+            tag: social
+            script: node scripts/social-test.mjs
+          - name: Gifting
+            tag: gifting
+            script: node scripts/gifting-test.mjs
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - name: Resolve a Chromium-family browser
+        run: |
+          set -euo pipefail
+          browser_bin=""
+          for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              browser_bin="$(command -v "$candidate")"
+              break
+            fi
+          done
+          if [ -z "$browser_bin" ]; then
+            echo "::error::No Chromium-family browser found on the runner"
+            exit 1
+          fi
+          echo "BROWSER_BIN=$browser_bin" >> "$GITHUB_ENV"
+          "$browser_bin" --version
+
+      - name: Start the launcher
+        run: |
+          set -euo pipefail
+          python3 launch.py --no-open --verbose --port 8000 > server.log 2>&1 &
+          for _ in $(seq 1 60); do
+            grep -q "This computer :" server.log && break
+            sleep 0.25
+          done
+          cat server.log
+          url="$(grep -o 'http://localhost:[0-9]*/' server.log | head -1)"
+          if [ -z "$url" ]; then
+            echo "::error::launch.py did not report a listening URL"
+            exit 1
+          fi
+          echo "GAME_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Run the interaction suite
+        env:
+          TAG: ci-${{ matrix.tag }}
+          LOW_QUALITY: "1"
+          WIDTH: "900"
+          HEIGHT: "600"
+        run: ${{ matrix.script }}
+
+      - name: Upload interaction diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interaction-${{ matrix.tag }}-${{ github.run_attempt }}
           path: |
             .dev-shots/*.json
             .dev-shots/*.png
