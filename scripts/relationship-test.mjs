@@ -109,10 +109,29 @@ try {
       text: document.querySelector('#relRelationships .relInteractions')?.textContent || '',
     };
   })()`);
-  check('expanding a bond row shows the pair-specific interaction', interaction.found &&
-    interaction.expanded === 'true' && /spent time with/.test(interaction.text),
-    { value: interaction.text });
+  check('expanding a bond row shows the pair interaction and bond delta', interaction.found &&
+    interaction.expanded === 'true' && /spent time with/.test(interaction.text) &&
+    /\d+% → \d+%/.test(interaction.text), { value: interaction.text });
   await page.screenshot(`${ROOT}/.dev-shots/relationship_interactions.png`);
+
+  const persisted = await evaluate(`(async () => {
+    const g = window.__gummy;
+    const payload = JSON.parse(g.exportSave());
+    const record = payload.worlds.field.bears.find(a => a.uid === ${picked.uid});
+    await g.save('slot4', 'bond delta');
+    await g.load('slot4');
+    const actor = g.traits().find(a => a.uid === ${picked.uid});
+    const event = actor?.history?.find(e => e.kind === 'social');
+    return {
+      version: record?.actorVersion,
+      before: event?.bondBefore,
+      after: event?.bondAfter,
+    };
+  })()`);
+  check('a bond delta persists through the versioned save and load',
+    persisted.version === 6 && Number.isFinite(persisted.before) &&
+    Number.isFinite(persisted.after) && persisted.after > persisted.before,
+    { value: JSON.stringify(persisted) });
 
   const decline = await evaluate(`(() => {
     const g = window.__gummy;

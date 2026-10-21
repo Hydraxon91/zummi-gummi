@@ -99,12 +99,16 @@ test('interaction history evicts itself before a lesson record', () => {
   assert.equal(a.history.some(event => event.kind === 'social' && event.uid === 3), true);
 });
 
-test('a completed social pair records one event for each participant', () => {
+test('a completed social pair records one event with a bond delta for each participant', () => {
   const { engine, a, b } = setup(10, 11);
   assert.equal(engine.forceSocial(a, b).ok, true);
   tick(engine, a, 6);
-  assert.deepEqual(a.history.filter(e => e.kind === 'social').map(e => e.uid), [11]);
-  assert.deepEqual(b.history.filter(e => e.kind === 'social').map(e => e.uid), [10]);
+  const eventA = a.history.find(e => e.kind === 'social');
+  const eventB = b.history.find(e => e.kind === 'social');
+  assert.equal(eventA.uid, 11);
+  assert.equal(eventB.uid, 10);
+  assert.ok(eventA.bondAfter > eventA.bondBefore);
+  assert.ok(eventB.bondAfter > eventB.bondBefore);
 });
 
 test('a declined invitation records the two perspectives', () => {
@@ -112,14 +116,21 @@ test('a declined invitation records the two perspectives', () => {
   engine.forceSocial(a, b, false);
   assert.deepEqual(a.history.filter(e => e.kind === 'decline').map(e => e.uid), [11]);
   assert.deepEqual(b.history.filter(e => e.kind === 'declined').map(e => e.uid), [10]);
+  assert.equal(a.history.find(e => e.kind === 'decline').bondBefore, undefined);
 });
 
 test('a completed food conflict records once per participant', () => {
   const { engine, a, b } = setup(10, 11);
+  a.bonds[11] = .5;
+  b.bonds[10] = .5;
   assert.equal(engine.forceConflict(a, b).ok, true);
   tick(engine, a, 3);
-  assert.deepEqual(a.history.filter(e => e.kind === 'conflict').map(e => e.uid), [11]);
-  assert.deepEqual(b.history.filter(e => e.kind === 'conflict').map(e => e.uid), [10]);
+  const eventA = a.history.find(e => e.kind === 'conflict');
+  const eventB = b.history.find(e => e.kind === 'conflict');
+  assert.equal(eventA.uid, 11);
+  assert.equal(eventB.uid, 10);
+  assert.ok(eventA.bondAfter < eventA.bondBefore);
+  assert.ok(eventB.bondAfter < eventB.bondBefore);
 });
 
 test('an interrupted visit is not recorded as a completed visit', () => {
@@ -141,6 +152,10 @@ test('a visit is recorded only when the hangout completes', () => {
   a.ai.visitT = .1;
   b.ai.visitT = .1;
   engine.tick(a, .2, { ready: true });
-  assert.deepEqual(a.history.filter(e => e.kind === 'hosted').map(e => e.uid), [11]);
-  assert.deepEqual(b.history.filter(e => e.kind === 'visit').map(e => e.uid), [10]);
+  const hosted = a.history.find(e => e.kind === 'hosted');
+  const visit = b.history.find(e => e.kind === 'visit');
+  assert.equal(hosted.uid, 11);
+  assert.equal(visit.uid, 10);
+  assert.ok(hosted.bondAfter > hosted.bondBefore);
+  assert.ok(visit.bondAfter > visit.bondBefore);
 });

@@ -6,7 +6,7 @@
 // stays in the engine as a threat response shared with the hive.
 
 import { isSafeFood } from '../foodtypes.js';
-import { addBond, pairBond, pushHistory } from '../family.js';
+import { addBond, bondOf, pairBond, pushHistory } from '../family.js';
 import { beginPair } from '../interactions.js';
 import { defineBehaviorModule } from './module.js';
 
@@ -142,13 +142,6 @@ function finishConflict(ctx) {
   const loser = winner === actor ? other : actor;
   const claimant = source ? source.claim : null;
   const claimOk = !!source && source.ripe;
-  if (features && features.interactionHistory) {
-    const day = typeof api.dayNow === 'function' ? api.dayNow() : 0;
-    const hour = typeof api.hoursNow === 'function' ? api.hoursNow() : 0;
-    pushHistory(actor, { kind: 'conflict', uid: other.uid, day, hour });
-    pushHistory(other, { kind: 'conflict', uid: actor.uid, day, hour });
-  }
-
   actor.ai.partner = null;
   other.ai.partner = null;
   actor.ai.conflictSource = null;
@@ -199,7 +192,21 @@ function finishConflict(ctx) {
     winner.ai.idleT = .5;
     api.stop(winner);
   }
+  const beforeActor = bondOf(actor, other);
+  const beforeOther = bondOf(other, actor);
   addBond(actor, other, -.08);
+  if (features && features.interactionHistory) {
+    const day = typeof api.dayNow === 'function' ? api.dayNow() : 0;
+    const hour = typeof api.hoursNow === 'function' ? api.hoursNow() : 0;
+    pushHistory(actor, {
+      kind: 'conflict', uid: other.uid, day, hour,
+      bondBefore: beforeActor, bondAfter: bondOf(actor, other),
+    });
+    pushHistory(other, {
+      kind: 'conflict', uid: actor.uid, day, hour,
+      bondBefore: beforeOther, bondAfter: bondOf(other, actor),
+    });
+  }
   api.emit(loser, 'no', 1.05);
 }
 

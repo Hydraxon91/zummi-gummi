@@ -4029,6 +4029,13 @@ function historyActorName(uid) {
   const entry = gameActorIndex().get(Number(uid));
   return entry && entry.actor ? actorName(entry.actor) : 'someone';
 }
+function bondDeltaText(event) {
+  const before = Number(event && event.bondBefore);
+  const after = Number(event && event.bondAfter);
+  if (!Number.isFinite(before) || !Number.isFinite(after) || before === after) return '';
+  return `${Math.round(before * 100)}% → ${Math.round(after * 100)}%`;
+}
+
 function historyLabel(event) {
   const name = historyActorName(event.uid);
   switch (event.kind) {
@@ -4097,7 +4104,8 @@ function relationshipInteractions(actor, row) {
     line.className = 'hLine';
     const when = document.createElement('b');
     when.textContent = `Day ${(event.day || 0) + 1} · ${formatClock(event.hour || 0)}`;
-    line.append(when, document.createTextNode(` — ${historyLabel(event)}`));
+    const delta = bondDeltaText(event);
+    line.append(when, document.createTextNode(` — ${historyLabel(event)}${delta ? ` · ${delta}` : ''}`));
     box.append(line);
   }
   return box;
@@ -4249,7 +4257,8 @@ function refreshDirectiveHistory(b) {
     line.className = 'hLine';
     const when = document.createElement('b');
     when.textContent = `Day ${(event.day || 0) + 1} · ${formatClock(event.hour || 0)}`;
-    line.append(when, document.createTextNode(` — ${historyLabel(event)}`));
+    const delta = bondDeltaText(event);
+    line.append(when, document.createTextNode(` — ${historyLabel(event)}${delta ? ` · ${delta}` : ''}`));
     directiveHistoryEl.append(line);
   }
 }

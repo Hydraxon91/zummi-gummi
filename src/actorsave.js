@@ -5,16 +5,19 @@
 
 import { DNA_VERSION } from './dna.js';
 import { getSpecies } from './species.js';
-import { normalizeSkills, normalizeHistory, normalizePlaydates } from './family.js';
+import {
+  normalizeSkills, normalizeHistory, normalizePlaydates, historyHasBondDelta,
+} from './family.js';
 import { normalizeTraits, TRAIT_AXES } from './behaviors/traits.js';
 import { normalizeMourning } from './behaviors/mourning.js';
 
-// 2 is trait/grief/guardian-free, 3 carries traits, 4 carries per-save mourning
-// and 5 carries a baby's guardian (mourning and traits may ride along).
-export const ACTOR_SAVE_VERSION = 5;
+// 2 is trait/grief/guardian/delta-free, 3 carries traits, 4 carries per-save
+// mourning, 5 carries a baby's guardian, and 6 carries bond-delta history
+// (mourning, traits and a guardian may ride along).
+export const ACTOR_SAVE_VERSION = 6;
 
 const STAGES = new Set(['baby', 'teen', 'adult']);
-const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5]);
+const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5, 6]);
 const NUMERIC_FIELDS = [
   'scale', 'health', 'hunger', 'thirst', 'energy', 'age',
   'gestation', 'mateCooldown', 'social', 'affection', 'bold',
@@ -48,7 +51,9 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
     } else if (a.stage !== 'baby') {
       errors.push(`${where}.guardianUid requires stage baby`);
     }
-    if (a.actorVersion !== 5) errors.push(`${where}.guardianUid requires actorVersion 5`);
+    if (a.actorVersion !== 5 && a.actorVersion !== 6) {
+      errors.push(`${where}.guardianUid requires actorVersion 5 or 6`);
+    }
   }
   if (a.actorVersion === 5 && !isNum(a.guardianUid)) {
     errors.push(`${where}.guardianUid is required for actorVersion 5`);
@@ -73,6 +78,7 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
       if (!isNum(value) || value < 0 || value > 1) errors.push(`${where}.skills.${key} is invalid`);
     }
   }
+  let historyDeltas = 0;
   if (a.history !== undefined) {
     if (!Array.isArray(a.history)) errors.push(`${where}.history is invalid`);
     else a.history.forEach((event, index) => {
@@ -82,8 +88,23 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
         if (event.uid !== undefined && !isNum(event.uid)) errors.push(`${where}.history[${index}].uid is invalid`);
         if (event.day !== undefined && !isNum(event.day)) errors.push(`${where}.history[${index}].day is invalid`);
         if (event.hour !== undefined && !isNum(event.hour)) errors.push(`${where}.history[${index}].hour is invalid`);
+        if (event.bondBefore !== undefined || event.bondAfter !== undefined) {
+          if (!isNum(event.bondBefore) || !isNum(event.bondAfter) ||
+              event.bondBefore < 0 || event.bondBefore > 1 ||
+              event.bondAfter < 0 || event.bondAfter > 1) {
+            errors.push(`${where}.history[${index}].bondDelta is invalid`);
+          } else {
+            historyDeltas++;
+          }
+        }
       }
     });
+  }
+  if (historyDeltas && a.actorVersion !== 6) {
+    errors.push(`${where}.bondDelta requires actorVersion 6`);
+  }
+  if (a.actorVersion === 6 && !historyDeltas) {
+    errors.push(`${where}.bondDelta is required for actorVersion 6`);
   }
   if (a.playdates !== undefined) {
     if (!isObj(a.playdates)) errors.push(`${where}.playdates is invalid`);
@@ -111,8 +132,8 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
         errors.push(`${where}.mourning[${index}] is invalid`);
       }
     });
-    if (a.actorVersion !== 4 && a.actorVersion !== 5) {
-      errors.push(`${where}.mourning requires actorVersion 4 or 5`);
+    if (a.actorVersion !== 4 && a.actorVersion !== 5 && a.actorVersion !== 6) {
+      errors.push(`${where}.mourning requires actorVersion 4, 5 or 6`);
     }
   }
   if (a.actorVersion === 4 && !Array.isArray(a.mourning)) {
@@ -157,15 +178,18 @@ export function migrateActorRecord(record) {
   if (version > ACTOR_SAVE_VERSION) return record;
   const hasTraits = isObj(record.traits);
   const mourning = normalizeMourning(record.mourning);
+  const history = normalizeHistory(record.history);
+  const hasDelta = historyHasBondDelta(history);
   const guardianUid = record.stage === 'baby' && isNum(record.guardianUid) && record.guardianUid > 0
     ? record.guardianUid : null;
-  const versioned = guardianUid ? 5 : (mourning.length ? 4 : (hasTraits ? 3 : 2));
+  const versioned = hasDelta ? 6
+    : (guardianUid ? 5 : (mourning.length ? 4 : (hasTraits ? 3 : 2)));
   const migrated = {
     ...record,
     actorVersion: versioned,
     ...(hasTraits ? { traits: normalizeTraits(record.traits) } : {}),
     skills: normalizeSkills(record.skills),
-    history: normalizeHistory(record.history),
+    history,
     playdates: normalizePlaydates(record.playdates),
   };
   if (guardianUid) migrated.guardianUid = guardianUid;

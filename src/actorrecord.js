@@ -4,7 +4,9 @@
 // life record is the same. One serializer keeps save fields from drifting apart
 // when a new species or family feature is added.
 
-import { normalizeSkills, normalizeHistory, normalizePlaydates } from './family.js';
+import {
+  normalizeSkills, normalizeHistory, normalizePlaydates, historyHasBondDelta,
+} from './family.js';
 import { normalizeTraits } from './behaviors/traits.js';
 import { normalizeMourning } from './behaviors/mourning.js';
 
@@ -20,12 +22,14 @@ function finite(value, fallback) {
 export function snapshotActor(actor, extra = {}) {
   if (!actor) return null;
   const mourning = normalizeMourning(actor.mourning);
+  const history = normalizeHistory(actor.history);
   const guardianUid = actor.stage === 'baby' && Number.isFinite(actor.guardianUid) &&
     actor.guardianUid > 0 ? actor.guardianUid : null;
   const record = {
-    // Trait-free records remain v2; traits use v3; grief uses v4; a guardian
-    // uses v5 so an older build cannot drop the relationship on load.
-    actorVersion: guardianUid ? 5 : (mourning.length ? 4 : (actor.traits ? 3 : 2)),
+    // Trait-free records remain v2; traits v3; grief v4; a guardian v5; bond
+    // deltas v6 so an older build cannot silently strip the explanation.
+    actorVersion: historyHasBondDelta(history) ? 6
+      : (guardianUid ? 5 : (mourning.length ? 4 : (actor.traits ? 3 : 2))),
     species: actor.species,
     uid: actor.uid,
     name: actor.name,
@@ -42,7 +46,7 @@ export function snapshotActor(actor, extra = {}) {
     bold: round(actor.bold, 4),
     bonds: { ...(actor.bonds || {}) },
     skills: normalizeSkills(actor.skills),
-    history: normalizeHistory(actor.history),
+    history,
     playdates: normalizePlaydates(actor.playdates),
     home: actor.home || '',
     pregnant: !!actor.pregnant,

@@ -6,7 +6,7 @@
 // a visit always uses the initiator's home.
 
 import {
-  addBond, pairBond, familyRelation, socialAcceptBonus, schedulePlaydate,
+  addBond, bondOf, pairBond, familyRelation, socialAcceptBonus, schedulePlaydate,
   nextPlaydateDay, PLAYDATE_WINDOW, pushHistory,
 } from '../family.js';
 import { pairAvailable, beginPair, endPair } from '../interactions.js';
@@ -209,14 +209,11 @@ function endSocialPair(ctx) {
   const familyPlay = !!(ai.familyPlay || (partner && partner.ai && partner.ai.familyPlay));
   const completedWith = partner && partner.ai && partner.ai.state === 'social' &&
     partner.ai.partner === actor ? partner : null;
+  const beforeActor = bondOf(actor, partner);
+  const beforePartner = bondOf(partner, actor);
   settleSocial(ctx);
   if (completedWith) {
     settleSocial({ actor: partner, ai: partner.ai, p: api.profile(partner) });
-    if (features && features.interactionHistory) {
-      const { day, hour } = historyTime(api);
-      pushHistory(actor, { kind: 'social', uid: partner.uid, day, hour });
-      pushHistory(partner, { kind: 'social', uid: actor.uid, day, hour });
-    }
   }
   addBond(actor, partner, (familyPlay ? p.social.familyBondBase : p.social.bondBase) + rng() * p.social.bondJitter);
   if (familyPlay) {
@@ -224,6 +221,17 @@ function endSocialPair(ctx) {
     ai.familyPlayCooldown = 18;
     if (partner && partner.ai) partner.ai.familyPlayCooldown = 18;
     scheduleNextPlaydate(ctx, partner);
+  }
+  if (completedWith && features && features.interactionHistory) {
+    const { day, hour } = historyTime(api);
+    pushHistory(actor, {
+      kind: 'social', uid: partner.uid, day, hour,
+      bondBefore: beforeActor, bondAfter: bondOf(actor, partner),
+    });
+    pushHistory(partner, {
+      kind: 'social', uid: actor.uid, day, hour,
+      bondBefore: beforePartner, bondAfter: bondOf(partner, actor),
+    });
   }
   endPair(actor, { stop: api.stop, next: 'wander', idleT: .55, taskCooldown: 1.0 });
   const canVisit = partner && api.isDayFor(actor) &&
@@ -338,18 +346,26 @@ function finishVisitPair(ctx, completed = false) {
   const { actor, ai, api, features } = ctx;
   if (!actor || !ai || ai.state !== 'visit') return;
   const partner = ai.partner;
+  const beforeActor = bondOf(actor, partner);
+  const beforePartner = bondOf(partner, actor);
+  addBond(actor, partner, .08);
   if (completed && partner && partner.ai && features && features.interactionHistory) {
     const { day, hour } = historyTime(api);
     const actorRole = ai.visitRole === 'host' ? 'host' : 'guest';
+    const delta = {
+      bondBefore: beforeActor, bondAfter: bondOf(actor, partner),
+    };
+    const partnerDelta = {
+      bondBefore: beforePartner, bondAfter: bondOf(partner, actor),
+    };
     if (actorRole === 'host') {
-      pushHistory(actor, { kind: 'hosted', uid: partner.uid, day, hour });
-      pushHistory(partner, { kind: 'visit', uid: actor.uid, day, hour });
+      pushHistory(actor, { kind: 'hosted', uid: partner.uid, day, hour, ...delta });
+      pushHistory(partner, { kind: 'visit', uid: actor.uid, day, hour, ...partnerDelta });
     } else {
-      pushHistory(actor, { kind: 'visit', uid: partner.uid, day, hour });
-      pushHistory(partner, { kind: 'hosted', uid: actor.uid, day, hour });
+      pushHistory(actor, { kind: 'visit', uid: partner.uid, day, hour, ...delta });
+      pushHistory(partner, { kind: 'hosted', uid: actor.uid, day, hour, ...partnerDelta });
     }
   }
-  addBond(actor, partner, .08);
   actor.social = Math.max(0, actor.social - .22);
   actor.affection = Math.max(0, actor.affection - .16);
   ai.socialCooldown = 8;

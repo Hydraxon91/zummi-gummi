@@ -33,6 +33,19 @@ export const INTERACTION_HISTORY_KINDS = Object.freeze(new Set([
   'social', 'hosted', 'visit', 'decline', 'declined', 'conflict',
 ]));
 
+function bondDeltaFields(event) {
+  const before = Number(event && event.bondBefore);
+  const after = Number(event && event.bondAfter);
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return null;
+  return { bondBefore: clamp(before, 0, 1), bondAfter: clamp(after, 0, 1) };
+}
+
+export function historyHasBondDelta(list) {
+  return (Array.isArray(list) ? list : []).some(event =>
+    event && Number.isFinite(Number(event.bondBefore)) &&
+    Number.isFinite(Number(event.bondAfter)));
+}
+
 function finite(n, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
@@ -242,12 +255,15 @@ export function normalizeHistory(list, limit = HISTORY_LIMIT) {
   const clean = [];
   for (const event of list) {
     if (!event || typeof event.kind !== 'string') continue;
-    clean.push({
+    const entry = {
       kind: event.kind,
       uid: Number.isFinite(Number(event.uid)) ? Number(event.uid) : 0,
       day: Number.isFinite(Number(event.day)) ? Math.max(0, Math.floor(Number(event.day))) : 0,
       hour: Number.isFinite(Number(event.hour)) ? clamp(Number(event.hour), 0, 24) : 0,
-    });
+    };
+    const delta = bondDeltaFields(event);
+    if (delta) Object.assign(entry, delta);
+    clean.push(entry);
   }
   return clean.slice(-Math.max(1, limit | 0));
 }
@@ -261,6 +277,8 @@ export function pushHistory(actor, event, limit = HISTORY_LIMIT) {
     day: Number.isFinite(Number(event.day)) ? Math.max(0, Math.floor(Number(event.day))) : 0,
     hour: Number.isFinite(Number(event.hour)) ? clamp(Number(event.hour), 0, 24) : 0,
   };
+  const delta = bondDeltaFields(event);
+  if (delta) Object.assign(entry, delta);
   list.push(entry);
   const max = Math.max(1, limit | 0);
   if (list.length > max) {
