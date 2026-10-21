@@ -1,0 +1,24 @@
+{
+  "template": "../tests/phase5/api/stablematerials_text_pbr_native_template.json",
+  "base_url": "http://192.168.1.190:8188",
+  "mode": "Standard (50 steps, quality)",
+  "steps": 4,
+  "cfg": 7.5,
+  "size": 1024,
+  "seeds": [20261021],
+  "filename_prefix": "phase7_laptop",
+  "prompt_suffix": "Uniform brightness; opposite edges match when tiled.",
+  "negative": "text, watermark, UI, border, frame, margin, shadow, lighting, reflection, highlight, perspective, object, background, visible seam, gradient, vignette, banding, mosaic, tile grid, grout, cracks, deep scratches, chips, dirt, grime, heavy wear, rust, metal, pattern",
+  "materials": [
+    {
+      "id": "laptop_ivory_aged",
+      "label": "Lightly aged ivory ABS laptop plastic",
+      "prompt": "Flat albedo texture of lightly aged ivory-white ABS laptop plastic, subtle warm yellowing and faint uneven discoloration, fine hairline scratches, soft handling wear, low-contrast satin finish, seamless tileable, no text, no logos, no objects, no lighting, no shadows, no border."
+    },
+    {
+      "id": "laptop_tangerine_aged",
+      "label": "Lightly aged tangerine laptop plastic",
+      "prompt": "Flat albedo texture of lightly aged tangerine-orange laptop plastic, gently faded uneven colour, fine hairline scratches, soft handling wear, mostly opaque satin finish, seamless tileable, no text, no logos, no objects, no lighting, no shadows, no border."
+    }
+  ]
+}
