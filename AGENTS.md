@@ -248,7 +248,8 @@ and driving it.
   species social, history panel, save/load and the family map/save round trip; `STUDIO=1`
   adds the Studio GLB inventory and the family restore check. It uses a temporary browser
   profile and a configurable `BROWSER_BIN`/`CHROME_BIN`. CI runs the same command in a
-  separate blocking job after the smoke test, with SwiftShader fallback enabled. Deeper
+  separate blocking job after the smoke test, then `scripts/social-test.mjs` and
+  `scripts/gifting-test.mjs`, with SwiftShader fallback enabled. Deeper
   passes use `scripts/race-test.mjs` (desktop, `MOBILE=1`, `LOOK=alpha`) and
   `scripts/glass-test.mjs` through the same portable harness. Behavior changes also run
   `node scripts/behavior-parity.mjs --days 2 --seeds 1,2,3` (or `--long`), the seeded

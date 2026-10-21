@@ -61,7 +61,7 @@ jobs:
     name: Browser regression (core)
     needs: serve-and-load
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -120,6 +120,33 @@ jobs:
           WIDTH: "900"
           HEIGHT: "600"
         run: node scripts/behavior-browser-parity.mjs
+
+      - name: Run social interaction acceptance
+        env:
+          TAG: ci-social
+          LOW_QUALITY: "1"
+          WIDTH: "900"
+          HEIGHT: "600"
+        run: node scripts/social-test.mjs
+
+      - name: Run physical gifting acceptance
+        env:
+          TAG: ci-gifting
+          LOW_QUALITY: "1"
+          WIDTH: "900"
+          HEIGHT: "600"
+        run: node scripts/gifting-test.mjs
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-browser-artifacts-${{ github.run_attempt }}
+          path: |
+            .dev-shots/*.json
+            .dev-shots/*.png
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Show server log on failure
         if: failure()
