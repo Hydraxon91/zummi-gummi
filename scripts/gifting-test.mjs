@@ -123,6 +123,7 @@ try {
     const receiverIndex = list.findIndex(a => a.uid === receiver.uid);
     g.setHunger(giverIndex, .2);
     g.setHunger(receiverIndex, .1);
+    g.sim(.1, 0);
     const result = g.gift(giverIndex, receiverIndex);
     return { found: true, result, ripe: g.foodSources().find(s => s.id === source.id)?.ripe };
   })()`);
