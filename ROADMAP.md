@@ -2367,8 +2367,10 @@ decision.
 carry `bondBefore`/`bondAfter` on the existing history entry. `normalizeHistory`
 preserves those fields and `actorVersion: 6` is written only when a delta exists;
 older v2-v5 saves remain valid. Deltas are display-only: mood does not weight the
-interaction kinds, and `pushHistory` evicts an interaction record before a
-`lesson`/`taught` record so display logging cannot reopen same-day teaching. The
+interaction kinds, and interaction records may recycle only other interaction
+slots; they never displace non-interaction history. If the buffer is full of
+behavior history, the display event is skipped, so mood and same-day teaching are
+unchanged with logging on or off. The
 relationship and Recent events panels render the delta as `42% → 48%`. Validation
 rejects deltas on v5 and v6 without a delta. Older builds reject v6 rather than
 silently stripping the explanation.

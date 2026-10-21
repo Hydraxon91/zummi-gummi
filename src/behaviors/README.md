@@ -213,8 +213,10 @@ The `interactionHistory` feature is off in the engine defaults and enabled by
 off so the legacy oracle has no extra history eviction. Legacy does not write
 these module-only history kinds, so the parity comparator also excludes only this
 explicit set while still comparing state, needs, bonds, playdates, RNG and the
-rest of history. At the 16-entry cap, an interaction record is evicted before a
-`lesson`/`taught` record so display logging cannot reopen same-day teaching.
+rest of history. At the 16-entry cap, interaction records may recycle only other
+interaction slots; they never displace a non-interaction record. If no slot is
+available, the display event is skipped. This keeps mood, same-day lesson checks
+and the non-interaction history sequence identical with logging on or off.
 Interaction kinds are not mood inputs; `visit` was removed from `EVENT_WEIGHTS`.
 Completed social, visit and conflict records also carry optional
 `bondBefore`/`bondAfter` values; a record with a delta is saved as actor version 6
