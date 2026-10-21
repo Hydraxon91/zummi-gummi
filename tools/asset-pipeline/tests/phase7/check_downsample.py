@@ -45,14 +45,23 @@ corners = {
 normal_vectors = normal[..., :3] * 2.0 - 1.0
 normal_lengths = np.sqrt(np.sum(normal_vectors * normal_vectors, axis=2))
 checker_values = checker[..., :3]
-checker_mean = float(checker_values.mean())
+checker_mean_srgb = float(checker_values.mean())
+checker_mean_linear = float(
+    np.where(checker_values <= 0.04045, checker_values / 12.92,
+             np.power((checker_values + 0.055) / 1.055, 2.4)).mean()
+)
+expected_srgb = float(1.055 * np.power(0.5, 1.0 / 2.4) - 0.055)
 checker_spread = float(checker_values.max() - checker_values.min())
 normal_mean_length = float(normal_lengths.mean())
 finding = []
-if abs(checker_mean - 0.5) > 0.005:
-    finding.append("sRGB checker mean is not 0.5 +/- 0.005")
+if abs(checker_mean_linear - 0.5) > 0.005:
+    finding.append("linear-light checker mean is not 0.5 +/- 0.005")
+if abs(checker_mean_srgb - expected_srgb) > 0.005:
+    finding.append(
+        "sRGB checker mean is not %.6f +/- 0.005" % expected_srgb
+    )
 if checker_spread > 0.005:
-    finding.append("sRGB checker is not uniform after downsample")
+    finding.append("checker is not uniform after downsample")
 for name, expected in expected_corners.items():
     delta = float(np.max(np.abs(np.array(corners[name]) - np.array(expected))))
     if delta > 0.01:
@@ -62,7 +71,9 @@ if abs(normal_mean_length - 1.0) > 0.01:
 if float(normal[..., 2].mean()) <= 0.5:
     finding.append("normal Z is not positive")
 report = {
-    "checker_mean_linear": checker_mean,
+    "checker_mean_linear": checker_mean_linear,
+    "checker_mean_srgb": checker_mean_srgb,
+    "checker_expected_srgb": expected_srgb,
     "checker_spread": checker_spread,
     "orientation_corners": corners,
     "normal_mean_length": normal_mean_length,

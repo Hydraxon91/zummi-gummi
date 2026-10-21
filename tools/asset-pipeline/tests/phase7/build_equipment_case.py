@@ -113,6 +113,34 @@ def box(name, dimensions, location, material, bevel=0.0, segments=1):
     return obj
 
 
+def frame(name, outer_dimensions, inner_dimensions, location, material,
+          bevel=0.003):
+    """One closed picture-frame solid cut from an outer block.
+
+    The cutter stays hidden in the source as editable construction. The result
+    has no overlapping bars at the corners.
+    """
+    outer = box(name, outer_dimensions, location, material)
+    cutter = box(name + "_Cutter", inner_dimensions, location, material)
+    for collection in list(cutter.users_collection):
+        collection.objects.unlink(cutter)
+    cutters.objects.link(cutter)
+    cutter.hide_render = True
+    active(outer)
+    boolean = outer.modifiers.new("Opening", "BOOLEAN")
+    boolean.operation = "DIFFERENCE"
+    boolean.solver = "EXACT"
+    boolean.object = cutter
+    bpy.ops.object.modifier_apply(modifier=boolean.name)
+    if bevel > 0.0:
+        modifier = outer.modifiers.new("Bevel", "BEVEL")
+        modifier.width = bevel
+        modifier.segments = 1
+        modifier.limit_method = "ANGLE"
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+    return outer
+
+
 def uv_unwrap(obj):
     active(obj)
     bpy.ops.object.mode_set(mode="EDIT")
@@ -138,6 +166,8 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 scene.unit_settings.system = "METRIC"
 scene.unit_settings.scale_length = 1.0
+cutters = bpy.data.collections.new("Equipment_Cutters")
+scene.collection.children.link(cutters)
 
 teal_base = load_image(args.teal_basecolor, "sRGB")
 teal_normal = load_image(args.teal_normal, "Non-Color")
@@ -148,34 +178,36 @@ silver_roughness = load_image(args.silver_roughness, "Non-Color")
 silver_metallic = load_image(args.silver_metallic, "Non-Color")
 shell = make_image_material("Case_Shell_Teal", teal_base, teal_normal,
                             teal_roughness, metallic=None, metallic_default=0.0)
-frame = make_image_material("Case_Frame_Silver", silver_base, silver_normal,
-                            silver_roughness, silver_metallic)
+frame_material = make_image_material("Case_Frame_Silver", silver_base, silver_normal,
+                                     silver_roughness, silver_metallic)
 dark = make_dark_material("Case_Dark_Rubber")
 
 body = box("Case_Body", (0.82, 0.56, 0.24), (0.0, 0.0, 0.0), shell,
            bevel=0.025, segments=3)
 
-# Front recessed panel: four frame bars slightly proud of a dark inner plate.
+# Front recessed panel: one Boolean-cut frame solid around a dark inner plate.
 front_y = -0.285
-front_parts = [
-    box("Front_Frame_Top", (0.52, 0.02, 0.03), (0.0, front_y, 0.075), frame, 0.003, 1),
-    box("Front_Frame_Bottom", (0.52, 0.02, 0.03), (0.0, front_y, -0.075), frame, 0.003, 1),
-    box("Front_Frame_Left", (0.03, 0.02, 0.18), (-0.245, front_y, 0.0), frame, 0.003, 1),
-    box("Front_Frame_Right", (0.03, 0.02, 0.18), (0.245, front_y, 0.0), frame, 0.003, 1),
-    box("Front_Panel", (0.46, 0.008, 0.12), (0.0, -0.283, 0.0), dark, 0.003, 1),
-]
+front_frame = frame(
+    "Front_Frame",
+    (0.52, 0.02, 0.18),
+    (0.46, 0.03, 0.12),
+    (0.0, front_y, 0.0),
+    frame_material,
+)
+front_panel = box("Front_Panel", (0.50, 0.008, 0.16), (0.0, -0.283, 0.0), dark, 0.003, 1)
 
 # Top recessed panel, set back from the handle.
-top_z = 0.13
-top_parts = [
-    box("Top_Frame_Front", (0.52, 0.03, 0.02), (0.0, 0.075, top_z), frame, 0.003, 1),
-    box("Top_Frame_Back", (0.52, 0.03, 0.02), (0.0, -0.075, top_z), frame, 0.003, 1),
-    box("Top_Frame_Left", (0.03, 0.18, 0.02), (-0.245, 0.0, top_z), frame, 0.003, 1),
-    box("Top_Frame_Right", (0.03, 0.18, 0.02), (0.245, 0.0, top_z), frame, 0.003, 1),
-    box("Top_Panel", (0.46, 0.12, 0.008), (0.0, 0.0, 0.125), dark, 0.003, 1),
-]
+top_z = 0.1295
+top_frame = frame(
+    "Top_Frame",
+    (0.52, 0.18, 0.02),
+    (0.46, 0.12, 0.03),
+    (0.0, 0.0, top_z),
+    frame_material,
+)
+top_panel = box("Top_Panel", (0.50, 0.16, 0.008), (0.0, 0.0, 0.125), dark, 0.003, 1)
 
-body_parts = [body] + front_parts + top_parts
+body_parts = [body, front_frame, front_panel, top_frame, top_panel]
 case = join(body_parts, "Equipment_Case")
 
 # U-shaped handle and two mounting plates on the back half of the top.
@@ -206,11 +238,20 @@ bpy.ops.object.convert(target="MESH")
 handle = bpy.context.object
 handle.name = "Equipment_Handle"
 handle.data.name = "Equipment_Handle_Mesh"
-handle.data.materials.append(frame)
+handle.data.materials.append(frame_material)
 for index, x in enumerate((-0.18, 0.18)):
     mount = box("Handle_Mount_%d" % index, (0.06, 0.06, 0.012),
-                (x, -0.20, 0.13), frame, 0.003, 1)
-    handle = join([handle, mount], "Equipment_Handle")
+                (x, -0.20, 0.13), frame_material, 0.003, 1)
+    active(handle)
+    boolean = handle.modifiers.new("Mount_Union_%d" % index, "BOOLEAN")
+    boolean.operation = "UNION"
+    boolean.solver = "EXACT"
+    boolean.object = mount
+    bpy.ops.object.modifier_apply(modifier=boolean.name)
+    for collection in list(mount.users_collection):
+        collection.objects.unlink(mount)
+    cutters.objects.link(mount)
+    mount.hide_render = True
 
 # The converted curve caps can remain open; close them before UV/export.
 active(handle)
@@ -239,6 +280,11 @@ bpy.ops.object.modifier_apply(modifier=triangulate.name)
 for obj in (case, handle, feet):
     uv_unwrap(obj)
 
+# Boolean frame openings leave n-gons; triangulate the case so tangents can export.
+active(case)
+triangulate_case = case.modifiers.new("Triangulate_For_Tangents", "TRIANGULATE")
+bpy.ops.object.modifier_apply(modifier=triangulate_case.name)
+
 # Smooth only the curved/hard-surface bevels; keep small plates readable.
 for obj in (case, handle):
     active(obj)
@@ -248,6 +294,8 @@ bpy.ops.object.select_all(action="DESELECT")
 for obj in (case, handle, feet):
     obj.select_set(True)
 bpy.context.view_layer.objects.active = case
+cutters.hide_viewport = True
+cutters.hide_render = True
 bpy.ops.wm.save_as_mainfile(filepath=str(source_path))
 
 bpy.ops.export_scene.gltf(

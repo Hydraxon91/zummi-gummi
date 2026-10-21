@@ -23,6 +23,10 @@ from mathutils import Vector
 parse = argparse.ArgumentParser()
 parse.add_argument("--materials-json", required=True)
 parse.add_argument("--lamp-glb", required=True)
+parse.add_argument("--laptop-glb")
+parse.add_argument("--beanbag-glb")
+parse.add_argument("--plant-glb")
+parse.add_argument("--mouse-glb")
 parse.add_argument("--out-dir", required=True)
 args = parse.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
 
@@ -53,7 +57,8 @@ scene.unit_settings.scale_length = 1.0
 room = bpy.data.collections.new("7E_Office")
 books_collection = bpy.data.collections.new("7E_Books")
 lamp_collection = bpy.data.collections.new("7E_Lamp")
-for collection in (room, books_collection, lamp_collection):
+props_collection = bpy.data.collections.new("7E_Frutiger")
+for collection in (room, books_collection, lamp_collection, props_collection):
     scene.collection.children.link(collection)
 
 root = bpy.data.objects.new("Office_Root", None)
@@ -283,15 +288,16 @@ book_materials = [constant_material("Office_Book_" + name, color, 0.68) for name
 paper = constant_material("Office_Book_Pages", hex_linear("#D8CDAE"), 0.86)
 
 # Architectural shell. Opening: X -1.05..1.05, Z 0.95..2.25, wall Y 1.5..1.68.
-floor = cube("Office_Floor", (0, 0, -0.09), (3.6, 3.0, 0.18), room, floor_material)
+# Floor reaches every wall's outer face: X -1.98..1.80, Y -1.50..1.68.
+floor = cube("Office_Floor", (-0.09, 0.09, -0.09), (3.78, 3.18, 0.18), room, floor_material)
 box_project_uv(floor, 1.2)
 left_wall = cube("Office_Wall_Left", (-1.89, 0, 1.35), (0.18, 3.0, 2.7), room, wall_material)
 box_project_uv(left_wall, 0.9)
 wall_finish(left_wall, (1, 0, 0))
 for name, location, dimensions in (
-    ("Office_Wall_Back_Lower", (-0.045, 1.59, 0.475), (3.69, 0.18, 0.95)),
-    ("Office_Wall_Back_Upper", (-0.045, 1.59, 2.475), (3.69, 0.18, 0.45)),
-    ("Office_Wall_Back_Left", (-1.47, 1.59, 1.6), (0.84, 0.18, 1.3)),
+    ("Office_Wall_Back_Lower", (-0.09, 1.59, 0.475), (3.78, 0.18, 0.95)),
+    ("Office_Wall_Back_Upper", (-0.09, 1.59, 2.475), (3.78, 0.18, 0.45)),
+    ("Office_Wall_Back_Left", (-1.515, 1.59, 1.6), (0.93, 0.18, 1.3)),
     ("Office_Wall_Back_Right", (1.425, 1.59, 1.6), (0.75, 0.18, 1.3)),
 ):
     wall = cube(name, location, dimensions, room, wall_material)
@@ -319,45 +325,46 @@ for x in (-0.72, 0.62):
         cube(f"Office_Desk_Leg_{x}_{y}", (x, y, 0.36), (0.055, 0.055, 0.72), room, metal)
 
 # Old wooden chair facing the desk, with a red seat cushion. Its front edge
-# tucks 80 mm under the desk.
+# tucks 80 mm under the desk. The rear legs continue up as the back stiles, so
+# the back is one solid member instead of a post sitting on a separate leg.
 chair_x = -0.05
 chair_y = 0.60
 chair_parts = []
 for sign in (-1, 1):
-    for y_offset in (-0.23, 0.195):
-        chair_parts.append(cube(
-            f"Office_Chair_Leg_{sign}_{y_offset}",
-            (chair_x + sign * 0.20, chair_y + y_offset, 0.25),
-            (0.045, 0.045, 0.50),
-            room,
-            chair_material,
-        ))
-seat = cube("Office_Chair_Seat", (chair_x, chair_y, 0.475), (0.50, 0.46, 0.055), room, chair_material)
-chair_parts.append(seat)
-for sign in (-1, 1):
     chair_parts.append(cube(
-        f"Office_Chair_Back_Post_{sign}",
-        (chair_x + sign * 0.225, chair_y - 0.23, 0.79),
-        (0.045, 0.045, 0.60),
+        f"Office_Chair_Leg_Front_{sign}",
+        (chair_x + sign * 0.20, chair_y + 0.195, 0.25),
+        (0.045, 0.045, 0.50),
         room,
         chair_material,
     ))
-chair_parts.append(cube("Office_Chair_Rail_Top", (chair_x, chair_y - 0.23, 1.055), (0.49, 0.035, 0.075), room, chair_material))
-chair_parts.append(cube("Office_Chair_Rail_Mid", (chair_x, chair_y - 0.23, 0.86), (0.46, 0.035, 0.045), room, chair_material))
-chair_parts.append(cube("Office_Chair_Rail_Low", (chair_x, chair_y - 0.23, 0.69), (0.46, 0.035, 0.04), room, chair_material))
+    chair_parts.append(cube(
+        f"Office_Chair_Stile_Back_{sign}",
+        (chair_x + sign * 0.20, chair_y - 0.23, 0.545),
+        (0.045, 0.045, 1.09),
+        room,
+        chair_material,
+    ))
+seat = cube("Office_Chair_Seat", (chair_x, chair_y, 0.475), (0.50, 0.46, 0.055), room, chair_material)
+chair_parts.append(seat)
+chair_parts.append(cube("Office_Chair_Rail_Top", (chair_x, chair_y - 0.23, 1.055), (0.435, 0.035, 0.075), room, chair_material))
+chair_parts.append(cube("Office_Chair_Rail_Mid", (chair_x, chair_y - 0.23, 0.86), (0.40, 0.035, 0.045), room, chair_material))
+chair_parts.append(cube("Office_Chair_Rail_Low", (chair_x, chair_y - 0.23, 0.69), (0.40, 0.035, 0.04), room, chair_material))
 # Aprons tie every leg into the seat instead of leaving free-standing posts.
+# Their tops sit 20 mm inside the seat so the 4 mm bevels cannot open a gap.
 for name, x, y, dimensions in (
-    ("Office_Chair_Apron_Left", chair_x - 0.20, chair_y - 0.0175, (0.03, 0.39, 0.06)),
-    ("Office_Chair_Apron_Right", chair_x + 0.20, chair_y - 0.0175, (0.03, 0.39, 0.06)),
-    ("Office_Chair_Apron_Front", chair_x, chair_y + 0.195, (0.40, 0.03, 0.06)),
-    ("Office_Chair_Apron_Back", chair_x, chair_y - 0.23, (0.40, 0.03, 0.06)),
+    ("Office_Chair_Apron_Left", chair_x - 0.20, chair_y - 0.0175, (0.03, 0.425, 0.08)),
+    ("Office_Chair_Apron_Right", chair_x + 0.20, chair_y - 0.0175, (0.03, 0.425, 0.08)),
+    ("Office_Chair_Apron_Front", chair_x, chair_y + 0.195, (0.40, 0.03, 0.08)),
+    ("Office_Chair_Apron_Back", chair_x, chair_y - 0.23, (0.40, 0.03, 0.08)),
 ):
-    chair_parts.append(cube(name, (x, y, 0.418), dimensions, room, chair_material))
+    chair_parts.append(cube(name, (x, y, 0.428), dimensions, room, chair_material))
+# Stretchers end at the leg centres, giving each joint 22.5 mm of solid overlap.
 for index, (x, y, dimensions) in enumerate((
-    (chair_x - 0.20, chair_y - 0.0175, (0.025, 0.39, 0.025)),
-    (chair_x + 0.20, chair_y - 0.0175, (0.025, 0.39, 0.025)),
-    (chair_x, chair_y + 0.195, (0.37, 0.025, 0.025)),
-    (chair_x, chair_y - 0.23, (0.37, 0.025, 0.025)),
+    (chair_x - 0.20, chair_y - 0.0175, (0.025, 0.425, 0.025)),
+    (chair_x + 0.20, chair_y - 0.0175, (0.025, 0.425, 0.025)),
+    (chair_x, chair_y + 0.195, (0.40, 0.025, 0.025)),
+    (chair_x, chair_y - 0.23, (0.40, 0.025, 0.025)),
 ), start=1):
     chair_parts.append(cube(f"Office_Chair_Stretcher_{index}", (x, y, 0.17), dimensions, room, chair_material))
 for part in chair_parts:
@@ -398,6 +405,10 @@ open_book_parts.append(cube("Office_OpenBook_Spine", (-0.05, 0.97, 0.780), (0.02
 open_book_parts.append(cube("Office_OpenBook_Marker", (-0.05, 0.88, 0.790), (0.015, 0.11, 0.002), room, cushion_material))
 for part in open_book_parts:
     bevel(part, 0.0015, 2)
+# Keep the open book beside the new laptop instead of under it.
+for part in open_book_parts:
+    part.location.x += 0.37
+    part.location.y -= 0.07
 
 # Bookcase. Back is 25 mm from the left wall; front is 510 mm from the desk edge.
 # The back panel's front face is 2 mm behind the side-panel rear faces to avoid z-fighting.
@@ -512,7 +523,9 @@ for shelf_index, shelf_z in enumerate((0.05, 0.525, 1.0, 1.475)):
 # The accepted 7D lamp is imported unchanged and only positioned as a complete hierarchy.
 before = set(bpy.data.objects)
 bpy.ops.import_scene.gltf(filepath=str(Path(args.lamp_glb).resolve()))
-lamp_root = bpy.data.objects["DeskLamp_Export_Root"]
+lamp_root = bpy.data.objects.get("DeskLamp_Export_Root") or bpy.data.objects.get("Office_DeskLamp_Root")
+if lamp_root is None:
+    raise RuntimeError("Imported lamp root not found")
 lamp_root.name = "Office_DeskLamp_Root"
 lamp_parts = [obj for obj in bpy.data.objects if obj not in before and obj.type == "MESH"]
 for obj in [lamp_root, *lamp_parts]:
@@ -548,6 +561,53 @@ lamp_light = bpy.data.objects.new("Office_DeskLamp_Light", lamp_light_data)
 lamp_collection.objects.link(lamp_light)
 lamp_light.parent = lamp_root
 lamp_light.location = (0.0, 0.11, 0.455)
+
+
+def import_placed_asset(path, root_name, location, rotation_z, tag):
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=str(Path(path).resolve()))
+    imported = [obj for obj in bpy.data.objects if obj not in before]
+    root_obj = next(
+        (obj for obj in imported if obj.type == "EMPTY" and obj.name.startswith(root_name)),
+        None,
+    )
+    if root_obj is None:
+        raise RuntimeError(f"Imported root {root_name} not found in {path}")
+    root_obj.name = root_name
+    root_obj.rotation_mode = "XYZ"
+    for obj in imported:
+        for collection in list(obj.users_collection):
+            collection.objects.unlink(obj)
+        props_collection.objects.link(obj)
+    root_obj.location = location
+    root_obj.rotation_euler[2] = math.radians(rotation_z)
+    for obj in imported:
+        if obj.type == "MESH":
+            obj["source"] = tag
+    return root_obj, imported
+
+
+laptop_root, laptop_imported = import_placed_asset(
+    args.laptop_glb, "RetroLaptop_Root", (-0.58, 1.02, 0.776), 19.0,
+    "retro-laptop-010")
+laptop_hinge = next(
+    (obj for obj in laptop_imported
+     if obj.type == "EMPTY" and obj.name.startswith("RetroLaptop_Hinge")), None)
+if laptop_hinge is not None:
+    laptop_hinge.animation_data_clear()
+    laptop_hinge.rotation_mode = "XYZ"
+    laptop_hinge.rotation_euler = (math.radians(-110.0), 0.0, 0.0)
+
+beanbag_root, beanbag_imported = import_placed_asset(
+    args.beanbag_glb, "Frutiger_Beanbag_Root", (0.95, 0.25, 0.015), 12.0,
+    "frutiger-props-001")
+plant_root, plant_imported = import_placed_asset(
+    args.plant_glb, "Frutiger_Plant_Root", (1.35, 1.15, 0.0), 30.0,
+    "frutiger-props-001")
+mouse_root, mouse_imported = import_placed_asset(
+    args.mouse_glb, "Frutiger_Mouse_Root", (-0.30, 0.94, 0.77), -25.0,
+    "frutiger-props-001")
+
 
 # Review camera/lights are excluded from the GLB selection.
 camera_data = bpy.data.cameras.new("Office_Review_Camera")
@@ -588,10 +648,10 @@ background.inputs["Strength"].default_value = 0.7
 
 bpy.ops.wm.save_as_mainfile(filepath=str(source_path))
 
-# Selection: only room, book and lamp geometry. No camera or lights.
+# Selection: only room, book, lamp and new prop geometry. No camera or lights.
 bpy.ops.object.select_all(action="DESELECT")
 selected = []
-for collection in (room, books_collection, lamp_collection):
+for collection in (room, books_collection, lamp_collection, props_collection):
     for obj in collection.objects:
         if obj.type in {"MESH", "EMPTY"}:
             obj.select_set(True)
@@ -620,7 +680,7 @@ report = {
     "glb_bytes": glb_path.stat().st_size,
     "units": "metres",
     "up": "+Z",
-    "floor_dimensions_m": [3.6, 3.0],
+    "floor_dimensions_m": [3.78, 3.18],
     "wall_height_m": 2.7,
     "opening_m": {"x": [-1.05, 1.05], "z": [0.95, 2.25], "wall_y": [1.5, 1.68]},
     "desk_top_height_m": 0.77,
@@ -632,7 +692,7 @@ report = {
         "center": [chair_x, chair_y],
         "materials": ["Office_Chair_Oak", "Office_Cushion_Red"],
     },
-    "open_book": {"center": [-0.05, 0.97, 0.787], "cover": "Office_Book_Navy", "pages": "Office_Book_Pages"},
+    "open_book": {"center": [0.32, 0.90, 0.787], "cover": "Office_Book_Navy", "pages": "Office_Book_Pages"},
     "bookcase": {"width_m": 1.1, "height_m": 1.95, "depth_m": 0.4, "books": book_count, "material": "Office_Bookcase_Oak"},
     "rug": {"center": [-0.05, 0.55, 0.0075], "diameter_m": [2.32, 1.80], "thickness_m": 0.015, "material": "Office_Rug_Grey"},
     "ceiling_fan": {
@@ -654,6 +714,35 @@ report = {
         "bounds": lamp_bounds,
         "parts": len(lamp_parts),
         "light": "Office_DeskLamp_Light, 12 W warm point, parented to lamp root, not exported",
+    },
+    "retro_laptop": {
+        "source": "retro-laptop-010",
+        "root": laptop_root.name,
+        "location": [round(float(value), 6) for value in laptop_root.location],
+        "rotation_z_degrees": 19,
+        "hinge": "RetroLaptop_Hinge, static open at -110 degrees in the office scene",
+        "bounds": objects_bounds([obj for obj in laptop_imported if obj.type == "MESH"]),
+        "parts": len([obj for obj in laptop_imported if obj.type == "MESH"]),
+    },
+    "frutiger_props": {
+        "beanbag": {
+            "root": beanbag_root.name,
+            "location": [round(float(value), 6) for value in beanbag_root.location],
+            "rotation_z_degrees": 12,
+            "bounds": objects_bounds([obj for obj in beanbag_imported if obj.type == "MESH"]),
+        },
+        "plant": {
+            "root": plant_root.name,
+            "location": [round(float(value), 6) for value in plant_root.location],
+            "rotation_z_degrees": 30,
+            "bounds": objects_bounds([obj for obj in plant_imported if obj.type == "MESH"]),
+        },
+        "mouse": {
+            "root": mouse_root.name,
+            "location": [round(float(value), 6) for value in mouse_root.location],
+            "rotation_z_degrees": -25,
+            "bounds": objects_bounds([obj for obj in mouse_imported if obj.type == "MESH"]),
+        },
     },
     "materials_manifest": str(Path(args.materials_json).resolve()),
     "mesh_objects": len(mesh_objects),

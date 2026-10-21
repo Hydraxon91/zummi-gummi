@@ -21,6 +21,8 @@ parse.add_argument("--roughness", required=True)
 parse.add_argument("--metallic", required=True)
 parse.add_argument("--out-dir", required=True)
 parse.add_argument("--size", type=int, default=512)
+parse.add_argument("--legacy-srgb-average", action="store_true",
+                   help="Reproduce the old raw sRGB average for a negative control")
 args = parse.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
 
 out_dir = Path(args.out_dir)
@@ -61,6 +63,18 @@ def area_average(array):
     return array.reshape(size, factor_y, size, factor_x, 4).mean(axis=(1, 3))
 
 
+def srgb_to_linear(values):
+    values = np.asarray(values, dtype=np.float32)
+    return np.where(values <= 0.04045, values / 12.92,
+                    np.power((values + 0.055) / 1.055, 2.4))
+
+
+def linear_to_srgb(values):
+    values = np.asarray(values, dtype=np.float32)
+    return np.where(values <= 0.0031308, values * 12.92,
+                    1.055 * np.power(values, 1.0 / 2.4) - 0.055)
+
+
 def normalise_normal(array):
     vectors = array[..., :3] * 2.0 - 1.0
     lengths = np.sqrt(np.sum(vectors * vectors, axis=2, keepdims=True))
@@ -94,7 +108,14 @@ for role, path, colorspace in (
 ):
     source = load(path, colorspace)
     source_pixels = pixels(source)
-    average = area_average(source_pixels)
+    linear_basecolor = role == "basecolor" and not args.legacy_srgb_average
+    if linear_basecolor:
+        working = source_pixels.copy()
+        working[..., :3] = srgb_to_linear(source_pixels[..., :3])
+        average = area_average(working)
+        average[..., :3] = np.clip(linear_to_srgb(average[..., :3]), 0.0, 1.0)
+    else:
+        average = area_average(source_pixels)
     normal_stats = None
     if role == "normal":
         average, lengths = normalise_normal(average)
@@ -116,6 +137,7 @@ for role, path, colorspace in (
         "output": str(output_path.resolve()),
         "output_sha256": sha256_file(output_path),
         "output_size": [reloaded.size[0], reloaded.size[1]],
+        "linear_light_basecolor": linear_basecolor,
         "source_mean_rgba": [float(value) for value in source_pixels.mean(axis=(0, 1))],
         "output_mean_rgba": [float(value) for value in reloaded_pixels.mean(axis=(0, 1))],
         "output_min_rgba": [float(value) for value in reloaded_pixels.min(axis=(0, 1))],
@@ -125,6 +147,7 @@ for role, path, colorspace in (
 
 report = {
     "size": size,
+    "legacy_srgb_average": bool(args.legacy_srgb_average),
     "entries": entries,
     "status": "pass",
 }

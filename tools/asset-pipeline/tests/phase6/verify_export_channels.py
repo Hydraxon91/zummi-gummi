@@ -113,6 +113,14 @@ def source_sha(role):
     return build["textures"][role]["sha256"]
 
 
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 doc, binary = read_glb(glb_path)
 materials = doc.get("materials", [])
 images = doc.get("images", [])
@@ -150,6 +158,19 @@ for material in materials:
             "image": load_image(data, "%s_%s" % (key, role),
                                 "sRGB" if role == "basecolor" else "Non-Color"),
         }
+
+    source_hashes = {}
+    for role in ("basecolor", "normal", "roughness", "metallic"):
+        role_name = key + "_" + role
+        actual = sha256_file(source_path(role_name))
+        expected = source_sha(role_name)
+        source_hashes[role] = {
+            "expected": expected,
+            "actual": actual,
+            "match": actual == expected,
+        }
+        if actual != expected:
+            findings.append("%s %s source hash does not match build.json" % (name, role))
 
     src_base = load_image(source_path(key + "_basecolor"), key + "_basecolor_src", "sRGB")
     src_normal = load_image(source_path(key + "_normal"), key + "_normal_src", "Non-Color")
@@ -216,6 +237,7 @@ for material in materials:
         "metallic_factor": metallic_factor,
         "roughness_factor": roughness_factor,
         "base_color_factor": base_factor,
+        "source_hashes": source_hashes,
         "basecolor": {
             **{key_: value for key_, value in roles["basecolor"].items() if key_ != "image"},
             "source": str(source_path(key + "_basecolor")),

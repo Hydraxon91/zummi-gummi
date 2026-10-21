@@ -87,6 +87,7 @@ report = {
     "size": size,
     "expected": {
         "checker_linear_mean": 0.5,
+        "checker_encoded_srgb_mean": 0.7353569831,
         "orientation_corners_linear": {
             "top_left": [1.0, 0.0, 0.0],
             "top_right": [0.0, 1.0, 0.0],
