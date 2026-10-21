@@ -319,6 +319,186 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   42–68 m. Sectoring without culling is slower, so the split ships with per-pass
   frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
 
+**Known follow-ups — unified pipeline (prototype, not accepted):** The new
+**Diagnostic correction (same-process comparison, supersedes conflicting chat
+claims):** `fixtures/diagnose_geometry_transfer.py` compares `_050` directly with
+`hybrid-review-004` at frames 1/20, recording exact object/datablock identities,
+raw/evaluated counts, modifier settings, indexed vertices, triangles/materials and
+UVs. All 96 pairs have equal evaluated vertex counts and indexed world positions
+within 1e-5 m. Trackpad raw is 26 vertices/25 triangles/zero degenerate triangles;
+the source modifier stack evaluates to 152 vertices/300 triangles/eight exactly
+zero-area triangles, and output has the same counts. This is not evidence of
+duplicated trackpad vertices. Raw/evaluated count comparisons and the earlier
+"source clean versus duplicated output" conclusions were invalid.
+Separate introduced defect: output lid assigns all 7,462 triangles to tangerine,
+losing source white/clear material ownership. A disposable two-face control proves
+`mesh.materials.clear()` resets face material indices to zero; `restore_assembly`
+currently remaps indices before clearing slots. This ordering must be repaired,
+with a multi-material negative fixture, before accepting another candidate.
+With matched BEAUTY triangulation, 22 parts per pose still have connectivity/material
+differences; diagonal-choice effects (including local versus world-space triangulation)
+must be distinguished from surface loss. No blanket topology PASS is justified.
+Retained-source UV deviations reach only 2.98e-8 in this diagnostic, showing why
+exact UV equality was also an unreliable mutation claim. Evidence is under
+`.dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/geometry-diagnostic-002/`.
+This pass performed no source repair, candidate rebuild or export.
+
+**Resolution (2026-10-21, this pass):** the material-ordering defect is fixed.
+`restore_assembly` now writes the remapped face indices after the compacted slot
+list exists, and raises if a used slot disappears. `fixtures/check_material_transfer.py`
+covers it: three source materials in three face bands survive the join/split round
+trip, and a two-band control proves the previous ordering collapsed both bands onto
+slot 0 (the fixture fails on that ordering, passes on the fix).
+The earlier "22 parts per pose" connectivity differences were a probe artifact. An
+index-level comparison that evaluates the source, transforms it to world space and
+applies the same BEAUTY triangulate modifier the bake uses reports **all 96 parts
+identical at frame 1** and only three parts differing at frame 20 (28 quads total):
+identical vertex counts, identical indexed positions within 4.2e-8 m, symmetric
+missing/extra triangle counts. Those are float tie-breaks on near-equal quad
+diagonals in a different world transform, not surface loss, and they do not occur
+at the frame the bake used. Evidence is under
+`.dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/index-compare/`.
+A rebuilt laptop candidate is still required before any delivery claim: the existing
+`hybrid-review-004` was produced with the broken compaction.
+`atlas-review-006` (2048, fixed code) confirms the repair on the real asset: all 96
+parts match their source per-material triangle counts at frames 1 and 20, and the lid
+renders its three regions (tangerine, inner white, clear) instead of one.
+`hybrid-review-005` (rebuilt with the fix: lid 4096, base 4096, remainder 1024)
+reproduces the same 96/96 material ownership at frames 1 and 20 and the same
+geometry result (96/96 exact at frame 1; three parts with float diagonal ties at
+frame 20). A source capture rendered with the identical rig confirms the bear decal's
+white backing and pale tint are authored in `_050`, not a bake artifact, and the
+tangerine region matches within 1-3/255 (source 220/155/128, candidate 219/153/125).
+The earlier "decal halo is an atlas limitation" note is withdrawn.
+**Hybrid export tangents (decided 2026-10-21):** the test GLB (57.9 MB, 98
+materials, 294 textures, 16 images) passed the structural audit, clean import and
+three.js preview but the Khronos validator reported 148
+`ACCESSOR_VECTOR3_NON_UNIT` errors: zero-length tangents on 13 keycap meshes and the
+trackpad, caused by degenerate triangles in the active-render `AtlasUV` layer (8-24
+per 300-triangle keycap, 43 on the trackpad) plus 13 inherited zero-area trackpad
+triangles. Decision: **omit authored tangents** and let clients derive them, rather
+than repair sub-texel keycap UVs or exempt known-degenerate geometry.
+`export_approved_asset.py` now defaults `export_tangents` off with a `--tangents`
+opt-in, and jobs can set `"tangents": true`. Re-exported, the same asset reports
+**0 validator errors and 98 `MESH_PRIMITIVE_GENERATED_TANGENT_SPACE` warnings**
+(the documented consequence of omitting tangents on normal-mapped primitives), with
+structural audit, dependencies, clean import and three.js preview all passing.
+Tangent authoring stays available for assets whose UVs are clean. Evidence is under
+`hybrid-review-005/verify-002.json` and `verify-asset-002/`.
+**Delivery binding (implemented 2026-10-21):** baked parts now carry their own
+persistent `asset_id` plus `pipeline_source_object`/`pipeline_source_asset_id`
+provenance, so approval binds to the artifact that ships instead of to the retained
+sources. `hybrid-review-006` was the first candidate packaged this way. After the
+material merge, `hybrid-review-007` is the current delivery: exported through
+`export_approved_asset.py --stage delivery` as
+`delivery/retro_laptop_detail_delivery_002.glb`, 56,475,748 bytes, sha256
+`c963ff85…7260a15f`, 96 meshes, 98 primitives, **16 materials**, 40,176 triangles,
+validator 0 errors and 98 generated-tangent warnings, clean import and three.js
+preview passing. Material merge cut materials 98 -> 16 and texture bindings 294 -> 48
+without changing ownership or appearance; primitive count is unchanged. The manifest
+beside it records the source hash, approval fingerprint, evidence manifests and
+limits. Approval scope: structure, material regions, geometry parity and export
+verification — not reference fidelity, contact or in-game use.
+**Approval attribution corrected (2026-10-21):** the first record attributed the
+silhouette approval to the user on the strength of an implementation go-ahead. That
+was wrong. The record now names the agent as the approver, carries
+`user_acceptance: false` and states that no user silhouette acceptance exists; the
+delivery-stage gate still passes against the corrected record. Manifest status is
+"structural delivery verified; user acceptance pending".
+Side-view comparison against a source render confirms the dark crescent behind the
+hinge barrel is authored geometry/shadow, not a bake defect. The base shell shows
+visibly less fine speckle than the source; the tiled roughness detail is
+lower-frequency in the candidate, and whether that is acceptable is unverified.
+Hinge animation is not exported: the GLB carries static closed and open poses, not an
+animation clip.
+Remaining pipeline follow-ups recorded by this pass:
+- **Delivery approval does not bind to a baked candidate.** Running
+  `check_shape_gate.py` on `hybrid-review-005` fails with 96 `object has no
+  persistent asset_id` errors, `review manifest target IDs do not match the current
+  targets` and no recorded approval. `restore_assembly` builds new objects, so the
+  source `asset_id` custom properties are not carried over, while the source objects
+  still exist in the candidate blend (copying IDs would trip the duplicate-ID check).
+  The gate therefore validates the source asset, not the artifact that `export_glb`
+  would write. Needs a decision: give the deliverable parts fresh IDs, remove the
+  retained sources from the candidate before approval, or approve the source and
+  record the candidate hash separately.
+- Posed exports require the evaluated transform frozen first: the glTF exporter
+  writes node rests for object animation even with `export_animations=False`, so a
+  frame-20 export was byte-identical to frame 1 until `animation_data` was cleared
+  and the evaluated `matrix_world` assigned. Documented in the pipeline README.
+- **Duplicate atlas materials (fixed 2026-10-21):** `merge_equivalent_materials`
+  collapses atlas slots whose source name, image set and alpha linkage agree, after
+  the per-slot materials are built and before the assembly is split. The mug candidate
+  exports one material instead of two with its three textures intact; the laptop
+  rebuild (`hybrid-review-007`) is the scale check.
+- **`alpha_mode` report label (fixed 2026-10-21):** the bake report now derives the
+  mode from the built materials (`alpha_modes`) instead of "any alpha channel was
+  baked", so an opaque job no longer reports `blend`.
+
+The
+`tools/asset-pipeline/pipeline.py` and modules remain uncommitted/incomplete. Failed
+`atlas-001` laptop images are not deliveries. Preparation originally joined raw
+modifier cages and included render-hidden/rejected shells. Preparation now copies
+evaluated meshes, excludes `hide_render` meshes, deduplicates selection, clones
+materials and retains named source UVs and object-coordinate references. The
+disposable `fixtures/check_atlas_preparation.py` passes exact evaluated-world-vertex
+and source-preservation checks on three cubes (one hidden, one bevelled), plus 56
+face-centroid colour checks (max linear RGB error 0.002799). Generated byte-buffer
+sRGB pixels require decoding before comparison; the original diagnostic incorrectly
+compared encoded values to linear shader inputs. A stale UV-layer reference after
+triangulation was also fixed by re-fetching it. These fixture results do not prove
+the laptop bake: sticker/Object-coordinate fidelity, alpha/normal transfer,
+visibility at collection level, shape-preserving articulation and export remain
+unverified. Export now delegates to `export_approved_asset.py` and blocks without
+all four approval/evidence paths; clean import refuses live Blender. Other prototype
+defects still need repair before use: render restoration is incomplete; check profiles do not
+yet port the established padding/density/coplanar checks; the schema is not enforced;
+clean import must only run in a disposable background Blender process.
+Continuation: `bake` now permits review-only checkpoints (`export: false`) and
+refuses existing output directories. Evaluated Boolean meshes may append unused
+null material slots; unused slots are retained, while referenced nulls still fail.
+`atlas-review-003` matches the source's evaluated world-vertex multiset exactly
+(17,163 unique positions, zero missing/extra). Its colour atlas maps correctly in
+an explicit-UV emission diagnostic, including the bear sticker. Its PBR candidate
+still fails: removing the normal alone leaves the large black triangle and edge
+artifacts; removing alpha as well clears them. Thus alpha/material transfer, not
+geometry loss or colour-atlas placement, is the remaining demonstrated blocker.
+Making the delivery opaque is not approved. Preserve the original opaque versus
+transparent material regions (and assembly articulation) in a shared-atlas approach
+instead of forcing the entire laptop into one blended material. `atlas-review-002`
+stopped on the unused-null-slot preflight and is not a completed bake. No new GLB
+or office replacement was published from these candidates; slices 2–4 remain open.
+
+Current continuation (2026-10-21): separate source parts and opaque/transparent
+regions now survive a shared bake, and fixtures check alpha, parent motion and
+negative controls. The CLI launches disposable Blender from ordinary Python,
+validates supported job fields, delegates rendering to `capture_review.py` and
+adapts existing padding/density/coplanar helpers without changing their semantics.
+The JSON schema remains descriptive, not a full schema-validator implementation.
+The user chose fidelity over material consolidation and explicitly declined
+draw-call measurement. `hybrid-review-001` uses dedicated 4096 lid/deck bakes plus
+original repeated base-colour images and numerically remapped roughness through
+`TileUV` for supported plain plastics; normals remain height-derived bakes.
+Open/closed material captures were inspected and the candidate is loaded in live
+Blender for review (source `_050` and the user's saved open-pose file untouched).
+All 96 output parts pass equal vertex counts and bidirectional world-distance
+checks at frames 1/20 with 1e-5 m tolerance. Rounding hashes falsely rejected
+boundary coordinates whose actual deviations are at most 4.22e-8 m; the revised
+diagnostic is checked against a deliberately translated failing assembly.
+
+**Known follow-ups — inherited trackpad degeneracy (needs decision):** The hybrid
+health gate still fails on `Atlas_Trackpad`. Independent double-precision cross
+products find eight exactly zero-area triangles in both the evaluated source
+`Trackpad` and output (300 triangles each); minimum positive area is 5.84e-14 m².
+The BMesh area routine reports nine zero faces, so its count includes a numeric
+edge case. Source keycap bevels have valid areas as small as 8.84e-11 m², proving
+the old absolute 1e-9 m² cutoff was not a zero-area test; tiny valid faces are now
+separately inventoried, with known-good small cubes and deliberately collinear
+triangles as controls. Do not remove source geometry, silently waive this gate or
+claim the hybrid is delivery-approved. Output-copy-only cleanup, if wanted, needs
+explicit scope and topology/interface rechecks. No new GLB, office replacement,
+draw-call measurement, commit or push was performed for the hybrid candidate.
+
 **Known follow-ups — UV guides and sticker processing (partly fixed, 2026-10-21):**
 `uv_line_guide.py` failed spaced names after writing images; normalization is now
 symmetric, validation precedes image publication, and `uv_core.py` wraps both spaces
@@ -1062,6 +1242,25 @@ interpretation; the helper does not certify them. Affects
   `office-corner-006`, and none of 010–012 has density, compression, exported-light
   or user acceptance. Treat `-012` as the newest built scene, not an accepted one,
   and do not present it as a delivery.
+- **Phase 7E laptop/lamp corrections (2026-10-21, built, unaccepted):** `office-corner-015`
+  and `-016` rebuild 012 with the retro-laptop-detail-050 GLB and the lamp turned to the
+  desk. Two root causes were found. (1) The glTF-imported lamp root is
+  `rotation_mode = QUATERNION`, so the builder's `rotation_euler[2] = 110°` was silently
+  ignored in every earlier build; the lamp always kept its authored +Y (window) pose.
+  The builder now sets `rotation_mode = "XYZ"` before rotating and defaults to
+  `--lamp-rotation 180 --lamp-tilt -30`, which moves the shade to
+  `y 1.017…1.189`, `z 1.073…1.268` — over the desk, in front of the sill, opening down.
+  (2) The open laptop reached `y 1.307` into the window sill (`y 1.23…1.65`,
+  `z 0.95…1.0`); with `--laptop-hinge-degrees -92 --laptop-y 0.965` it spans
+  `y 0.760…1.212`, clear of the sill and 10 mm inside the desk front edge. The builder
+  also gained `--laptop-tag`, `--laptop-y`, `--lamp-rotation` and `--lamp-tilt` so these
+  poses survive a rebuild. `office-corner-015` used the earlier, still-broken tilt maths
+  and its lamp head is displaced; `-016` is the corrected build. Known limitation: the
+  laptop GLB is not appearance-faithful — glTF cannot express the object-coordinate
+  plastic maps or the sticker `MixRGB`, so the exporter writes `texCoord: -1`, drops
+  UVs on 15 of 98 primitives and substitutes the sticker sheet as base colour (black
+  deck, white lid). Blender renders are correct; a UV atlas bake or a solid-colour +
+  UV-decal export variant is required before the laptop GLB is usable in a viewer.
 - **Phase 7E mixed opaque/glass office corner (2026-10-21, accepted):** selected
   `office-corner-006`: a 3.6 x 3.0 m cutaway with floral Hungarian-style wallpaper
   (plaster outside), herringbone parquet, desk against the wall, oak chair with red

@@ -5,10 +5,93 @@ Phase 1a, Phase 1b and Phase 2 of
 bake fixtures, a Phase 4 crate material-zone trial, a Phase 5 material-generation pilot,
 a Phase 6 crate GLB-delivery trial and Phase 7A tool-validation fixtures under `tests/`.
 
-This directory contains the **read-only asset audit**, delivery profiles, provenance
-schema, advisory texel-density policy and unified export verification. It does not
-generate textures, repair assets, export GLBs, modify the game loader or integrate
-anything into Gummy Bears.
+This directory contains the read-only asset audit, delivery profiles, provenance
+schema, material runners and export verification. The experimental job-driven Python
+entry point below also prepares derived bake candidates and delegates approval-gated
+exports. None of these tools modifies the game loader or integrates assets into Gummy Bears.
+
+## Job-driven Python pipeline (experimental)
+
+One entry point, reusable modules, asset choices in JSON:
+
+```bash
+python3 tools/asset-pipeline/pipeline.py hybrid --job tools/asset-pipeline/jobs/laptop-hybrid-review.job.json --dry-run
+python3 tools/asset-pipeline/pipeline.py hybrid --job tools/asset-pipeline/jobs/laptop-hybrid-review.job.json
+python3 tools/asset-pipeline/pipeline.py render --job tools/asset-pipeline/jobs/laptop-hybrid-open-capture.job.json
+python3 tools/asset-pipeline/pipeline.py check --job tools/asset-pipeline/jobs/laptop-hybrid-check.job.json
+```
+
+Ordinary Python launches disposable background Blender, using `source` in the job;
+`--blender` overrides discovery. The same entry point runs inside background Blender
+after `--`. `--dry-run` validates the supported field contract without starting Blender
+or writing outputs. `schemas/asset-job.schema.json` describes the JSON format;
+`pipeline/job.py` performs the dependency-free verb-specific validation. This is not
+a general JSON Schema implementation.
+
+Verbs: `inspect`, `uv`, `bake`, `hybrid`, `check`, `render`, `export`, `verify`.
+`bake` supports `export:false` for review-only checkpoints. `hybrid` always produces a
+review candidate: ordered groups partition selected meshes, `objects:"*"` collects the
+remainder, each group has its own bake resolution. Parents and separate opaque versus
+transparent material regions are retained; helper joined meshes stay hidden.
+`tile_materials` optionally restores exact repeated source base-colour image sampling
+and grayscale linear roughness remapping through `TileUV`; height-derived tangent
+normals remain baked in `AtlasUV`. This is **not** arbitrary shader conversion: only
+Object coordinates through POINT Mapping into FLAT/REPEAT image nodes and linear
+Map Range roughness are supported. Unsupported tile graphs fail.
+
+`check` profiles retain the old helpers through adapters rather than changing their
+thresholds: `padding`, `coplanar` and `density` enable the existing reports. Padding
+and density remain advisory. Coplanar analysis is within each object, not between
+objects. `assembly_report` compares retained source objects to output parts at `frames`
+using equal vertex counts and bidirectional distances at 1e-5 m tolerance; that is not
+proof of vertex identities, normals or topology. Tiny nonzero faces are reported
+separately from exact zero-area faces. `render` delegates to `capture_review.py`, including
+its frame/evidence handling and state restoration. `verify` currently combines the
+custom GLB UV audit and disposable clean import; it is not a replacement for the pinned
+Khronos validator and standalone three.js preview in `scripts/verify_asset.mjs`.
+
+`export` delegates to `export_approved_asset.py` and requires `gate` paths for
+`approval`, `construction_brief`, `candidate_ledger` and `evidence_report`.
+No automatic approval or acceptance is generated. Authored tangents are **off by
+default**: degenerate UV triangles produce zero-length tangents that glTF validators
+reject (`ACCESSOR_VECTOR3_NON_UNIT`). Pass `--tangents` to the exporter, or
+`"tangents": true` in a job, only for assets whose UVs are clean; omitted tangents
+leave clients to derive tangent space, which the pinned validator reports as
+`MESH_PRIMITIVE_GENERATED_TANGENT_SPACE` warnings. Existing phase scripts remain in
+`tests/`; new regression fixtures live in `fixtures/`. No old files were moved.
+
+Posed exports need the evaluated transform frozen first: the glTF exporter writes node
+rests for object-level animation even with `export_animations=False`, so a frame-20
+export can otherwise be byte-identical to frame 1. Clear the animated parents'
+`animation_data` and assign their evaluated `matrix_world` before exporting.
+
+Atlas slots are merged by source material identity and a full shader-graph signature
+(node inputs, image references and links), so parts sharing one authored material
+export as one GLB material and graphs differing only in a scalar input stay separate.
+Baked parts also receive a fresh persistent `asset_id` with
+`pipeline_source_object` provenance, which is what the delivery gate approves.
+Approval records must name the real approver: do not record a user silhouette
+acceptance that was not given. Use `user_acceptance: false` and an honest
+`approval_basis` when the record covers structural verification only.
+
+Checks:
+
+```bash
+python3 tools/asset-pipeline/fixtures/test_pipeline.py
+/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --python-exit-code 1 --python tools/asset-pipeline/fixtures/check_atlas_preparation.py
+/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup --python-exit-code 1 --python tools/asset-pipeline/fixtures/check_hybrid_tiles.py
+```
+
+Current laptop candidate: `.dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/hybrid-review-005/`.
+Open/closed material captures have been inspected; all 96 parts match source per-material
+triangle ownership at frames 1 and 20, and frame-1 geometry matches exactly. The
+validator-clean test export (`retro_laptop_hybrid_mechanics_test_002.glb`) passes the
+structural audit, clean import and three.js preview with tangents omitted; the open-pose
+export (`retro_laptop_hybrid_open_test.glb`) is previewed in the same viewer.
+**Not delivery-approved:** no gate artifacts exist yet, and the trackpad inherits
+exactly zero-area evaluated triangles from the source. No office replacement or game
+integration has been published from this candidate. Original source/checkpoints remain
+untouched.
 
 ## Contents
 
