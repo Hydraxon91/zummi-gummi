@@ -139,6 +139,38 @@ try {
   check('gifting off prevents a new offer', off.result?.ok === false,
     { value: JSON.stringify(off) });
 
+  await evaluate("window.__gummy.setBehaviorFeature('gifting', true)");
+  const startedSwitch = await evaluate(`(() => {
+    const g = window.__gummy;
+    const source = g.foodSources().find(s => s.ripe && !s.claimed);
+    if (!source) return { ok: false, reason: 'no source' };
+    const giver = g.spawnAt(source.approachX, source.approachZ, 0, 0);
+    const receiver = g.spawnAt(source.approachX + .8, source.approachZ, 0, 0);
+    const list = g.traits();
+    const giverIndex = list.findIndex(a => a.uid === giver.uid);
+    const receiverIndex = list.findIndex(a => a.uid === receiver.uid);
+    g.setHunger(giverIndex, .2);
+    g.setHunger(receiverIndex, .6);
+    g.sim(.1, 0);
+    return { ...g.gift(giverIndex, receiverIndex), sourceId: source.id };
+  })()`);
+  await evaluate("window.__gummy.setMap('studio')");
+  await page.waitFor("window.__gummy.map().id === 'studio'", 30000);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  await evaluate("window.__gummy.setMap('field')");
+  await page.waitFor("window.__gummy.map().id === 'field'", 30000);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const switched = await evaluate(`(() => {
+    const g = window.__gummy;
+    return {
+      activeGift: g.traits().some(a => a.ai === 'seekGift' || a.ai === 'gift'),
+      claimed: g.foodSources().some(s => s.claimed),
+    };
+  })()`);
+  check('a map switch abandons an active offer and releases food claims',
+    startedSwitch.ok === true && switched.activeGift === false && switched.claimed === false,
+    { value: JSON.stringify({ startedSwitch, switched }) });
+
   const mobile = await browser.openPage({ url: TARGET.href, width: 390, height: 844 });
   await mobile.waitFor('!!window.__gummy?.booted', 60000);
   await mobile.evaluate("document.getElementById('settingsBtn').click()");

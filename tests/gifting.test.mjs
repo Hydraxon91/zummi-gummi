@@ -26,10 +26,10 @@ function adapter() {
   };
 }
 
-function setup({ gifting = true, interactionHistory = true } = {}) {
+function setup({ gifting = true, interactionHistory = true, giverExtra = {}, receiverExtra = {}, rng = () => .5 } = {}) {
   const world = createWorld();
-  const giver = actor(10);
-  const receiver = actor(11, { cx: 3.25, hunger: .5 });
+  const giver = actor(10, giverExtra);
+  const receiver = actor(11, { cx: 3.25, hunger: .5, ...receiverExtra });
   const engine = createBehavior({
     engine: 'modules',
     config: createBehaviorConfig({ features: { gifting, interactionHistory } }),
@@ -38,7 +38,7 @@ function setup({ gifting = true, interactionHistory = true } = {}) {
     getHours: () => 12,
     getDay: () => 1,
     getPopulationCap: () => 40,
-    rng: () => .5,
+    rng,
   });
   engine.registerAdapter('softbody', adapter());
   engine.attach(giver);
@@ -101,13 +101,103 @@ test('gifting off adds no state and cannot start', () => {
   assert.equal(giver.history.length, 0);
 });
 
-test('a Glass receiver can receive a gift', () => {
-  const { engine, giver, receiver } = setup();
-  receiver.kind = 'glass';
-  receiver.species = 'glass';
-  receiver.hunger = .5;
+test('a Glass actor can give and a Glass receiver can receive', () => {
+  const { engine, giver, receiver } = setup({
+    giverExtra: { kind: 'glass', species: 'glass' },
+    receiverExtra: { kind: 'glass', species: 'glass', hunger: .5 },
+  });
   assert.equal(engine.forceGift(giver, receiver).ok, true);
   tick(engine, giver, 4);
   assert.equal(giver.history.some(e => e.kind === 'gift' && e.uid === receiver.uid), true);
   assert.equal(receiver.hunger < .5, true);
+});
+
+test('critical thirst cancels an offer and releases the source', () => {
+  const { engine, giver, receiver } = setup();
+  assert.equal(engine.forceGift(giver, receiver).ok, true);
+  const source = giver.ai.source;
+  giver.thirst = .99;
+  engine.tick(giver, .2, { ready: true });
+  assert.equal(source.claim, null);
+  assert.equal(giver.ai.source, null);
+  assert.notEqual(giver.ai.state, 'seekGift');
+  assert.equal(giver.lastGiftDay, undefined);
+});
+
+test('detaching a giver releases the reservation and the receiver', () => {
+  const { engine, giver, receiver } = setup();
+  assert.equal(engine.forceGift(giver, receiver).ok, true);
+  const source = giver.ai.source;
+  engine.detach(giver);
+  assert.equal(source.claim, null);
+  assert.equal(receiver.ai.partner, null);
+  assert.equal(receiver.ai.state, 'wander');
+});
+
+test('an unreachable offer times out without consuming food', () => {
+  const { engine, giver, receiver } = setup();
+  assert.equal(engine.forceGift(giver, receiver).ok, true);
+  const source = giver.ai.source;
+  giver.ai.giftT = .1;
+  engine.tick(giver, .2, { ready: true });
+  assert.equal(source.ripe, true);
+  assert.equal(source.claim, null);
+  assert.equal(giver.ai.source, null);
+});
+
+test('disabling gifting cancels an active offer and clears retry state', () => {
+  const { engine, giver, receiver } = setup();
+  assert.equal(engine.forceGift(giver, receiver).ok, true);
+  const source = giver.ai.source;
+  engine.setFeature('gifting', false);
+  assert.equal(source.claim, null);
+  assert.equal(giver.ai.source, null);
+  assert.equal(giver.ai.giftRetryT, 0);
+  assert.equal(receiver.ai.state, 'wander');
+  assert.equal(giver.lastGiftDay, undefined);
+});
+
+test('two givers cannot reserve the same source', () => {
+  const world = createWorld({
+    foodSources: [{ id: 'only', kind: 'flower', x: 2.5, z: .5, respawn: 40 }],
+  });
+  const a = actor(10);
+  const b = actor(11, { cx: 3.25, hunger: .5 });
+  const c = actor(12);
+  const d = actor(13, { cx: 3.25, hunger: .5 });
+  const engine = createBehavior({
+    engine: 'modules',
+    config: createBehaviorConfig({ features: { gifting: true, interactionHistory: true } }),
+    field: world,
+    getActors: () => [a, b, c, d],
+    getHours: () => 12,
+    getDay: () => 1,
+    getPopulationCap: () => 40,
+    rng: () => .5,
+  });
+  engine.registerAdapter('softbody', adapter());
+  for (const actorValue of [a, b, c, d]) engine.attach(actorValue);
+  assert.equal(engine.forceGift(a, b).ok, true);
+  assert.equal(engine.forceGift(c, d).ok, false);
+  assert.equal(a.ai.source.claim, a);
+});
+
+test('gifting consumes no RNG and is deterministic for the same seed', () => {
+  const run = () => {
+    let draws = 0;
+    const counted = () => { draws++; return .5; };
+    const { engine, giver, receiver } = setup({ rng: counted });
+    const baseline = draws;
+    assert.equal(engine.forceGift(giver, receiver).ok, true);
+    assert.equal(draws, baseline, 'reservation draws no RNG');
+    for (let n = 0; n < 20 && ['seekGift', 'gift'].includes(giver.ai.state); n++) {
+      engine.tick(giver, .2, { ready: true });
+    }
+    assert.equal(draws, baseline, 'handover does not draw RNG');
+    return JSON.stringify({
+      source: giver.history, hunger: receiver.hunger,
+      bond: giver.bonds[receiver.uid],
+    });
+  };
+  assert.equal(run(), run());
 });

@@ -1127,7 +1127,7 @@ export function createBehaviorModules({
     const criticalNeed = actor.thirst >= p.thresholds.criticalThirst ? 'water'
       : actor.hunger >= p.thresholds.criticalHunger ? 'food' : null;
     if (criticalNeed && ['invite', 'social', 'decline', 'mate', 'visit', 'familyTask', 'stargaze',
-      'seekHome', 'seekMate', 'seekCompany', 'seekSocial', 'follow'].includes(ai.state)) {
+      'seekHome', 'seekMate', 'seekCompany', 'seekSocial', 'follow', 'seekGift', 'gift'].includes(ai.state)) {
       cancelPair(actor);
       if (criticalNeed === 'water') acquireWater(actor);
       else if (!acquireFood(actor) && p.conflict) acquireContest(actor);
@@ -1585,6 +1585,14 @@ export function createBehaviorModules({
     const changed = config.setFeature(name, value);
     if (changed && name === 'farewells' && !value) stars.cancelAll();
     if (changed && name === 'adoption' && !value) suspendGuardianFollows();
+    if (changed && name === 'gifting' && !value) {
+      for (const actor of actors()) {
+        if (actor.ai && (actor.ai.state === 'seekGift' || actor.ai.state === 'gift')) {
+          giftingModule.cancel(contextFor(actor));
+        }
+        if (actor.ai) actor.ai.giftRetryT = 0;
+      }
+    }
     return changed;
   }
 

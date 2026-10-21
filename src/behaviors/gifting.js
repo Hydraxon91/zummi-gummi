@@ -94,10 +94,10 @@ function beginGift(ctx, forced = null) {
   }
   ai.source = source;
   ai.giftRole = 'giver';
-  ai.giftT = 0;
+  ai.giftT = p.approachTimeout;
   ai.target = { x: recipient.cx, z: recipient.cz };
   recipient.ai.giftRole = 'receiver';
-  recipient.ai.giftT = 0;
+  recipient.ai.giftT = p.approachTimeout;
   recipient.ai.target = { x: actor.cx, z: actor.cz };
   const path = api.pathTo(actor, recipient.cx, recipient.cz);
   if (path) api.setPath(actor, path);
@@ -188,6 +188,8 @@ function thinkGift(ctx) {
 }
 
 export const giftingModule = defineBehaviorModule({
+  // Exposed so the engine can cancel active offers when the feature is disabled.
+  cancel: cancelGift,
   id: 'gifting',
   label: 'Offer food',
   states: GIFT_STATES,
@@ -199,6 +201,7 @@ export const giftingModule = defineBehaviorModule({
       recipientRadius: 10,
       arriveDist: 1.25,
       duration: 2.2,
+      approachTimeout: 18,
       bond: .04,
       receiverHunger: .28,
       giverHunger: .55,
@@ -228,6 +231,11 @@ export const giftingModule = defineBehaviorModule({
     if (!ai || !GIFT_STATES.includes(ai.state)) return false;
     if (ai.giftRole === 'receiver') return true;
     if (ai.state === 'seekGift') {
+      ai.giftT -= dt;
+      if (ai.giftT <= 0) {
+        cancelGift(ctx);
+        return true;
+      }
       thinkGift(ctx);
       return true;
     }
