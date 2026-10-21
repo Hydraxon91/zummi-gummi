@@ -252,6 +252,18 @@ test('disabling adoption stops guardian follow but preserves the saved link', ()
   assert.equal(engine.api.followTargetFor(child), guardian);
 });
 
+test('re-enabling adoption drops a guardian that became invalid', () => {
+  const child = actor(10, { stage: 'baby', parentUids: [99], home: 'Home 2', guardianUid: 30 });
+  const guardian = actor(30, { home: 'Home 2' });
+  const { engine } = setup([child, guardian]);
+  engine.setFeature('adoption', false);
+  guardian.active = false;
+  engine.setFeature('adoption', true);
+  engine.api.reconcileAdoption(child);
+  assert.equal(child.guardianUid, undefined);
+  assert.equal(engine.api.followTargetFor(child), null);
+});
+
 test('disabling adoption leaves a parent follow untouched', () => {
   const child = actor(10, { stage: 'baby', parentUids: [3], home: 'Home 2', guardianUid: 30 });
   const parent = actor(3, { home: 'Home 3', cx: 5 });
