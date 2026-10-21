@@ -1539,9 +1539,29 @@ export function createBehaviorModules({
     return result;
   }
 
+  function suspendGuardianFollows() {
+    for (const actor of actors()) {
+      const ai = actor && actor.ai;
+      if (!ai || !ai.follow || !Number.isFinite(actor.guardianUid)) continue;
+      if (ai.follow.uid !== actor.guardianUid) continue;
+      ai.follow = null;
+      ai.followRetryT = 0;
+      ai.moving = false;
+      ai.path = null;
+      ai.target = null;
+      if (ai.state === 'follow') {
+        ai.state = 'wander';
+        ai.idleT = .5;
+        ai.nextThink = 0;
+        stop(actor);
+      }
+    }
+  }
+
   function setFeature(name, value) {
     const changed = config.setFeature(name, value);
     if (changed && name === 'farewells' && !value) stars.cancelAll();
+    if (changed && name === 'adoption' && !value) suspendGuardianFollows();
     return changed;
   }
 

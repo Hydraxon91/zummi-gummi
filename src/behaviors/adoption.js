@@ -54,10 +54,19 @@ export function guardianCandidate(child, actors, { knownUids = null } = {}) {
   if (!status.orphan) return null;
 
   const list = Array.isArray(actors) ? actors.filter(active) : [];
+  // Capacity is about active babies an adult is responsible for: biological
+  // children and adopted dependents count once each, even if both apply.
   const dependents = new Map();
+  const addDependent = (adultUid, babyUid) => {
+    const uid = Number(adultUid);
+    if (!Number.isFinite(uid)) return;
+    if (!dependents.has(uid)) dependents.set(uid, new Set());
+    dependents.get(uid).add(babyUid);
+  };
   for (const actor of list) {
-    if (actor === child || actor.stage !== 'baby' || !Number.isFinite(actor.guardianUid)) continue;
-    dependents.set(actor.guardianUid, (dependents.get(actor.guardianUid) || 0) + 1);
+    if (actor === child || actor.stage !== 'baby') continue;
+    if (Number.isFinite(actor.guardianUid)) addDependent(actor.guardianUid, actor.uid);
+    for (const parentUid of actor.parentUids || []) addDependent(parentUid, actor.uid);
   }
 
   let best = null;
@@ -65,7 +74,7 @@ export function guardianCandidate(child, actors, { knownUids = null } = {}) {
     if (candidate === child || candidate.stage !== 'adult') continue;
     if (candidate.species !== child.species) continue;
     if (candidate.fading) continue;
-    if ((dependents.get(candidate.uid) || 0) > ADOPTION_DEFAULTS.maxDependents) continue;
+    if ((dependents.get(candidate.uid)?.size || 0) > ADOPTION_DEFAULTS.maxDependents) continue;
 
     const relation = isRelative(child, candidate);
     const household = !!child.home && candidate.home === child.home;

@@ -166,6 +166,28 @@ test('a guardian already holding more than two babies is skipped', () => {
   assert.equal(child.guardianUid, 30, 'two dependents still allows a third');
 });
 
+test('guardian capacity counts biological babies and deduplicates responsibility', () => {
+  const child = actor(10, { stage: 'baby', parentUids: [99], home: 'Home 2' });
+  const full = actor(30, { home: 'Home 2' });
+  const spare = actor(31, { home: 'Home 3' });
+  child.bonds[31] = .4;
+  const biological = [40, 41, 42].map(uid =>
+    actor(uid, { stage: 'baby', parentUids: [30], home: 'Home 2' }));
+  const first = setup([child, full, spare, ...biological]);
+  thinkNow(first.engine, child);
+  assert.equal(child.guardianUid, 31, 'three biological babies fill the guardian');
+
+  const one = actor(40, { stage: 'baby', parentUids: [30], home: 'Home 2' });
+  const both = actor(41, {
+    stage: 'baby', parentUids: [30], guardianUid: 30, home: 'Home 2',
+  });
+  const second = setup([child, full, spare, one, both]);
+  child.guardianUid = undefined;
+  child.ai.adoptionRetryAt = 0;
+  thinkNow(second.engine, child);
+  assert.equal(child.guardianUid, 30, 'a baby counted as both parent and guardian counts once');
+});
+
 test('no candidate leaves the child alone and retries after one game-hour', () => {
   const child = actor(10, { stage: 'baby', parentUids: [99], home: 'Home 2' });
   const { engine, clock } = setup([child]);
@@ -210,6 +232,36 @@ test('a returning parent clears the guardian and becomes the follow target', () 
   assert.equal(child.guardianUid, undefined);
   assert.equal(engine.api.followTargetFor(child), parent);
   assert.equal(engine.api.adoption(child).parent, 3);
+});
+
+test('disabling adoption stops guardian follow but preserves the saved link', () => {
+  const child = actor(10, { stage: 'baby', parentUids: [99], home: 'Home 2', guardianUid: 30 });
+  const guardian = actor(30, { home: 'Home 2', cx: 5 });
+  const { engine } = setup([child, guardian]);
+  child.ai.state = 'follow';
+  child.ai.follow = guardian;
+  child.ai.path = [{ x: 5, z: 0 }];
+  assert.equal(engine.setFeature('adoption', false), true);
+  assert.equal(child.ai.state, 'wander');
+  assert.equal(child.ai.follow, null);
+  assert.equal(child.ai.path, null);
+  assert.equal(child.guardianUid, 30, 'the saved guardian relationship is preserved');
+  assert.equal(engine.api.followTargetFor(child), null);
+
+  assert.equal(engine.setFeature('adoption', true), true);
+  assert.equal(engine.api.followTargetFor(child), guardian);
+});
+
+test('disabling adoption leaves a parent follow untouched', () => {
+  const child = actor(10, { stage: 'baby', parentUids: [3], home: 'Home 2', guardianUid: 30 });
+  const parent = actor(3, { home: 'Home 3', cx: 5 });
+  const guardian = actor(30, { home: 'Home 2' });
+  const { engine } = setup([child, parent, guardian]);
+  child.ai.state = 'follow';
+  child.ai.follow = parent;
+  engine.setFeature('adoption', false);
+  assert.equal(child.ai.state, 'follow');
+  assert.equal(child.ai.follow, parent);
 });
 
 test('a returning parent replaces an active guardian follow', () => {
