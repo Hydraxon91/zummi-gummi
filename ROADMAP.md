@@ -319,6 +319,20 @@ file to the "Phase 6b budget / profile / stress" mean **6b-3**.
   42–68 m. Sectoring without culling is slower, so the split ships with per-pass
   frustum culling. Method and the noisy-headless caveat are in `PERFORMANCE.md`.
 
+**Known follow-ups — UV guides and sticker processing (partly fixed, 2026-10-21):**
+`uv_line_guide.py` failed spaced names after writing images; normalization is now
+symmetric, validation precedes image publication, and `uv_core.py` wraps both spaces
+and underscores. Explicit placement masks carry source-object/UV affine metadata
+and reject rectangles outside island raster coverage; scene obstacle detection is
+not provided. The prior grey-key sticker extraction punched holes through enclosed
+foot shading. `process_sticker_sheet.py` fills enclosed regions behind a white
+die-cut border; synthetic saved-colour and alpha controls pass. Raw/keyed green
+means differ by less than 0.0001, so a major colour-space conversion error was not
+confirmed. Laptop `_050` is a new mask/colour candidate (saturation 1.5, contrast
+1.15), not user acceptance: captures show cleaner foot borders but the bear remains
+pale under unchanged lighting. Stronger contrast and exact classic MSN reference
+fidelity remain deferred; no new generation or host-material edits were performed.
+
 **Known follow-ups — StableMaterials loader (needs diagnosis):** Earlier API requests
 failed at `LoadStableMaterials` with OOM, while subsequent UI and shared-runner requests
 succeeded on the same 16 GB server. The laptop job now matches successful UI settings
@@ -1031,6 +1045,23 @@ interpretation; the helper does not certify them. Affects
   `office-corner-006`; they have not been regenerated, and 7E density,
   compression and exported-light checks remain open. Do not treat 009 as
   accepted until the user approves it.
+- **Phase 7E Frutiger prop revisions (built, undocumented until now,
+  unaccepted):** `office-corner-010`, `-011` and `-012` extend the 009 scene with the
+  Frutiger prototypes and a desk laptop. `-010` adds `frutiger_props`
+  (`Frutiger_Beanbag_Root` at `(0.95, 0.25, 0.015)`/`12°`,
+  `Frutiger_Plant_Root` at `(1.35, 1.15, 0)`/`30°`, `Frutiger_Mouse_Root` at
+  `(0.08, 1.08, 0.77)`/`-25°`) plus `RetroLaptop_Root` at
+  `(-0.58, 1.02, 0.776)`/`19°`, hinge held open at `-110°`, 32 parts.
+  `-011` moves the mouse off the laptop to `(-0.3, 1.02, 0.77)`;
+  `-012` pulls it to `(-0.3, 0.94, 0.77)` and drops the chair-orbit capture.
+  Each is a full-resolution build only (`34,494,796` / `34,495,080` /
+  `34,495,076` bytes, sha256 `892f6160…`, `8073ab94…`, `12f951f9…`). Captures:
+  `render-checks/first/` interior, beanbag, plant, laptop (plus chair and top in
+  `-010`, chair in `-011`). These revisions were never recorded here, so they read
+  as missing: the accepted optimized mixed/512/1024 deliveries still come from
+  `office-corner-006`, and none of 010–012 has density, compression, exported-light
+  or user acceptance. Treat `-012` as the newest built scene, not an accepted one,
+  and do not present it as a delivery.
 - **Phase 7E mixed opaque/glass office corner (2026-10-21, accepted):** selected
   `office-corner-006`: a 3.6 x 3.0 m cutaway with floral Hungarian-style wallpaper
   (plaster outside), herringbone parquet, desk against the wall, oak chair with red

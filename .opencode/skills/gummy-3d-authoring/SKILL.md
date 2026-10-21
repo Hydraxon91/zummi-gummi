@@ -54,6 +54,10 @@ and source-bound evidence (required by detail/delivery and delivery exporters), 
 gate, and `export_approved_asset.py` is the gated GLB export entry point.
 `reference_sheet.py` crops explicit view rectangles, enforces one shared scale and builds
 locked, render-hidden reference planes; it does not detect views or infer dimensions.
+`run_comfy_workflow_qwen_image_edit.py` runs job-driven Qwen Image 2.1 image-edit jobs
+(UV template as image 1, references after it) against the ComfyUI HTTP API;
+`run_comfy_workflow_stable_materials.py` does the same for StableMaterials map sets. Both
+are dry-runnable and write a manifest; neither starts or reconfigures ComfyUI.
 
 For Phase 2 export verification, use
 `tools/asset-pipeline/scripts/verify_asset.mjs` with the workflow in
@@ -106,10 +110,19 @@ density review. 7E adds a mixed opaque/glass office corner: wallpaper/parquet,
 transmission window, rug, open book, chair and ceiling fan/light; `office-corner-006`
 is accepted with a 16.1 MB / 58-call mixed delivery and 512/1024 variants retained,
 while the chair/wall/lamp revision `office-corner-009` is built and pending acceptance.
+Frutiger prop revisions `office-corner-010`–`012` (beanbag, plant, mouse, desk
+laptop) are full-resolution builds only; `-012` is the newest scene and none of them
+is accepted or delivers optimized maps.
 
 For the standalone UV sheet renderer, gate and optional per-chart repair workflow, follow
 [references/uv-layout-extractor.md](references/uv-layout-extractor.md). Those tools are
 external and do not authorize game integration, material transfer or a bake.
+The local line-guide CLI accepts `--placements` for explicit reviewed UV rectangles,
+per-placement masks and source-object affine mappings; see its README. Raster island
+coverage does not establish obstacle clearance. `tools/asset-pipeline/scripts/
+process_sticker_sheet.py` supports closed-white-border sticker extraction and optional
+colour grading, with saved-colour/alpha fixtures in `test_sticker_processing.py`.
+It is not general segmentation; binary-alpha edges still need close-up visual review.
 
 Read [references/asset-workflows.md](references/asset-workflows.md) for hard-surface
 modifier/shading choices, UV preparation, asset budgets and the local reporting tools.
