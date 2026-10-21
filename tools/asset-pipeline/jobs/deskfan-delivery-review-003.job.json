@@ -1,0 +1,10 @@
+{
+  "source": ".dev-shots/asset-pipeline/deskfan-001/bake-003/deskfan_hybrid_003.blend",
+  "objects": ["DeskFan_Root"],
+  "out_dir": ".dev-shots/asset-pipeline/deskfan-001/bake-003/delivery-review",
+  "views": "front,side,top,three_quarter",
+  "preset": "material",
+  "pose_object": "Atlas_Fan_Head",
+  "frame": 1,
+  "resolution": [900, 800]
+}

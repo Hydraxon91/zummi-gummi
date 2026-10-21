@@ -123,6 +123,7 @@ def bake_hybrid(objects, job, out_dir):
     assigned = set()
     reports = []
     roots = []
+    all_parts = []
     for index, group in enumerate(groups):
         selected = group['objects']
         if selected == '*':
@@ -137,6 +138,7 @@ def bake_hybrid(objects, job, out_dir):
         parts = [bpy.data.objects[name] for name in report['parts']]
         report['repeated_plastics'] = repeated_plastics(parts, sources, job.get('tile_materials', []), directory)
         roots.extend(bpy.data.objects[name] for name in report['assembly_roots'])
+        all_parts.extend(parts)
         reports.append(report)
     if assigned != set(by_name):
         raise PipelineError('Hybrid groups do not cover all selected objects')
@@ -146,4 +148,12 @@ def bake_hybrid(objects, job, out_dir):
         world = root.matrix_world.copy()
         root.parent = container
         root.matrix_world = world
+    # Parts with no source parent are not assembly roots, so they would stay outside the
+    # container and be missed by capture and export. Adopt them explicitly.
+    for part in all_parts:
+        if part.parent is not None:
+            continue
+        world = part.matrix_world.copy()
+        part.parent = container
+        part.matrix_world = world
     return container, reports

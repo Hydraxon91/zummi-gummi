@@ -399,6 +399,12 @@ without changing ownership or appearance; primitive count is unchanged. The mani
 beside it records the source hash, approval fingerprint, evidence manifests and
 limits. Approval scope: structure, material regions, geometry parity and export
 verification — not reference fidelity, contact or in-game use.
+**Desk-fan delivery (2026-10-24):** `deskfan-001/bake-003/delivery/deskfan_delivery_001.glb`,
+11,799,256 bytes, sha256 `48a9d6ad…ddccbd1`, 9 meshes, 3 materials, 27,528 triangles,
+validator 0 errors and 9 generated-tangent warnings, clean import and three.js preview
+passing. Material ownership 9/9 and geometry exact at frames 1 and 20. The delivered
+colours come from the colour-gated maps; the Blender review captures still read the dark
+shell lighter than the GLB preview because of their broad key light, not a texture fault.
 **Approval attribution corrected (2026-10-21):** the first record attributed the
 silhouette approval to the user on the strength of an implementation go-ahead. That
 was wrong. The record now names the agent as the approver, carries
@@ -412,16 +418,24 @@ lower-frequency in the candidate, and whether that is acceptable is unverified.
 Hinge animation is not exported: the GLB carries static closed and open poses, not an
 animation clip.
 Remaining pipeline follow-ups recorded by this pass:
-- **Delivery approval does not bind to a baked candidate.** Running
-  `check_shape_gate.py` on `hybrid-review-005` fails with 96 `object has no
-  persistent asset_id` errors, `review manifest target IDs do not match the current
-  targets` and no recorded approval. `restore_assembly` builds new objects, so the
-  source `asset_id` custom properties are not carried over, while the source objects
-  still exist in the candidate blend (copying IDs would trip the duplicate-ID check).
-  The gate therefore validates the source asset, not the artifact that `export_glb`
-  would write. Needs a decision: give the deliverable parts fresh IDs, remove the
-  retained sources from the candidate before approval, or approve the source and
-  record the candidate hash separately.
+- **Hybrid assembly roots (fixed 2026-10-24):** `bake_hybrid` parented only cloned source
+  parents into the container, so parts whose source had no parent (the desk fan's base and
+  stand) stayed outside `DeskFan_Root` and were missed by capture and export. It now adopts
+  parentless parts into the container with world transforms preserved; the rebuilt
+  `bake-003` container holds all three roots and capture finds all nine parts.
+- **Hybrid tile reuse ignores a corrected base map.** `repeated_plastics` re-binds
+  base colour to the image found on the source material's Base Color link, so a
+  colour-corrected PNG is silently dropped for every tile material and the bake shows the
+  raw drift. Workaround: point the source material at the corrected file before baking
+  (done for the desk fan between `bake-001` and `bake-002`). The pipeline itself still
+  needs either a corrected-map input per tile material or a check that the bound image is
+  the reviewed one; until then a colour-corrected fan/laptop candidate must be
+  re-baked from swapped source images.
+- **Delivery approval binding (fixed 2026-10-21):** baked parts now receive their own
+  persistent `asset_id` plus `pipeline_source_object` provenance, and approval, evidence
+  and manifest targets name those parts, so the gate validates the artifact that ships.
+  The original failure (96 `object has no persistent asset_id` errors on
+  `hybrid-review-005`) and the chosen resolution are recorded above.
 - Posed exports require the evaluated transform frozen first: the glTF exporter
   writes node rests for object animation even with `export_animations=False`, so a
   frame-20 export was byte-identical to frame 1 until `animation_data` was cleared
