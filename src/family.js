@@ -23,7 +23,8 @@ export const FAMILY_ROUTINES = Object.freeze({
 export const HISTORY_KINDS = Object.freeze([
   'born', 'mated', 'child', 'meal', 'lesson', 'taught', 'playdate', 'visit',
   'hosted', 'social', 'decline', 'declined', 'conflict', 'gift', 'receivedGift',
-  'stage', 'home', 'moved', 'bond',
+  'chat', 'cuddle', 'reconcile', 'groupPlay', 'groupGather', 'partnered',
+  'separated', 'stage', 'home', 'moved', 'bond',
 ]);
 
 // These records are UI-facing bookkeeping. When the bounded buffer is full,
@@ -31,6 +32,7 @@ export const HISTORY_KINDS = Object.freeze([
 // teaching behavior.
 export const INTERACTION_HISTORY_KINDS = Object.freeze(new Set([
   'social', 'hosted', 'visit', 'decline', 'declined', 'conflict', 'gift', 'receivedGift',
+  'chat', 'cuddle', 'reconcile', 'groupPlay', 'groupGather',
 ]));
 
 function bondDeltaFields(event) {
@@ -415,6 +417,15 @@ export function pruneActorRefs(actor, validUids) {
   if (actor.guardianUid !== undefined && !valid.has(Number(actor.guardianUid))) {
     delete actor.guardianUid;
     changed = true;
+  }
+  if (actor.partnerUid !== undefined && !valid.has(Number(actor.partnerUid))) {
+    delete actor.partnerUid;
+    changed = true;
+  }
+  if (actor.rivals && typeof actor.rivals === 'object') {
+    for (const key of Object.keys(actor.rivals)) {
+      if (!valid.has(Number(key))) { delete actor.rivals[key]; changed = true; }
+    }
   }
   return changed;
 }

@@ -63,7 +63,7 @@ test('migration keeps a valid guardian and drops an invalid one', () => {
   const teen = migrateActorRecord(actor(7, { stage: 'teen', guardianUid: 4, actorVersion: 2 }));
   assert.equal(teen.actorVersion, 2);
   assert.equal(teen.guardianUid, undefined);
-  assert.equal(ACTOR_SAVE_VERSION, 7);
+  assert.equal(ACTOR_SAVE_VERSION, 8);
 
   const mourning = migrateActorRecord(actor(7, {
     actorVersion: 4,

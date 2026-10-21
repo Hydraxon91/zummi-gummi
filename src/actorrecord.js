@@ -9,6 +9,10 @@ import {
 } from './family.js';
 import { normalizeTraits } from './behaviors/traits.js';
 import { normalizeMourning } from './behaviors/mourning.js';
+import {
+  normalizePartnerUid, normalizeRivals,
+} from './relationships.js';
+import { normalizeCarriedFood } from './foodportions.js';
 
 function round(value, digits = 4) {
   const n = Number(value);
@@ -27,12 +31,18 @@ export function snapshotActor(actor, extra = {}) {
     actor.guardianUid > 0 ? actor.guardianUid : null;
   const giftDay = Number.isFinite(actor.lastGiftDay) && actor.lastGiftDay >= 0
     ? Math.floor(actor.lastGiftDay) : null;
+  const partnerUid = normalizePartnerUid(actor.partnerUid);
+  const rivals = normalizeRivals(actor.rivals);
+  const carriedFood = normalizeCarriedFood(actor.carriedFood);
+  const advanced = partnerUid !== null || Object.keys(rivals).length > 0 || carriedFood !== null;
   const record = {
     // Trait-free records remain v2; traits v3; grief v4; a guardian v5; bond
-    // deltas v6; a persisted gift day v7.
-    actorVersion: giftDay !== null ? 7
-      : (historyHasBondDelta(history) ? 6
-        : (guardianUid ? 5 : (mourning.length ? 4 : (actor.traits ? 3 : 2)))),
+    // deltas v6; a persisted gift day v7; rivalry, partnership or a carried
+    // portion v8. The highest applicable version is emitted only.
+    actorVersion: advanced ? 8
+      : (giftDay !== null ? 7
+        : (historyHasBondDelta(history) ? 6
+          : (guardianUid ? 5 : (mourning.length ? 4 : (actor.traits ? 3 : 2))))),
     species: actor.species,
     uid: actor.uid,
     name: actor.name,
@@ -66,6 +76,9 @@ export function snapshotActor(actor, extra = {}) {
   if (mourning.length) record.mourning = mourning;
   if (guardianUid) record.guardianUid = guardianUid;
   if (giftDay !== null) record.lastGiftDay = giftDay;
+  if (partnerUid !== null) record.partnerUid = partnerUid;
+  if (Object.keys(rivals).length) record.rivals = rivals;
+  if (carriedFood) record.carriedFood = carriedFood;
   if (actor.kind === 'glass') {
     record.kind = 'glass';
     record.species = 'glass';
@@ -102,5 +115,14 @@ export function applyCommonActorState(actor, record) {
   } else {
     delete actor.lastGiftDay;
   }
+  const partnerUid = normalizePartnerUid(record.partnerUid);
+  if (partnerUid !== null) actor.partnerUid = partnerUid;
+  else delete actor.partnerUid;
+  const rivals = normalizeRivals(record.rivals);
+  if (Object.keys(rivals).length) actor.rivals = rivals;
+  else delete actor.rivals;
+  // A carried portion is deliberately not restored onto the live actor. The
+  // app converts saved carried food into a dropped portion at the saved position.
+  delete actor.carriedFood;
   return actor;
 }

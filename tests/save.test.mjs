@@ -55,8 +55,21 @@ test('genomes round-trip with the current DNA version', () => {
   assert.equal(normalized.worlds.field.bears[0].genome.genes.material, 'bearGummy');
 });
 
-test('a future top-level save version is rejected before normalization', () => {
+test('dropped gift portions validate and duplicate ids are rejected', () => {
   const payload = basePayload();
+  const gift = { id: 'gift-1', kind: 'flower', satiation: .2, x: 2, y: .1, z: 3, mapId: 'field' };
+  payload.worlds.field.gifts = [gift];
+  assert.equal(validateSave(payload).ok, true);
+  const normalized = normalizeSave(payload);
+  assert.equal(normalized.worlds.field.gifts[0].id, 'gift-1');
+
+  payload.worlds.studio.gifts = [{ ...gift, mapId: 'studio' }];
+  const check = validateSave(payload);
+  assert.equal(check.ok, false);
+  assert.match(check.errors.join('; '), /duplicate gift portion id gift-1/);
+});
+
+test('a future top-level save version is rejected before normalization', () => {  const payload = basePayload();
   payload.version = SAVE_VERSION + 1;
 
   const check = validateSave(payload);

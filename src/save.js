@@ -4,7 +4,9 @@
 // validates a payload before anything is applied and stores it. A corrupt or
 // future-version save must be rejected without touching the live session.
 
-import { listActorCollections, validateActorWorld, migrateActorWorld } from './actorsave.js';
+import {
+  listActorCollections, validateActorWorld, validateGameRelationships, migrateActorWorld,
+} from './actorsave.js';
 
 export const SAVE_FORMAT = 'gummy-save';
 export const SAVE_VERSION = 1;
@@ -37,6 +39,19 @@ function validateWorld(w, where, errors) {
       else if (typeof f.ripe !== 'boolean' || !isNum(f.timer)) errors.push(`${where}.food[${i}] state is invalid`);
     });
   }
+  if (w.gifts !== undefined) {
+    if (!Array.isArray(w.gifts)) errors.push(`${where}.gifts is not an array`);
+    else w.gifts.forEach((portion, i) => {
+      if (!isObj(portion) || typeof portion.id !== 'string' || !portion.id ||
+          typeof portion.kind !== 'string' || !portion.kind ||
+          !isNum(portion.satiation) || portion.satiation <= 0 ||
+          !isNum(portion.x) || !isNum(portion.z) ||
+          (portion.y !== undefined && !isNum(portion.y)) ||
+          (portion.mapId !== 'field' && portion.mapId !== 'studio')) {
+        errors.push(`${where}.gifts[${i}] is invalid`);
+      }
+    });
+  }
 }
 
 export function validateSave(data) {
@@ -50,6 +65,7 @@ export function validateSave(data) {
   else {
     validateWorld(data.worlds.field, 'worlds.field', errors);
     validateWorld(data.worlds.studio, 'worlds.studio', errors);
+    validateGameRelationships(data.worlds, errors);
     // UIDs are game-wide identities: parents, bonds, guardians and lineage all
     // reference them. Reject duplicates instead of silently merging two actors.
     const seen = new Map();
@@ -66,6 +82,30 @@ export function validateSave(data) {
           const previous = seen.get(actor.uid);
           if (previous) errors.push(`duplicate actor uid ${actor.uid} at ${where} and ${previous}`);
           else seen.set(actor.uid, where);
+        }
+      }
+    }
+    const giftIds = new Set();
+    for (const id of ['field', 'studio']) {
+      const gifts = data.worlds[id] && data.worlds[id].gifts;
+      if (!Array.isArray(gifts)) continue;
+      for (const gift of gifts) {
+        if (!isObj(gift) || typeof gift.id !== 'string') continue;
+        if (giftIds.has(gift.id)) errors.push(`duplicate gift portion id ${gift.id}`);
+        else giftIds.add(gift.id);
+      }
+    }
+    for (const id of ['field', 'studio']) {
+      const world = data.worlds[id];
+      if (!isObj(world)) continue;
+      for (const collection of listActorCollections()) {
+        const list = world[collection.key];
+        if (!Array.isArray(list)) continue;
+        for (const actor of list) {
+          const carriedId = actor && actor.carriedFood && actor.carriedFood.id;
+          if (typeof carriedId !== 'string') continue;
+          if (giftIds.has(carriedId)) errors.push(`duplicate gift portion id ${carriedId}`);
+          else giftIds.add(carriedId);
         }
       }
     }
@@ -113,6 +153,7 @@ function cloneWorld(w) {
   out.speed = isNum(w.speed) ? w.speed : 1;
   out.initialized = !!w.initialized;
   if (Array.isArray(w.food)) out.food = w.food;
+  if (Array.isArray(w.gifts)) out.gifts = w.gifts;
   return JSON.parse(JSON.stringify(out));
 }
 

@@ -34,7 +34,7 @@ test('bond-delta history uses actorVersion 6 and round-trips', () => {
   applyCommonActorState(restored, record);
   assert.equal(restored.history[0].bondBefore, .4);
   assert.equal(restored.history[0].bondAfter, .52);
-  assert.equal(ACTOR_SAVE_VERSION, 7);
+  assert.equal(ACTOR_SAVE_VERSION, 8);
 });
 
 test('a Glass record with a bond delta validates on v6', () => {
@@ -65,7 +65,7 @@ test('a persisted gift day uses actorVersion 7 and round-trips', () => {
 
   const wrongVersion = [];
   validateActorWorld({ bears: [{ ...record, actorVersion: 6 }] }, 'world', wrongVersion);
-  assert.match(wrongVersion.join('; '), /lastGiftDay requires actorVersion 7/);
+  assert.match(wrongVersion.join('; '), /lastGiftDay requires actorVersion 7 or 8/);
 
   const missing = snapshotActor(actor(2), { flavor: 0 });
   const missingErrors = [];

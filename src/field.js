@@ -17,6 +17,7 @@ import { createBackdrop } from './backdrop.js';
 import { createStudioHouse } from './studiohouse.js';
 import { createBushCollection } from './bushes.js';
 import { createFoodRegistry } from './food.js';
+import { createFoodPortionRegistry } from './foodportions.js';
 import { BUSH_SPECIES, ROCK_SPECIES, getTreeSpecies } from './floratypes.js';
 import { MAP_CONTENT } from './mapcontent.js';
 import { FIELD_BOUNDS, FIELD_RADIUS, fieldInside, fieldRadiusAt } from './fieldshape.js';
@@ -2304,6 +2305,7 @@ export function buildField({ scene, camera, renderer, sky }) {
     rng: rng(8741),
     onVisibility: setFoodVisible,
   });
+  const portions = createFoodPortionRegistry();
 
   // Safe, walkable drinking approaches around the pond. The water itself is
   // infinite; these are shore positions, not consumable sources.
@@ -2765,7 +2767,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   return {
     group, sky, nav, navDebug, homes, colliders, pond, bounds: FIELD_BOUNDS,
     pathStones, cannonHome: CANNON_HOME, wind, trees, horizon, aeroHomes, backdrop, studioHouse, bushes,
-    food, foodSources: usableFoodSources, waterSpots,
+    food, portions, foodSources: usableFoodSources, waterSpots,
     hives: hiveVisual,
     fireflies: fireflyPoints, fireflyLights,
     valid: layoutErrors.length === 0,

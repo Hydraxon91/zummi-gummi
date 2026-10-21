@@ -10,14 +10,17 @@ import {
 } from './family.js';
 import { normalizeTraits, TRAIT_AXES } from './behaviors/traits.js';
 import { normalizeMourning } from './behaviors/mourning.js';
+import { normalizePartnerUid, normalizeRivals } from './relationships.js';
+import { normalizeCarriedFood } from './foodportions.js';
 
 // 2 is trait/grief/guardian/delta-free, 3 carries traits, 4 carries per-save
-// mourning, 5 carries a baby's guardian, 6 carries bond-delta history, and 7
-// carries a persisted daily gift day (other features may ride along).
-export const ACTOR_SAVE_VERSION = 7;
+// mourning, 5 carries a baby's guardian, 6 carries bond-delta history, 7
+// carries a persisted daily gift day, and 8 carries rivalry, partnership or a
+// carried gift portion (older fields may ride along).
+export const ACTOR_SAVE_VERSION = 8;
 
 const STAGES = new Set(['baby', 'teen', 'adult']);
-const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7]);
+const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
 const NUMERIC_FIELDS = [
   'scale', 'health', 'hunger', 'thirst', 'energy', 'age',
   'gestation', 'mateCooldown', 'social', 'affection', 'bold',
@@ -51,21 +54,61 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
     } else if (a.stage !== 'baby') {
       errors.push(`${where}.guardianUid requires stage baby`);
     }
-    if (a.actorVersion !== 5 && a.actorVersion !== 6 && a.actorVersion !== 7) {
-      errors.push(`${where}.guardianUid requires actorVersion 5, 6 or 7`);
+    if (a.actorVersion !== 5 && a.actorVersion !== 6 && a.actorVersion !== 7 &&
+        a.actorVersion !== 8) {
+      errors.push(`${where}.guardianUid requires actorVersion 5, 6, 7 or 8`);
     }
   }
   if (a.lastGiftDay !== undefined) {
     if (!isNum(a.lastGiftDay) || a.lastGiftDay < 0) {
       errors.push(`${where}.lastGiftDay is invalid`);
     }
-    if (a.actorVersion !== 7) errors.push(`${where}.lastGiftDay requires actorVersion 7`);
+    if (a.actorVersion !== 7 && a.actorVersion !== 8) {
+      errors.push(`${where}.lastGiftDay requires actorVersion 7 or 8`);
+    }
   }
   if (a.actorVersion === 7 && !isNum(a.lastGiftDay)) {
     errors.push(`${where}.lastGiftDay is required for actorVersion 7`);
   }
   if (a.actorVersion === 5 && !isNum(a.guardianUid)) {
     errors.push(`${where}.guardianUid is required for actorVersion 5`);
+  }
+  if (a.partnerUid !== undefined) {
+    if (!isNum(a.partnerUid) || a.partnerUid <= 0 || Math.floor(a.partnerUid) !== a.partnerUid) {
+      errors.push(`${where}.partnerUid is invalid`);
+    } else if (a.partnerUid === a.uid) {
+      errors.push(`${where}.partnerUid cannot reference the same actor`);
+    } else if (a.stage !== 'adult') {
+      errors.push(`${where}.partnerUid requires stage adult`);
+    }
+    if (a.actorVersion !== 8) errors.push(`${where}.partnerUid requires actorVersion 8`);
+  }
+  if (a.rivals !== undefined) {
+    if (!isObj(a.rivals)) errors.push(`${where}.rivals is invalid`);
+    else for (const [uid, record] of Object.entries(a.rivals)) {
+      if (!isNum(Number(uid)) || Number(uid) <= 0 || Number(uid) === a.uid ||
+          !isObj(record) || !isNum(record.sinceDay) || record.sinceDay < 0 ||
+          !isNum(record.sinceHour) || record.sinceHour < 0 || record.sinceHour > 24) {
+        errors.push(`${where}.rivals.${uid} is invalid`);
+      }
+    }
+    if (a.actorVersion !== 8) errors.push(`${where}.rivals requires actorVersion 8`);
+  }
+  if (a.carriedFood !== undefined) {
+    if (!isObj(a.carriedFood)) errors.push(`${where}.carriedFood is invalid`);
+    else {
+      const c = a.carriedFood;
+      if (typeof c.id !== 'string' || !c.id ||
+          typeof c.kind !== 'string' || !c.kind ||
+          !isNum(c.satiation) || c.satiation <= 0) {
+        errors.push(`${where}.carriedFood is invalid`);
+      }
+    }
+    if (a.actorVersion !== 8) errors.push(`${where}.carriedFood requires actorVersion 8`);
+  }
+  if (a.actorVersion === 8 &&
+      a.partnerUid === undefined && a.rivals === undefined && a.carriedFood === undefined) {
+    errors.push(`${where} has actorVersion 8 but no version-8 field`);
   }
   if (a.bonds !== undefined && !isObj(a.bonds)) errors.push(`${where}.bonds is invalid`);
 
@@ -109,8 +152,8 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
       }
     });
   }
-  if (historyDeltas && a.actorVersion !== 6 && a.actorVersion !== 7) {
-    errors.push(`${where}.bondDelta requires actorVersion 6 or 7`);
+  if (historyDeltas && a.actorVersion !== 6 && a.actorVersion !== 7 && a.actorVersion !== 8) {
+    errors.push(`${where}.bondDelta requires actorVersion 6, 7 or 8`);
   }
   if (a.actorVersion === 6 && !historyDeltas) {
     errors.push(`${where}.bondDelta is required for actorVersion 6`);
@@ -142,8 +185,8 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
       }
     });
     if (a.actorVersion !== 4 && a.actorVersion !== 5 && a.actorVersion !== 6 &&
-        a.actorVersion !== 7) {
-      errors.push(`${where}.mourning requires actorVersion 4-7`);
+        a.actorVersion !== 7 && a.actorVersion !== 8) {
+      errors.push(`${where}.mourning requires actorVersion 4-8`);
     }
   }
   if (a.actorVersion === 4 && !Array.isArray(a.mourning)) {
@@ -194,8 +237,13 @@ export function migrateActorRecord(record) {
     ? Math.floor(record.lastGiftDay) : null;
   const guardianUid = record.stage === 'baby' && isNum(record.guardianUid) && record.guardianUid > 0
     ? record.guardianUid : null;
-  const versioned = giftDay !== null ? 7
-    : (hasDelta ? 6 : (guardianUid ? 5 : (mourning.length ? 4 : (hasTraits ? 3 : 2))));
+  const partnerUid = normalizePartnerUid(record.partnerUid);
+  const rivals = normalizeRivals(record.rivals);
+  const carriedFood = normalizeCarriedFood(record.carriedFood);
+  const advanced = partnerUid !== null || Object.keys(rivals).length > 0 || carriedFood !== null;
+  const versioned = advanced ? 8
+    : (giftDay !== null ? 7
+      : (hasDelta ? 6 : (guardianUid ? 5 : (mourning.length ? 4 : (hasTraits ? 3 : 2)))));
   const migrated = {
     ...record,
     actorVersion: versioned,
@@ -208,6 +256,12 @@ export function migrateActorRecord(record) {
   else delete migrated.guardianUid;
   if (giftDay !== null) migrated.lastGiftDay = giftDay;
   else delete migrated.lastGiftDay;
+  if (partnerUid !== null) migrated.partnerUid = partnerUid;
+  else delete migrated.partnerUid;
+  if (Object.keys(rivals).length) migrated.rivals = rivals;
+  else delete migrated.rivals;
+  if (carriedFood) migrated.carriedFood = carriedFood;
+  else delete migrated.carriedFood;
   if (mourning.length) migrated.mourning = mourning;
   else delete migrated.mourning;
   return migrated;
@@ -272,6 +326,52 @@ export function validateActorWorld(world, where, errors) {
     value.forEach((actor, index) => {
       collection.validate(actor, `${where}.${collection.key}[${index}]`, errors);
     });
+  }
+}
+
+// Partnership and rivalry are reciprocal records. A save that references a
+// missing actor, or only one side of a pair, is rejected before restore touches
+// the live session.
+export function validateGameRelationships(worlds, errors) {
+  const byUid = new Map();
+  if (!isObj(worlds)) return;
+  for (const id of ['field', 'studio']) {
+    const world = worlds[id];
+    if (!isObj(world)) continue;
+    for (const collection of collections.values()) {
+      const list = world[collection.key];
+      if (!Array.isArray(list)) continue;
+      for (const actor of list) {
+        if (isObj(actor) && isNum(actor.uid)) byUid.set(actor.uid, actor);
+      }
+    }
+  }
+  for (const [uid, actor] of byUid) {
+    const partnerUid = normalizePartnerUid(actor.partnerUid);
+    if (partnerUid !== null) {
+      const partner = byUid.get(partnerUid);
+      if (!partner) {
+        errors.push(`actor ${uid}.partnerUid references missing actor ${partnerUid}`);
+      } else {
+        if (normalizePartnerUid(partner.partnerUid) !== uid) {
+          errors.push(`actor ${uid}.partnerUid is not reciprocal`);
+        }
+        if (actor.stage !== 'adult' || partner.stage !== 'adult') {
+          errors.push(`actor ${uid}.partnerUid requires adult partners`);
+        }
+      }
+    }
+    for (const [key, record] of Object.entries(normalizeRivals(actor.rivals))) {
+      const otherUid = Number(key);
+      const other = byUid.get(otherUid);
+      if (!other) {
+        errors.push(`actor ${uid}.rivals references missing actor ${otherUid}`);
+      } else if (!normalizeRivals(other.rivals)[String(uid)]) {
+        errors.push(`actor ${uid}.rivals.${otherUid} is not reciprocal`);
+      } else if (!record) {
+        errors.push(`actor ${uid}.rivals.${otherUid} is invalid`);
+      }
+    }
   }
 }
 

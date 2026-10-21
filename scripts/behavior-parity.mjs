@@ -21,6 +21,7 @@ import { pathToFileURL } from 'node:url';
 import { createBehavior } from '../src/behaviors/index.js';
 import { createBehaviorConfig } from '../src/behaviors/config.js';
 import { createFoodRegistry } from '../src/food.js';
+import { createFoodPortionRegistry } from '../src/foodportions.js';
 import {
   STAGE_AGE, GESTATION_TIME, MATE_COOLDOWN,
   advanceAge, advanceGestation, scaleForStage,
@@ -145,10 +146,12 @@ export function createWorld({ flowers = 0, foodSources = null } = {}) {
     });
   }
   const food = createFoodRegistry({ sources, rng: mulberry32(99) });
+  const portions = createFoodPortionRegistry();
   return {
     homes: HOMES.map(home => ({ ...home, door: { ...home.door } })),
     waterSpots: WATER.map(spot => ({ ...spot })),
     food,
+    portions,
     pond: { contains: (x, z) => insidePond(x, z) },
     nav: {
       nearestWalkable(x, z) {
