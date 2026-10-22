@@ -17,14 +17,15 @@ approved task scope, not this standing procedure.
 4. Establish a new recoverable checkpoint. Preserve replaced geometry hidden in a clearly
    named source collection. Keep earlier checkpoints; never overwrite accepted source.
 
-## Mandatory loop
+## Assembly decision loop
 
 Inspect reference → inventory → define acceptance → checkpoint → edit one system →
 capture → **view captures** → measure interfaces → inspect neighboring/protected systems →
 report each acceptance criterion → correct if necessary → proceed only after passing.
 
-Automatic progression requires an approved ordered chunk. Otherwise stop at the parent
-skill's step boundary. Two unchanged failures trigger diagnosis rather than another edit;
+Progress and capture timing follow [stage review](stage-review.md), the sole policy.
+Do not add a user check-in after every operation within an approved stage.
+Two unchanged failures trigger diagnosis rather than another edit;
 continue within the parent guide's seven-attempt ceiling only with new evidence. A newly
 introduced defect triggers the existing regression stop. Do not save a failed stage as the
 accepted delivery; clearly labeled diagnostic checkpoints are permitted. Stage render work by
@@ -56,8 +57,10 @@ The structural checker can confirm bounds and editable state; it cannot prove li
 failed silhouette is a stop, not a reason to add detail. Capture manifests carry a source
 fingerprint, so edits invalidate prior captures. Record a silhouette approval only after
 inspecting front/side/top/three-quarter views; `--stage detail` and `--stage delivery` refuse
-to proceed without a matching approval. Factory-startup scenes also contain a default 2 m cube,
-camera and light; remove them before capture or a review camera can sit inside the cube.
+to proceed without a matching approval through those helper entry points. This is not
+a restriction on arbitrary MCP Python. Factory-startup scenes contain a default 2 m
+cube, camera and light; explicitly inventory them and exclude occluders from review.
+Deletion still requires approval.
 
 ## Structural completeness and connectivity
 
@@ -137,7 +140,7 @@ separately. Acceptance with reservations is not proof of perfect fit.
 - Use matching reference-only, overlay and neutral-solid comparisons under the calibrated
   reference rules. Inspect full outlines, openings, panel junctions and highlight flow,
   not just isolated dimensions or sampled heights.
-- Include front/back, both sides and matching three-quarter views. Add top, underside,
+- At assembly acceptance, include front/back, both sides and matching three-quarter views. Add top, underside,
   body-visible/body-hidden views and attachment close-ups as relevant to the checklist.
   Confirm the captures actually reveal the claimed features; framing alone is not proof.
 - Check recess depth, backing, mounting and retention. Painted plates or emissive patches

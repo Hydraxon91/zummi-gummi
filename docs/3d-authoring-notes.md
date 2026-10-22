@@ -193,6 +193,17 @@ Calibrated reference planes must be locked before the first shape edit; without 
 reference with dimensions, the calibrated branch is not claimed. No shape, export or
 integration work has started. Preserve failed repairs and record manual interventions.
 
+### Watering-can status correction from workflow audit
+
+The “planned next case” paragraph above is retained as historical planning, not
+current task state. The user subsequently supplied an audit reporting can modelling,
+failed attachment work and body recovery, with stale constraints in the saved brief.
+Those live/saved contents and the asset-local helper were not independently inspected
+in this documentation pass. Current checkpoint, approved dimensions/reference
+authority and remaining repair count must be established before separately authorised
+body-only work resumes. No can shape approval or export acceptance is inferred.
+See `docs/3d-workflow-review.md` for diagnostic quarantine and the instruction split.
+
 ## Asset library coverage
 
 Exercised in the pond-scene trials (2026-10-19–20, Blender 5.2.2, addon 1.8):

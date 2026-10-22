@@ -110,7 +110,7 @@ or assuming an asset below a vertex threshold is game-ready.
 
 ### Acceptance contract
 
-Follow `AGENTS.md` sections 5 and 6 and the complete interaction checklist in
+Follow repository `docs/agent-procedures.md` sections 5 and 6 and the complete interaction checklist in
 [behavior/parity](references/behavior-parity.md) when behavior is affected. Fixtures
 must exercise the real transition. Forced state does not prove natural eligibility.
 

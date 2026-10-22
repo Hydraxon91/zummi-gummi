@@ -527,6 +527,19 @@ confirmed. Laptop `_050` is a new mask/colour candidate (saturation 1.5, contras
 pale under unchanged lighting. Stronger contrast and exact classic MSN reference
 fidelity remain deferred; no new generation or host-material edits were performed.
 
+**Known follow-ups — authoring workflow and diagnostics (documentation reorganised;
+tool repairs deferred):** Mixed successful/multi-criterion candidate histories trigger
+the incorrect global seven-entry limit in
+`tools/asset-pipeline/scripts/construction_gate.py`; source-confirmed, not fixed.
+The user's can audit also reports translation-dependent signed volume, mixed
+base/evaluated health, fallback-on-evaluation-error and consumed cutters in an
+asset-local helper; not independently reproduced in this documentation pass.
+Do not use those affected diagnostics as acceptance or source-repair authority.
+Stage/capture policy and reference-review authority are now routed through short
+entry points; specialist material is preserved. Fresh-session loading, runtime
+fixtures and controlled modelling trials remain unverified and separately scoped.
+See `docs/3d-workflow-review.md` for the requirement map, warnings and deferred checks.
+
 ### Skill validation backlog — unverified, not accepted
 
 The new construction/source-production guides and UI/input extensions remain
@@ -557,7 +570,7 @@ game integration or source rebuild are authorized by this backlog.
 | [ ] Rigid furniture | Bevelled member/seat/back joint, complete frame/support contact and operating clearance where required. |
 | [ ] Sprite normals | Approved tool preflight; asymmetric sprite, flat and inverted-Y controls; alpha/colour-space/convention checks, atlas registration, source timing/loops and playback. In-game evidence only after separate integration approval. |
 | [ ] Asset families | One approved representative followed by a small family with controlled variants/states; native-size/contact-sheet review, consistent scale/pivots/material response and complete provenance. |
-| [ ] Assisted stylized props and fidelity routing — DeepSeek lane partially exercised | One human-assisted DeepSeek beanbag case exercised gameplay-read cue approval, manual art direction, supplied material reuse, UV review, shape-keyed delivery, clean import and standalone three.js morph preview. See `docs/3d-authoring-notes.md`. Manual intervention was required; this does not validate autonomous modelling, other prop types, reference-faithful routing or in-game performance. DeepSeek is the acceptance lane for this goal; a higher-tier control remains an optional diagnostic check. Next: a watering-can trial with the reference-faithful routing check folded in; retain failed submissions. |
+| [ ] Assisted stylized props and fidelity routing — DeepSeek lane partially exercised | One human-assisted DeepSeek beanbag case exercised gameplay-read cue approval, manual art direction, supplied material reuse, UV review, shape-keyed delivery, clean import and standalone three.js morph preview. See `docs/3d-authoring-notes.md`. Manual intervention was required; this does not validate autonomous modelling, other prop types, reference-faithful routing or in-game performance. DeepSeek is the acceptance lane for this goal; a higher-tier control remains an optional diagnostic check. The later user-supplied can audit reports failed work/recovery, not acceptance; establish current state and repair comparison/tooling under separate approval before resuming. Retain failed submissions. |
 | [ ] Shape-repair iteration policy | Distinguish successful construction from failed repairs; test two-unchanged-failure diagnosis, six-failure review, seven-failure stop and explicit bounded continuation without erasing history or downgrading a required feature. |
 | [ ] Background-prop delivery and runtime budget | Agree screen size/camera range, instance count, triangles/materials/textures; inspect reduction at that scale, verify re-imported export counts/UVs/materials and separately approved game loading, lifecycle, appearance and measured performance. A vertex count alone cannot pass. |
 | [ ] Shared game-first contract across all categories | With both model tiers, exercise each of the seven construction guides under approved runtime geometry/material/texture budgets. Check modest source construction, reuse, category-specific repetition/deformation/alpha costs and separate delivery verification. A reference-faithful task must not be silently stylized; dense CGI/bake sources require explicit purpose/approval and must not become default runtime output. Preserve every existing safety/export/runtime gate. |

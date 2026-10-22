@@ -1,10 +1,22 @@
 # Construction-method brief
 
-Use before building a primary form or changing construction strategy. This supplement
-does not authorize edits or replace calibration, shape approval or interface checks.
-Record concise decisions and observable evidence, not hidden reasoning.
+Use as a decision aid before building a primary form or changing strategy. Reuse the
+current work record; do not complete a new form for routine local edits. This supplement
+does not authorise edits or add review gates beyond `stage-review.md`.
 
-## Template
+## Short agreement
+
+Record the approved scope/fidelity and required cues, dimensions/axes/budget,
+reference authority and uncertainty, protected state, chosen editable controls,
+main construction risk and representative check, and agreed review boundary.
+Link existing decisions rather than repeating them. Use the extended prompts below
+only where relevant risks require detail; naming table rows or repeating validation
+labels is not acceptance evidence. Motion needs a motion contract; static props do not.
+The JSON helper's required fields are a separate implementation constraint, not a
+reason to inflate every conversational agreement. See repository
+`docs/3d-workflow-review.md` for current tool-policy mismatches.
+
+## Extended prompts
 
 - **Destination contract:** read [game-first production](game-asset-contract.md).
   Runtime delivery is the default in every likeness mode. If a dense CGI/sculpt/bake

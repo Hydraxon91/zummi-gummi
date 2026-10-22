@@ -5,7 +5,7 @@ stages and [browser prerequisites](browser-harness.md). Paths are repo-relative.
 
 ## Batch acceptance contract
 
-Follow `AGENTS.md` sections 5 (Efficient feature batches) and 6 (Fix-Classification
+Follow `docs/agent-procedures.md` sections 5 (Efficient feature batches) and 6 (Fix-Classification
 Gate). Before implementation, map approved requirements to named tests/assertions.
 For an interaction, cover eligibility and natural opportunity selection, acceptance
 and refusal, exactly-once resource/need/bond effects, essential-needs interruption,
