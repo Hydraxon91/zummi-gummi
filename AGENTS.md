@@ -39,6 +39,11 @@ working in this repo.
   to a simpler shape and ship it.
 - **Style alignment:** mirror the existing syntax, formatting and pattern choices in
   `src/`. Match the surrounding file; do not introduce a new idiom for one change.
+- **Module configuration is a behavioral contract.** Declare supported configuration
+  and disable/re-enable semantics before exposing a module toggle. Verify resolved
+  global/species/actor scope, admission, existing activity and cleanup; a successful
+  setter return is not proof. Essential needs must not inherit optional-activity
+  disabling policies. Follow the verification skill's behavior/module procedure.
 - **Hypothesis verification:** before proposing a fix, state the expected behavior, the
   actual behavior, and the evidence that proves your theory — a `window.__gummy` result,
   a console error, a screenshot, or the exact code block.

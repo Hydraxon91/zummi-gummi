@@ -61,6 +61,7 @@ const MODULE_DEFAULTS = Object.freeze({
   relationships: relationshipsModule.defaults,
   groupActivities: groupActivitiesModule.defaults,
 });
+export const CONFIGURED_MODULE_IDS = Object.freeze(Object.keys(MODULE_DEFAULTS));
 
 // Profiles written before the modules reshape still used flat capability keys.
 // They remain a fallback for callers that build a profile by hand.

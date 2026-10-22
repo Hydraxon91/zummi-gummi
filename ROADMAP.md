@@ -535,12 +535,16 @@ runtime evidence. This checklist covers the skill additions/reorganization; pre-
 asset/tool defects retain their own Known follow-ups below. Documentation checks alone
 must not promote any guide to validated or imply model acceptance.
 
-Each row requires both a **higher-tier** and a **lower-tier LLM** evaluation; unchecked
-means required validation/acceptance is incomplete; partial and failed evaluations are
-recorded separately, not erased. Model choices and
-actual access must be confirmed before running; DeepSeek V4.1 Flash is a requested
-lower-tier candidate, not a verified available model. No benchmark executions, purchases,
-installation, game integration or source rebuild are authorized by this backlog.
+Each row requires both a **higher-tier** and a **lower-tier LLM** evaluation by default; a
+row may instead define a scoped **DeepSeek production-lane** gate where the project goal is
+DeepSeek-authored output. In that case DeepSeek evidence is the acceptance lane and a
+higher-tier control is recorded separately as an optional diagnostic check, not a blocker.
+Unchecked means required validation/acceptance is incomplete; partial and failed
+evaluations are recorded separately, not erased. Model choices and actual access must be
+confirmed before running; record the exact model/provider/variant and run identifiers per
+trial. DeepSeek V4.1 Flash is the exercised assisted-stylized lane (see the beanbag row),
+not a blanket validation of other rows. No benchmark executions, purchases, installation,
+game integration or source rebuild are authorized by this backlog.
 
 | Pending guide/check | Representative test and evidence needed |
 | --- | --- |
@@ -553,7 +557,7 @@ installation, game integration or source rebuild are authorized by this backlog.
 | [ ] Rigid furniture | Bevelled member/seat/back joint, complete frame/support contact and operating clearance where required. |
 | [ ] Sprite normals | Approved tool preflight; asymmetric sprite, flat and inverted-Y controls; alpha/colour-space/convention checks, atlas registration, source timing/loops and playback. In-game evidence only after separate integration approval. |
 | [ ] Asset families | One approved representative followed by a small family with controlled variants/states; native-size/contact-sheet review, consistent scale/pivots/material response and complete provenance. |
-| [ ] Assisted stylized props and fidelity routing — partial evidence | One human-assisted beanbag case exercised gameplay-read cue approval, manual art direction, supplied material reuse, UV review, shape-keyed delivery, clean import and standalone three.js morph preview. See `docs/3d-authoring-notes.md`. Manual intervention was required; this does not validate autonomous modelling, other prop types, the lower-tier model lane or in-game performance. Continue with an isolated second-tier evaluation and representative non-beanbag/fidelity-routing cases; retain failed submissions. |
+| [ ] Assisted stylized props and fidelity routing — DeepSeek lane partially exercised | One human-assisted DeepSeek beanbag case exercised gameplay-read cue approval, manual art direction, supplied material reuse, UV review, shape-keyed delivery, clean import and standalone three.js morph preview. See `docs/3d-authoring-notes.md`. Manual intervention was required; this does not validate autonomous modelling, other prop types, reference-faithful routing or in-game performance. DeepSeek is the acceptance lane for this goal; a higher-tier control remains an optional diagnostic check. Next: a watering-can trial with the reference-faithful routing check folded in; retain failed submissions. |
 | [ ] Shape-repair iteration policy | Distinguish successful construction from failed repairs; test two-unchanged-failure diagnosis, six-failure review, seven-failure stop and explicit bounded continuation without erasing history or downgrading a required feature. |
 | [ ] Background-prop delivery and runtime budget | Agree screen size/camera range, instance count, triangles/materials/textures; inspect reduction at that scale, verify re-imported export counts/UVs/materials and separately approved game loading, lifecycle, appearance and measured performance. A vertex count alone cannot pass. |
 | [ ] Shared game-first contract across all categories | With both model tiers, exercise each of the seven construction guides under approved runtime geometry/material/texture budgets. Check modest source construction, reuse, category-specific repetition/deformation/alpha costs and separate delivery verification. A reference-faithful task must not be silently stylized; dense CGI/bake sources require explicit purpose/approval and must not become default runtime output. Preserve every existing safety/export/runtime gate. |
@@ -1804,7 +1808,7 @@ and approval; their presence here is not authorization to start them.
 
 | Chunk | Status / dependencies | Scope | Acceptance gate |
 | --- | --- | --- | --- |
-| **1 — Contracts and personality definitions/presets** | Approved, in progress | Guidance; validated module contracts and registration/config checks; explicit supported/unsupported toggle policies; reusable conformance tests; ordered trait definitions and validated, unapplied shy/adventurous/food-motivated preset data | Positive/negative contract fixtures; scope/admission/existing-activity/re-enable/cleanup checks where supported; unchanged defaults, trait order, founder values, inheritance RNG and save shape; Node/browser/parity evidence. No automatic preset assignment or personality enablement. |
+| **1 — Contracts and personality definitions/presets** | ✅ Implemented and verified locally (uncommitted); hosted run pending separate push approval | Guidance; validated module contracts and registration/config checks; explicit supported/unsupported toggle policies; reusable conformance tests; ordered trait definitions and validated, unapplied shy/adventurous/food-motivated preset data | Positive/negative contract fixtures; scope/admission/existing-activity/re-enable/cleanup checks where supported; unchanged defaults, trait order, founder values, inheritance RNG and save shape; Node/browser/parity evidence. No automatic preset assignment or personality enablement. |
 | **2 — Preferences, habits and personality extension points** | Planned; depends on 1 | Separate stable traits, temporary mood, preferences and learned habits. Extend supported bounded parameter effects and reusable inheritance/migration/cache contracts. Prove one representative opt-in addition before replication. | Approve trait/preset values, effect targets, acquisition/decay rules and persistence first. Verify visible behavioral differentiation, save/load and map isolation, enabled determinism/RNG and disabled compatibility; survival priorities remain authoritative. |
 | **3 — Optional activity proposals** | Planned; depends on 1–2 | Shared eligibility/preference/explanation interface; initially preserve ordered selection. A separately enabled optional-activity chooser may use personality, preferences, habits and relationships. | Approve eligible activity set, scoring/ties, evaluation budget, refusal and interruption policy. Explain selection/rejection; verify real natural selection, exactly-once effects, pair/claim cleanup and determinism. No override of essential needs or existing player-command rules. |
 | **4 — Bounded goals over existing actions** | Planned; depends on 3 | Goal preconditions, progress/completion, expiry/abandonment, interruption/resumption and bounded memory/evaluation. Reuse existing movement and interaction protocols; prove one small multi-step goal before general planning. | Approve representative goal, persistence and limits first. Verify successful and impossible plans, interruptions, claim cleanup, save/load, map/new-game isolation, deterministic behavior and runtime budget. No unbounded planner or second simulation system. |
@@ -1813,6 +1817,24 @@ and approval; their presence here is not authorization to start them.
 actor-save format changes, chooser/planner, dependencies or broad engine rewrite.
 Essential behaviors are not made arbitrarily disableable. Declare unsupported
 configuration rather than implying that every engine module has full toggle support.
+
+**Chunk 1 evidence:** 303 Node checks pass, including contract positive/negative
+fixtures, per-module config scope/re-enable/reset, mate admission/in-flight/cleanup
+conformance, and personality definition/preset validation with unchanged founder
+hash baselines. `node scripts/check-behavior-contracts.mjs` reports 17 module/
+capability declarations, 34 states and 19 opportunities with no errors. HTTP smoke
+67/67, core browser regression and the short all-race parity matrix pass; a fresh
+15-case long parity matrix reports `tier: long`, `acceptance: true`, zero reuse.
+No hosted CI or personality-enabled visual evidence was produced by this chunk.
+
+**Known follow-ups — module setter accepts unknown IDs (needs decision):**
+`setModuleEnabled('notAModule', true)` and `setModuleParams(...)` return `true`
+while no such module resolves (`src/behaviors/config.js`). The new inventory check
+catches undeclared config during tests, but the runtime setter still reports false
+success. Rejecting unknown IDs would tighten a debug/UI API contract and could turn
+a silent no-op into an error for existing callers; choosing between rejecting,
+warning and leaving it permissive is a design decision, so it is deferred rather
+than changed here. Trigger: any caller toggling a misspelled or unwired module ID.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 

@@ -73,6 +73,7 @@ the references remain relative to the project root.
 | Approved change / check | Read before execution | Also load when applicable |
 | --- | --- | --- |
 | Any browser check | [Browser harness](references/browser-harness.md) | Every affected row below |
+| CI workflows, sharding or harness reliability | [CI verification](references/ci-verification.md) | Browser harness; behavior/parity when simulation evidence changes |
 | NPC behavior, interactions, RNG or simulation | [Behavior/parity](references/behavior-parity.md) | Physics/world; species/assets/save; visuals |
 | Physics, rig, solver, map, collision or navigation | [Physics/world](references/physics-world.md) | Behavior/parity; species/assets/save; visuals |
 | Species, DNA, save/load, GLB or resource lifecycle | [Species/assets/save](references/species-assets-save.md) | Behavior/parity; physics/world; visuals |

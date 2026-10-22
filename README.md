@@ -190,6 +190,12 @@ largest levers. The full report, including the previous post-polish and original
 
 ## Verification
 
+Behavior extension foundations are documented in `src/behaviors/README.md`.
+`node scripts/check-behavior-contracts.mjs` checks engine/config registration and
+explicit support declarations; `node --test tests` includes positive/negative
+contract fixtures and personality-preset validation. Presets are unapplied data:
+personality remains off by default and existing actor/save/RNG behavior is preserved.
+
 The dedicated `SCENARIO=settings` social harness uses `?race=off`, retains an
 initial rendered background, then gates subsequent animation callbacks while
 checking desktop/mobile DOM controls and capturing the sheet. It does not spawn

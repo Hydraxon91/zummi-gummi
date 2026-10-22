@@ -13,6 +13,7 @@ in parity by the harness.
 | `engine.js` | tick order, needs, coverage, module registry, public `api` |
 | `config.js` | layered config: module defaults → race profile → actor → runtime |
 | `module.js` | `defineBehaviorModule` contract and freezing/validation |
+| `contracts.js` | auditable registration/configuration/disable support declarations and inventory checks; not runtime arbitration |
 | `wander.js` | `wander` and the ordered opportunity pipeline |
 | `rest.js` | `seekHome` / `sleep` |
 | `forage.js` / `water.js` | food and water seek/eat/drink |
@@ -53,6 +54,34 @@ working. Other balance blocks (`wander`, `needs`, `social`, …) stay flat.
    rare in open-world runs.
 6. Run the parity gates below. A new state or opportunity must show up in the
    coverage report before it is accepted.
+
+### Configuration and conformance foundation
+
+Declare each engine module or config-only capability in `BEHAVIOR_CONTRACTS`.
+`configuration: layered` means defaults resolve through config; `profile-only`
+means balance remains in the existing flat profile. `disable` deliberately
+distinguishes `finish-current` (mate), `feature-only` (activity feature flags),
+`legacy-unverified` (existing capability configuration, not full toggle acceptance)
+and `unsupported`. Essential rest/food/water do not acquire generic disable behavior.
+These declarations document support; they do not make existing setters stricter or
+rewrite dispatch. Do not expose an unsupported module flag as an effective toggle.
+
+Run `node scripts/check-behavior-contracts.mjs`. It inspects the actual engine map
+and config IDs, plus the directives config-only capability; duplicate module/state/
+opportunity ownership and missing or inconsistent declarations fail. The Node suite
+runs the same check and deliberate negative fixtures. An inventory pass is not
+functional toggle conformance.
+
+`tests/helpers/behavior-conformance.mjs` provides real layered-config scope checks
+with unaffected controls and a real engine/pair fixture. Module-specific tests must
+exercise actual admission, in-flight policy, re-enable and cleanup. The mate tests
+prove these paths; other policies remain explicitly limited as declared. Validate
+global override precedence rather than weakening it to make scoped tests pass.
+
+`defineBehaviorModule` rejects invalid IDs, parameter/default shapes, duplicate
+states/opportunities and active states not owned by the module. Existing valid
+definitions retain their order and execution semantics. Cross-module inventory
+checks run in tooling/tests rather than adding per-tick work.
 
 ## Add a race
 
@@ -98,6 +127,28 @@ carrying an interaction bond delta uses `actorVersion: 6`; a giver carrying
 gift portion uses `actorVersion: 8` (older fields may ride along). `guardianUid` is stored only on baby-stage
 actors and never rewrites `parentUids`. Old saves load without traits and get the
 same hashed founder values once personality is enabled.
+
+### Opt-in preset definitions
+
+`TRAIT_DEFINITIONS` is the immutable ordered definition list; `TRAIT_AXES` derives
+from it without changing order. Adding an axis still requires approved effects,
+inheritance, validation and save-migration work; this foundation adds none.
+`definePersonalityPreset` strictly validates complete finite bounded values and
+rejects unknown axes before normalization. `PERSONALITY_PRESETS` contains immutable
+definitions only, in bold/greed/curiosity order:
+
+| ID | Values | Existing effect emphasized |
+| --- | --- | --- |
+| `shy` | 0.2 / 0.5 / 0.5 | reduced boldness/social seeking |
+| `adventurous` | 0.8 / 0.5 / 0.8 | boldness and exploration |
+| `food-motivated` | 0.5 / 0.8 / 0.5 | food-seeking motivation, not a complete generosity model |
+
+Importing these values neither assigns actors nor enables personality. No preset
+application UI/API or preset ID persistence is introduced. Opt-in consumers would
+use ordinary trait values and the existing cache/save contract; integrating such
+assignment is a separately approved change. Founder hashing, normalization and
+inheritance remain unchanged. Preferences, habits and goals are separate future
+chunks in `ROADMAP.md`, not additional trait axes hidden in this implementation.
 
 ## Mood (off by default)
 

@@ -4,8 +4,42 @@
 // values so no RNG is drawn at attach time; children inherit via blendTraits.
 // The whole feature is gated by FEATURE_DEFAULTS.personality.
 
-export const TRAIT_AXES = Object.freeze(['bold', 'greed', 'curiosity']);
+// Order is part of the saved-actor and inheritance RNG contract.
+export const TRAIT_DEFINITIONS = Object.freeze([
+  Object.freeze({ id: 'bold', label: 'Boldness', min: 0, max: 1, neutral: .5 }),
+  Object.freeze({ id: 'greed', label: 'Food motivation', min: 0, max: 1, neutral: .5 }),
+  Object.freeze({ id: 'curiosity', label: 'Curiosity', min: 0, max: 1, neutral: .5 }),
+]);
+export const TRAIT_AXES = Object.freeze(TRAIT_DEFINITIONS.map(def => def.id));
 export const TRAIT_NEUTRAL = 0.5;
+
+// Strict authoring validation, deliberately separate from forgiving save migration.
+export function definePersonalityPreset(def) {
+  if (!def || typeof def.id !== 'string' || !/^[a-z][a-z0-9-]*$/.test(def.id) ||
+      typeof def.label !== 'string' || !def.label.trim() ||
+      !def.traits || typeof def.traits !== 'object' || Array.isArray(def.traits)) {
+    throw new Error('Invalid personality preset definition');
+  }
+  if (Object.keys(def.traits).some(id => !TRAIT_AXES.includes(id))) {
+    throw new Error(`Unknown trait in personality preset ${def.id}`);
+  }
+  const traits = {};
+  for (const axis of TRAIT_DEFINITIONS) {
+    const value = def.traits[axis.id];
+    if (!Number.isFinite(value) || value < axis.min || value > axis.max) {
+      throw new Error(`Invalid ${axis.id} in personality preset ${def.id}`);
+    }
+    traits[axis.id] = value;
+  }
+  return Object.freeze({ id: def.id, label: def.label, traits: Object.freeze(traits) });
+}
+
+// Definitions only: never enable the feature, assign actors or draw RNG on import.
+export const PERSONALITY_PRESETS = Object.freeze([
+  definePersonalityPreset({ id: 'shy', label: 'Shy', traits: { bold: .2, greed: .5, curiosity: .5 } }),
+  definePersonalityPreset({ id: 'adventurous', label: 'Adventurous', traits: { bold: .8, greed: .5, curiosity: .8 } }),
+  definePersonalityPreset({ id: 'food-motivated', label: 'Food-motivated', traits: { bold: .5, greed: .8, curiosity: .5 } }),
+]);
 
 const clamp = (n, lo, hi) => n < lo ? lo : (n > hi ? hi : n);
 const finite = (n, fallback) => Number.isFinite(n) ? n : fallback;

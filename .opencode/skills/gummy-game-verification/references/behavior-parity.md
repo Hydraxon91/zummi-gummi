@@ -19,6 +19,31 @@ being verified. Do not count a forced pair/state as proof of eligibility or natu
 selection. Verify a failed helper before changing production behavior, and stop on a
 reproducible failure rather than retrying until green.
 
+## Module conformance
+
+Before extending a module, inspect its declared configuration support and disable
+policy. Distinguish an engine state owner, a config-only capability and a profile-only
+behavior; registration in one list does not prove registration in the others.
+
+Validate contracts with both known-good fixtures and deliberate failures: missing
+registration/defaults, duplicate IDs/state/opportunity ownership and invalid schemas.
+For supported toggles, exercise global, species and actor scope, an unaffected control,
+admission/refusal, existing activity completion or cancellation, reciprocal participant
+cleanup and re-enable. Use real transitions and observable claims/pairs, not forced
+states. Check persistence and RNG when applicable; declare unsupported cases rather
+than treating absent tests as conformance. Essential needs retain their own policy.
+
+Run `node scripts/check-behavior-contracts.mjs` and the corresponding Node tests
+before reporting registration/configuration consistency. Consult
+`src/behaviors/contracts.js` for explicit support limits. Reuse
+`tests/helpers/behavior-conformance.mjs` for real scope controls and pair fixtures;
+an inventory or config-resolution pass is not admission/cleanup evidence.
+
+Trait/preset additions must preserve trait order, defaults, normalization, inheritance
+draw order and old-save migration unless explicitly approved otherwise. Validate input
+before normalization can hide malformed definitions. Test presets as opt-in data;
+loading their definitions must not enable personality or assign them to live actors.
+
 ## Distinct claims
 
 Treat these as separate lanes:
