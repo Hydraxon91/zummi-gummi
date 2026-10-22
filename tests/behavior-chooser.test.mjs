@@ -8,6 +8,7 @@ import { createBehaviorConfig, FEATURE_DEFAULTS } from '../src/behaviors/config.
 import { createBehavior } from '../src/behaviors/index.js';
 import { createWorld, createRoster, mulberry32 } from '../scripts/behavior-parity.mjs';
 import { snapshotActor } from '../src/actorrecord.js';
+import { bondOf } from '../src/family.js';
 
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-4, `${a} != ${b}`);
 
@@ -244,4 +245,112 @@ test('decision explanations are runtime-only and never change the save record', 
   f.engine.attach(f.actor);
   assert.equal(f.actor.ai.activityDecision, undefined);
   assert.equal(f.engine.activityDecision(f.actor), null);
+});
+
+// Advance one actor without the render loop: simulate arrival immediately so
+// pairing states settle on the next tick.
+function step(f, actor) {
+  f.engine.tick(actor, .1);
+  if (actor.ai && actor.ai.moving && actor.ai.target) {
+    actor.cx = actor.ai.target.x;
+    actor.cz = actor.ai.target.z;
+    actor.ai.moving = false;
+    actor.ai.arrived = true;
+    actor.ai.target = null;
+  }
+}
+
+function chooserFixture(options) {
+  const f = fixture(options);
+  f.config.setModuleEnabled('mate', false);
+  return f;
+}
+
+test('the generic dispatcher cannot bypass ranking while the chooser is on', () => {
+  const f = chooserFixture({ features: { activityChooser: true, preferences: true }, social: .7, preference: 1 });
+  const started = f.engine.runOpportunities(f.actor);
+  assert.equal(started?.id, 'wander.activity', 'the ranked slot owns both members');
+  assert.equal(f.actor.ai.state, 'stargaze');
+  assert.equal(f.engine.activityDecision(f.actor).chosen, 'stargaze.seek');
+
+  const off = chooserFixture({ features: {}, social: .7 });
+  assert.equal(off.engine.runOpportunities(off.actor)?.id, 'social.company');
+});
+
+test('chooser-started social completes once and releases both partners', () => {
+  const f = chooserFixture({ features: { activityChooser: true }, social: .95, random: () => 0 });
+  assert.equal(f.engine.chooseActivity(f.actor), 'social.company');
+  const partner = f.actor.ai.partner;
+  assert.ok(partner, 'the chosen candidate reserved a partner through admission');
+  const p = f.config.forActor(f.actor);
+  const before = bondOf(f.actor, partner);
+  const family = !!f.actor.ai.familyPlay;
+  const expected = family
+    ? p.social.familyBondBase + p.social.familyBondExtra
+    : p.social.bondBase;
+  let sawSocial = false;
+  for (let i = 0; i < 900 && !(sawSocial && f.actor.ai.state === 'wander'); i++) {
+    step(f, f.actor);
+    step(f, partner);
+    if (f.actor.ai.state === 'social') sawSocial = true;
+  }
+  assert.ok(sawSocial, 'the real invite is accepted and the pair socialises');
+  assert.equal(f.actor.ai.state, 'wander');
+  assert.equal(f.actor.ai.partner, null);
+  assert.equal(partner.ai.partner, null);
+  near(bondOf(f.actor, partner) - before, expected);
+  assert.ok(f.actor.ai.socialCooldown > 0);
+});
+
+test('chooser-started social can be refused without side effects', () => {
+  const f = chooserFixture({ features: { activityChooser: true }, social: .95, random: () => .999 });
+  assert.equal(f.engine.chooseActivity(f.actor), 'social.company');
+  const partner = f.actor.ai.partner;
+  assert.ok(partner);
+  const before = bondOf(f.actor, partner);
+  let sawDecline = false;
+  for (let i = 0; i < 600 && !(sawDecline && f.actor.ai.state === 'wander'); i++) {
+    step(f, f.actor);
+    step(f, partner);
+    if (f.actor.ai.state === 'decline' || partner.ai.state === 'decline') sawDecline = true;
+  }
+  assert.ok(sawDecline, 'a low acceptance roll declines the invite');
+  assert.equal(f.actor.ai.state, 'wander');
+  assert.equal(f.actor.ai.partner, null);
+  assert.equal(partner.ai.partner, null);
+  near(bondOf(f.actor, partner), before);
+  assert.ok(f.actor.ai.socialCooldown > 0, 'decline cooldown is preserved');
+});
+
+test('interrupting a chooser-started pairing cleans both sides without reward', () => {
+  const f = chooserFixture({ features: { activityChooser: true }, social: .95, random: () => 0 });
+  assert.equal(f.engine.chooseActivity(f.actor), 'social.company');
+  const partner = f.actor.ai.partner;
+  const before = bondOf(f.actor, partner);
+  f.engine.onGrab(f.actor);
+  assert.equal(f.actor.ai.partner, null);
+  assert.equal(partner.ai.partner, null);
+  assert.equal(f.actor.ai.state, 'wander');
+  assert.equal(partner.ai.state, 'wander');
+  near(bondOf(f.actor, partner), before);
+});
+
+test('disabling the chooser leaves an ongoing activity untouched and re-enables cleanly', () => {
+  const f = chooserFixture({ features: { activityChooser: true, preferences: true }, preference: 1, random: () => 0 });
+  assert.equal(f.engine.chooseActivity(f.actor), 'stargaze.seek');
+  const idle = f.actor.ai.idleT;
+  f.engine.setFeature('activityChooser', false);
+  assert.equal(f.actor.ai.state, 'stargaze', 'disabling must not cancel the running activity');
+  assert.equal(f.engine.activityDecision(f.actor), null, 'the stale explanation is cleared');
+  step(f, f.actor);
+  assert.equal(f.actor.ai.state, 'stargaze');
+  assert.ok(f.actor.ai.idleT < idle, 'the session keeps counting down');
+  for (let i = 0; i < 80 && f.actor.ai.state === 'stargaze'; i++) step(f, f.actor);
+  assert.notEqual(f.actor.ai.state, 'stargaze');
+  f.actor.ai.nextThink = 0;
+  f.actor.ai.taskCooldown = 0;
+  f.engine.setFeature('activityChooser', true);
+  step(f, f.actor);
+  assert.equal(f.engine.activityDecision(f.actor)?.started, 'stargaze.seek');
+  assert.equal(f.actor.ai.state, 'stargaze');
 });

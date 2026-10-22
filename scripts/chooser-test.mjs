@@ -1,4 +1,4 @@
-// Optional activity chooser: real Meadow selection, explanations and isolation.
+// Optional activity chooser: real Meadow selection, lifecycle and isolation.
 // Start launch.py first. No forced activity state or completion hook is used.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -38,6 +38,8 @@ try {
     const off = g.behaviorConfig().features;
     g.setBehaviorFeature('activityChooser', true);
     g.setBehaviorFeature('preferences', true);
+    g.setBehaviorFeature('habits', true);
+    g.setBehaviorModule('mate', false);
     g.activityPreference(uid, 'stargaze', 1);
     g.setTime(20);
     g.seed(4242);
@@ -70,33 +72,46 @@ try {
     proposals.length === 2 && social.eligible && stars.eligible);
   check('scores are the approved normalized pressure and chance share',
     Math.abs(social.score - (.7 - .64) / .36) < 1e-3 && Math.abs(stars.score - .56) < 1e-3);
+  // Wait for an actual stargazing start (not merely any started candidate), then
+  // let that session finish so completion effects can be counted exactly once.
   const natural = await page.evaluate(`(() => {
     const g = window.__gummy, uid = window.__chooserUid;
-    let elapsed = 0, decision = null;
-    while (elapsed < 240 && !(decision && decision.started)) {
-      if (Math.round(elapsed * 4) % 40 === 0) {
-        for (let i = 0; i < 2; i++) {
-          for (const [key, value] of Object.entries({ hunger: .1, thirst: .1, energy: 1, social: .7, affection: 0 })) {
-            g.glassSetNeed(i, key, value);
-          }
-        }
+    const needs = { hunger: .1, thirst: .1, energy: 1, social: .7, affection: 0 };
+    const hold = () => {
+      for (let i = 0; i < 2; i++) {
+        for (const [key, value] of Object.entries(needs)) g.glassSetNeed(i, key, value);
       }
+    };
+    let elapsed = 0, decision = null;
+    while (elapsed < 240 && !(decision && decision.started === 'stargaze.seek')) {
+      if (Math.round(elapsed * 4) % 20 === 0) hold();
       g.sim(.25, 0);
       elapsed += .25;
       decision = g.activityDecision(uid);
     }
-    return { elapsed, decision, state: g.glass().actors.find(a => a.uid === uid)?.state };
-  })()`, 120000);
+    const startedState = g.glass().actors.find(a => a.uid === uid)?.state;
+    const before = g.dispositions(uid).habits.stargaze || 0;
+    if (decision && decision.started === 'stargaze.seek') {
+      while (elapsed < 300 && (g.dispositions(uid).habits.stargaze || 0) <= before) {
+        if (Math.round(elapsed * 4) % 20 === 0) hold();
+        g.sim(.25, 0);
+        elapsed += .25;
+      }
+    }
+    return { elapsed, decision, startedState, before,
+      habitAfter: g.dispositions(uid).habits.stargaze || 0 };
+  })()`, 180000);
   report.natural = natural;
-  const started = natural.decision && natural.decision.started;
-  check('a real simulation decision starts a ranked candidate', !!started);
+  check('a real simulation decision starts the ranked stargazing candidate',
+    natural.decision?.started === 'stargaze.seek' && natural.startedState === 'stargaze');
   check('the explanation reports every candidate reason and score',
     natural.decision.candidates.length === 2 &&
     natural.decision.candidates.every(c => c.reason && Number.isFinite(c.score)) &&
     natural.decision.chosen === natural.decision.ranked[0]);
   check('stargazing outranks moderate social pressure and is attempted first',
-    natural.decision.ranked[0] === 'stargaze.seek' ||
-    natural.decision.refused.includes('stargaze.seek'));
+    natural.decision.ranked[0] === 'stargaze.seek');
+  check('the chooser-started session completes and reinforces the habit once',
+    Math.abs(natural.habitAfter - natural.before - .1) < 1e-3);
   const save = await page.evaluate(`(() => {
     const g = window.__gummy;
     const record = JSON.parse(g.exportSave()).worlds.field.glass.find(a => a.uid === window.__chooserUid);
@@ -109,32 +124,108 @@ try {
     const g = window.__gummy, uid = window.__chooserUid;
     g.activityPreference(uid, 'stargaze', 0);
     let elapsed = 0, decision = null;
-    while (elapsed < 240 && !(decision && decision.ranked[0] === 'social.company')) {
+    while (elapsed < 240 && !(decision && decision.started === 'social.company')) {
       for (let i = 0; i < 2; i++) {
         for (const [key, value] of Object.entries({ hunger: .1, thirst: .1, energy: 1, social: .95, affection: 0 })) {
           g.glassSetNeed(i, key, value);
         }
+        g.glassSetCooldown(i, 0);
       }
+      g.glassSetPosition(0, 8.5, 7.0, true);
+      g.glassSetPosition(1, 9.5, 8.6, true);
       g.sim(.25, 0);
       elapsed += .25;
       decision = g.activityDecision(uid);
     }
     return { elapsed, decision, state: g.glass().actors.find(a => a.uid === uid)?.state };
-  })()`, 120000);
+  })()`, 180000);
   report.socialWin = socialWin;
   check('strong social pressure outranks a disliked stargazing attempt',
-    socialWin.decision.ranked[0] === 'social.company' && socialWin.decision.chosen === 'social.company');
-  const disabled = await page.evaluate(`(() => {
+    socialWin.decision?.started === 'social.company' &&
+    socialWin.decision.ranked[0] === 'social.company' &&
+    ['seekCompany', 'invite', 'social'].includes(socialWin.state));
+  // Disable and re-enable while a chooser-started session is running.
+  const lifecycle = await page.evaluate(`(() => {
     const g = window.__gummy, uid = window.__chooserUid;
+    g.activityPreference(uid, 'stargaze', 1);
+    const needs = { hunger: .1, thirst: .1, energy: 1, social: .7, affection: 0 };
+    const hold = () => {
+      for (let i = 0; i < 2; i++) {
+        for (const [key, value] of Object.entries(needs)) g.glassSetNeed(i, key, value);
+      }
+    };
+    let elapsed = 0, decision = null;
+    while (elapsed < 240 && !(decision && decision.started === 'stargaze.seek')) {
+      if (Math.round(elapsed * 4) % 20 === 0) hold();
+      g.sim(.25, 0);
+      elapsed += .25;
+      decision = g.activityDecision(uid);
+    }
+    const state = () => g.glass().actors.find(a => a.uid === uid)?.state;
+    const active = state();
     g.setBehaviorFeature('activityChooser', false);
     const cleared = g.activityDecision(uid);
-    const features = g.behaviorConfig().features;
+    g.sim(1, 0);
+    const during = state();
+    while (elapsed < 360 && state() === 'stargaze') {
+      g.sim(.25, 0);
+      elapsed += .25;
+    }
+    const after = state();
+    g.setBehaviorFeature('activityChooser', true);
+    let resumedAt = null;
+    while (elapsed < 420 && !resumedAt) {
+      hold();
+      g.sim(.25, 0);
+      elapsed += .25;
+      const next = g.activityDecision(uid);
+      if (next) resumedAt = next.started || next.outcome;
+    }
+    return { active, cleared, during, after, resumedAt, features: g.behaviorConfig().features };
+  })()`, 180000);
+  report.lifecycle = lifecycle;
+  check('disabling leaves the running session untouched and clears the explanation',
+    lifecycle.active === 'stargaze' && lifecycle.during === 'stargaze' && lifecycle.cleared === null);
+  check('re-enabling resumes ranked selection without a stale decision',
+    lifecycle.features.activityChooser === true && !!lifecycle.resumedAt);
+  await page.evaluate(`window.__gummy.save('slot1', 'Chooser lifecycle')`);
+  await page.evaluate(`window.__gummy.load('slot1')`);
+  await page.waitFor('window.__gummy.map().id === "field" && window.__gummy.glass().actors.every(a => a.ready) && !document.getElementById("mapWipe").classList.contains("on")', 150000);
+  const loaded = await page.evaluate(`(() => {
+    const g = window.__gummy, uid = window.__chooserUid;
+    const cleared = g.activityDecision(uid);
+    const feature = g.behaviorConfig().features.activityChooser;
     g.sim(2, 0);
-    return { cleared, features, after: g.activityDecision(uid) };
+    return { cleared, feature, decision: g.activityDecision(uid) };
   })()`);
-  report.disabled = disabled;
-  check('disabling clears the explanation and stops new chooser work',
-    disabled.cleared === null && disabled.features.activityChooser === false && disabled.after === null);
+  report.loaded = loaded;
+  check('a real save/load clears the runtime decision and keeps the chooser working',
+    loaded.cleared === null && loaded.feature === true && !!loaded.decision);
+  await page.evaluate('window.__gummy.setMap("studio")');
+  await page.waitFor('window.__gummy.map().id === "studio" && !document.getElementById("mapWipe").classList.contains("on")', 120000);
+  const isolation = await page.evaluate(`(() => {
+    const g = window.__gummy;
+    g.sim(2, 0);
+    return { decision: g.activityDecision(window.__chooserUid) };
+  })()`);
+  report.isolation = isolation;
+  check('inactive-map actors carry no chooser decision', isolation.decision === null);
+  await page.evaluate('window.__gummy.setMap("field")');
+  await page.waitFor('window.__gummy.map().id === "field" && !document.getElementById("mapWipe").classList.contains("on") && window.__gummy.glass().actors.every(a => a.ready)', 150000);
+  const returned = await page.evaluate(`(() => {
+    const g = window.__gummy, uid = window.__chooserUid;
+    const cleared = g.activityDecision(uid);
+    let elapsed = 0, decision = null;
+    while (elapsed < 120 && !decision) {
+      g.sim(.25, 0);
+      elapsed += .25;
+      decision = g.activityDecision(uid);
+    }
+    return { cleared, decision };
+  })()`);
+  report.returned = returned;
+  check('returning to the map starts fresh with no stale decision',
+    returned.cleared === null && !!returned.decision);
   await page.evaluate('window.__gummy.importSave(window.__chooserBaseline)');
   await page.waitFor('window.__gummy.glass().actors.every(a => a.ready)', 150000);
   check('restoring another game leaves no decision state behind',

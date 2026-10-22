@@ -256,7 +256,9 @@ scoring: social requires need, no cooldown and a `canCompany` actor inside
 candidates draws no RNG, changes no cooldown and reserves no partner; admission rolls are
 drawn only when a candidate is executed, so batch 2 preference/habit effects apply exactly
 once. The chooser runs at the existing think cadence with at most two candidates and one
-bounded nearby scan.
+bounded nearby scan. While the flag is on, the generic `runOpportunities()` helper skips
+both member slots, so the ranked `wander.activity` entry cannot be bypassed by an
+order-only dispatch.
 
 Essential needs, family routines, mating, following, existing relationship activities,
 gifting and player directives are evaluated before the chooser and remain authoritative.
@@ -273,9 +275,12 @@ with `__gummy.setBehaviorFeature('activityChooser', true)`.
 
 No new activity, pairing rule, bond/resource effect, UI, save field or actor-record version
 is introduced. For verification, run `node --test tests/behavior-chooser.test.mjs` and, with
-`launch.py` serving, `node scripts/chooser-test.mjs`. The browser check observes real
-selection, both rankings, explanation shape, save isolation, disable cleanup and another
-game's restore.
+`launch.py` serving, `node scripts/chooser-test.mjs`. The Node checks cover the portable
+core, RNG-free evaluation, ranking/ties, refusal and fallback, survival priority, the
+generic dispatcher skip, exactly-once social completion, decline, interruption cleanup and
+disable/re-enable during an active session. The browser check observes real stargazing and
+social starts from the live simulation, one completion, runtime-only save shape, actual
+save/load, inactive-map isolation and restoring another game.
 
 ## Departure hook (off by default)
 

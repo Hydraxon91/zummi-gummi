@@ -1811,7 +1811,7 @@ and explicit host inputs for easy translation to Godot; this is not an engine mi
 | --- | --- | --- | --- |
 | **1 — Contracts and personality definitions/presets** | ✅ Implemented and committed as `99e9e36`; subsequent code run `39795559309` passed hosted CI | Guidance; validated module contracts and registration/config checks; explicit supported/unsupported toggle policies; reusable conformance tests; ordered trait definitions and validated, unapplied shy/adventurous/food-motivated preset data | Positive/negative contract fixtures; scope/admission/existing-activity/re-enable/cleanup checks where supported; unchanged defaults, trait order, founder values, inheritance RNG and save shape; Node/browser/parity evidence. No automatic preset assignment or personality enablement. |
 | **2 — Preferences, habits and personality extension points** | ✅ Stargazing prototype implemented, verified locally and committed as `8eeece4`; hosted CI for that revision was not watched | Separate stable traits, temporary mood, preferences and learned habits. Extend supported bounded parameter effects and reusable inheritance/migration/cache contracts. Prove one representative opt-in addition before replication. | Approved bounds/persistence below. Behavioral differentiation, save/load, map isolation, enabled determinism/RNG and disabled compatibility verified; survival priorities remain authoritative. |
-| **3 — Optional activity proposals** | ✅ Two-activity chooser prototyped; social/stargazing only, off by default | Shared eligibility/reason/score/explanation interface; ordered cascade preserved while the chooser is off. A separately enabled chooser ranks existing optional activities. | Approved set, scores, ties, attempts and lifecycle below. Real natural selection, exactly-once effects, pair cleanup, priorities, determinism, save/map isolation and runtime budget verified. No override of essential needs or player commands. |
+| **3 — Optional activity proposals** | ✅ Two-activity chooser prototyped; social/stargazing only, off by default | Shared eligibility/reason/score/explanation interface; ordered cascade preserved while the chooser is off. A separately enabled chooser ranks existing optional activities. | Approved set, scores, ties, attempts and lifecycle below. Natural stargazing and social starts, exactly-once completion, decline and interruption cleanup, dispatch consistency, priorities, determinism, save/map isolation and a measured evaluation cost (~2 µs per actor on this machine) verified. No override of essential needs or player commands. |
 | **4 — Bounded goals over existing actions** | Planned; depends on 3 | Goal preconditions, progress/completion, expiry/abandonment, interruption/resumption and bounded memory/evaluation. Reuse existing movement and interaction protocols; prove one small multi-step goal before general planning. | Approve representative goal, persistence and limits first. Verify successful and impossible plans, interruptions, claim cleanup, save/load, map/new-game isolation, deterministic behavior and runtime budget. No unbounded planner or second simulation system. |
 
 **Protected in chunk 1:** personality remains off by default; no new trait axes,
@@ -1870,14 +1870,32 @@ reserves nothing. Social score is per-axis need above its own seek threshold nor
 `0..1` (max of social/affection); stargazing score is the resolved chance divided by its
 `.25` ceiling, so batch 2 effects apply once. Exact ties keep authored order (social first).
 Each ranked candidate is attempted once through its existing admission; if all fail the
-ordinary arrival/idling/wander fallback runs. Essential needs, family routines, mating,
+ordinary arrival/idling/wander fallback runs. While the flag is on, the generic
+`runOpportunities()` helper skips both member slots so an order-only dispatch cannot start
+them ahead of the ranked entry. Essential needs, family routines, mating,
 following, relationship activities, gifting and player directives stay authoritative and
 ahead of the chooser. The latest decision (candidates, reasons, scores, contributions,
 ranked, chosen, started, refused, outcome) is runtime-only, never saved or inherited, and
 is cleared when the flag is disabled. No new activity, persistence/version change, UI or
 Godot integration.
 
-**Chunk 3 acceptance:** pending final browser and parity runs.
+**Chunk 3 acceptance:** 330 Node tests pass, including 14 chooser tests for the portable
+core, RNG-free evaluation, ranking/ties, refusal/fallback, priority, dispatcher consistency,
+exactly-once social completion, decline, interruption cleanup, disable/re-enable during an
+active session and the runtime-only save shape. Behavior contracts report 17 modules/34
+states/20 opportunities with no errors; HTTP smoke passes 68/68. The served chooser harness
+(`node scripts/chooser-test.mjs`) passes all 17 checks, with its report in
+`.dev-shots/chooser-test.json`: default-off/enabled, both candidates, approved scores, a real
+natural stargazing start and one completed session, a natural social start under stronger
+pressure, explanation shape, runtime-only save shape, disable-while-active/re-enable, actual
+save/load, inactive-map isolation and return, and another-game restore. Evaluation cost
+measured on this machine (Node, one Glass actor, two candidates, gather+rank+explain,
+5×20,000 after warmup) is a 1.78 µs median and 2.09 µs worst case. Full browser regression
+passes with Studio and with `BEHAVIORS=legacy`; the preference prototype harness still
+passes 12/12. Short all-race
+parity passes 9/9 fresh; final fresh long parity passes 15/15 (20 days × five seeds × three
+races), `tier: long`, `acceptance: true`, zero reuse. Chooser-enabled evidence is separate
+from that disabled compatibility matrix. Hosted CI for this revision was not run.
 
 **Known follow-ups — stargaze timer is decremented twice (deferred):** active
 stargazing runs the generic `ai.idleT -= dt` in `src/behaviors/engine.js` and then

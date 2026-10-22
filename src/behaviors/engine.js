@@ -51,6 +51,7 @@ import {
 } from './proposals.js';
 
 const STUCK_DIST2 = .04;
+const CHOOSER_MEMBERS = new Set(ACTIVITY_PROPOSALS.map(def => def.id));
 
 // New interaction states opt in to module-owned cancellation. Legacy states keep
 // their existing generic cancelPair path so disabled features remain inert.
@@ -196,11 +197,14 @@ export function createBehaviorModules({
   };
 
   // First-match pipeline. `canRun` must not draw RNG; only the winning `enter`
-  // runs, which keeps the legacy random sequence unchanged.
+  // runs, which keeps the legacy random sequence unchanged. While the activity
+  // chooser is on, its member slots are owned by the ranked `wander.activity`
+  // entry, so they are skipped here instead of starting in numeric order.
   function runOpportunities(actor) {
     const ctx = contextFor(actor);
     for (const opportunity of opportunities) {
       if (!opportunity.canRun || !opportunity.canRun(ctx)) continue;
+      if (features.activityChooser && CHOOSER_MEMBERS.has(opportunity.id)) continue;
       if (opportunity.enter(ctx)) {
         coverage.opportunities.set(opportunity.id,
           (coverage.opportunities.get(opportunity.id) || 0) + 1);
@@ -1903,6 +1907,7 @@ export function createBehaviorModules({
   return {
     attach, tick, plan, stats: statsNow, registerAdapter,
     setEnabled, onGrab, onRelease, detach, resumeTask, debugState,
+    runOpportunities,
     setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal, forceLesson, forceGift,
     forceChat, forceCuddle, forceReconcile, forcePartnership, forceGroup, separatePartnership, cancelPair,
     dropCarried: (actor) => actor && actor.carriedFood
