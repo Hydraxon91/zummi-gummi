@@ -1827,6 +1827,15 @@ can proceed with the current runtime and assets.
 - **Playdates are daytime-only.** Family acquisition and due playdates check the actor's
   day/night profile; forced debug hooks can still start one at night.
 
+## Engine portability and modularity track
+
+**Status: Planned—read-only audit; implementation requires separate approval.**
+
+The separate [modularity and portability roadmap](MODULARITY_PORTABILITY_ROADMAP.md)
+records the repository-wide audit, evidence limits, protected contracts and small,
+independently approvable work chunks. It does not authorize migration, refactors
+or personality/AI chunk 4. Audit first; approve useful refactors individually.
+
 ## Personality and modular-AI extension track
 
 This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved and
