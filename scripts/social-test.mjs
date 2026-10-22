@@ -37,11 +37,11 @@ const initScript = SCENARIO === 'settings' ? `(() => {
 const REPORT = `${ROOT}/.dev-shots/social-${TAG}-${SCENARIO}.json`;
 await mkdir(`${ROOT}/.dev-shots`, { recursive: true });
 
-const launched = await launchBrowser();
-const browser = await connectBrowser(launched);
+let launched = null;
+let browser = null;
 let page = null;
 const evaluate = (expression, timeout = 30000) => page.evaluate(expression, timeout);
-const report = { tag: TAG, scenario: SCENARIO, fast: FAST, pageErrors: browser.pageErrors, checks: [] };
+const report = { tag: TAG, scenario: SCENARIO, fast: FAST, pageErrors: [], checks: [] };
 const check = (name, pass, detail = {}) => {
   report.checks.push({ name, pass: !!pass, ...detail });
   console.log(`${pass ? 'PASS' : 'FAIL'} ${name}${detail.value === undefined ? '' : ` (${detail.value})`}`);
@@ -49,6 +49,9 @@ const check = (name, pass, detail = {}) => {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 try {
+  launched = await launchBrowser();
+  browser = await connectBrowser(launched);
+  report.pageErrors = browser.pageErrors;
   page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
   await page.waitFor('!!window.__gummy?.booted', 90000);
   if (SCENARIO !== 'settings') {
@@ -481,18 +484,18 @@ try {
   }
 
   if (selected('settings')) {
+  let mobile = page;
   if (SCENARIO === 'settings') {
-    // Free the finished desktop page so the second viewport does not contend for
-    // the single software renderer while booting.
-    await browser.send('Target.closeTarget', { targetId: page.targetId });
+    // A second WebGL page starves under software rendering; the responsive check
+    // only needs the same session at a phone viewport.
+    await browser.send('Emulation.setDeviceMetricsOverride', {
+      width: 390, height: 844, deviceScaleFactor: 1, mobile: true,
+    }, page.sessionId);
+    await sleep(400);
   } else {
     await evaluate('window.__gummy.pause(true)');
-  }
-  const mobile = await browser.openPage({ url: TARGET.href, width: 390, height: 844, initScript });
-  await mobile.waitFor('!!window.__gummy?.booted', 120000);
-  if (SCENARIO === 'settings') {
-    await mobile.waitFor('window.__gummy.three().renderer.info.render.frame > 0', 90000);
-    await mobile.evaluate('window.__ciStopFrames = true');
+    mobile = await browser.openPage({ url: TARGET.href, width: 390, height: 844, initScript });
+    await mobile.waitFor('!!window.__gummy?.booted', 120000);
   }
   await mobile.evaluate("document.getElementById('settingsBtn').click()");
   await sleep(400);
@@ -532,9 +535,11 @@ try {
   report.failure = String(error.stack || error);
   console.error('STOP', report.failure);
 } finally {
-  report.harness = page ? page.diagnostics() : browser.diagnostics();
+  report.harness = page ? page.diagnostics()
+    : browser ? browser.diagnostics()
+      : { launched: launched ? { stderr: launched.stderr, exit: launched.exit } : null };
   await writeFile(REPORT, JSON.stringify(report, null, 2));
-  await browser.close();
+  if (browser) await browser.close();
 }
 
 console.log('SUMMARY', JSON.stringify({ scenario: SCENARIO,

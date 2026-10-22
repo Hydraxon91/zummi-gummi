@@ -31,11 +31,11 @@ const initScript = lowQuality ? `(() => {
 const REPORT = `${ROOT}/.dev-shots/gifting-${TAG}-${SCENARIO}.json`;
 await mkdir(`${ROOT}/.dev-shots`, { recursive: true });
 
-const launched = await launchBrowser();
-const browser = await connectBrowser(launched);
+let launched = null;
+let browser = null;
 let page = null;
 const evaluate = (expression, timeout = 30000) => page.evaluate(expression, timeout);
-const report = { tag: TAG, scenario: SCENARIO, fast: FAST, pageErrors: browser.pageErrors, checks: [] };
+const report = { tag: TAG, scenario: SCENARIO, fast: FAST, pageErrors: [], checks: [] };
 const check = (name, pass, detail = {}) => {
   report.checks.push({ name, pass: !!pass, ...detail });
   console.log(`${pass ? 'PASS' : 'FAIL'} ${name}${detail.value === undefined ? '' : ` (${detail.value})`}`);
@@ -43,6 +43,9 @@ const check = (name, pass, detail = {}) => {
 const GLASS_READY = 'window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)';
 
 try {
+  launched = await launchBrowser();
+  browser = await connectBrowser(launched);
+  report.pageErrors = browser.pageErrors;
   page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
   await page.waitFor('!!window.__gummy?.booted', 90000);
   console.log('STEP glass ready');
@@ -276,8 +279,10 @@ try {
   console.log('STOP', report.failure.slice(0, 2000));
   process.exitCode = 1;
 } finally {
-  report.harness = page ? page.diagnostics() : browser.diagnostics();
+  report.harness = page ? page.diagnostics()
+    : browser ? browser.diagnostics()
+      : { launched: launched ? { stderr: launched.stderr, exit: launched.exit } : null };
   await writeFile(REPORT, JSON.stringify(report, null, 2));
-  await browser.close();
+  if (browser) await browser.close();
 }
 if (report.pageErrors.length || report.checks.some(entry => !entry.pass)) process.exitCode = 1;

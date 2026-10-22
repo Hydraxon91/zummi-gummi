@@ -24,3 +24,11 @@ Use with the parent skill and the existing browser and behavior procedures.
 - Upload diagnostics from hidden directories explicitly. Bound monitoring and stop
   owned processes. Do not silently retry failing suites, loosen assertions or change
   gameplay to make CI pass.
+- Make startup failures reportable. Launch/connect the browser inside the harness's
+  guarded section so a report is still written, and include browser stderr when the
+  CDP endpoint never appears. An empty server log plus a missing report indicates a
+  launch failure, not a game or assertion failure.
+- Do not boot a second WebGL page for a responsive-layout check under software
+  rendering; emulate the viewport on the booted page. State that this is a resized
+  session, not a cold mobile-load or mobile-performance test, and keep a separate
+  page for suites that genuinely verify cold mobile boot.

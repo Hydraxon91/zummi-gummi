@@ -86,7 +86,9 @@ export async function launchBrowser({
   });
 
   let version = null;
-  const deadline = Date.now() + 20000;
+  // Hosted runners can be slow to publish the CDP endpoint under load; keep a
+  // bounded allowance and report browser stderr when it never appears.
+  const deadline = Date.now() + 60000;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/json/version`);
@@ -100,7 +102,7 @@ export async function launchBrowser({
   if (!version?.webSocketDebuggerUrl) {
     child.kill();
     await removeProfile(profile).catch(() => {});
-    throw new Error(`Browser CDP endpoint did not start on port ${port}`);
+    throw new Error(`Browser CDP endpoint did not start on port ${port}${stderr ? `: ${stderr.slice(-1200)}` : ''}`);
   }
   return {
     browser, child, port, profile, version,

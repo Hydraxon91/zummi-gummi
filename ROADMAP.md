@@ -1840,10 +1840,17 @@ than changed here. Trigger: any caller toggling a misspelled or unwired module I
 39785806336 for `d86d09a` failed only `Browser (settings)`; the mobile page's
 `__gummy.booted` wait (60 s) expired while the finished desktop page still held its
 WebGL context under software rendering, so `Required CI checks` failed and Pages was
-correctly skipped. The Settings scenario now closes the desktop target before opening
-the mobile viewport and allows 120 s for that boot. Local captures remain unobscured
-and all four assertions pass; hosted re-verification is pending. The other 12 jobs
-passed, so this was not a regression in game or personality code.
+correctly skipped. Closing the desktop target and allowing 120 s did not settle it:
+run 39787626263 still timed out booting that second page, with the retained stack in
+`WebGLProgram.getUniforms` under SwiftShader. The Settings scenario now emulates the
+390×844 viewport on the already-booted page instead of booting a second WebGL page;
+the full suite keeps its separate mobile page. That run also failed
+`Browser (partnership)` with an empty server log and no report JSON, i.e. the browser
+never launched. Launch and connect now run inside both interaction harnesses' guarded
+section so a report is written, the CDP endpoint allowance is 60 s, and launch failure
+reports browser stderr. Local re-checks pass (settings desktop+mobile captures
+inspected, full social and gifting suites, forced launch-failure report). Hosted
+re-verification is pending; a resized session is not a cold mobile-load test.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 
