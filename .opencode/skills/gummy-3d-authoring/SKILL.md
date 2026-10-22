@@ -1,6 +1,6 @@
 ---
 name: gummy-3d-authoring
-description: Create, edit, calibrate, inspect and export Blender assets (3D models, meshes, props, vehicles, characters, GLB files) for Gummy Bears using Blender MCP, with reference-image matching, PBR materials, UVs, texture baking, Geometry Nodes, editable source preservation and multi-angle verification. Use whenever the task involves Blender, MCP for Blender, a 3D model or mesh, materials, textures, baking, geometry nodes, blueprint/reference images, mesh cleanup, or GLB export, even if the user does not name this skill. Asset work does not authorize game integration.
+description: Create, edit, calibrate, inspect and export Blender assets (3D models, meshes, props, vehicles, houses, furniture, soft goods, humanoids, animals, GLB files) for Gummy Bears using Blender MCP, with reference-image matching, PBR materials, UVs, texture baking, Geometry Nodes, editable source preservation and multi-angle verification. Use whenever the task involves Blender, MCP for Blender, a 3D model or mesh, materials, textures, baking, geometry nodes, blueprint/reference images, mesh cleanup, or GLB export, even if the user does not name this skill. Asset work does not authorize game integration.
 ---
 
 # Gummy 3D Authoring
@@ -14,7 +14,7 @@ This procedure applies to any Blender asset in the project, not only bears. Char
 species-variant rig/export notes are in "Character and variant authoring" and
 "Deformation and export".
 
-Last reviewed: 2026-10-21. Update this line when the commands, scripts or delivery
+Last reviewed: 2026-10-22. Update this line when the commands, scripts or delivery
 contract below materially change; `AGENTS.md` remains the policy source.
 
 ## Default authoring workflow: live MCP first
@@ -46,7 +46,68 @@ For soft goods, prefer an editable quad cage with broad contact, controlled subd
 deformation and folds. Test the seat/contact transition first: subtracting a cavity from
 a smooth primitive can read as a rigid bowl rather than a yielding fabric form.
 
+## Construction routing
+
+Before completing the construction brief, read the applicable modules below. These are
+specialist references under this skill, not separate installed skills or generators.
+**All seven are unvalidated:** practical candidate procedures, not established project
+recipes. They do not authorize edits, override approvals or justify rebuilding a source.
+
+Route by geometric drivers, required movement and intended use, not object name alone.
+Load more than one module when the asset contains different construction systems.
+
+| Form / task | Construction reference | Difficult test before detail | Status |
+| --- | --- | --- | --- |
+| Upholstery, beanbags, cushions, fabric | [Soft goods](references/construction-soft-goods.md) | Loaded seat/contact-to-back transition | unvalidated |
+| Moulded shells, flowing continuous surfaces, swept/revolved products | [Curved products](references/construction-curved-products.md) | Tightest curvature, rim and opening | unvalidated |
+| Cars and other vehicles | [Vehicles](references/construction-vehicles.md) | Arch/fender/body interface and wheel clearance | unvalidated |
+| Houses, buildings, architectural shells | [Buildings](references/construction-buildings.md) | Wall/opening/roof junction with thickness | unvalidated |
+| Human-like characters | [Humanoids](references/construction-humanoids.md) | Characteristic proportions and required joint bend | unvalidated |
+| Animals and species-based creatures | [Animals](references/construction-animals.md) | Species silhouette, shoulder/haunch and articulation | unvalidated |
+| Timber/metal furniture and rigid frames | [Rigid furniture](references/construction-rigid-furniture.md) | Seat/back/frame joint and ground contact | unvalidated |
+
+A wooden chair routes to rigid furniture; a moulded chair also loads curved products;
+a beanbag routes to soft goods. An upholstered frame loads furniture plus soft goods.
+An animated animal also uses this skill's rigging/deformation guidance. Frutiger Aero
+and other aesthetic directions supplement construction through look-development guidance;
+they do not determine topology or replace a geometry module.
+
+Each module supplies conditions, editable controls, failure diagnosis and a representative
+test. Agree on numeric tolerances in the brief rather than importing tutorial constants.
+Use the module in this order; do not simply report that it was read:
+
+1. Name the applicable row in its method table and the observed condition that matches.
+2. State the first representative part/region, editable controls, protected state and
+   agreed checks. If essential dimensions, movement or tolerances are missing, ask;
+   do not invent them to make a procedure executable.
+3. Build only that test in approved scope and inspect its named captures. Change one
+   control family at a time while diagnosing; record expected versus actual behaviour.
+4. Report **proceed / revise / stop**, the evidence for that decision and what remains
+   unverified. An absent required feature blocks progression. A method change requires
+   evidence and approval under the shared rules, not just another method-table row.
+
+If no module fits, state the gap and propose a method; do not force an unrelated recipe.
+Record test evidence and coverage in `docs/3d-authoring-notes.md`. A pass validates only
+the tested method and conditions; do not remove a module's unvalidated label merely
+because its links, prose or one mesh-health check pass.
+
+These modules are project-authored guidance, with related reading identified where used;
+no upstream scripts are installed and no upstream test result transfers to them. External
+collections considered for routing/procedure design are
+[Blender Expert](https://github.com/edemaistre/blender-expert-skills),
+[EL4CTEO](https://github.com/EL4CTEO/blender-skills),
+[RobLe3](https://github.com/RobLe3/cc-blender-skill) and
+[Blender Agent Studio](https://github.com/ifBars/blender-agent-studio).
+Existing adapted resources retain their attribution in `THIRD_PARTY.md`. The modules
+do not install another router, change the MCP backend or replace project safety rules.
+
 ## Optional workflows and tools
+
+For related props, materials, sprites or UI-art states, read
+[asset families](references/asset-families.md). For approved dynamically lit sprites or
+animated sheets, also read [sprite normals](references/sprite-normals.md). Both are
+**unvalidated** source-production guidance, not installed tools or authorization for
+game integration. They supplement construction/material gates, not replace them.
 
 Load focused references only when the task needs them. Asset-specific trial histories,
 revision status and benchmark numbers belong in project reports, not general authoring
@@ -433,6 +494,15 @@ is a proposed design choice, not an automatic response to a diagnostic failure.
 7. Change only the requested region. For percentage edits, record the baseline
    dimensions/parameters and preserve unrelated regions. Applied unions make isolated
    edits harder: preserve the source operands before applying them.
+   For primitive-derived soft forms, inspect the unsubdivided cage, pole placement,
+   edge spacing and deformation support across the intended cavity and protected
+   crown/rim. Test cavity footprint and transition shape separately from depth and
+   any raised cushion. During diagnosis, change one control family per checkpoint
+   and compare matched front, side, top and oblique views. Measure protected-region
+   movement using established correspondence; distinguish cage displacement from
+   evaluated-surface changes. If pinching persists, inspect edge convergence and
+   spacing before increasing subdivision or smoothing. Change construction only
+   when a representative test demonstrates inadequate control.
 8. Temporary hiding for isolation is diagnostic state: restore it in `finally`. Superseding
    or excluding geometry from delivery requires a component inventory, preserved source and
    silhouette/completeness checks; do not confuse temporary isolation with asset removal.

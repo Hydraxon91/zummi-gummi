@@ -522,7 +522,8 @@ approved work chunk.
 
 - **Choose construction before editing shape.** State defining sections/silhouette,
   chosen method and main alternative, editable controls, likely failure modes and a small
-  representative test. Use the authoring skill's construction brief. Prove the difficult
+  representative test. Read the applicable construction modules routed by the authoring
+  skill before completing its construction brief. Prove the difficult
   interface before replication. A topology pass does not establish method suitability;
   record concise decisions and evidence, not an internal reasoning transcript. Decide what
   must be geometry versus texture/material at the closest intended view; model silhouette,
@@ -702,6 +703,11 @@ approved work chunk.
   writing geometry, and never mix them: `v.co` is local, `matrix_world` is not, and a rotated
   object's local Z is not world Z. Build one instance, print its world bounding box against
   the target, then replicate.
+- **Verify deformation locality.** Before a localized deformation, identify the target
+  region and protected landmarks or surfaces, and record their baseline positions in a
+  stated coordinate space. Afterward, measure unintended movement outside the target
+  region against the agreed tolerance. Smooth falloff, unchanged bounds and clean
+  topology do not establish preservation.
 - **Locked dimensions are asserts.** After every geometry step, print the locked values
   (roof, nose, tail, wheel size and position, track, overall bounding box) and compare them
   with the locked baseline. A transient pass during editing is still a failure.

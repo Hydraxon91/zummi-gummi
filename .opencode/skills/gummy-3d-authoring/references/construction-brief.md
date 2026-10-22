@@ -13,6 +13,9 @@ Record concise decisions and observable evidence, not hidden reasoning.
   only in chat do not count.
 - **Geometry drivers:** silhouette, section progression, curvature, thickness, openings,
   interfaces and operating poses. Identify protected surfaces/transforms.
+- **Construction routing:** modules read from the main skill's routing table, their
+  validation status, and which conditions make their candidate methods applicable.
+  State a routing gap explicitly; an unvalidated module still needs a representative test.
 - **Method:** chosen approach, why it fits, and the principal alternative's drawback.
 - **Editable controls:** source cage/profiles, symmetry, support loops, thickness,
   hinge/sweep axis, modifiers and recoverable source.
