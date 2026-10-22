@@ -12,6 +12,7 @@ import {
 import { pairAvailable, beginPair, endPair } from '../interactions.js';
 import { comfortMourning } from './mourning.js';
 import { defineBehaviorModule } from './module.js';
+import { defineProposalCandidate } from './proposals.js';
 
 const COMPANY_STATES = ['wander', 'seekCompany', 'stargaze', 'seekSocial'];
 
@@ -28,6 +29,11 @@ function clamp(n, lo, hi) {
 
 function unit(value) {
   return clamp(Number.isFinite(value) ? value : 0, 0, 1);
+}
+
+function pressure(value, floor) {
+  const base = Math.min(.98, Math.max(0, Number.isFinite(floor) ? floor : .6));
+  return clamp((unit(value) - base) / (1 - base), 0, 1);
 }
 
 function dist(a, b) {
@@ -85,6 +91,37 @@ function acquireCompany(ctx) {
   ai.playmateKind = ai.familyPlay ? relation : null;
   startSeekCompany(ctx, best);
   return best;
+}
+
+// RNG-free eligibility/score for the optional activity chooser. It mirrors the
+// cheap gates of acquireCompany without its random partner scoring, so simply
+// considering company cannot change the legacy draw sequence. The score is need
+// above the seek threshold, normalized to 0..1: a barely-eligible need scores 0,
+// a full need scores 1.
+function proposal(ctx) {
+  const { actor, ai, p, api } = ctx;
+  if (!actor || !ai) return defineProposalCandidate({ id: 'social.company', reason: 'no-actor' });
+  if (ai.socialCooldown > 0) {
+    return defineProposalCandidate({ id: 'social.company', reason: 'cooldown' });
+  }
+  if (actor.social < p.thresholds.seekSocial && actor.affection < p.thresholds.seekAffection) {
+    return defineProposalCandidate({ id: 'social.company', reason: 'no-social-need' });
+  }
+  let nearby = false;
+  for (const other of api.actors()) {
+    if (!canCompany(ctx, other)) continue;
+    if (dist(actor, other) > p.social.radius) continue;
+    nearby = true;
+    break;
+  }
+  if (!nearby) return defineProposalCandidate({ id: 'social.company', reason: 'no-company-nearby' });
+  const needPressure = Math.max(
+    pressure(actor.social, p.thresholds.seekSocial),
+    pressure(actor.affection, p.thresholds.seekAffection));
+  return defineProposalCandidate({
+    id: 'social.company', eligible: true, reason: 'social-need',
+    contributions: { needPressure },
+  });
 }
 
 function thinkSeekCompany(ctx) {
@@ -464,6 +501,7 @@ export const socialModule = defineBehaviorModule({
     enter: (ctx) => !!acquireCompany(ctx),
   }],
   acquireCompany,
+  proposal,
   decideAccept,
   startInvite,
   beginSocialPair,

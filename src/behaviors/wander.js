@@ -3,6 +3,9 @@
 // Owns `wander`: the ordered decision cascade, arrival idling and target
 // selection. Opportunity orders 10-140 stay in their existing positions; other
 // modules own the entries this module invokes (water/forage/hive/social/mate).
+// The optional `wander.activity` slot (order 115) only exists while the
+// `activityChooser` feature is on; with it off the cascade calls the social and
+// stargazing slots in their authored order exactly as before.
 
 import { defineBehaviorModule } from './module.js';
 
@@ -43,7 +46,7 @@ function pickWanderTarget(ctx) {
 }
 
 function think(ctx) {
-  const { actor, ai, p, api, rng } = ctx;
+  const { actor, ai, p, api, rng, features } = ctx;
   if (!actor || !ai || ai.state !== 'wander') return false;
   if (ai.moving) {
     if (api.runOpportunity(actor, 'water.critical')) return true;
@@ -80,8 +83,12 @@ function think(ctx) {
   if (api.runOpportunity(actor, 'affection.chat')) return true;
   if (api.runOpportunity(actor, 'group.seek')) return true;
   if (api.runOpportunity(actor, 'gifting.offer')) return true;
-  if (api.runOpportunity(actor, 'social.company')) return true;
-  if (api.runOpportunity(actor, 'stargaze.seek')) return true;
+  if (features && features.activityChooser) {
+    if (api.runOpportunity(actor, 'wander.activity')) return true;
+  } else {
+    if (api.runOpportunity(actor, 'social.company')) return true;
+    if (api.runOpportunity(actor, 'stargaze.seek')) return true;
+  }
   if (api.runOpportunity(actor, 'wander.arrive')) return true;
   if (ai.idleT > 0) return true;
   api.runOpportunity(actor, 'wander.target');
@@ -94,6 +101,12 @@ export const wanderModule = defineBehaviorModule({
   states: ['wander'],
   defaults: { enabled: true, params: {} },
   opportunities: [
+    {
+      id: 'wander.activity',
+      order: 115,
+      canRun: (ctx) => !!ctx.actor && !!ctx.ai && !!ctx.features && !!ctx.features.activityChooser,
+      enter: (ctx) => !!ctx.api.chooseActivity(ctx.actor),
+    },
     {
       id: 'wander.arrive',
       order: 130,

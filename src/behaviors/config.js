@@ -37,6 +37,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
   mood: false,                 // derived mood offsets; modules engine only, runtime-only
   preferences: false,          // explicit saved activity likes; no founder assignment
   habits: false,               // saved completion learning and active-time decay
+  activityChooser: false,      // optional social/stargaze choice; evaluation draws no RNG
   departures: false,           // runtime-only departure capture; no mourning or save fields
   farewells: false,            // stars master switch; modules engine only
   starsOldAge: false,          // old-age fading

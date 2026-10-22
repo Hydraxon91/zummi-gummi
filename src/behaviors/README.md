@@ -228,6 +228,55 @@ The flags are runtime configuration, not actor-save fields. For verification, ru
 `node scripts/preferences-test.mjs`. The browser check observes natural selection
 and completion, then save/load, inactive-map isolation, birth and another-game restore.
 
+## Optional activity chooser (off by default)
+
+`activityChooser` is a modules-only, **off-by-default** feature flag; `?behaviors=legacy`
+ignores it. With the flag off, `wander.think` calls `social.company` and `stargaze.seek` in
+their authored order exactly as before. With it on, the slot `wander.activity` (order 115)
+ranks those same two activities instead. No other opportunity is proposed yet.
+
+`proposals.js` owns the portable part: immutable activity definitions, candidate
+validation, score summation, ranking and the explanation snapshot. It is plain data in and
+records out — no actors, clocks, storage, renderer, physics or RNG. `engine.js` builds
+candidates from actors and executes the winner; `social.js`/`stargaze.js` own their
+eligibility and score rules.
+
+| Rule | Chooser prototype |
+| --- | --- |
+| Candidates | `social.company` (order 110), `stargaze.seek` (order 120) |
+| Social score | `(need − seekThreshold) / (1 − seekThreshold)`, per axis, max of social/affection, clipped `0..1` |
+| Stargazing score | resolved `stargaze.chance / .25`, clipped `0..1` |
+| Tie-break | authored pipeline order: social before stargazing |
+| Attempts | each ranked candidate is tried once, in order, through its existing `canRun`/`enter` |
+| Fallback | unchanged arrival/idling/wandering when nothing starts |
+
+Eligibility mirrors the cheap gates of the owning activity without its random partner
+scoring: social requires need, no cooldown and a `canCompany` actor inside
+`social.radius`; stargazing requires a supported profile and an open window. Gathering
+candidates draws no RNG, changes no cooldown and reserves no partner; admission rolls are
+drawn only when a candidate is executed, so batch 2 preference/habit effects apply exactly
+once. The chooser runs at the existing think cadence with at most two candidates and one
+bounded nearby scan.
+
+Essential needs, family routines, mating, following, existing relationship activities,
+gifting and player directives are evaluated before the chooser and remain authoritative.
+Only existing eligibility and interruption rules apply to a started activity; disabling the
+chooser never replaces an activity already in progress.
+
+The latest decision per actor is runtime-only (`ai.activityDecision`): day, hour,
+candidates with eligibility/reason/score/contributions, ranked order, chosen, started,
+refused and outcome (`started`, `refused`, `no-eligible`). It is not saved, not inherited
+and not shared across maps, and disabling the flag clears it. Debug hooks:
+`__gummy.activityProposals(uid)` returns RNG-free candidates and
+`__gummy.activityDecision(uid)` returns a detached copy of the last decision. The flag is set
+with `__gummy.setBehaviorFeature('activityChooser', true)`.
+
+No new activity, pairing rule, bond/resource effect, UI, save field or actor-record version
+is introduced. For verification, run `node --test tests/behavior-chooser.test.mjs` and, with
+`launch.py` serving, `node scripts/chooser-test.mjs`. The browser check observes real
+selection, both rankings, explanation shape, save isolation, disable cleanup and another
+game's restore.
+
 ## Departure hook (off by default)
 
 `departures` is a modules-only, runtime-only capture layer. It records a

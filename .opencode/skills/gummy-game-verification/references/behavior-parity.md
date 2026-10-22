@@ -108,6 +108,16 @@ evidence separate from the default disabled short/long parity matrices. Pair/cla
 effects are not part of this solo-activity prototype; existing survival priority,
 activity eligibility and timing remain protected.
 
+Optional activity chooser: `node --test tests/behavior-chooser.test.mjs` covers the
+portable proposal rules, RNG-free evaluation, score/tie behaviour, refusal fallback,
+essential-need/directive priority, disable cleanup, enabled determinism and save
+isolation. With the app served, `node scripts/chooser-test.mjs` verifies real natural
+selection with both candidates eligible, the explanation snapshot, both rankings, the
+runtime-only decision, disable cleanup and another-game restore. The flag is modules-only
+and off by default, so the disabled short/long parity matrices remain the compatibility
+lane; run enabled evidence separately. It only reorders existing social/stargazing
+slots and adds no save field.
+
 Stars/mourning: `node scripts/stars-test.mjs` covers the farewell lifecycle and
 `node scripts/mourning-test.mjs` covers departure, grief, comfort, save/load
 isolation and a Glass-survivor round trip. `mourning-test.mjs` exits non-zero when

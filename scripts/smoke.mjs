@@ -69,6 +69,7 @@ const modules = [
   "/src/behaviors/engine.js",
   "/src/behaviors/config.js",
   "/src/behaviors/module.js",
+  "/src/behaviors/proposals.js",
   "/src/behaviors/hive.js",
   "/src/behaviors/rest.js",
   "/src/behaviors/forage.js",

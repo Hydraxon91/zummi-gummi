@@ -202,6 +202,14 @@ rules and their approved bounds are documented in `src/behaviors/README.md`.
 With the app served, `node scripts/preferences-test.mjs` checks natural selection,
 learning, persistence, inactive-map isolation and non-inheritance in the actual game.
 
+The opt-in activity chooser ranks the existing social and Glass stargazing slots from
+plain-data proposals and records a runtime-only explanation of the choice. It is
+modules-only and off by default, so the authored ordered cascade is unchanged unless
+enabled. `node --test tests/behavior-chooser.test.mjs` covers the portable rules and
+`node scripts/chooser-test.mjs` checks real selection, both rankings, disable cleanup and
+save isolation in the served game. Scope, scores and lifecycle are in
+`src/behaviors/README.md`.
+
 The dedicated `SCENARIO=settings` social harness uses `?race=off`, retains an
 initial rendered background, then gates subsequent animation callbacks while
 checking DOM controls and capturing the sheet. Desktop and mobile are the same

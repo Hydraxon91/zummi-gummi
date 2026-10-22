@@ -7338,6 +7338,14 @@ window.__gummy = {
     if (!behavior || typeof behavior.dispositions !== 'function') return null;
     return behavior.dispositions(actorView.byUid(uid));
   },
+  activityProposals(uid){
+    if (!behavior || typeof behavior.activityProposals !== 'function') return null;
+    return behavior.activityProposals(actorView.byUid(uid));
+  },
+  activityDecision(uid){
+    if (!behavior || typeof behavior.activityDecision !== 'function') return null;
+    return behavior.activityDecision(actorView.byUid(uid));
+  },
   departures(){ return departures ? departures.list() : []; },
   clearDepartures(){ if (departures) departures.clear(); return true; },
   routines(uid){

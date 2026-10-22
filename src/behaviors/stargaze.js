@@ -5,6 +5,11 @@
 // real night later. Exit thresholds are the raw .85/.88 values.
 
 import { defineBehaviorModule } from './module.js';
+import { defineProposalCandidate } from './proposals.js';
+
+// The chooser normalizes the resolved chance by its documented .25 ceiling, so
+// batch 2 preference/habit effects are already included and never applied twice.
+const SCORE_CEILING = .25;
 
 function windowOpen(ctx) {
   const { api, p } = ctx;
@@ -17,6 +22,22 @@ function windowOpen(ctx) {
     open = h >= nightStart || h < nightEnd;
   }
   return open;
+}
+
+// RNG-free eligibility/score for the optional activity chooser. Admission still
+// draws the existing chance roll when the candidate is executed.
+function proposal(ctx) {
+  const { p } = ctx;
+  if (!p.stargaze) return defineProposalCandidate({ id: 'stargaze.seek', reason: 'unsupported' });
+  if (!windowOpen(ctx)) {
+    return defineProposalCandidate({ id: 'stargaze.seek', reason: 'outside-window' });
+  }
+  const chance = Number.isFinite(p.stargaze.chance) ? p.stargaze.chance : 0;
+  const chanceShare = Math.max(0, Math.min(1, chance / SCORE_CEILING));
+  return defineProposalCandidate({
+    id: 'stargaze.seek', eligible: true, reason: 'night-window',
+    contributions: { chanceShare },
+  });
 }
 
 export const stargazeModule = defineBehaviorModule({
@@ -43,6 +64,7 @@ export const stargazeModule = defineBehaviorModule({
       return true;
     },
   }],
+  proposal,
   tick(ctx) {
     const { actor, ai, dt, api } = ctx;
     if (!ai || ai.state !== 'stargaze') return false;

@@ -1802,16 +1802,16 @@ can proceed with the current runtime and assets.
 
 ## Personality and modular-AI extension track
 
-This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved;
-chunk 2 is limited to the stargazing prototype below. Chunks 3–4 require their own
-behavior/persistence decisions and approval. New core logic uses plain data and
-explicit host inputs for easy translation to Godot; this is not an engine migration.
+This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved and
+committed; chunk 3 is approved as the two-activity chooser prototype below. Chunk 4
+requires its own behavior/persistence decisions and approval. New core logic uses plain data
+and explicit host inputs for easy translation to Godot; this is not an engine migration.
 
 | Chunk | Status / dependencies | Scope | Acceptance gate |
 | --- | --- | --- | --- |
 | **1 — Contracts and personality definitions/presets** | ✅ Implemented and committed as `99e9e36`; subsequent code run `39795559309` passed hosted CI | Guidance; validated module contracts and registration/config checks; explicit supported/unsupported toggle policies; reusable conformance tests; ordered trait definitions and validated, unapplied shy/adventurous/food-motivated preset data | Positive/negative contract fixtures; scope/admission/existing-activity/re-enable/cleanup checks where supported; unchanged defaults, trait order, founder values, inheritance RNG and save shape; Node/browser/parity evidence. No automatic preset assignment or personality enablement. |
-| **2 — Preferences, habits and personality extension points** | ✅ Stargazing prototype implemented and verified locally; uncommitted, no hosted CI for this batch | Separate stable traits, temporary mood, preferences and learned habits. Extend supported bounded parameter effects and reusable inheritance/migration/cache contracts. Prove one representative opt-in addition before replication. | Approved bounds/persistence below. Behavioral differentiation, save/load, map isolation, enabled determinism/RNG and disabled compatibility verified; survival priorities remain authoritative. |
-| **3 — Optional activity proposals** | Planned; depends on 1–2 | Shared eligibility/preference/explanation interface; initially preserve ordered selection. A separately enabled optional-activity chooser may use personality, preferences, habits and relationships. | Approve eligible activity set, scoring/ties, evaluation budget, refusal and interruption policy. Explain selection/rejection; verify real natural selection, exactly-once effects, pair/claim cleanup and determinism. No override of essential needs or existing player-command rules. |
+| **2 — Preferences, habits and personality extension points** | ✅ Stargazing prototype implemented, verified locally and committed as `8eeece4`; hosted CI for that revision was not watched | Separate stable traits, temporary mood, preferences and learned habits. Extend supported bounded parameter effects and reusable inheritance/migration/cache contracts. Prove one representative opt-in addition before replication. | Approved bounds/persistence below. Behavioral differentiation, save/load, map isolation, enabled determinism/RNG and disabled compatibility verified; survival priorities remain authoritative. |
+| **3 — Optional activity proposals** | ✅ Two-activity chooser prototyped; social/stargazing only, off by default | Shared eligibility/reason/score/explanation interface; ordered cascade preserved while the chooser is off. A separately enabled chooser ranks existing optional activities. | Approved set, scores, ties, attempts and lifecycle below. Real natural selection, exactly-once effects, pair cleanup, priorities, determinism, save/map isolation and runtime budget verified. No override of essential needs or player commands. |
 | **4 — Bounded goals over existing actions** | Planned; depends on 3 | Goal preconditions, progress/completion, expiry/abandonment, interruption/resumption and bounded memory/evaluation. Reuse existing movement and interaction protocols; prove one small multi-step goal before general planning. | Approve representative goal, persistence and limits first. Verify successful and impossible plans, interruptions, claim cleanup, save/load, map/new-game isolation, deterministic behavior and runtime budget. No unbounded planner or second simulation system. |
 
 **Protected in chunk 1:** personality remains off by default; no new trait axes,
@@ -1858,8 +1858,26 @@ the 180-step seeded browser trace matches, and full social (16) and gifting (8)
 checks pass. Existing desktop/mobile Settings captures were inspected. Short
 all-race parity passes 9/9; final fresh long parity passes 15/15, 20 days × five
 seeds × three races, `tier: long`, `acceptance: true`, zero reuse. Enabled behavior
-evidence is separate from that disabled compatibility matrix. No commit, push or
-hosted CI result is claimed for chunk 2; optional features remain off by default.
+evidence is separate from that disabled compatibility matrix. Chunk 2 was committed as
+`8eeece4` and pushed to `main`; its hosted CI run was not watched, so no hosted result is
+claimed. Optional features remain off by default.
+
+**Chunk 3 approved contract:** one modules-only, off-by-default `activityChooser` flag.
+Candidates are the existing optional slots `social.company` (order 110) and Glass
+`stargaze.seek` (order 120); the enabled slot `wander.activity` (order 115) ranks them,
+while the flag-off cascade keeps its exact authored calls. Evaluation is RNG-free and
+reserves nothing. Social score is per-axis need above its own seek threshold normalized to
+`0..1` (max of social/affection); stargazing score is the resolved chance divided by its
+`.25` ceiling, so batch 2 effects apply once. Exact ties keep authored order (social first).
+Each ranked candidate is attempted once through its existing admission; if all fail the
+ordinary arrival/idling/wander fallback runs. Essential needs, family routines, mating,
+following, relationship activities, gifting and player directives stay authoritative and
+ahead of the chooser. The latest decision (candidates, reasons, scores, contributions,
+ranked, chosen, started, refused, outcome) is runtime-only, never saved or inherited, and
+is cleared when the flag is disabled. No new activity, persistence/version change, UI or
+Godot integration.
+
+**Chunk 3 acceptance:** pending final browser and parity runs.
 
 **Known follow-ups — stargaze timer is decremented twice (deferred):** active
 stargazing runs the generic `ai.idleT -= dt` in `src/behaviors/engine.js` and then
@@ -1932,6 +1950,34 @@ roughly two extra minutes when it fires, and the stalled runner is still slow ra
 than fully explained. This is one green run with a proven recovery path, not a
 flake-rate measurement; the underlying first-frame stall remains an open
 environment finding.
+
+**Known follow-ups — opaque rendering pilot (local only, 2026-10-22):**
+`?testRender=opaque` opts into a scene-level `MeshBasicMaterial` override in
+`src/app.js`; geometry, asset loading and simulation remain unchanged. Normal
+rendering and CI defaults are unchanged. Run the partnership pilot with
+`LOW_QUALITY=1 WIDTH=900 HEIGHT=600 SCENARIO=partnership FAST=1
+GAME_URL='http://localhost:8000/?testRender=opaque' node scripts/social-test.mjs`
+(substitute the reported server port). All five partnership assertions passed
+with and without the flag on the current working tree; 325 Node checks and 68
+HTTP smoke checks passed. A separate sequential forced-SwiftShader comparison
+reported normal/opaque boot times of 41.2/15.4 s, and elapsed times through Glass
+readiness, inspection and capture of 99.6/38.6 s, with 86/5 compiled programs.
+These are single local samples, not a reliability measurement or exact state-parity
+proof. Both retained two ready Glass actors and no captured page errors.
+Inspected `.dev-shots/opaque-pilot-{normal,opaque}-front.png` captures confirm
+the override, but custom foliage paths still render colour and opaque billboard
+backings are visible: this diagnostic mode is not visual acceptance or a complete
+hitbox/proxy renderer. Hosted stalls remain unresolved; no CI rollout is approved
+by this pilot. Evidence is in `.dev-shots/opaque-pilot-comparison.json` and
+`social-opaque-pilot-{normal,simple}-partnership.json`.
+
+The startup-reporting path also needs repair (deferred):
+`connectBootedBrowser` forwards browser diagnostics rather than page diagnostics,
+losing page-level stall evidence, while `social-test.mjs` retains only selected
+retry fields and may finish with `harness.launched: null` after failed startup.
+The latest hosted partnership failure (39825423266) exhausted both fresh-process
+attempts without executing assertions; its successful HTTP requests do not prove
+application boot or identify the exact rendering stall.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 

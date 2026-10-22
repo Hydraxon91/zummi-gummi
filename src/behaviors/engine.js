@@ -46,6 +46,9 @@ import {
 } from './adoption.js';
 import { createStars } from './stars.js';
 import { decayHabits, reinforceHabit, normalizePreferences, normalizeHabits } from './preferences.js';
+import {
+  ACTIVITY_PROPOSALS, describeActivityDecision, rankProposals,
+} from './proposals.js';
 
 const STUCK_DIST2 = .04;
 
@@ -173,6 +176,7 @@ export function createBehaviorModules({
       conflictOutcomes: map(coverage.conflictOutcomes),
       stargazeHours: map(coverage.stargazeHours),
       fleeOutcomes: map(coverage.fleeOutcomes),
+      activityChoices: map(coverage.activityChoices),
     };
   }
 
@@ -216,6 +220,58 @@ export function createBehaviorModules({
     coverage.opportunities.set(opportunity.id,
       (coverage.opportunities.get(opportunity.id) || 0) + 1);
     return opportunity;
+  }
+
+  // Optional activity proposals. Gathering candidates is RNG-free; only the
+  // ranked candidates that are actually executed run their existing
+  // admission/enter path. Nothing is reserved while a candidate is considered.
+  function activityProposals(actor) {
+    if (!actor || !actor.ai) return [];
+    const ctx = contextFor(actor);
+    const out = [];
+    for (const def of ACTIVITY_PROPOSALS) {
+      const build = proposalBuilders.get(def.id);
+      if (!build) continue;
+      const candidate = build(ctx);
+      if (candidate) out.push(candidate);
+    }
+    return out;
+  }
+
+  function chooseActivity(actor) {
+    if (!features.activityChooser || !actor || !actor.ai) return null;
+    const candidates = activityProposals(actor);
+    const ranked = rankProposals(candidates);
+    const refused = [];
+    let started = null;
+    for (const id of ranked) {
+      if (runOpportunity(actor, id)) { started = id; break; }
+      refused.push(id);
+    }
+    actor.ai.activityDecision = describeActivityDecision({
+      day: dayNow(), hours: hoursNow(), candidates, started, refused,
+    });
+    const outcome = actor.ai.activityDecision.outcome;
+    coverage.activityChoices.set(outcome, (coverage.activityChoices.get(outcome) || 0) + 1);
+    return started;
+  }
+
+  // Detached, latest-only explanation. This is never part of a saved record.
+  function activityDecision(actor) {
+    const decision = actor && actor.ai && actor.ai.activityDecision;
+    if (!decision) return null;
+    return {
+      day: decision.day,
+      hours: decision.hours,
+      candidates: decision.candidates.map(candidate => ({
+        ...candidate, contributions: { ...candidate.contributions },
+      })),
+      ranked: decision.ranked.slice(),
+      chosen: decision.chosen,
+      started: decision.started,
+      refused: decision.refused.slice(),
+      outcome: decision.outcome,
+    };
   }
 
   const actors = () => {
@@ -277,7 +333,12 @@ export function createBehaviorModules({
     states: new Map(), entries: new Map(), opportunities: new Map(),
     taskPhases: new Map(), tasks: new Map(), taskEntries: new Map(),
     pipeline: new Map(), conflictOutcomes: new Map(), stargazeHours: new Map(), fleeOutcomes: new Map(),
+    activityChoices: new Map(),
   };
+  const proposalBuilders = new Map([
+    ['social.company', socialModule.proposal],
+    ['stargaze.seek', stargazeModule.proposal],
+  ]);
   const lastCoverState = new WeakMap();
   const lastCoverTask = new WeakMap();
   let enabled = true;
@@ -1726,6 +1787,11 @@ export function createBehaviorModules({
         if (actor.ai) delete actor.ai.stargazeLearning;
       }
     }
+    if (changed && name === 'activityChooser' && !value) {
+      for (const actor of actors()) {
+        if (actor.ai) delete actor.ai.activityDecision;
+      }
+    }
     if (changed && name === 'farewells' && !value) stars.cancelAll();
     if (changed && name === 'adoption' && !value) suspendGuardianFollows();
     if (changed && name === 'gifting' && !value) {
@@ -1801,6 +1867,7 @@ export function createBehaviorModules({
     startVisit, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind), startConflict,
     isDayFor, isNightFor, needsRest,
     config, features, modules, opportunities, runOpportunities, runOpportunity, interruptActor,
+    activityProposals, chooseActivity, activityDecision,
     starsRescue: (actor, kind) => stars.onRescue(actor, kind),
     starsSting: (actor) => stars.onSting(actor),
     starsState: (actor) => stars.state(actor),
@@ -1843,6 +1910,9 @@ export function createBehaviorModules({
     startSeekHome, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind),
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
     setPreference: (actor, id, value) => config.setPreference(actor, id, value),
+    activityProposals: (actor) => activityProposals(actor),
+    chooseActivity,
+    activityDecision: (actor) => activityDecision(actor),
     dispositions: (actor) => actor ? {
       preferences: normalizePreferences(actor.preferences),
       habits: normalizeHabits(actor.habits),
