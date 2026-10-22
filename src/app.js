@@ -383,6 +383,11 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 if ('transmissionResolutionScale' in renderer) renderer.transmissionResolutionScale = 0.5;
 
 const scene = new THREE.Scene();
+// Opt-in diagnostic lane: retain geometry and simulation, bypass appearance shaders.
+// This is not evidence for real materials, transparency or asset rendering.
+if (new URLSearchParams(location.search).get('testRender') === 'opaque') {
+  scene.overrideMaterial = new THREE.MeshBasicMaterial({ color: 0x8099aa });
+}
 scene.background = new THREE.Color().setRGB(3.2,3.2,3.2, THREE.LinearSRGBColorSpace);
 renderer.setClearColor(0xffffff, 1);
 

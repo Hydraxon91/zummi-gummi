@@ -25,6 +25,12 @@ Use with the parent skill and the existing browser and behavior procedures.
   revisions. Validate YAML and references locally; report hosted validation separately.
 - Measure elapsed time and total runner usage, including repeated boot/render costs.
   Keep semantic coverage blocking. One green hosted run does not establish flake rate.
+  For the manual rendering comparison, use `render-comparison.yml`: keep both modes
+  on the same revision/runner with fresh profiles and retain failures from both.
+  `RENDER_COMPARISON=1` verifies and reports the requested mode in social/gifting
+  harnesses. Read `bootAttempts` for retry-aware boot times and failed-page evidence;
+  use per-mode wall times and exit statuses for total cost, including timeouts.
+  The opaque lane is diagnostic only, not visual, animation or asset acceptance.
 - Upload diagnostics from hidden directories explicitly. Bound monitoring and stop
   owned processes. Do not silently retry failing suites, loosen assertions or change
   gameplay to make CI pass.

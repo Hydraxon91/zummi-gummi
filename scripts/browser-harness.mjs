@@ -333,21 +333,32 @@ export async function connectBootedBrowser({
   launch = {}, page: pageOptions = {}, timeout = 180000, attempts = 2, onRetry = null,
 } = {}) {
   let lastError = null;
+  const bootAttempts = [];
   for (let attempt = 1; attempt <= attempts; attempt++) {
     let launched = null;
     let browser = null;
+    let page = null;
+    const started = performance.now();
     try {
       launched = await launchBrowser(launch);
       browser = await connectBrowser(launched);
-      const page = await browser.openPage(pageOptions);
+      page = await browser.openPage(pageOptions);
       await page.waitFor('!!window.__gummy?.booted', timeout);
-      return { browser, launched, page, attempt };
+      bootAttempts.push({ attempt, elapsedMs: Math.round(performance.now() - started), success: true });
+      return { browser, launched, page, attempt, bootAttempts };
     } catch (error) {
       lastError = error;
-      if (onRetry) onRetry(error, attempt, browser ? browser.diagnostics()
-        : { launched: launched ? { stderr: launched.stderr } : null });
-      if (browser) await browser.close().catch(() => {});
-      else if (launched) { try { launched.child.kill(); } catch (killError) {} }
+      const diagnostics = page ? page.diagnostics() : browser ? browser.diagnostics()
+        : { launched: launched ? { stderr: launched.stderr } : null };
+      bootAttempts.push({ attempt, elapsedMs: Math.round(performance.now() - started),
+        success: false, error: String(error), diagnostics });
+      error.bootAttempts = bootAttempts.slice();
+      try {
+        if (onRetry) onRetry(error, attempt, diagnostics);
+      } finally {
+        if (browser) await browser.close().catch(() => {});
+        else if (launched) { try { launched.child.kill(); } catch (killError) {} }
+      }
       if (attempt >= attempts) throw error;
     }
   }

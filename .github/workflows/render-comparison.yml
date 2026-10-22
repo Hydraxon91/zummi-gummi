@@ -1,0 +1,112 @@
+name: Render comparison experiment
+
+# Manual evidence only: not part of Required CI checks or Pages deployment.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Compare (${{ matrix.name }}, sample ${{ matrix.sample }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        name: [pair, rivalry, partnership, groups, glass-social, gift-flow, gift-persistence]
+        sample: [1, 2, 3]
+        include:
+          - name: pair
+            scenario: pair
+            script: scripts/social-test.mjs
+          - name: rivalry
+            scenario: rivalry
+            script: scripts/social-test.mjs
+          - name: partnership
+            scenario: partnership
+            script: scripts/social-test.mjs
+          - name: groups
+            scenario: groups
+            script: scripts/social-test.mjs
+          - name: glass-social
+            scenario: glass
+            script: scripts/social-test.mjs
+          - name: gift-flow
+            scenario: flow
+            script: scripts/gifting-test.mjs
+          - name: gift-persistence
+            scenario: persistence
+            script: scripts/gifting-test.mjs
+    env:
+      LOW_QUALITY: "1"
+      WIDTH: "900"
+      HEIGHT: "600"
+      FAST: "1"
+      STALL_DIAGNOSTICS: "1"
+      RENDER_COMPARISON: "1"
+      SCENARIO: ${{ matrix.scenario }}
+      TEST_SCRIPT: ${{ matrix.script }}
+      SAMPLE: ${{ matrix.sample }}
+      CASE: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+      - name: Resolve browser and record revision
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium)"
+          echo "BROWSER_BIN=$browser" >> "$GITHUB_ENV"
+          "$browser" --version
+          git rev-parse HEAD
+      - name: Run both modes on the same runner
+        run: |
+          set -euo pipefail
+          mkdir -p .dev-shots
+          python3 launch.py --no-open --verbose --port 8000 > server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            grep -q "This computer :" server.log && break
+            sleep 0.25
+          done
+          url="$(grep -o 'http://localhost:[0-9]*/' server.log | head -1)"
+          if [ -z "$url" ]; then cat server.log; exit 1; fi
+          modes="normal opaque"
+          if [ "$SAMPLE" = "2" ]; then modes="opaque normal"; fi
+          failed=0
+          for mode in $modes; do
+            export TAG="compare-$CASE-$SAMPLE-$mode"
+            export GAME_URL="$url"
+            if [ "$mode" = "opaque" ]; then export GAME_URL="${url}?testRender=opaque"; fi
+            start=$SECONDS
+            if timeout --signal=TERM --kill-after=15s 12m node "$TEST_SCRIPT" > ".dev-shots/$TAG.log" 2>&1; then
+              status=0
+            else
+              status=$?
+            fi
+            elapsed=$((SECONDS-start))
+            echo "$mode exit=$status elapsed=${elapsed}s" | tee -a .dev-shots/comparison.txt
+            echo "- $CASE sample $SAMPLE / $mode: exit $status, ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$status" != "0" ]; then failed=1; tail -40 ".dev-shots/$TAG.log"; fi
+          done
+          exit "$failed"
+      - name: Upload every sample including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-compare-${{ matrix.name }}-${{ matrix.sample }}-${{ github.run_attempt }}
+          path: |
+            .dev-shots/*.json
+            .dev-shots/*.log
+            .dev-shots/comparison.txt
+            server.log
+          include-hidden-files: true
+          retention-days: 7

@@ -1989,13 +1989,40 @@ hitbox/proxy renderer. Hosted stalls remain unresolved; no CI rollout is approve
 by this pilot. Evidence is in `.dev-shots/opaque-pilot-comparison.json` and
 `social-opaque-pilot-{normal,simple}-partnership.json`.
 
-The startup-reporting path also needs repair (deferred):
-`connectBootedBrowser` forwards browser diagnostics rather than page diagnostics,
-losing page-level stall evidence, while `social-test.mjs` retains only selected
-retry fields and may finish with `harness.launched: null` after failed startup.
+**Startup diagnostic retention (fixed locally, hosted verification pending):**
+`connectBootedBrowser` now preserves page diagnostics for every failed boot,
+including its stall probe, lifecycle, errors and polling timings. Both interaction
+reports retain all attempts and elapsed boot times, including failures followed
+by recovery; a final boot failure exposes the last page diagnostics under `harness`.
+Two deliberately failing data-URL boots retained their console marker, wait
+expression and timings with distinct fresh-process target IDs; a successful
+fixture also verified elapsed-time reporting. Callback failures still clean up
+the launched browser. Fixture evidence: `.dev-shots/boot-diagnostics-fixture.json`.
 The latest hosted partnership failure (39825423266) exhausted both fresh-process
 attempts without executing assertions; its successful HTTP requests do not prove
 application boot or identify the exact rendering stall.
+
+**Render comparison experiment (implemented locally; not yet run on GitHub):**
+`.github/workflows/render-comparison.yml` is manual-only, independent of required
+CI and Pages. It runs three paired samples of pair, rivalry, partnership, groups,
+Glass-social, gift-flow and gift-persistence: 21 jobs / 42 existing-test executions.
+Each pair uses the same checked-out revision and runner, sequential fresh browser
+profiles, normal/opaque order reversed in sample 2, and unchanged assertions,
+180-second boot allowance and one recorded fresh-process retry. A failed mode
+does not prevent its counterpart from running; either failure fails the experiment
+job without gating production. Each execution has the existing 12-minute bound;
+the pair job allows 30 minutes. Four jobs run concurrently at most. Artifacts retain
+all JSON, output logs, exit status, wall seconds and server logs for seven days.
+`RENDER_COMPARISON=1` records the actual rendering override/backend and fails a
+mode mismatch. Settings, carry, pointer, animation and visual acceptance are not
+certified by this experiment; their required normal-rendering lanes are unchanged.
+Local verification: YAML and shell syntax/matrix checks, 330 Node checks, 68 HTTP
+checks, full social 16/16 and gifting 8/8 in each mode, no page errors. These four
+browser runs used Apple M1 Metal, not hosted SwiftShader, and do not establish
+CI reliability or exact seeded state parity. Reports:
+`.dev-shots/{social,gifting}-comparison-{normal,opaque}-all.json`.
+An extracted workflow-loop fixture under `bash -e` also verified that a nonzero
+normal-mode exit still runs opaque, fails the pair, and respects reversed order.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 

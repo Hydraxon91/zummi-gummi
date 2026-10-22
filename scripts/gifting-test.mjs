@@ -46,6 +46,7 @@ try {
   const connected = await connectBootedBrowser({
     page: { url: TARGET.href, width: WIDTH, height: HEIGHT, initScript },
     onRetry: (error, attempt, diag) => {
+      report.bootAttempts = error.bootAttempts;
       report.bootRetry = { attempt, error: String(error).slice(0, 300),
         lastWaitError: diag && diag.lastWaitError };
       console.log('STEP boot retry', JSON.stringify(report.bootRetry));
@@ -56,6 +57,20 @@ try {
   page = connected.page;
   report.pageErrors = browser.pageErrors;
   report.bootAttempt = connected.attempt;
+  report.bootAttempts = connected.bootAttempts;
+  if (process.env.RENDER_COMPARISON === '1') {
+    report.rendering = await evaluate(`(() => {
+      const { scene, renderer } = window.__gummy.three();
+      const gl = renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return { override: scene.overrideMaterial?.type || null,
+        backend: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER) };
+    })()`);
+    report.rendering.mode = TARGET.searchParams.get('testRender') === 'opaque' ? 'opaque' : 'normal';
+    if (report.rendering.override !== (report.rendering.mode === 'opaque' ? 'MeshBasicMaterial' : null)) {
+      throw new Error('Comparison rendering mode did not match requested mode');
+    }
+  }
   console.log('STEP glass ready');
   await page.waitFor(GLASS_READY, 150000);
   console.log('STEP glass done');
@@ -288,7 +303,8 @@ try {
   process.exitCode = 1;
 } finally {
   report.harness = page ? page.diagnostics()
-    : browser ? browser.diagnostics()
+    : browser ? browser.diagnostics() : report.bootAttempts?.at(-1)?.diagnostics
+      ? report.bootAttempts.at(-1).diagnostics
       : { launched: launched ? { stderr: launched.stderr, exit: launched.exit } : null };
   await writeFile(REPORT, JSON.stringify(report, null, 2));
   if (browser) await browser.close();
