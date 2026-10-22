@@ -53,7 +53,9 @@ try {
   browser = await connectBrowser(launched);
   report.pageErrors = browser.pageErrors;
   page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
-  await page.waitFor('!!window.__gummy?.booted', 90000);
+  // Software rendering can block the first frame past 90 s; see the CI notes on
+  // the boot allowance. Job timeouts and assertions are unchanged.
+  await page.waitFor('!!window.__gummy?.booted', 180000);
   if (SCENARIO !== 'settings') {
     await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
   } else {

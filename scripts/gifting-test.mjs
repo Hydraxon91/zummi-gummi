@@ -47,7 +47,9 @@ try {
   browser = await connectBrowser(launched);
   report.pageErrors = browser.pageErrors;
   page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
-  await page.waitFor('!!window.__gummy?.booted', 90000);
+  // Software rendering can block the first frame past 90 s; see the CI notes on
+  // the boot allowance. Job timeouts and assertions are unchanged.
+  await page.waitFor('!!window.__gummy?.booted', 180000);
   console.log('STEP glass ready');
   await page.waitFor(GLASS_READY, 150000);
   console.log('STEP glass done');

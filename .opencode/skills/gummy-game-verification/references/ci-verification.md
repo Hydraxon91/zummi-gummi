@@ -11,6 +11,10 @@ Use with the parent skill and the existing browser and behavior procedures.
   simulation and storage. On stalls, retain the exact phase, expression, timings and
   independent process/debugger evidence. A timeout around save is not proof of a
   storage defect. Do not raise waits or reload until green instead of diagnosing.
+  Distinguish a bounded environment allowance (for example a first-frame compile
+  that the project has measured exceeding the old gate) from masking a hang: name
+  the measured evidence, keep the assertion and job timeout unchanged, and retain
+  stall diagnostics.
 - Inspect saved captures, including overlays and the actual target. DOM presence is
   insufficient when another panel covers the control. A harness frame gate must be
   explicit, preserve the rendering evidence required by the claim and never be used

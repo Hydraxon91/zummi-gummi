@@ -1852,6 +1852,13 @@ reports browser stderr. Local re-checks pass (settings desktop+mobile captures
 inspected, full social and gifting suites, forced launch-failure report). Hosted
 re-verification is pending; a resized session is not a cold mobile-load test.
 
+Run 39789761139 then passed Settings, partnership and the rest, but `Browser
+(gift-flow)` timed out at the 90 s boot gate with `Runtime.evaluate` and
+`Debugger.pause` both timing out and no stack. The project already records the
+first Glass frame blocking for roughly 100 s under SwiftShader, so the boot gate was
+below the documented worst case; the three browser harnesses now allow 180 s to
+boot. Assertions, the Glass-ready gate and the 12-minute job timeouts are unchanged.
+
 ## Modular NPC behavior system (step 3, Oct 2026)
 
 One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be

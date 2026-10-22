@@ -43,7 +43,9 @@ try {
     mobile: process.env.MOBILE === '1',
     initScript,
   });
-  await page.waitFor('!!window.__gummy?.booted', 90000);
+  // Software rendering can block the first frame past 90 s; see the CI notes on
+  // the boot allowance. Job timeouts and assertions are unchanged.
+  await page.waitFor('!!window.__gummy?.booted', 180000);
   if (!CORE) {
     console.log('STEP glass ready');
     try {
