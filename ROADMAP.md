@@ -527,6 +527,87 @@ confirmed. Laptop `_050` is a new mask/colour candidate (saturation 1.5, contras
 pale under unchanged lighting. Stronger contrast and exact classic MSN reference
 fidelity remain deferred; no new generation or host-material edits were performed.
 
+### Skill validation backlog — unverified, not accepted
+
+The new construction/source-production guides and UI/input extensions remain
+**unvalidated**. The game-verification split preserves existing procedures, not fresh
+runtime evidence. This checklist covers the skill additions/reorganization; pre-existing
+asset/tool defects retain their own Known follow-ups below. Documentation checks alone
+must not promote any guide to validated or imply model acceptance.
+
+Each row requires both a **higher-tier** and a **lower-tier LLM** evaluation; unchecked
+means neither dual-tier coverage nor human acceptance is established. Model choices and
+actual access must be confirmed before running; DeepSeek V4.1 Flash is a requested
+lower-tier candidate, not a verified available model. No benchmark executions, purchases,
+installation, game integration or source rebuild are authorized by this backlog.
+
+| Pending guide/check | Representative test and evidence needed |
+| --- | --- |
+| [ ] Soft goods | Broad loaded-seat/contact-to-back test; floor/wall/lip/crown presence, calibrated overlays, protected cage/evaluated displacement and no new pinching. Existing beanbag is blocked, not a passing fixture. |
+| [ ] Curved products | Section/cap/rim/opening test with thickness, strip-reflection continuity and evaluated mating fit. |
+| [ ] Vehicles | One arch/fender/body junction or appropriate non-wheeled equivalent; reference landmarks, thickness and required operating clearance. |
+| [ ] Houses/buildings | Exterior/interior wall corner, opening reveal and roof/floor junction; thickness, cutaway coverage and repeated-module seam. |
+| [ ] Humanoids | Reference-based primary proportions plus a required shoulder/hip bend; neutral/posed comparison, attachment and facial closure if applicable. |
+| [ ] Animals | Species-specific silhouette and representative shoulder/haunch or equivalent junction; appropriate stance and required articulation. |
+| [ ] Rigid furniture | Bevelled member/seat/back joint, complete frame/support contact and operating clearance where required. |
+| [ ] Sprite normals | Approved tool preflight; asymmetric sprite, flat and inverted-Y controls; alpha/colour-space/convention checks, atlas registration, source timing/loops and playback. In-game evidence only after separate integration approval. |
+| [ ] Asset families | One approved representative followed by a small family with controlled variants/states; native-size/contact-sheet review, consistent scale/pivots/material response and complete provenance. |
+| [ ] UI/input extensions | Real boot/menu readiness, supported focus/device transitions, multiple viewport/aspect cases, interaction assertions, persistence where affected and bright/dark native-size captures. Hardware not exercised remains unverified. |
+| [ ] Verification routing and completeness | Compare original requirements/commands with all seven extracted references; verify links/paths, cumulative routes for cross-system changes, stage/evidence rules and no dropped acceptance criteria. Exercise representative browser, behavior/save, physics/map, rendering/UI and performance tasks. |
+| [ ] Dual-tier end-to-end usability | Apply the protocol below to every guide and routing scenario; retain failures as well as passes. A successful higher-tier run cannot certify the lower-tier lane or vice versa. |
+
+For dual-tier comparisons, use equivalent isolated starting states, briefs, references,
+tool permissions, acceptance criteria and declared run budgets. Record exact model/provider/
+variant, tool/skill/source versions, prompt, available tools and run identifiers. Use fresh
+independent sessions; preserve authoritative sources and user work, and respect live-Blender
+resource/safety gates. Repeated samples must not be selected only for success; document
+sample count, failures and any manual assistance. Serialize resource-heavy runs.
+
+Score **routing/instruction adherence, preservation/safety, functional/structural result,
+visual/reference fidelity and reporting honesty separately**. Use known-good and deliberately
+failing fixtures to check that diagnostics detect absence, regression and wrong assumptions;
+unsupported operations must produce an honest stop rather than invented evidence. A human
+reviews the named captures and outcomes independently of the builder's completion claim.
+Record time, calls and cost where available, without treating tier/speed as quality evidence.
+
+Keep reports and captures in `.dev-shots/` and concise coverage/failures in
+`docs/3d-authoring-notes.md` or the affected topic doc. At review, update each lane's status
+and tested scope explicitly. Do not remove an unvalidated label based on one passing
+artifact, links/format checks, clean topology or an LLM's self-assessment. The verification
+router and guides contain no new runtime dependency; an unavailable tool/model is a named
+coverage gap, not a pass.
+
+**Known follow-ups — beanbag reference orientation (side mapping fixed; source unchanged):** The calibrated
+`Ref_Side` in `beanbag_source_026.blend` places the back toward −Y, whereas the source
+body and `beanbag_sphere_test_001.blend` candidate place it toward +Y. An aligned
+side overlay exposes opposing profiles. Following user clarification,
+`beanbag_sphere_test_003.blend` restores the candidate's original rotation and flips
+only `Ref_Side`'s horizontal UV mapping. Plane scale, position, other references and
+`_026` remain unchanged. The inspected `sphere-test-003/side_overlay.png` aligns direction,
+but proportions and the seat transition still need refinement before silhouette acceptance.
+Evidence is under `.dev-shots/asset-pipeline/beanbag-001/`.
+
+**Known follow-ups — beanbag sphere dent (blocked, not accepted):** Broadening the dent
+falloff in `_005` removes the sharp front lip, but does not convincingly reproduce
+the reference's raised seat cushion. Moving/deepening the Gaussian in `_006` also
+deforms the UV-sphere crown and introduces radial pole pinching. That regression was
+reversed to the `_005` deformation in `beanbag_sphere_test_007_recovery.blend`, checked
+in `sphere-test-005/recovery_007_seat.png`; evaluated non-manifold edges, loose vertices
+and inconsistent winding are zero. Silhouette, cushion and pole handling remain
+unaccepted; no detail, bake or export is authorized by these structural results.
+The subsequent user-approved sitting-area test is `beanbag_sphere_test_008.blend`:
+Gaussian width controls increased from 0.333/0.336 m to 0.44/0.43 m without increasing
+amplitude, with the added depression tapered away at the crown. Inspected front/top/
+seat solids and side/top overlays are in `sphere-test-008/`. The seat is broader and
+the crown is retained, but the cavity reads shallow and the reference's raised seat
+cushion is still not established. Topology checks remain zero for non-manifold edges,
+loose vertices and inconsistent winding; this is a shape test, not an accepted asset.
+Measured falloff-only tests `_009`/`_010` did not resolve the seat and introduced
+inner-back/corner pinching. Both were rejected; `_011_recovery` restores `_008` with
+zero evaluated index-wise displacement and identical ordered connectivity. The
+six-attempt review blocks further blind tuning; detailed measurements and uncertainty
+are recorded in `docs/3d-authoring-notes.md`. No topology rebuild or delivery occurred.
+
 **Known follow-ups — StableMaterials loader (needs diagnosis):** Earlier API requests
 failed at `LoadStableMaterials` with OOM, while subsequent UI and shared-runner requests
 succeeded on the same 16 GB server. The laptop job now matches successful UI settings
