@@ -2,7 +2,7 @@
 // map cleanup and v7 save.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, connectBrowser, openBootedPage } from './browser-harness.mjs';
+import { connectBootedBrowser } from './browser-harness.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TARGET = new URL(process.env.GAME_URL || 'http://localhost:8000/');
@@ -43,18 +43,19 @@ const check = (name, pass, detail = {}) => {
 const GLASS_READY = 'window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)';
 
 try {
-  launched = await launchBrowser();
-  browser = await connectBrowser(launched);
+  const connected = await connectBootedBrowser({
+    page: { url: TARGET.href, width: WIDTH, height: HEIGHT, initScript },
+    onRetry: (error, attempt, diag) => {
+      report.bootRetry = { attempt, error: String(error).slice(0, 300),
+        lastWaitError: diag && diag.lastWaitError };
+      console.log('STEP boot retry', JSON.stringify(report.bootRetry));
+    },
+  });
+  launched = connected.launched;
+  browser = connected.browser;
+  page = connected.page;
   report.pageErrors = browser.pageErrors;
-  const booted = await openBootedPage(browser, {
-    url: TARGET.href, width: WIDTH, height: HEIGHT, initScript,
-  }, { onRetry: (error, attempt, diag) => {
-    report.bootRetry = { attempt, error: String(error).slice(0, 300),
-      lastWaitError: diag && diag.lastWaitError };
-    console.log('STEP boot retry', JSON.stringify(report.bootRetry));
-  } });
-  page = booted.page;
-  report.bootAttempt = booted.attempt;
+  report.bootAttempt = connected.attempt;
   console.log('STEP glass ready');
   await page.waitFor(GLASS_READY, 150000);
   console.log('STEP glass done');

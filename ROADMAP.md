@@ -1861,14 +1861,20 @@ boot. Assertions, the Glass-ready gate and the 12-minute job timeouts are unchan
 
 Run 39790957070 then passed 12 of 13 jobs, but a different single job
 (`gift-persistence`) still failed to boot even with 180 s: `Runtime.evaluate` timed
-out for the whole gate with no stack. A different arbitrary job failing each run,
-always before the first frame and never in an assertion, matches a wedged renderer
-rather than an app defect. The shared harness now passes `--disable-dev-shm-usage`
-(container `/dev/shm` exhaustion is a known cause of software-rendered WebGL hangs)
-and boots through `openBootedPage`, which makes one recorded relaunch with a fresh
-target when `booted` never appears. The first attempt's diagnostics and the retry
-are written to the report; assertions and job timeouts are unchanged, so a genuine
-boot regression still fails visibly.
+out for the whole gate with no stack. Run 39792375004 again passed 12 of 13, this
+time failing `glass-social` after two target-level boot attempts; its server log
+showed the page loading every module and the catalogue before hanging, i.e. the
+documented first-frame stall rather than a load failure.
+
+A different arbitrary job failing each run, always before the first frame and never
+in an assertion, matches a wedged renderer rather than an app defect. The shared
+harness now passes `--disable-dev-shm-usage` (container `/dev/shm` exhaustion is a
+known cause of software-rendered WebGL hangs) and boots through
+`connectBootedBrowser`, which makes one recorded relaunch with a **fresh browser
+process** — closing only the target reuses the wedged GPU process and did not
+recover. Launch failures retry on the same path. The first attempt's diagnostics and
+the retry are written to the report; assertions and job timeouts are unchanged, so a
+genuine boot regression still fails visibly.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 

@@ -35,8 +35,10 @@ Use with the parent skill and the existing browser and behavior procedures.
 - A boot gate that fails intermittently in a different job each run, always before
   the first frame, is an environment/renderer problem, not an assertion. Diagnose
   it as such: keep stall diagnostics, pass `--disable-dev-shm-usage`, and allow one
-  recorded relaunch with a fresh target. Never retry assertions, and keep the first
-  attempt's evidence in the report so a real boot regression stays visible.
+  recorded relaunch with a fresh **browser process**. Closing only the page target
+  keeps the wedged GPU process and can fail twice in a row. Never retry assertions,
+  and keep the first attempt's evidence in the report so a real boot regression
+  stays visible.
 - Do not boot a second WebGL page for a responsive-layout check under software
   rendering; emulate the viewport on the booted page. State that this is a resized
   session, not a cold mobile-load or mobile-performance test, and keep a separate

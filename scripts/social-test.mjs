@@ -1,7 +1,7 @@
 // Pair activities, rivalry/reconciliation, partnership, groups and Glass.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, connectBrowser, openBootedPage } from './browser-harness.mjs';
+import { connectBootedBrowser } from './browser-harness.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TARGET = new URL(process.env.GAME_URL || 'http://localhost:8000/');
@@ -49,18 +49,19 @@ const check = (name, pass, detail = {}) => {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 try {
-  launched = await launchBrowser();
-  browser = await connectBrowser(launched);
+  const connected = await connectBootedBrowser({
+    page: { url: TARGET.href, width: WIDTH, height: HEIGHT, initScript },
+    onRetry: (error, attempt, diag) => {
+      report.bootRetry = { attempt, error: String(error).slice(0, 300),
+        lastWaitError: diag && diag.lastWaitError };
+      console.log('STEP boot retry', JSON.stringify(report.bootRetry));
+    },
+  });
+  launched = connected.launched;
+  browser = connected.browser;
+  page = connected.page;
   report.pageErrors = browser.pageErrors;
-  const booted = await openBootedPage(browser, {
-    url: TARGET.href, width: WIDTH, height: HEIGHT, initScript,
-  }, { onRetry: (error, attempt, diag) => {
-    report.bootRetry = { attempt, error: String(error).slice(0, 300),
-      lastWaitError: diag && diag.lastWaitError };
-    console.log('STEP boot retry', JSON.stringify(report.bootRetry));
-  } });
-  page = booted.page;
-  report.bootAttempt = booted.attempt;
+  report.bootAttempt = connected.attempt;
   if (SCENARIO !== 'settings') {
     await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
   } else {

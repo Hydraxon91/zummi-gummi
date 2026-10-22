@@ -325,24 +325,30 @@ export async function connectBrowser(launched) {
   return { send, openPage, close, pageErrors, diagnostics };
 }
 
-// Boot a page, retrying once with a fresh target when the renderer never reaches
-// `booted`. The first attempt's diagnostics are reported so a real application
-// boot failure stays visible instead of being hidden by the relaunch.
-export async function openBootedPage(browser, options, {
-  timeout = 180000, attempts = 2, onRetry = null,
+// Boot a page with one fresh browser process when `booted` never appears. Closing
+// only the target keeps the same wedged GPU process, so the relaunch replaces it.
+// The first attempt's diagnostics are reported so a real application boot failure
+// stays visible instead of being hidden by the relaunch.
+export async function connectBootedBrowser({
+  launch = {}, page: pageOptions = {}, timeout = 180000, attempts = 2, onRetry = null,
 } = {}) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    const page = await browser.openPage(options);
+    let launched = null;
+    let browser = null;
     try {
+      launched = await launchBrowser(launch);
+      browser = await connectBrowser(launched);
+      const page = await browser.openPage(pageOptions);
       await page.waitFor('!!window.__gummy?.booted', timeout);
-      return { page, attempt };
+      return { browser, launched, page, attempt };
     } catch (error) {
       lastError = error;
-      if (onRetry) onRetry(error, attempt, page.diagnostics());
+      if (onRetry) onRetry(error, attempt, browser ? browser.diagnostics()
+        : { launched: launched ? { stderr: launched.stderr } : null });
+      if (browser) await browser.close().catch(() => {});
+      else if (launched) { try { launched.child.kill(); } catch (killError) {} }
       if (attempt >= attempts) throw error;
-      await browser.send('Target.closeTarget', { targetId: page.targetId }, null, 20000)
-        .catch(() => {});
     }
   }
   throw lastError;

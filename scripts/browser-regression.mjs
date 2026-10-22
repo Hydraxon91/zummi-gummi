@@ -7,7 +7,7 @@
 // selects a Chromium-family browser; the harness uses a temporary profile and cleans up.
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, connectBrowser, openBootedPage } from './browser-harness.mjs';
+import { connectBootedBrowser } from './browser-harness.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TAG = process.env.TAG || 'current';
@@ -31,19 +31,23 @@ const initScript = lowQuality ? `(() => {
   } catch (error) {}
 })()` : null;
 
-const launched = await launchBrowser();
-const browser = await connectBrowser(launched);
 let failure = null;
 let page = null;
+let browser = null;
 try {
-  page = (await openBootedPage(browser, {
-    url: target.href,
-    width: Number(process.env.WIDTH || 1440),
-    height: Number(process.env.HEIGHT || 900),
-    mobile: process.env.MOBILE === '1',
-    initScript,
-  }, { onRetry: (error, attempt) => console.log('STEP boot retry', JSON.stringify({ attempt,
-    error: String(error).slice(0, 200) })) })).page;
+  const connected = await connectBootedBrowser({
+    page: {
+      url: target.href,
+      width: Number(process.env.WIDTH || 1440),
+      height: Number(process.env.HEIGHT || 900),
+      mobile: process.env.MOBILE === '1',
+      initScript,
+    },
+    onRetry: (error, attempt) => console.log('STEP boot retry', JSON.stringify({ attempt,
+      error: String(error).slice(0, 200) })),
+  });
+  browser = connected.browser;
+  page = connected.page;
   if (!CORE) {
     console.log('STEP glass ready');
     try {
@@ -537,8 +541,8 @@ try {
     }
   }
   console.error('STOP', String(error && error.stack || error).slice(0, 2400));
-  if (browser.pageErrors.length) console.error('ERRORS', JSON.stringify(browser.pageErrors.slice(0, 5)));
+  if (browser && browser.pageErrors.length) console.error('ERRORS', JSON.stringify(browser.pageErrors.slice(0, 5)));
 } finally {
-  await browser.close();
+  if (browser) await browser.close();
 }
 if (failure) process.exitCode = 1;
