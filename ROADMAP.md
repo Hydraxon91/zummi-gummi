@@ -2072,7 +2072,7 @@ nonvisual tests, not proof of a specific model defect or storage bug.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 
-**Known follow-ups — opaque required-CI rollout (configured locally; hosted checks pending):**
+**Known follow-ups — opaque required-CI rollout (published; required CI failed):**
 The seven nonvisual scenarios sampled above now opt into `testRender=opaque` in
 `.github/workflows/smoke.yml`, with `RENDER_COMPARISON=1` verifying and reporting
 the actual override/backend. Core, parity, settings and gift-carry remain normal;
@@ -2080,8 +2080,56 @@ nightly and the manual comparison workflow are unchanged. Assertions, readiness
 gates, retries, 12-minute browser-job bounds and aggregate/deployment policy are
 unchanged. Local YAML/matrix validation confirms exactly seven opaque and four
 normal lanes; 330 Node checks pass. Prior browser evidence verifies these existing
-flags, not execution of the newly configured hosted workflow. A fresh required-CI
-run and repeat paired sample remain pending publication; no zero-flake claim.
+flags, not execution of the newly configured hosted workflow.
+
+Published as `d023d05bc993b113ac5d6bcf5115fbcd80df247c`. Required run
+[39839621382](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39839621382)
+passed ten browser jobs but failed `Browser (pair)` and the aggregate gate. The
+pair report confirmed opaque SwiftShader rendering, one successful boot and no
+page errors. Chat passed; cuddle admission returned `ok: true, state: seekCuddle`,
+but after `g.sim(7, 0)` bond stayed .4 rather than reaching .44 and no cuddle
+history existed. The report lacks post-cuddle actor positions/state/needs, so it
+does not distinguish incomplete travel, interruption or a completion defect.
+This is an unresolved functional failure in `scripts/social-test.mjs`'s pair
+fixture / shared affection state, not another boot timeout. No assertion, duration
+or gameplay change and no hosted rerun was made.
+
+Local diagnosis: `src/behaviors/affection.js` sets a 15-second approach timeout,
+then starts a separate five-second cuddle timer only within 1.1 m. Admission
+returns `seekCuddle`; it does not certify arrival. The browser fixture reuses the
+chat pair after eight simulated seconds and assumes seven seconds total suffices
+for approach plus cuddle, without checking arrival or completion state. This is
+a demonstrated fixture assumption, not proof of the hosted failure's cause.
+Two fresh diagnostic-only local pair runs passed unchanged assertions and timing;
+both began near the arrival boundary and ended with .44 bond and cuddle history,
+without critical needs. Snapshots are in
+`.dev-shots/social-cuddle-trace-pair.json` and
+`.dev-shots/social-cuddle-trace-2-pair.json`; the scratch runner adds only before/
+after snapshots of positions, needs, activity role/timer, path and state. All 330
+Node checks pass. Historical failure remains unreproduced.
+
+Diagnostic reporting is implemented in `scripts/social-test.mjs`:
+`cuddle.diagnostics` captures both actors before admission, immediately after
+admission and after the unchanged seven-second simulation. It records distance,
+positions, states, reciprocal partner UIDs, activity role/timer, copied paths and
+targets, needs, health, stage, sleep/grab and family-task state. These snapshots
+add no simulation steps or RNG draws; the original bond/history assertions and
+failure exit are unchanged. Both local pair modes passed 2/2 with serialized
+snapshots (`social-cuddle-report-{normal,opaque}-pair.json` in `.dev-shots/`);
+330 Node checks pass. Hosted validation is pending publication. The next
+failed report should distinguish travel, interruption and completion before a
+repair is selected; no timing increase or gameplay change is accepted here.
+
+Repeat comparison
+[39839644388](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39839644388)
+on the same SHA passed 21/21 opaque executions with zero boot retries, including
+all three pair samples. Normal passed 19/21: rivalry sample 2 and gift-persistence
+sample 3 exhausted both boot attempts; pair sample 3 recovered on its second.
+Median execution times were normal 160 s / opaque 34 s; totals 3907 / 799 s,
+excluding setup/upload. The experiment correctly failed overall for its two
+normal failures. Across both paired batches opaque passed 42/42 without boot
+retries, but the separate required-CI cuddle failure prevents a green rollout
+claim and zero-flake acceptance remains unproven. See `PERFORMANCE.md`.
 
 One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be
 enabled, disabled or tuned per race, per actor or at runtime. Parity with today's behavior

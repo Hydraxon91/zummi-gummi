@@ -45,7 +45,32 @@ future samples must name their revision, backend, scenario set and instrumentati
 rather than silently replacing it. Earlier frame-time tables below are separate
 measurements and are retained unchanged.
 
-### Unified frame-time measurements
+### Hosted rendering comparison repeat — 2026-10-22
+
+Run [39839644388](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39839644388),
+revision `d023d05bc993b113ac5d6bcf5115fbcd80df247c`, same paired method,
+scenario set and instrumentation as the dated comparison above. Successful
+reports confirmed SwiftShader (Subzero); two normal runs never booted and could
+not query the backend. No samples, failures or retries were discarded.
+
+| Measure | Normal | Opaque |
+|---|---:|---:|
+| Executions passing after allowed boot recovery | 19/21 | 21/21 |
+| Executions needing a second boot attempt | 3 | 0 |
+| Failed boot attempts, including exhausted retries | 5 | 0 |
+| Median execution wall time | 160 s | 34 s |
+| Execution wall-time range | 118–367 s | 24–75 s |
+| Sum of execution wall times | 3907 s | 799 s |
+| Median boot time, including failed-attempt time | 34.654 s | 9.189 s |
+
+Normal rivalry sample 2 and gift-persistence sample 3 exhausted both boot attempts;
+normal pair sample 3 recovered. The overall comparison correctly failed. All
+three opaque pair samples passed, but required CI on this same revision separately
+failed its opaque cuddle completion assertion after successful boot (39839621382).
+Thus the startup/throughput improvement does not establish functional reliability
+or a green required-CI rollout. Keep both dated samples; no frame-rate claim.
+
+### Unified frame-time measurements (original profile)
 
 Method: `node scripts/perf-profile.mjs` (headless Chrome, 1440×900, **DPR 1**,
 quality 2, effects off, adaptive off, day look, the current 8 soft-body actors +

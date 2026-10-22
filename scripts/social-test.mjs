@@ -170,11 +170,34 @@ try {
 
   const cuddle = await evaluate(`(() => {
     const g = window.__gummy;
+    const snapshot = () => {
+      const actors = g.bears.filter(b => b.uid === ${setup.a} || b.uid === ${setup.b});
+      return {
+        distance: actors.length === 2
+          ? Math.hypot(actors[0].cx - actors[1].cx, actors[0].cz - actors[1].cz) : null,
+        actors: actors.map(b => ({
+          uid: b.uid, x: b.cx, z: b.cz, hunger: b.hunger, thirst: b.thirst,
+          energy: b.energy, health: b.health, stage: b.stage, sleeping: b.sleeping,
+          grabs: b.grabs, inside: b.inside, state: b.ai.state,
+          partnerUid: b.ai.partner ? b.ai.partner.uid : null,
+          role: b.ai.activityRole, timer: b.ai.activityT,
+          familyTask: b.ai.familyTask ? {
+            id: b.ai.familyTask.id, phase: b.ai.familyTask.phase, t: b.ai.familyTask.t,
+          } : null,
+          moving: b.ai.moving,
+          target: b.ai.target ? { x: b.ai.target.x, z: b.ai.target.z } : null,
+          path: b.ai.path ? b.ai.path.map(p => ({ x: p.x, z: p.z })) : null,
+        })),
+      };
+    };
     g.setBond(${setup.ai}, ${setup.bi}, .4);
+    const before = snapshot();
     const result = g.socialByUid(${setup.a}, ${setup.b}, 'cuddle');
+    const admitted = snapshot();
     g.sim(7, 0);
     return {
       result,
+      diagnostics: { before, admitted, after: snapshot(), simulatedSeconds: 7 },
       bond: g.traits().find(a => a.uid === ${setup.a})?.bonds?.[String(${setup.b})],
       history: g.relationships(${setup.a})?.events?.some(e => e.kind === 'cuddle'),
     };
