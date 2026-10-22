@@ -48,6 +48,14 @@ Do not default every housing to a bevelled cube or every opening to a Boolean.
 wall thickness, opening boundary and sweep/revolution axis. A material split must not
 duplicate a shell. Use graphics and fine grain as textures after the surface is approved.
 
+Procedural revolutions, lofts and sweeps are legitimate construction methods, not an
+exception to editability. Retain their profiles/paths and source operands separately
+from evaluated or Boolean-combined results. Update the scoped controls rather than
+reconstructing unrelated parts; regenerating the derived mesh must preserve accepted
+features and placement. Test the actual bend, cross-section and shell interface before
+combining the assembly. If a Boolean fails, establish operand health and isolate the
+failing intersection before changing the host or trying another operation order.
+
 ## 4. Diagnose failures
 
 | If you see… | Inspect… | Test next |

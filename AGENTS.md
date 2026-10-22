@@ -526,6 +526,26 @@ approved work chunk.
 
 ## 15. 3D Asset Authoring
 
+### Operational contract
+
+Use this sequence; the specialist procedures below and the authoring skill explain how
+to satisfy it, not permission to skip a stage.
+
+1. **Inspect and agree:** live state, references, fidelity, dimensions, budget and scope.
+2. **Preserve and construct:** retain editable profiles/cages, cutters and operands;
+   test one difficult region, then make scoped, visually inspected changes.
+3. **Review the current stage:** state the source checkpoint, current part, pending
+   approval, blocked downstream work and next action at review or handoff. A user-requested
+   part-first gate overrides an earlier batch's progression. Relaxing likeness does not
+   approve the current shape or unlock the next part; obtain explicit stage approval.
+4. **Diagnose before repairing:** stop geometry edits on contradictory diagnostics;
+   establish whether the fault is in the measurement, operand or operation first.
+5. **Deliver only within scope:** separate visual approval, structural checks, export
+   verification and runtime verification. A successful check is not user approval.
+
+Construction uses targeted viewport/solid checks; acceptance uses the required fresh,
+mode-appropriate captures. Do not run the full delivery suite after every small edit.
+
 - **Game-first destination across all categories.** Default to runtime game assets, not
   CGI render assets, independently of the approved likeness mode. Read the authoring
   skill's shared game-asset contract before the category construction guide. Plan modest
@@ -707,7 +727,9 @@ approved work chunk.
 - **Build for clean topology, one system per step.** Model symmetric parts as one half plus
   Mirror, as closed manifold solids where solid geometry is intended, using modifiers and
   unapplied boolean cutters. Deliberate cage, edge-loop and proportional edits are appropriate
-  for moulded and soft forms when they establish the silhouette; avoid hand-wound faces. Do
+  for moulded and soft forms when they establish the silhouette. Editable procedural
+  revolutions, lofts and sweeps are allowed; use coherent section loops and consistent
+  winding rather than ad-hoc face patches. Do
   not use primitive stacking as a substitute for the required form. Report non-manifold edges,
   loose vertices and flipped faces after every step; all three must be 0 for intended closed
   solids before continuing. Report intentional boundaries on open panels, references and
@@ -728,17 +750,15 @@ approved work chunk.
   skill's material-boundary procedure and inspect every affected corner.
 - **Live Blender MCP is the default for shape authoring.** Choose construction from the
   requested form and references, not from an existing generator or historical prototype.
-  MCP may execute Python: the requirement is visually guided incremental modeling, not
-  avoiding scripts. Keep source editable and pass silhouette review before detail/polish.
-  Python supports scoped edits, repetition, measurement, checks, captures and export;
-  it must not substitute for inspecting form changes. Live MCP can perform verification;
-  headless batches are optional. Keep asset-specific trial history and benchmark status in
+  Inspect the target with `look`, make a scoped editable change, then inspect again.
+  Python supports construction, repetition, measurement, checks, captures and export,
+  but does not replace visual inspection. Regenerating a derived mesh from preserved
+  editable parameters is allowed within scope; discarding the only source or rebuilding
+  unrelated parts is not. If MCP disconnects, stop live editing and report rather than
+  silently regenerating the asset. Live MCP can perform verification; headless batches
+  are optional, not a substitute for required delivery checks. Keep trial history in
   project reports, not general instructions. Load optional recipes from the authoring skill
   only when relevant to the task.
-- **Use the live MCP loop for shape work.** Inspect the actual viewport with `look`, pick the
-  visible component, make a small editable change, and look again. Use scripts for repetition,
-  measurement, capture and export, not as a substitute for inspecting each form change. If MCP
-  disconnects, stop live editing and report rather than silently regenerating the whole asset.
 - **Regression recovery.** A new defect class requires stopping the current edit chain and
   safely restoring the last good scoped checkpoint before an evidence-based alternative.
   Preserve unrelated live changes; reopening a whole `.blend` requires approval if it would
@@ -770,11 +790,6 @@ approved work chunk.
 - **Locked dimensions are asserts.** After every geometry step, print the locked values
   (roof, nose, tail, wheel size and position, track, overall bounding box) and compare them
   with the locked baseline. A transient pass during editing is still a failure.
-- **Two unchanged failures trigger diagnosis, not blind retries.** Reconfirm the visible
-  target, material/UV path and measuring tool before a third edit. Continue within section 5's
-  failed-repair budget (or an explicitly approved bounded continuation) only with new
-  evidence and a stated hypothesis; report attempts and
-  remaining uncertainty. More attempts never relax acceptance or authorize unsuitable tools.
 - **Report on a call budget.** At twenty tool calls in one turn, post one line: done,
   blocked, next. Do not keep working past it silently.
 - **Scripts are not transactions.** After an exception, inspect which edits already ran

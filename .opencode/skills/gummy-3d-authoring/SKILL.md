@@ -58,6 +58,12 @@ Do not call a Blender source game-ready without the export/runtime evidence that
 
 ## Default authoring workflow: live MCP first
 
+`AGENTS.md` section 15's operational contract governs progression. At a stage review or
+handoff, state the checkpoint, current part, pending approval, blocked downstream work
+and next action. Preserve a user-requested part-first gate even inside an approved batch.
+A fidelity clarification changes likeness expectations only: it is not approval of the
+visible shape or permission to begin another part. Obtain explicit stage approval.
+
 Use live Blender MCP as the primary shape-authoring workflow. MCP can execute Python;
 the distinction is visually guided, incremental modeling versus blind batch generation,
 not Python versus Blender. Choose construction from the requested form and references,
@@ -494,9 +500,12 @@ visual guide does not require per-edit overlays; inspect neutral multi-angle for
 and capture the approved shape gate. If an overlay is used as measured evidence, all
 calibration, framing and source-freshness requirements still apply.
 
-- When calibrated reference planes are available, capture reference-only, reference plus
-  model edges, and solid-model views with identical aligned orthographic framing before
-  and after every silhouette-changing step and before accepting the stage.
+- During construction, inspect each silhouette change with a targeted viewport/solid
+  view; use a targeted overlay when reference alignment is in question. At a silhouette
+  review or acceptance gate, capture reference-only, reference plus model edges, and
+  solid-model views with identical aligned orthographic framing against the calibrated
+  planes. Preserve the baseline and refresh affected evidence after subsequent edits;
+  do not rerun unrelated acceptance views or delivery checks after every small edit.
 - Hide unrelated reference planes to avoid overlapping drawings. Use see-through or
   wireframe overlays, and inspect the captures to confirm the reference stays textured
   and readable beneath the model edges. Material Preview may ignore X-ray; full wireframe
@@ -554,11 +563,15 @@ is a proposed design choice, not an automatic response to a diagnostic failure.
    for the user's go before the next one, unless an approved chunk says otherwise.
 2. Prefer primitives and modifiers (Mirror, Bevel, Solidify, Array, Subdivision Surface,
    Boolean) for mechanical forms. For moulded and soft forms, deliberate cage, edge-loop and
-   proportional edits are appropriate when they establish the silhouette; avoid hand-wound
-   faces and primitive stacking that substitutes for the required form. Model symmetric parts
+   proportional edits are appropriate when they establish the silhouette; avoid ad-hoc
+   face patches and primitive stacking that substitutes for the required form. Model symmetric parts
    as one half plus a Mirror modifier with clipping on.
-3. Join section loops with Bridge Edge Loops. Do not hand-wind faces or build custom
-   rim/flare strips in generator code. Where a surface will later be smoothed, subdivided,
+3. Prefer Bridge Edge Loops for interactive section construction. Procedural revolutions,
+   lofts and sweeps are allowed when their profiles/paths remain editable and their
+   generated loops have consistent connectivity and winding. Avoid ad-hoc face patches
+   used to conceal a failed transition. Regenerating a derived mesh from preserved
+   parameters is not a reset; preserve unrelated geometry, state and accepted features.
+   Where a surface will later be smoothed, subdivided,
    remeshed or boolean-cut as a solid, build it as a closed manifold solid. Intentional
    open panels may be smoothed or subdivided, but must not be treated as closed volumes.
 4. Cut openings (wheel arches, windows) with closed Boolean cutters kept unapplied in dedicated
@@ -684,6 +697,13 @@ These checks supplement the mesh-health gate; they do not replace visual, interf
 motion, material-transfer or user-acceptance evidence, and do not reset attempt limits.
 
 ## Regression stop
+
+**Contradictory diagnostics block geometry edits, not just delivery.** Check units,
+coordinate frames, object identity and expected invariants before treating a report as
+an asset defect. On a contradiction, invalidate the affected claim, inspect the current
+partially applied state and independently validate the diagnostic. Isolate operand
+health from operation-result health before another Boolean or rebuild. Do not change
+operation order or rebuild the host merely because an aggregate check failed.
 
 Follow `AGENTS.md` sections 5 and 15: count failed repairs against the unresolved criterion,
 not successful inspected construction steps or ordinary approved artistic direction.
