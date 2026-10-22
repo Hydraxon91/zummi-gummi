@@ -9,6 +9,12 @@ const TARGET = new URL(process.env.GAME_URL || 'http://localhost:8000/');
 TARGET.searchParams.set('autostart', '1');
 TARGET.searchParams.set('behaviors', 'modules');
 const TAG = process.env.TAG || 'gifting';
+const SCENARIO = process.env.SCENARIO || 'all';
+if (!['all', 'flow', 'carry', 'persistence'].includes(SCENARIO)) {
+  throw new Error(`Unknown gifting SCENARIO: ${SCENARIO}`);
+}
+const selected = name => SCENARIO === 'all' || SCENARIO === name;
+const FAST = process.env.FAST === '1' && SCENARIO !== 'carry' && SCENARIO !== 'all';
 const WIDTH = Number(process.env.WIDTH || 1440);
 const HEIGHT = Number(process.env.HEIGHT || 900);
 const lowQuality = process.env.LOW_QUALITY === '1';
@@ -22,44 +28,28 @@ const initScript = lowQuality ? `(() => {
     localStorage.setItem('gummy.profile', 'performance');
   } catch (error) {}
 })()` : null;
-const REPORT = `${ROOT}/.dev-shots/gifting-${TAG}.json`;
+const REPORT = `${ROOT}/.dev-shots/gifting-${TAG}-${SCENARIO}.json`;
 await mkdir(`${ROOT}/.dev-shots`, { recursive: true });
 
 const launched = await launchBrowser();
 const browser = await connectBrowser(launched);
-const page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
+let page = null;
 const evaluate = (expression, timeout = 30000) => page.evaluate(expression, timeout);
-const report = { tag: TAG, pageErrors: browser.pageErrors, checks: [] };
+const report = { tag: TAG, scenario: SCENARIO, fast: FAST, pageErrors: browser.pageErrors, checks: [] };
 const check = (name, pass, detail = {}) => {
   report.checks.push({ name, pass: !!pass, ...detail });
   console.log(`${pass ? 'PASS' : 'FAIL'} ${name}${detail.value === undefined ? '' : ` (${detail.value})`}`);
 };
 const GLASS_READY = 'window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)';
-const glassState = () => evaluate(`(() => {
-  const g = window.__gummy;
-  if (!g) return { booted: false };
-  const glass = g.glass();
-  return { booted: !!g.booted, count: glass.count,
-    actors: glass.actors.map(a => ({ uid: a.uid, ready: !!a.ready, error: a.error || null })) };
-})()`, 10000).catch(error => ({ error: String(error && error.message || error) }));
 
 try {
+  page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
   await page.waitFor('!!window.__gummy?.booted', 90000);
   console.log('STEP glass ready');
-  try {
-    await page.waitFor(GLASS_READY, 150000);
-  } catch (error) {
-    console.log('STEP glass reload', JSON.stringify(await glassState()));
-    await page.evaluate('location.reload()').catch(() => {});
-    await page.waitFor('!!window.__gummy?.booted', 120000);
-    try {
-      await page.waitFor(GLASS_READY, 150000);
-    } catch (retryError) {
-      console.log('STEP glass failed', JSON.stringify(await glassState()));
-      throw retryError;
-    }
-  }
+  await page.waitFor(GLASS_READY, 150000);
   console.log('STEP glass done');
+  await evaluate('window.__gummy.seed(421337)');
+  if (FAST) await evaluate('window.__gummy.pause(true)');
 
   const setup = await evaluate(`(() => {
     const g = window.__gummy;
@@ -93,12 +83,8 @@ try {
   })()`);
   check('gifting settings and feature are on', setup.found && setup.feature === true,
     { value: JSON.stringify(setup) });
-  await evaluate("document.getElementById('settingsBtn').click()");
-  await new Promise(resolve => setTimeout(resolve, 500));
-  await page.screenshot(`${ROOT}/.dev-shots/gifting_settings.png`);
-  await evaluate("document.getElementById('settingsClose').click()");
-  await new Promise(resolve => setTimeout(resolve, 350));
 
+  if (selected('flow') || selected('persistence')) {
   const started = await evaluate(`(() => {
     const g = window.__gummy;
     g.sim(.1, 0);
@@ -106,8 +92,7 @@ try {
     if (result.ok) g.selectBear(${setup.giverIndex});
     return result;
   })()`);
-  await new Promise(resolve => setTimeout(resolve, 250));
-  await page.screenshot(`${ROOT}/.dev-shots/gifting_offer.png`);
+  if (!FAST) await page.screenshot(`${ROOT}/.dev-shots/gifting_offer.png`);
   const accepted = await evaluate(`(() => {
     const g = window.__gummy;
     g.sim(5, 0);
@@ -134,7 +119,11 @@ try {
     accepted.receiverHunger < .6 && accepted.bond > .1 &&
     accepted.giftHistory === true && accepted.received === true,
     { value: JSON.stringify({ started, accepted }) });
+  report.started = started;
+  report.accepted = accepted;
+  }
 
+  if (selected('carry')) {
   const carrying = await evaluate(`(() => {
     const g = window.__gummy;
     const source = g.foodSources().find(s => s.ripe && !s.claimed);
@@ -172,7 +161,9 @@ try {
     { value: JSON.stringify({ ...carrying, visuals: carriedVisual.visuals }) });
   await evaluate("window.__gummy.setBehaviorFeature('gifting', false)");
   await evaluate("window.__gummy.setBehaviorFeature('gifting', true)");
+  }
 
+  if (selected('flow') || selected('persistence')) {
   const cap = await evaluate(`(() => {
     const g = window.__gummy;
     const result = g.giftByUid(${setup.giverUid}, ${setup.receiverUid});
@@ -181,18 +172,27 @@ try {
   })()`);
   check('the daily gift cap blocks a second gift', cap.result?.ok === false &&
     Number.isFinite(cap.lastGiftDay), { value: JSON.stringify(cap) });
+  report.cap = cap;
+  }
 
-  const persisted = await evaluate(`(async () => {
+  if (selected('persistence')) {
+  console.log('STEP persistence save');
+  await evaluate("window.__gummy.save('slot5', 'gift')", 120000);
+  console.log('STEP persistence load');
+  await evaluate("window.__gummy.load('slot5')", 120000);
+  console.log('STEP persistence inspect');
+  const persisted = await evaluate(`(() => {
     const g = window.__gummy;
-    await g.save('slot5', 'gift');
-    await g.load('slot5');
     const payload = JSON.parse(g.exportSave());
     const actor = payload.worlds.field.bears.find(a => a.uid === ${setup.giverUid});
     return { version: actor?.actorVersion, lastGiftDay: actor?.lastGiftDay };
   })()`, 120000);
   check('the gift day persists in actorVersion 7', persisted.version === 7 &&
     Number.isFinite(persisted.lastGiftDay), { value: JSON.stringify(persisted) });
+  report.persisted = persisted;
+  }
 
+  if (selected('flow')) {
   const refused = await evaluate(`(() => {
     const g = window.__gummy;
     const source = g.foodSources().find(s => s.ripe && !s.claimed);
@@ -219,7 +219,10 @@ try {
   })()`);
   check('gifting off prevents a new offer', off.result?.ok === false,
     { value: JSON.stringify(off) });
+  report.refused = refused;
+  }
 
+  if (selected('persistence')) {
   await evaluate("window.__gummy.setBehaviorFeature('gifting', true)");
   const startedSwitch = await evaluate(`(() => {
     const g = window.__gummy;
@@ -238,11 +241,11 @@ try {
   })()`);
   await evaluate("window.__gummy.setMap('studio')");
   await page.waitFor("window.__gummy.map().id === 'studio'", 30000);
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
   await evaluate("window.__gummy.setBehaviorFeature('gifting', false)");
   await evaluate("window.__gummy.setMap('field')");
   await page.waitFor("window.__gummy.map().id === 'field'", 30000);
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
   const switched = await evaluate(`(() => {
     const g = window.__gummy;
     const uids = new Set([${startedSwitch.giverUid || 0}, ${startedSwitch.receiverUid || 0}]);
@@ -259,38 +262,22 @@ try {
     startedSwitch.ok === true && switched.activeGift === false &&
     switched.carried === false && switched.claimed === false,
     { value: JSON.stringify({ startedSwitch, switched }) });
-
-  const mobile = await browser.openPage({ url: TARGET.href, width: 390, height: 844, initScript });
-  await mobile.waitFor('!!window.__gummy?.booted', 60000);
-  await mobile.evaluate("document.getElementById('settingsBtn').click()");
-  await new Promise(resolve => setTimeout(resolve, 500));
-  const mobileRow = await mobile.evaluate(`(() => {
-    const card = document.querySelector('.settingscard');
-    document.getElementById('settingsGifting').scrollIntoView({ block: 'center' });
-    return {
-      visible: !!document.getElementById('settingsGifting'),
-      checked: document.getElementById('settingsGifting')?.checked,
-      scrolled: card.scrollTop > 0,
-    };
-  })()`);
-  check('the gifting setting is present at mobile width', mobileRow.visible === true &&
-    mobileRow.scrolled === true, { value: JSON.stringify(mobileRow) });
-  await mobile.screenshot(`${ROOT}/.dev-shots/gifting_settings_mobile.png`);
+  }
 
   report.setup = setup;
-  report.started = started;
-  report.accepted = accepted;
-  report.cap = cap;
-  report.persisted = persisted;
-  report.refused = refused;
   report.errors = browser.pageErrors;
+  const expected = { all: 8, flow: 5, carry: 2, persistence: 5 };
+  if (report.checks.length !== expected[SCENARIO]) {
+    throw new Error(`Incomplete ${SCENARIO} coverage: ${report.checks.length}/${expected[SCENARIO]} checks`);
+  }
   console.log('REPORT', REPORT);
 } catch (error) {
   report.failure = String(error.stack || error);
   console.log('STOP', report.failure.slice(0, 2000));
   process.exitCode = 1;
 } finally {
+  report.harness = page ? page.diagnostics() : browser.diagnostics();
   await writeFile(REPORT, JSON.stringify(report, null, 2));
   await browser.close();
 }
-if (report.checks.some(entry => !entry.pass)) process.exitCode = 1;
+if (report.pageErrors.length || report.checks.some(entry => !entry.pass)) process.exitCode = 1;

@@ -1678,12 +1678,43 @@ can proceed with the current runtime and assets.
   on a schedule, a `v*` tag or manual dispatch. The full Glass lifecycle remains too
   slow for the blocking job under SwiftShader; `glass-test` supports `SHOTS=0` and
   longer asset waits for the deep lane.
-- **Interaction suite Glass gate (fixed 2026-10-21).** The isolated `gifting` job timed
+- **Known follow-ups — CI restructuring (implemented locally; hosted acceptance pending).**
+  Push checks now use 11 independent browser jobs with an aggregate required gate;
+  all prior behavioral assertions remain represented, with settings consolidated in
+  the social settings scenario. Nonvisual scenarios pause background rendering;
+  carry and settings retain real frames. Unknown/documentation-tooling paths fail
+  closed to full browser coverage. Pages waits for the successful tested main SHA.
+  Nightly Glass uses all seven existing scenario groups and includes hidden artifacts.
+  Local evidence: 284 Node checks, 67 HTTP checks, core browser, browser parity,
+  all social/gifting scenarios and both normal full suites, plus all seven Glass
+  groups pass. No hosted speedup or flake-rate claim: no workflow push/dispatch yet.
+- **Known follow-ups — game/CI failure classification (unresolved).** Recent hosted
+  Gifting runs time out during combined save/load even with 120 s allowed; save,
+  load and inspection now have separate markers and retained CDP diagnostics.
+  Local paused persistence passes are non-reproduction, not proof of a game fix.
+  Nightly Studio also reported Glass/bear separation of ~0.061 against a 0.25
+  assertion (`scripts/browser-regression.mjs` collision fixture; `src/glass.js`
+  and physics state need diagnosis). This may be a real collision defect or a bad
+  fixture; do not lower the threshold or hide it. Deferred pending hosted evidence.
+- **Known follow-ups — interaction harness isolation (fixed locally).** Independent
+  group fixtures could enter `seekMate` before the group command, correctly causing
+  refusal; new fixture actors now have explicit mating cooldowns. The social chat
+  fixture also passed undefined `g.ai` rather than its actor index to needs setters;
+  corrected to `setup.ai`. Shared settings testing restores the prior gifting flag.
+- **Known follow-ups — mate module disable (game defect, deferred).** Calling
+  `setBehaviorModule('mate', false)` did not prevent new `seekMate` states during
+  the independent group fixture. Source confirms `runOpportunities` and
+  `runOpportunity` in `src/behaviors/engine.js` do not inspect module enabled state,
+  while `mateModule`'s opportunity in `src/behaviors/mate.js` checks only adulthood
+  and cooldown. `src/behaviors/config.js` records the disabled module flag but mate
+  is not one of the legacy sections translated to a disabled profile. Resolve the
+  shared dispatch/cancellation policy separately; no game source changed here.
+- **Interaction suite Glass gate (current harness policy).** The isolated `gifting` job timed
   out at the Glass readiness gate after 30 s while the `social` job passed in the same
   run: under SwiftShader the first frame blocks Glass readiness for roughly 100 s, so
   gifting never reached its first check. `gifting-test.mjs` now uses the same 150 s
-  gate, `count > 0` guard and one reload retry as `social-test.mjs` and
-  `browser-regression.mjs`, and logs per-actor `ready`/`error` when the retry fails.
+  gate and `count > 0` guard. Social/gifting no longer reload on readiness failure;
+  failures retain harness diagnostics rather than retrying for green.
   The diagnostic upload steps also set `include-hidden-files: true`, because
   `.dev-shots` is a dot-directory and `upload-artifact` v4 was silently discarding
   every `.dev-shots` capture. The remaining 30 s gates (`adoption`,

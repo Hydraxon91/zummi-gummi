@@ -205,6 +205,7 @@ export async function connectBrowser(launched) {
     let lastWaitError = null;
     let lastWaitExpression = null;
     let stall = null;
+    const timings = [];
 
     async function captureStall(expression) {
       stall = { at: Date.now(), expression, browserPid: launched.child.pid };
@@ -231,6 +232,7 @@ export async function connectBrowser(launched) {
 
     async function evaluate(expression, timeout = 60000) {
       let result;
+      const start = performance.now();
       try {
       result = await send('Runtime.evaluate', {
         expression,
@@ -241,6 +243,11 @@ export async function connectBrowser(launched) {
         if (process.env.STALL_DIAGNOSTICS === '1' && !stall &&
             String(error).includes('CDP timeout: Runtime.evaluate')) await captureStall(expression);
         throw error;
+      } finally {
+        const ms = Math.round(performance.now() - start);
+        timings.push({ ms, expression: String(expression).slice(0, 240) });
+        if (timings.length > 200) timings.shift();
+        if (process.env.CI && ms >= 1000) console.log('CDP_TIMING', JSON.stringify(timings.at(-1)));
       }
       if (result.exceptionDetails) {
         throw new Error(JSON.stringify(result.exceptionDetails).slice(0, 1800));
@@ -270,6 +277,7 @@ export async function connectBrowser(launched) {
       return {
         targetId: created.targetId,
         stall,
+        timings: timings.slice(),
         sessionId,
         lastWaitExpression,
         lastWaitError,

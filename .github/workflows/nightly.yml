@@ -46,8 +46,20 @@ jobs:
             command: TAG=ci-social LOW_QUALITY=1 node scripts/social-test.mjs
           - name: Physical gifting
             command: TAG=ci-gifting LOW_QUALITY=1 node scripts/gifting-test.mjs
+          - name: Glass drag
+            command: SCENARIO=drag SHOTS=0 node scripts/glass-test.mjs
+          - name: Glass growth
+            command: SCENARIO=growth SHOTS=0 node scripts/glass-test.mjs
+          - name: Glass social
+            command: SCENARIO=social SHOTS=0 node scripts/glass-test.mjs
+          - name: Glass hover
+            command: SCENARIO=hover SHOTS=0 node scripts/glass-test.mjs
+          - name: Glass needs
+            command: SCENARIO=needs SHOTS=0 node scripts/glass-test.mjs
+          - name: Glass night
+            command: SCENARIO=night SHOTS=0 node scripts/glass-test.mjs
           - name: Glass lifecycle
-            command: SHOTS=0 node scripts/glass-test.mjs
+            command: SCENARIO=lifecycle SHOTS=0 node scripts/glass-test.mjs
           - name: Soak
             command: SOAK_SECONDS=60 node scripts/soak-test.mjs
     steps:
@@ -98,14 +110,16 @@ jobs:
         run: ${{ matrix.command }}
 
       - name: Upload deep diagnostics
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: deep-${{ matrix.name }}-${{ github.run_attempt }}
           path: |
             .dev-shots/*.json
             .dev-shots/*.png
+            server.log
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7
 
       - name: Show server log on failure

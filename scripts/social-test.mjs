@@ -8,6 +8,12 @@ const TARGET = new URL(process.env.GAME_URL || 'http://localhost:8000/');
 TARGET.searchParams.set('autostart', '1');
 TARGET.searchParams.set('behaviors', 'modules');
 const TAG = process.env.TAG || 'social';
+const SCENARIO = process.env.SCENARIO || 'all';
+if (!['all', 'settings', 'pair', 'rivalry', 'partnership', 'groups', 'glass'].includes(SCENARIO)) {
+  throw new Error(`Unknown social SCENARIO: ${SCENARIO}`);
+}
+const selected = name => SCENARIO === 'all' || SCENARIO === name;
+const FAST = process.env.FAST === '1';
 const WIDTH = Number(process.env.WIDTH || 1440);
 const HEIGHT = Number(process.env.HEIGHT || 900);
 const lowQuality = process.env.LOW_QUALITY === '1';
@@ -21,14 +27,14 @@ const initScript = lowQuality ? `(() => {
     localStorage.setItem('gummy.profile', 'performance');
   } catch (error) {}
 })()` : null;
-const REPORT = `${ROOT}/.dev-shots/social-${TAG}.json`;
+const REPORT = `${ROOT}/.dev-shots/social-${TAG}-${SCENARIO}.json`;
 await mkdir(`${ROOT}/.dev-shots`, { recursive: true });
 
 const launched = await launchBrowser();
 const browser = await connectBrowser(launched);
-const page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
+let page = null;
 const evaluate = (expression, timeout = 30000) => page.evaluate(expression, timeout);
-const report = { tag: TAG, pageErrors: browser.pageErrors, checks: [] };
+const report = { tag: TAG, scenario: SCENARIO, fast: FAST, pageErrors: browser.pageErrors, checks: [] };
 const check = (name, pass, detail = {}) => {
   report.checks.push({ name, pass: !!pass, ...detail });
   console.log(`${pass ? 'PASS' : 'FAIL'} ${name}${detail.value === undefined ? '' : ` (${detail.value})`}`);
@@ -36,16 +42,13 @@ const check = (name, pass, detail = {}) => {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 try {
+  page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
   await page.waitFor('!!window.__gummy?.booted', 90000);
-  try {
-    await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
-  } catch (error) {
-    console.log('STEP glass reload');
-    await page.evaluate('location.reload()').catch(() => {});
-    await page.waitFor('!!window.__gummy?.booted', 120000);
-    await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
-  }
+  await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
+  await evaluate('window.__gummy.seed(421337)');
+  if (FAST && SCENARIO !== 'settings') await evaluate('window.__gummy.pause(true)');
 
+  if (selected('settings')) {
   const settings = await evaluate(`(() => {
     const ids = ['PairActivities', 'Rivalry', 'Reconciliation', 'Partnership', 'GroupActivities'];
     return ids.map(id => ({
@@ -56,6 +59,21 @@ try {
   check('social settings are present and default off',
     settings.every(row => row.exists && row.checked === false),
     { value: JSON.stringify(settings) });
+  const gifting = await evaluate(`(() => {
+    const box = document.getElementById('settingsGifting');
+    if (!box) return false;
+    const checked = box.checked;
+    try {
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      return window.__gummy.behaviorConfig().features.gifting === true;
+    } finally {
+      box.checked = checked;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  })()`);
+  check('gifting setting enables the feature', gifting);
+  }
 
   await evaluate(`(() => {
     const g = window.__gummy;
@@ -64,11 +82,13 @@ try {
     }
     return true;
   })()`);
+  if (selected('settings')) {
   await evaluate("document.getElementById('settingsBtn').click()");
   await sleep(400);
   await page.screenshot(`${ROOT}/.dev-shots/social_settings.png`);
   await evaluate("document.getElementById('settingsClose').click()");
   await sleep(250);
+  }
 
   const setup = await evaluate(`(() => {
     const g = window.__gummy;
@@ -88,10 +108,11 @@ try {
     };
   })()`);
 
+  if (selected('pair')) {
   const chat = await evaluate(`(() => {
     const g = window.__gummy;
-    g.setSocial(g.ai, .8);
-    g.setAffection(g.ai, .8);
+    g.setSocial(${setup.ai}, .8);
+    g.setAffection(${setup.ai}, .8);
     const result = g.socialByUid(${setup.a}, ${setup.b}, 'chat');
     g.sim(8, 0);
     const view = g.relationships(${setup.a});
@@ -121,7 +142,11 @@ try {
   check('cuddle completes for a reciprocally bonded pair',
     cuddle.result?.ok === true && cuddle.bond >= .44 && cuddle.history === true,
     { value: JSON.stringify(cuddle) });
+  report.chat = chat;
+  report.cuddle = cuddle;
+  }
 
+  if (selected('rivalry')) {
   const conflict = await evaluate(`(() => {
     const g = window.__gummy;
     g.setBehaviorFeature('pairActivities', false);
@@ -161,7 +186,11 @@ try {
     reconcile.rivalsB.length === 0 && reconcile.bond > reconcile.before &&
     reconcile.history === true,
     { value: JSON.stringify(reconcile) });
+  report.conflict = conflict;
+  report.reconcile = reconcile;
+  }
 
+  if (selected('partnership')) {
   const partner = await evaluate(`(() => {
     const g = window.__gummy;
     g.setBehaviorFeature('partnership', true);
@@ -204,7 +233,13 @@ try {
   check('player separation clears both partnership sides',
     separated.ok === true && !separated.left && !separated.right && separated.history === true,
     { value: JSON.stringify(separated) });
+  report.partner = partner;
+  report.separated = separated;
+  }
 
+  if (selected('groups')) {
+  // Keep unrelated mating from claiming these fixtures during their settling step.
+  // Group acceptance and completion still use the real command protocol.
   const group = await evaluate(`(() => {
     const g = window.__gummy;
     g.setBehaviorFeature('pairActivities', false);
@@ -217,7 +252,7 @@ try {
     ];
     for (const actor of actors) {
       const bear = g.bears.find(item => item.uid === actor?.uid);
-      if (bear) bear.sex = 'F';
+      if (bear) { bear.sex = 'F'; bear.mateCooldown = 120; }
     }
     g.sim(.1, 0);
     const members = actors.map(actor => actor?.uid);
@@ -263,7 +298,7 @@ try {
     ];
     for (const actor of actors) {
       const bear = g.bears.find(item => item.uid === actor?.uid);
-      if (bear) bear.sex = 'F';
+      if (bear) { bear.sex = 'F'; bear.mateCooldown = 120; }
     }
     g.sim(.1, 0);
     const members = actors.map(actor => actor?.uid);
@@ -279,7 +314,11 @@ try {
     groupDisabled.result?.ok === true && groupDisabled.active >= 3 &&
     groupDisabled.after.every(state => state !== 'group'),
     { value: JSON.stringify(groupDisabled) });
+  report.group = group;
+  report.groupDisabled = groupDisabled;
+  }
 
+  if (selected('glass')) {
   const glass = await evaluate(`(() => {
     const g = window.__gummy;
     g.setBehaviorFeature('groupActivities', false);
@@ -301,7 +340,10 @@ try {
   check('Glass participates in a pair activity',
     glass.ok === true && glass.history === true && glass.glassHistory === true,
     { value: JSON.stringify(glass) });
+  report.glass = glass;
+  }
 
+  if (selected('partnership')) {
   const savedSetup = await evaluate(`(async () => {
     const g = window.__gummy;
     g.setBehaviorFeature('gifting', true);
@@ -359,9 +401,11 @@ try {
 
   await evaluate("window.__gummy.setMap('studio')");
   await page.waitFor("window.__gummy.map().id === 'studio'", 30000);
+  await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
   const studioPortions = await evaluate("window.__gummy.portions()?.list || []");
   await evaluate("window.__gummy.setMap('field')");
   await page.waitFor("window.__gummy.map().id === 'field'", 30000);
+  await page.waitFor("!document.getElementById('mapWipe').classList.contains('on')");
   const back = await evaluate(`(() => {
     const g = window.__gummy;
     return {
@@ -416,9 +460,14 @@ try {
     visual.result?.ok === true && visual.partner === visual.b &&
     visual.relation === 'Partner' && visual.label === 'close friend',
     { value: JSON.stringify(visual) });
+  if (FAST) await evaluate('window.__gummy.pause(false)');
   await sleep(350);
   await page.screenshot(`${ROOT}/.dev-shots/social_relationships.png`);
+  if (FAST) await evaluate('window.__gummy.pause(true)');
+  }
 
+  if (selected('settings')) {
+  await evaluate('window.__gummy.pause(true)');
   const mobile = await browser.openPage({ url: TARGET.href, width: 390, height: 844, initScript });
   await mobile.waitFor('!!window.__gummy?.booted', 60000);
   await mobile.evaluate("document.getElementById('settingsBtn').click()");
@@ -438,26 +487,32 @@ try {
     mobileSettings.visible && mobileSettings.rows,
     { value: JSON.stringify(mobileSettings) });
   await mobile.screenshot(`${ROOT}/.dev-shots/social_settings_mobile.png`);
+  const mobileGifting = await mobile.evaluate(`(() => {
+    const box = document.getElementById('settingsGifting');
+    box.scrollIntoView({ block: 'center' });
+    return { visible: !!box, scrolled: document.querySelector('.settingscard').scrollTop > 0 };
+  })()`);
+  check('the gifting setting is present at mobile width', mobileGifting.visible && mobileGifting.scrolled,
+    { value: JSON.stringify(mobileGifting) });
+  await mobile.screenshot(`${ROOT}/.dev-shots/gifting_settings_mobile.png`);
+  }
 
   report.setup = setup;
-  report.chat = chat;
-  report.cuddle = cuddle;
-  report.conflict = conflict;
-  report.reconcile = reconcile;
-  report.partner = partner;
-  report.separated = separated;
-  report.group = group;
-  report.groupDisabled = groupDisabled;
-  report.glass = glass;
   report.errors = browser.pageErrors;
+  const expected = { all: 16, settings: 4, pair: 2, rivalry: 2, partnership: 5, groups: 2, glass: 1 };
+  if (report.checks.length !== expected[SCENARIO]) {
+    throw new Error(`Incomplete ${SCENARIO} coverage: ${report.checks.length}/${expected[SCENARIO]} checks`);
+  }
   console.log('REPORT', REPORT);
 } catch (error) {
   report.failure = String(error.stack || error);
   console.error('STOP', report.failure);
 } finally {
+  report.harness = page ? page.diagnostics() : browser.diagnostics();
   await writeFile(REPORT, JSON.stringify(report, null, 2));
   await browser.close();
 }
 
-console.log('SUMMARY', JSON.stringify(report));
+console.log('SUMMARY', JSON.stringify({ scenario: SCENARIO,
+  checks: report.checks.map(({ name, pass }) => ({ name, pass })), failure: report.failure }));
 if (report.failure || report.pageErrors.length || report.checks.some(check => !check.pass)) process.exitCode = 1;

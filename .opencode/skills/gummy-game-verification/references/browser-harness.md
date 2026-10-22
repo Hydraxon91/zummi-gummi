@@ -73,6 +73,20 @@ fixed-step actor state/positions and RNG with rebuilds on/off; run for both
 Glass JSON reports contain per-evaluation `timings`. Use targeted checks during
 iteration, then the full suite once per engine; repeat reliability samples only
 when required and stop at the first failure rather than retrying for green.
+
+For social checks, use `SCENARIO=settings|pair|rivalry|partnership|groups|glass`
+with `scripts/social-test.mjs`; gifting uses `SCENARIO=flow|carry|persistence`
+with `scripts/gifting-test.mjs`. Both default to `all`. Keep scenario prerequisites
+together and run each selected scenario after changing its fixture; the full normal
+suite checks interactions between sections. Shared desktop/mobile gifting settings
+are checked by the social settings scenario. `FAST=1` pauses background rendering
+for nonvisual assertions; gifting `carry`/`all` and social `settings` retain frames.
+Do not use paused evidence to claim visual or pointer correctness. Reports include
+the scenario, assertion inventory and bounded CDP timings. CI retains reports,
+captures and server logs even on success; inspect failures, do not retry for green.
+The push matrix is aggregated by `Required CI checks`; only explicitly allowlisted
+documentation-only diffs may skip browsers. Pages requires successful tested main
+code, not merely a successful deployment command.
 For a bounded stall investigation, set `STALL_DIAGNOSTICS=1`. On the first
 evaluation timeout the harness retains a debugger stack, process inventory and
 (on macOS) a one-second browser-process sample under `harness.stall`. This adds

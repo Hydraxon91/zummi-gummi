@@ -4,9 +4,10 @@ name: Deploy Pages
 # whole, so a new runtime module ships with no change to this workflow. Jekyll
 # is not involved (the artifact is served as static files), so no .nojekyll.
 on:
-  push:
+  workflow_run:
+    workflows: ["Smoke test"]
+    types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -21,16 +22,38 @@ concurrency:
 jobs:
   publish:
     name: Publish the app to GitHub Pages
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Check the tested revision is still current
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          current="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          if [ "$current" = "$TESTED_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping superseded tested revision $TESTED_SHA"
+          fi
 
       - uses: actions/configure-pages@v6
+        if: steps.revision.outputs.current == 'true'
 
       - name: Stage the runtime files
+        if: steps.revision.outputs.current == 'true'
         run: |
           set -euo pipefail
           rm -rf _site
@@ -43,9 +66,11 @@ jobs:
           find _site -maxdepth 1 -mindepth 1 | sort
 
       - uses: actions/upload-pages-artifact@v5
+        if: steps.revision.outputs.current == 'true'
         with:
           path: _site
 
       - name: Deploy to GitHub Pages
+        if: steps.revision.outputs.current == 'true'
         id: deployment
         uses: actions/deploy-pages@v5
