@@ -2072,15 +2072,15 @@ nonvisual tests, not proof of a specific model defect or storage bug.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 
-**Known follow-ups — opaque required-CI rollout (published; required CI failed):**
+**Known follow-ups — opaque required-CI rollout (published 2026-10-22; first run
+failed, second passed):**
 The seven nonvisual scenarios sampled above now opt into `testRender=opaque` in
 `.github/workflows/smoke.yml`, with `RENDER_COMPARISON=1` verifying and reporting
 the actual override/backend. Core, parity, settings and gift-carry remain normal;
 nightly and the manual comparison workflow are unchanged. Assertions, readiness
 gates, retries, 12-minute browser-job bounds and aggregate/deployment policy are
 unchanged. Local YAML/matrix validation confirms exactly seven opaque and four
-normal lanes; 330 Node checks pass. Prior browser evidence verifies these existing
-flags, not execution of the newly configured hosted workflow.
+normal lanes; 330 Node checks pass.
 
 Published as `d023d05bc993b113ac5d6bcf5115fbcd80df247c`. Required run
 [39839621382](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39839621382)
@@ -2116,9 +2116,16 @@ targets, needs, health, stage, sleep/grab and family-task state. These snapshots
 add no simulation steps or RNG draws; the original bond/history assertions and
 failure exit are unchanged. Both local pair modes passed 2/2 with serialized
 snapshots (`social-cuddle-report-{normal,opaque}-pair.json` in `.dev-shots/`);
-330 Node checks pass. Hosted validation is pending publication. The next
-failed report should distinguish travel, interruption and completion before a
-repair is selected; no timing increase or gameplay change is accepted here.
+330 Node checks pass.
+
+Published as `5306cc4bc8d6acf9c36ebe5778f9e41c33935fcb`. Required run
+[39845659710](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39845659710)
+**passed** all 11 browser jobs and the aggregate gate. `Browser (pair)` booted on
+its first attempt in 17 s with no page errors and passed both assertions: bond
+.44 and cuddle history present. Its retained snapshots showed distance .7658 m
+before admission, both actors moving `mate` → `seekCuddle` with 15 s timers, and
+after 7 s both in `mate` with timers reset and distance .9369 m. The rollout is
+therefore green on this revision; this one run does not establish zero flakiness.
 
 Repeat comparison
 [39839644388](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39839644388)
@@ -2128,8 +2135,55 @@ sample 3 exhausted both boot attempts; pair sample 3 recovered on its second.
 Median execution times were normal 160 s / opaque 34 s; totals 3907 / 799 s,
 excluding setup/upload. The experiment correctly failed overall for its two
 normal failures. Across both paired batches opaque passed 42/42 without boot
-retries, but the separate required-CI cuddle failure prevents a green rollout
-claim and zero-flake acceptance remains unproven. See `PERFORMANCE.md`.
+retries, and required CI later passed on `5306cc4`, but zero-flake acceptance
+remains unproven. See `PERFORMANCE.md`.
+
+**Known follow-ups — intermittent cuddle completion failure (unresolved; code not
+at fault and no repair selected):**
+*Trigger:* the `pair` scenario in `scripts/social-test.mjs` fails only
+intermittently. Observed once, in required run
+[39839621382](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39839621382)
+on `d023d05`, after a successful boot: chat passed, `socialByUid(..., 'cuddle')`
+returned `ok: true, state: seekCuddle`, yet after `g.sim(7, 0)` bond stayed .4 and
+no cuddle event was recorded. Three later runs of the same fixture — two local
+(one per rendering mode) and the hosted run above — passed with .44 and history.
+*Affected state:* the pair fixture only. Gameplay, persistence and other
+scenarios were unaffected in every run, and no page error, boot stall or
+interrupted need appeared in the failing report.
+*Disposition:* open, deferred. The fixture budgets seven simulated seconds for a
+cuddle whose module allows a 15-second approach followed by a five-second
+activity, and it asserts only bond/history, never arrival or phase. That budget
+is a plausible contributor but is not evidence of the cause; the failing report
+predates the retained snapshots. Do not raise the duration, weaken the assertion
+or change affection/`interactions.js` behaviour on this evidence. The next
+failing report now carries `cuddle.diagnostics` (before/admission/after distance,
+states, partner UIDs, role/timer, paths, needs, sleep/grab/family-task), which
+should separate incomplete travel from interruption or a completion defect before
+any fix is proposed. If it recurs, classify from that report rather than rerunning.
+
+**Known follow-ups — hosted boot stalls under software rendering (mitigated,
+mechanism unresolved):**
+*Trigger:* browser jobs intermittently never reach `window.__gummy.booted` on
+GitHub-hosted runners; the same code boots normally locally on Apple M1 Metal.
+Because the rollout leaves four lanes on normal rendering, this still applies to
+core, parity, settings and gift-carry, and to any exploratory browser run.
+*Affected state:* startup only; no assertions execute when it fires. Retained
+diagnostics show GPU `ReadPixels` stall warnings, repeated CDP `Runtime.evaluate`
+timeouts and debugger probe/pause timeouts, with no page errors and no recovered
+JavaScript stack. Observed in required run 39831895521 (gift-persistence, both
+180 s attempts) and in comparison run 39839644388 (normal rivalry sample 2 and
+gift-persistence sample 3 exhausted both attempts; pair sample 3 recovered).
+*Disposition:* open, deferred, no production change. The seven nonvisual lanes
+now use `?testRender=opaque`; both paired batches passed 42/42 opaque executions
+with zero boot retries and roughly 5× lower median execution time, and the
+required run on `5306cc4` passed. That is an evidenced mitigation for nonvisual
+checks, not an identified defect: rendering starvation remains a lead, not a
+proven cause, and the earlier transmission-pass probe does not establish the
+exact blocking operation. Keep `.github/workflows/render-comparison.yml` as the
+re-sampling method; do not relax timeouts, remove retries, move the four visual
+lanes to opaque, or change three.js/Box3D versions on this evidence. Any
+recurrence should be classified from the retained `bootAttempts`/stall probes
+before a fix is proposed.
 
 One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be
 enabled, disabled or tuned per race, per actor or at runtime. Parity with today's behavior
