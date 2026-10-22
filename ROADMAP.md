@@ -1876,6 +1876,15 @@ recover. Launch failures retry on the same path. The first attempt's diagnostics
 the retry are written to the report; assertions and job timeouts are unchanged, so a
 genuine boot regression still fails visibly.
 
+**Hosted result (run 39795559309, `506ba54`): pass.** All 11 browser jobs, the
+aggregate gate and Pages succeeded. `glass-social` used boot attempt 2 — the
+fresh-process relaunch recovered a stalled first frame and its assertion passed with
+`bootAttempt: 2` in the report. Total wall clock was 14m10s: the recovery path costs
+roughly two extra minutes when it fires, and the stalled runner is still slow rather
+than fully explained. This is one green run with a proven recovery path, not a
+flake-rate measurement; the underlying first-frame stall remains an open
+environment finding.
+
 ## Modular NPC behavior system (step 3, Oct 2026)
 
 One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be
