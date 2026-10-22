@@ -190,6 +190,12 @@ largest levers. The full report, including the previous post-polish and original
 
 ## Verification
 
+Required browser CI uses opaque appearance shaders for the seven nonvisual social/gifting
+scenarios (pair, rivalry, partnership, groups, glass-social, gift-flow and gift-persistence).
+Geometry, physics, asset readiness and assertions are unchanged; reports verify the actual
+rendering mode. Core, parity, settings and gift-carry retain normal rendering, as do the
+nightly visual/animation/asset suites. The manual comparison still samples both modes.
+
 Behavior extension foundations are documented in `src/behaviors/README.md`.
 `node scripts/check-behavior-contracts.mjs` checks engine/config registration and
 explicit support declarations; `node --test tests` includes positive/negative

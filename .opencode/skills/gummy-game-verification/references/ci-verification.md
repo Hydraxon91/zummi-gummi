@@ -31,6 +31,10 @@ Use with the parent skill and the existing browser and behavior procedures.
   harnesses. Read `bootAttempts` for retry-aware boot times and failed-page evidence;
   use per-mode wall times and exit statuses for total cost, including timeouts.
   The opaque lane is diagnostic only, not visual, animation or asset acceptance.
+  Required CI also uses opaque rendering for the seven sampled nonvisual social/
+  gifting scenarios. Core, parity, settings and carry remain normal. Preserve that
+  boundary when adding checks: visual, pointer and deformation claims need the
+  real-rendering lane. Do not disable its mode verification or asset-ready gates.
 - Upload diagnostics from hidden directories explicitly. Bound monitoring and stop
   owned processes. Do not silently retry failing suites, loosen assertions or change
   gameplay to make CI pass.

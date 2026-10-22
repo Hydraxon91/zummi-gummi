@@ -2063,6 +2063,17 @@ nonvisual tests, not proof of a specific model defect or storage bug.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 
+**Known follow-ups — opaque required-CI rollout (configured locally; hosted checks pending):**
+The seven nonvisual scenarios sampled above now opt into `testRender=opaque` in
+`.github/workflows/smoke.yml`, with `RENDER_COMPARISON=1` verifying and reporting
+the actual override/backend. Core, parity, settings and gift-carry remain normal;
+nightly and the manual comparison workflow are unchanged. Assertions, readiness
+gates, retries, 12-minute browser-job bounds and aggregate/deployment policy are
+unchanged. Local YAML/matrix validation confirms exactly seven opaque and four
+normal lanes; 330 Node checks pass. Prior browser evidence verifies these existing
+flags, not execution of the newly configured hosted workflow. A fresh required-CI
+run and repeat paired sample remain pending publication; no zero-flake claim.
+
 One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be
 enabled, disabled or tuned per race, per actor or at runtime. Parity with today's behavior
 is the acceptance gate. The modular engine is the default; the legacy engine remains an

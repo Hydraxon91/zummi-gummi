@@ -86,6 +86,7 @@ jobs:
       SCENARIO: ${{ matrix.scenario }}
       FAST: ${{ matrix.fast }}
       STALL_DIAGNOSTICS: "1"
+      RENDER_COMPARISON: ${{ matrix.render == 'opaque' && '1' || '0' }}
     strategy:
       fail-fast: false
       matrix:
@@ -98,26 +99,32 @@ jobs:
             scenario: settings
             script: node scripts/social-test.mjs
           - name: pair
+            render: opaque
             scenario: pair
             fast: "1"
             script: node scripts/social-test.mjs
           - name: rivalry
+            render: opaque
             scenario: rivalry
             fast: "1"
             script: node scripts/social-test.mjs
           - name: partnership
+            render: opaque
             scenario: partnership
             fast: "1"
             script: node scripts/social-test.mjs
           - name: groups
+            render: opaque
             scenario: groups
             fast: "1"
             script: node scripts/social-test.mjs
           - name: glass-social
+            render: opaque
             scenario: glass
             fast: "1"
             script: node scripts/social-test.mjs
           - name: gift-flow
+            render: opaque
             scenario: flow
             fast: "1"
             script: node scripts/gifting-test.mjs
@@ -126,6 +133,7 @@ jobs:
             fast: "0"
             script: node scripts/gifting-test.mjs
           - name: gift-persistence
+            render: opaque
             scenario: persistence
             fast: "1"
             script: node scripts/gifting-test.mjs
@@ -170,6 +178,9 @@ jobs:
           if [ -z "$url" ]; then
             echo "::error::launch.py did not report a listening URL"
             exit 1
+          fi
+          if [ "${{ matrix.render }}" = "opaque" ]; then
+            url="${url}?testRender=opaque"
           fi
           echo "GAME_URL=$url" >> "$GITHUB_ENV"
 
