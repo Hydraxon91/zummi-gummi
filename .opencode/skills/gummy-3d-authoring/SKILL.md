@@ -48,7 +48,9 @@ claims; it does not retroactively turn failed benchmarks into successes.
 
 For assisted stylized background props read
 [stylized game props](references/stylized-game-props.md), then the applicable construction
-module. This **unvalidated** route prioritizes useful human art-direction checkpoints,
+module. This route is **partially verified only for one human-assisted beanbag trial**;
+the general method, independent/autonomous production and broader dual-tier use remain
+unvalidated. It prioritizes useful human art-direction checkpoints,
 existing materials and a budgeted delivery copy, not exhaustive reconstruction analysis.
 Record camera distance or screen coverage, likely instances, triangle/material/texture
 budgets, motion/collision needs, available source materials and authorized delivery stages.

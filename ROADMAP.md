@@ -553,7 +553,7 @@ installation, game integration or source rebuild are authorized by this backlog.
 | [ ] Rigid furniture | Bevelled member/seat/back joint, complete frame/support contact and operating clearance where required. |
 | [ ] Sprite normals | Approved tool preflight; asymmetric sprite, flat and inverted-Y controls; alpha/colour-space/convention checks, atlas registration, source timing/loops and playback. In-game evidence only after separate integration approval. |
 | [ ] Asset families | One approved representative followed by a small family with controlled variants/states; native-size/contact-sheet review, consistent scale/pivots/material response and complete provenance. |
-| [ ] Assisted stylized props and fidelity routing | Approve gameplay-read cues and omissions before building; exercise concise human-feedback checkpoints, supplied material reuse and a separate budgeted delivery copy with both model tiers. Verify calibrated requirements remain intact for reference-faithful/reconstruction tasks. |
+| [ ] Assisted stylized props and fidelity routing — partial evidence | One human-assisted beanbag case exercised gameplay-read cue approval, manual art direction, supplied material reuse, UV review, shape-keyed delivery, clean import and standalone three.js morph preview. See `docs/3d-authoring-notes.md`. Manual intervention was required; this does not validate autonomous modelling, other prop types, the lower-tier model lane or in-game performance. Continue with an isolated second-tier evaluation and representative non-beanbag/fidelity-routing cases; retain failed submissions. |
 | [ ] Shape-repair iteration policy | Distinguish successful construction from failed repairs; test two-unchanged-failure diagnosis, six-failure review, seven-failure stop and explicit bounded continuation without erasing history or downgrading a required feature. |
 | [ ] Background-prop delivery and runtime budget | Agree screen size/camera range, instance count, triangles/materials/textures; inspect reduction at that scale, verify re-imported export counts/UVs/materials and separately approved game loading, lifecycle, appearance and measured performance. A vertex count alone cannot pass. |
 | [ ] Shared game-first contract across all categories | With both model tiers, exercise each of the seven construction guides under approved runtime geometry/material/texture budgets. Check modest source construction, reuse, category-specific repetition/deformation/alpha costs and separate delivery verification. A reference-faithful task must not be silently stylized; dense CGI/bake sources require explicit purpose/approval and must not become default runtime output. Preserve every existing safety/export/runtime gate. |
@@ -578,10 +578,12 @@ Record time, calls and cost where available, without treating tier/speed as qual
 
 Keep reports and captures in `.dev-shots/` and concise coverage/failures in
 `docs/3d-authoring-notes.md` or the affected topic doc. At review, update each lane's status
-and tested scope explicitly. Do not remove an unvalidated label based on one passing
-artifact, links/format checks, clean topology or an LLM's self-assessment. The verification
-router and guides contain no new runtime dependency; an unavailable tool/model is a named
-coverage gap, not a pass.
+and tested scope explicitly. A guide may report a precisely scoped partial exercise when
+the named evidence supports it; do not promote the broader guide to validated from one
+asset, links/format checks, clean topology or an LLM's self-assessment. Keep unchecked
+backlog rows open while any required tier or representative scope is missing. The
+verification router and guides contain no new runtime dependency; an unavailable
+tool/model is a named coverage gap, not a pass.
 
 Initial independent beanbag submissions from the user-labelled DeepSeek and GPT-6.1 Sol
 sessions have been reviewed from reports, captures and both live final meshes. Both fail
@@ -1793,6 +1795,24 @@ can proceed with the current runtime and assets.
   should assert `familyTask` first.
 - **Playdates are daytime-only.** Family acquisition and due playdates check the actor's
   day/night profile; forced debug hooks can still start one at night.
+
+## Personality and modular-AI extension track
+
+This is an additive foundation, not a replacement engine. Only chunk 1 is approved
+for implementation. Other chunks require their own behavior/persistence decisions
+and approval; their presence here is not authorization to start them.
+
+| Chunk | Status / dependencies | Scope | Acceptance gate |
+| --- | --- | --- | --- |
+| **1 — Contracts and personality definitions/presets** | Approved, in progress | Guidance; validated module contracts and registration/config checks; explicit supported/unsupported toggle policies; reusable conformance tests; ordered trait definitions and validated, unapplied shy/adventurous/food-motivated preset data | Positive/negative contract fixtures; scope/admission/existing-activity/re-enable/cleanup checks where supported; unchanged defaults, trait order, founder values, inheritance RNG and save shape; Node/browser/parity evidence. No automatic preset assignment or personality enablement. |
+| **2 — Preferences, habits and personality extension points** | Planned; depends on 1 | Separate stable traits, temporary mood, preferences and learned habits. Extend supported bounded parameter effects and reusable inheritance/migration/cache contracts. Prove one representative opt-in addition before replication. | Approve trait/preset values, effect targets, acquisition/decay rules and persistence first. Verify visible behavioral differentiation, save/load and map isolation, enabled determinism/RNG and disabled compatibility; survival priorities remain authoritative. |
+| **3 — Optional activity proposals** | Planned; depends on 1–2 | Shared eligibility/preference/explanation interface; initially preserve ordered selection. A separately enabled optional-activity chooser may use personality, preferences, habits and relationships. | Approve eligible activity set, scoring/ties, evaluation budget, refusal and interruption policy. Explain selection/rejection; verify real natural selection, exactly-once effects, pair/claim cleanup and determinism. No override of essential needs or existing player-command rules. |
+| **4 — Bounded goals over existing actions** | Planned; depends on 3 | Goal preconditions, progress/completion, expiry/abandonment, interruption/resumption and bounded memory/evaluation. Reuse existing movement and interaction protocols; prove one small multi-step goal before general planning. | Approve representative goal, persistence and limits first. Verify successful and impossible plans, interruptions, claim cleanup, save/load, map/new-game isolation, deterministic behavior and runtime budget. No unbounded planner or second simulation system. |
+
+**Protected in chunk 1:** personality remains off by default; no new trait axes,
+actor-save format changes, chooser/planner, dependencies or broad engine rewrite.
+Essential behaviors are not made arbitrarily disableable. Declare unsupported
+configuration rather than implying that every engine module has full toggle support.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 

@@ -153,6 +153,34 @@ all-view perfection or game readiness. No model edit/save, export or runtime tes
 Next proposed stage is explicit tangent-UV binding followed by a separately approved
 morph-preserving delivery plan; no further construction was warranted by the inspected views.
 
+### Scoped outcome: human-assisted stylized-prop trial
+
+The assisted beanbag route is now **partially verified for this one human-assisted case**,
+not globally validated. The session reports the user's manual settled-shape edits and
+subsequent construction of `Occupied` and `Occupied_Strong`; repeated early shape/UV states
+were rejected, including base drift, an unsuitable full-shape rebuild and a fragmented,
+pinched underside unwrap. Those interventions and failures are part of the evidence, not
+autonomous success. Preserve the independent Sol/DeepSeek submissions and their failed
+reference-fidelity briefs; this assisted lane does not retroactively change them.
+
+The user-reported accepted delivery candidate is
+`.dev-shots/asset-pipeline/deepseek_beanbag_stylized_001/delivery/beanbag_stylized_delivery_002_single_sided.glb`
+(SHA-256 `359b1411b46f814ffe0794b19c7a80365b4f9b6852913c72133319396e31e6f5`) with editable
+source `_048_normal_uv_bound.blend`. The supplied report records one mesh/material, 3,072
+triangles, two independently responding morph targets, three embedded maps, clean import and
+standalone three.js review; the Khronos validator warning for generated tangent space remains.
+This session inspected the reported single-sided diagnostic and selected morph captures, and
+independently confirmed the GLB hash, `doubleSided: false`, embedded images and morph names.
+That is not a full independent audit of the delivery report. The user's explicit final
+acceptance of `_002` is not recorded in this note; the evidence supports a candidate only,
+not accepted user delivery. No in-game integration or performance test was in scope.
+
+This case does not validate autonomous modelling, arbitrary soft-goods forms, all stylized
+props, every omission/fidelity-routing branch, or the required lower-tier evaluation.
+Keep the Roadmap validation item open until those gaps are exercised with preserved failures
+and independently reviewed evidence. The guide's status is deliberately scoped to this
+human-assisted case.
+
 ## Asset library coverage
 
 Exercised in the pond-scene trials (2026-10-19–20, Blender 5.2.2, addon 1.8):
