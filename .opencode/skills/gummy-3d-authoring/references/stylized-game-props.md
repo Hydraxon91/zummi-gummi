@@ -1,10 +1,11 @@
 # Assisted stylized game props — partially verified
 
-**Status: successfully exercised in one human-assisted stylized beanbag trial through
-shape-keyed GLB delivery, clean import and standalone three.js review.** Manual shape
+**Status: successfully exercised in one human-assisted stylized beanbag trial with DeepSeek
+through shape-keyed GLB delivery, clean import and standalone three.js review.** Manual shape
 intervention was required. This verifies only that scoped assisted case, not autonomous
-modelling, general reliability across prop types or in-game readiness. Broader and dual-tier
-validation remain incomplete; see `docs/3d-authoring-notes.md` and the `ROADMAP.md` validation
+modelling, general reliability across prop types or in-game readiness. Broader validation
+and a higher-tier control remain incomplete; DeepSeek is the acceptance lane for this
+project goal. See `docs/3d-authoring-notes.md` and the `ROADMAP.md` validation
 backlog. This status neither validates a generator nor relaxes any asset's acceptance criteria.
 Follow the main skill and applicable construction module. Live MCP is required for shape
 authoring; headless reference analysis and optional verification helpers are not a substitute.

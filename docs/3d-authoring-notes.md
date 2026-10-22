@@ -176,10 +176,22 @@ acceptance of `_002` is not recorded in this note; the evidence supports a candi
 not accepted user delivery. No in-game integration or performance test was in scope.
 
 This case does not validate autonomous modelling, arbitrary soft-goods forms, all stylized
-props, every omission/fidelity-routing branch, or the required lower-tier evaluation.
-Keep the Roadmap validation item open until those gaps are exercised with preserved failures
-and independently reviewed evidence. The guide's status is deliberately scoped to this
-human-assisted case.
+props, every omission/fidelity-routing branch, or a higher-tier control. The user confirmed
+the beanbag lane was DeepSeek, so this is the exercised DeepSeek lane rather than a missing
+lower-tier evaluation. DeepSeek is the acceptance lane for the project goal; a higher-tier
+control remains an optional diagnostic check. Keep the Roadmap validation item open until a
+non-beanbag case and the reference-faithful routing branch are exercised with preserved
+failures and independently reviewed evidence. The guide's status is deliberately scoped to
+this human-assisted case.
+
+### Planned next case: reference-faithful watering can
+
+The planned next lane is a static curved-product trial: a small garden watering can, built
+by DeepSeek with the reference-faithful routing check folded in. Required cues, omissions,
+budget and the reference authority must be recorded in the work card before geometry.
+Calibrated reference planes must be locked before the first shape edit; without a supplied
+reference with dimensions, the calibrated branch is not claimed. No shape, export or
+integration work has started. Preserve failed repairs and record manual interventions.
 
 ## Asset library coverage
 
