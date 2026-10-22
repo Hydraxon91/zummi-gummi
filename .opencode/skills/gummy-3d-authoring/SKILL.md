@@ -83,6 +83,13 @@ For soft goods, prefer an editable quad cage with broad contact, controlled subd
 deformation and folds. Test the seat/contact transition first: subtracting a cavity from
 a smooth primitive can read as a rigid bowl rather than a yielding fabric form.
 
+Before building, check supplied views for design contradictions as well as scale using
+the [construction brief](references/construction-brief.md). When motion is requested,
+use its unvalidated control-selection guide and short motion contract: rest/recovery,
+allowed combinations, support/contact and prohibited outcomes. Choose controls before
+detail; after primary-form approval, prove one moving region before replication or rig
+polish. A static prop does not need a rig, and a squash does not automatically need bones.
+
 ## Construction routing
 
 Before completing the construction brief, read the shared game-asset contract and the
@@ -324,6 +331,18 @@ joints and containment separately rather than treating an overlap count as the v
 
 ## Diagnosing appearance discrepancies
 
+### Separate display, surface, UV and shader causes — unvalidated extension
+
+Edit Mode may show the selected control cage and subdivided result crossing each other.
+Compare the same region in Object Mode with overlays off before diagnosing duplicate faces
+or self-intersection from patchy edit overlays. Then isolate uniform clay, checker mapping
+and individual material channels under matched framing/lighting. A temporary subdivision
+comparison can test surface approximation; restore the original setting and do not infer
+a permanent geometry/budget change from it. No visible difference at one view rules out
+neither other views nor untested causes. Do not merge, delete, recalculate normals or
+reshape the source without evidence identifying the defective representation and region.
+Preserve user mode/selection and restore temporary diagnostic state in `finally`.
+
 ### Material-boundary repair procedure
 
 Identify the visible object and faces using picking/raycast or a restored flat-colour
@@ -385,12 +404,23 @@ editing shader values, establish what a capture is actually showing.
 
 ## Capturing views
 
+- **Viewport-first motion review:** use Blender viewport playback for shape-key, rig and
+  deformation previews. If playback cannot be shared through the available tools, capture
+  a small sequence of representative viewport frames. Do not search for bundled encoders,
+  build video pipelines or render full animations merely to inspect motion. Encoding video
+  requires an explicit user request or separate approval; an existing binary is not
+  authorization to use it.
 - Framing targets does not imply isolation. Use `capture_review.py --isolate` with explicit
   targets for host/attachment checks and inspect the image. Add `--focus-targets` and
   `--focus-view` for a bounds-based interface close-up; do not guess a camera distance.
 - Animated captures require explicit `--frame`; `--pose-object` records an evaluated
   hinge/controller matrix. `check_evidence.py` compares frames, matrices, hashes and
   frame-specific fingerprints. An "open" label is not a pose assertion.
+- The current matrix-based distinct-pose check does not establish shape-key or bone-pose
+  differences with an unchanged object root. Shape-key values/coordinates contribute to
+  source fingerprints, but bone poses are not explicitly covered. Do not move roots to
+  satisfy this check or claim unsupported pose freshness; inspect and report those states
+  separately until the deferred deformation-evidence extension is verified.
 - `check_interface.py` is experimental: it samples evaluated surfaces and reports local
   signed nearest distances, spacing and coverage. It is fixture-tested on boxes but does not
   prove complete contact or watertightness.
@@ -733,9 +763,11 @@ unrelated lighting or cameras to conceal shape defects.
 - Scripts are not transactions: an exception can follow successful earlier edits. Inspect
   the actual scene before retrying, avoid double-applying changes, and restore temporary
   selection, visibility, material overrides and render/bake settings in `finally`.
-- A UV layer reference captured before a UV add-on operator can become stale. Re-fetch
-  `ob.data.uv_layers[name]` before copying or auditing; otherwise reads can raise
-  `IndexError` or return old data.
+- RNA mesh/UV references can become stale across mode changes, layer creation/removal or
+  topology-changing operators, not only add-on calls. Retain stable names/identities and
+  re-fetch the object, mesh and `ob.data.uv_layers[name]` after those transitions before
+  copying or auditing. Revalidate index correspondence; do not retry with an old reference
+  after `bpy_prop_collection`, `IndexError` or invalid-data errors.
 - `uv.pack_islands` can reorder islands. Treat IDs, label placement and names as invalid
   after a pack; recompute islands and rebind names by face set.
 - `autounwrap.smart_uv` has a blocking `execute` path for scripts, but the organic

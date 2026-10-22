@@ -196,12 +196,33 @@ live inspection during construction.
 
 ## UV and baking preparation
 
+- For UV/material-only work, preserve ordered mesh connectivity, base and all shape-key
+  coordinates/settings, transforms and modifiers. Compare geometry-only records before/after;
+  the whole-asset fingerprint legitimately changes with UVs/materials. Do not rebuild or
+  remesh to fix mapping. Keep existing layouts and work in a newly named UV layer unless
+  overwriting is explicitly approved.
 - Prefer deliberate seams hidden from the main view; for tangent-space normal bakes,
   hard normal edges generally need UV splits. A UV seam need not be a hard normal edge.
+- Select seam boundaries by topology and inspected surface ownership, not just a coordinate
+  threshold: selecting every coplanar edge can split a bottom region into individual faces.
+  Inventory connected UV islands after unwrapping. A continuous prominent surface plus a
+  separate cap may be useful, but neither one-island layouts nor underside cuts are universal
+  requirements. Intentional fabric seams and accidental texture discontinuities are different.
 - Choose seam-based unwrap for controlled islands, minimum-stretch for suitable organic
   forms, or smart projection for appropriate hard-surface blockouts. Verify the actual API.
 - Use a checker texture to inspect stretching and orientation. Compare texel density
   across parts at the intended texture resolution; do not enforce a universal px/m value.
+- Inspect checker squareness/shear, pattern scale and seam response across approved prominent
+  surfaces, rear, underside and required deformation states. Add close-ups where features are
+  actually exposed; hide occluders temporarily and restore them. An area ratio measures density,
+  not directional stretch. Report worst regions with their face identity/location and affected
+  surface area, plus robust/area-weighted summaries where available. A tiny extreme is not a
+  whole-asset diagnosis, but a good median cannot excuse collapse or severe pinching. Hidden
+  distortion needs explicit acceptance under the brief, not an automatic delivery exception.
+- Distinguish repeatable fabric UVs from unique bake/paint layouts. UVs outside 0–1 can be
+  intentional for tiled textures with verified repeat sampling; they do not establish unique
+  bake suitability. Packing can rescale islands: verify density afterward and scale deliberately
+  in consistent units. Do not copy another asset's margins, density target or scaling constants.
 - Choose pixel padding for the expected mip chain and texture size. Packing success does
   not establish adequate padding or absence of overlap. Deliberately mirrored/stacked UVs
   need separate treatment for unique AO/normal bakes; preserve their baseline before edits.

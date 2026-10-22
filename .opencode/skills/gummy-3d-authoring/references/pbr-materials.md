@@ -15,6 +15,28 @@ change a view transform or bake textures without confirming the asset scope.
 - Preserve unrelated materials and shader nodes. If a material is shared, duplicate it before
   changing it for one asset.
 
+## Reversible material preview — unvalidated extension
+
+Within an approved material-preview stage, wiring existing candidate maps for inspection
+does not require a separate delivery approval for each channel. Missing final art approval
+alone does not block seeing the candidate on the asset. Honor explicit restrictions on map
+use; preview authorization does not authorize new generation, destructive correction, baking,
+export or delivery acceptance.
+
+Preserve source graphs, image bytes and unrelated shared users. Apply material families or
+channels in diagnostic passes as useful, not a mandatory sequence of beauty reveals. Compare
+a suspect normal/roughness contribution enabled and disabled under the same neutral lighting,
+camera and view transform; use raking light when it exposes surface response. Verify normal
+convention before proposing correction. Inspect seams, pattern scale and stretching at the
+intended game scale, nearest supported view and required deformation states.
+
+Label candidates and report colour, normal, roughness, tiling and lighting findings separately.
+Generation success or a base-colour-only review does not accept other channels. Preserve
+approved corrections and do not silently regenerate or alter maps to hide defects; obtain
+approval for those changes. Restore temporary diagnostic settings after comparisons and
+report which candidate wiring remains for review. Delivery still needs the applicable
+colour, material-transfer and export gates.
+
 ## Principled BSDF in 5.2.2
 
 `Material.use_nodes` is deprecated (Blender warns it is expected to be removed in 6.0).
@@ -87,10 +109,22 @@ nodes do not become glTF materials; bake them to textures first.
 
 ## Normal maps
 
+With multiple UV layers, bind each texture set through an explicit UV Map node naming the
+intended layer. Set the tangent-space Normal Map node's UV-map field to the same layer;
+image sampling and tangent construction must agree. An active/render UV change must not
+silently retarget the fabric. Inspect links, including node groups, rather than counting
+UV Map nodes; an unused node is not proof of binding. Preserve comparison layouts and
+record the chosen layer with the material setup.
+
 Blender, glTF and three.js use OpenGL-style tangent-space normals (Y+). Unreal and some
 Substance presets use DirectX (Y−). Do not flip the green channel without knowing the source
 and target convention. Bake and export with the same triangulation and tangent basis; otherwise
 seams and shading artifacts appear even when the texture looks correct in Blender.
+
+Height-gradient correlation can support a convention diagnosis, but only after validating
+image row direction, UV axes and derivative signs. Generated height/normal maps need not
+be mutually consistent; correlation alone is not proof. Confirm with a controlled lighting
+comparison and retain the original map before any separately approved correction.
 
 ## Procedural materials
 

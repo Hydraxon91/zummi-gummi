@@ -58,6 +58,22 @@ height, crown, contact spread, symmetry and subdivision. Name coupled controls e
 Use broad form for contact/compression; use bump/normal only for relief that does not
 need to affect silhouette or parallax at the agreed closest view.
 
+### Stable deformation inputs — unvalidated extension
+
+For procedural deformation, identify and preserve the canonical cage/parameter coordinates
+and the approved current shape as distinct states. Derive repeatable deltas from the named
+baseline rather than normalizing already-deformed vertices as if they were the original
+parameterization. Use separate controls/masks for coupled seat, rim, crown and contact
+regions; choose their support from this asset's geometry, not fixed height thresholds.
+Protect the grounded region and inspect intermediate states for unintended movement.
+
+A pristine cage does not supersede manual edits. Rebuild only with explicit approval and a
+recipe or correspondence that preserves/reapplies accepted changes and verifies protected
+surfaces. Prefer a scoped deformation when it can meet the criterion; a different base is
+not an automatic recovery for a local visual defect. Preserve both the baseline and manual
+state before changing strategy. Compare evaluated world-space surfaces after depsgraph
+updates; stale dimensions or unchanged object bounds alone cannot establish preservation.
+
 ## 4. Diagnose before another edit
 
 | Observed failure | Inspect first | Next permitted test within approved scope |

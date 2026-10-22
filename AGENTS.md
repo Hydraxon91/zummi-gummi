@@ -607,11 +607,23 @@ approved work chunk.
 - **Keep source editable.** Preserve source geometry/parameters before applying
   destructive booleans, remeshing or decimation. Use a separate export/evaluated copy
   where appropriate. A requested change to one part must not silently reshape others.
+- **UV/material-only edits preserve shape.** Record and compare ordered topology, base-mesh
+  and every shape-key coordinate block, key settings, transforms and modifier configuration
+  before/after. Counts and unchanged bounds are not preservation evidence. Use geometry-only
+  comparisons separately from whole-asset fingerprints, which should change when UVs or
+  materials change. A failed preservation check blocks delivery; restore the scoped change
+  without discarding unrelated user work.
 - **A user-posed assembly is data.** When the user has moved or rotated an imported part,
   capture the full hierarchy (root and children, including rotation mode/quaternion) or
   export the posed hierarchy at identity as a new source. Reapplying only the root
   transform does not reproduce per-part edits; compare rebuilt world matrices against the
   live placement.
+- **Viewport-first motion review.** Use Blender viewport playback for shape-key, rig and
+  deformation previews. If playback cannot be shared through the available tools, use a
+  small sequence of viewport captures at representative frames. Do not hunt for bundled
+  encoders, build video pipelines or render full animations merely to inspect motion. Video
+  encoding requires an explicit user request or separate approval; an existing binary is
+  not authorization to use it.
 - **Check shared data before edits.** Inventory mesh, material and image users, parents,
   constraints and modifier dependencies. Make an approved independent copy when necessary;
   changing one part must not silently change linked parts or their placement.

@@ -45,6 +45,13 @@ assembly acceptance:
 5. Add secondary details, materials, seams, rigging and final export only after the shape gate
    is recorded as passed.
 
+When motion is in scope, choose controls and define the short motion contract in
+[construction brief](construction-brief.md) before detailing. After primary-form approval,
+test one representative moving region before fine detail, full rig polish or replication.
+Check support/contact, link endpoints, intermediate travel and recovery through the
+viewport-first motion-review route. A successful endpoint pose does not establish the
+complete motion envelope or exported behavior.
+
 The structural checker can confirm bounds and editable state; it cannot prove likeness. A
 failed silhouette is a stop, not a reason to add detail. Capture manifests carry a source
 fingerprint, so edits invalidate prior captures. Record a silhouette approval only after

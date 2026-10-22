@@ -557,6 +557,7 @@ installation, game integration or source rebuild are authorized by this backlog.
 | [ ] Shape-repair iteration policy | Distinguish successful construction from failed repairs; test two-unchanged-failure diagnosis, six-failure review, seven-failure stop and explicit bounded continuation without erasing history or downgrading a required feature. |
 | [ ] Background-prop delivery and runtime budget | Agree screen size/camera range, instance count, triangles/materials/textures; inspect reduction at that scale, verify re-imported export counts/UVs/materials and separately approved game loading, lifecycle, appearance and measured performance. A vertex count alone cannot pass. |
 | [ ] Shared game-first contract across all categories | With both model tiers, exercise each of the seven construction guides under approved runtime geometry/material/texture budgets. Check modest source construction, reuse, category-specific repetition/deformation/alpha costs and separate delivery verification. A reference-faithful task must not be silently stylized; dense CGI/bake sources require explicit purpose/approval and must not become default runtime output. Preserve every existing safety/export/runtime gate. |
+| [ ] Reference coherence, motion contracts and reversible material previews | With both model tiers, identify contradictory part/attachment layouts before building; choose minimal controls and prove one moving region before detail/replication. Check rest/recovery, allowed control combinations, contact and intermediate states through viewport review. Exercise existing-map previews without treating wiring as delivery approval or silently correcting/regenerating maps. These extensions remain unvalidated; a published case study is not project acceptance evidence. |
 | [ ] UI/input extensions | Real boot/menu readiness, supported focus/device transitions, multiple viewport/aspect cases, interaction assertions, persistence where affected and bright/dark native-size captures. Hardware not exercised remains unverified. |
 | [ ] Verification routing and completeness | Compare original requirements/commands with all seven extracted references; verify links/paths, cumulative routes for cross-system changes, stage/evidence rules and no dropped acceptance criteria. Exercise representative browser, behavior/save, physics/map, rendering/UI and performance tasks. |
 | [ ] Dual-tier end-to-end usability | Apply the protocol below to every guide and routing scenario; retain failures as well as passes. A successful higher-tier run cannot certify the lower-tier lane or vice versa. |
@@ -590,6 +591,44 @@ prop workflow with human direction rather than exact dimples: that is a new assi
 production lane, not retroactive benchmark acceptance. Review findings, measured counts
 and cost-evidence limits are in `docs/3d-authoring-notes.md`. No model edits, optimization,
 export or integration are authorized by these documentation changes.
+
+**Known follow-ups — deformation evidence (deferred; code inspection only):** With a stationary
+object root, distinct shape-key or bone poses can be rejected as identical by
+`tools/asset-pipeline/scripts/check_evidence.py`: its multi-manifest distinctness test compares
+only controller world matrices recorded by `capture_review.py`. Expected behavior is to
+distinguish the requested deformation states without moving the root. Separately,
+`asset_fingerprint.py` hashes shape-key values/coordinates but not explicit bone poses;
+armature dependencies include object transforms, not evaluated bone matrices, so pose edits
+can evade freshness checks. No Blender reproduction or tool fix was performed in this
+documentation pass. A separately approved extension should record selected shape-key values
+and evaluated bone matrices, define appropriate distinctness/freshness checks, and test
+unchanged roots with changed morph/bone states, genuinely identical states, stale evidence
+and existing object-transform captures. Preserve source state during checks; do not move
+roots or weaken acceptance to work around the limitation.
+
+**Known follow-ups — shape-preservation and UV diagnostics (deferred tooling):** UV/material
+edits legitimately change the whole-asset fingerprint, so preservation checks need a separate
+geometry-only report covering ordered connectivity, base/all shape-key coordinates and key
+settings, transforms and modifier configuration. Add fixtures where UV-only edits preserve
+those signatures and where reordered vertices, a changed key or modifier must fail.
+The skill's `scripts/uv_report.py` currently reads the active UV layer and reports density,
+not directional stretch. A separately approved extension should select a named layer, report
+stretch/shear and worst face locations/area, robust and area-weighted summaries, and retain
+clear exclusions for overlap/padding checks it does not perform. Validate with known-good,
+sheared, anisotropically stretched, collapsed and tiny-extreme fixtures, including subdivision
+and deformation states. No helper implementation or validation is included in this doc pass.
+
+**Known follow-ups — assisted beanbag underside UV (unresolved, not accepted delivery):** In
+`beanbag_stylized_source_041_uv_bottom_seam_review.blend`, live inspection of
+`Fabric_UV_Seam2` found one 370-face source island and 14 isolated one-face islands, with
+36 discontinuous UV edges. The underside checker shows concentrated pinching; evaluated
+high-density triangles lie near the sole. Marking all edges whose endpoints pass a height
+threshold does not identify a cap perimeter. Next propose a UV-only candidate with an
+inspected connected underside patch and deliberate perimeter, preserving geometry/keys and
+prior UV layers. Check the lower visible body as well as the sole. Do not waive hidden-region
+acceptance, reshape the bag or export this diagnostic layout as a clean delivery. Evidence
+and the distinction between reported history and inspected state are in
+`docs/3d-authoring-notes.md`.
 
 **Known follow-ups — beanbag reference orientation (side mapping fixed; source unchanged):** The calibrated
 `Ref_Side` in `beanbag_source_026.blend` places the back toward −Y, whereas the source

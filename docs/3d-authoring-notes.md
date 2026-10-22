@@ -92,6 +92,47 @@ materials and actual camera scale need evaluation rather than a universal thresh
 No candidate was promoted, rebuilt or optimized by this review. The new assisted route,
 fidelity routing and budget/runtime extension remain unvalidated until exercised.
 
+## Assisted stylized beanbag — UV/material review
+
+This is continuation of the existing assisted session, not a request to start another
+session or re-score the independent benchmark. The user supplied a session handoff for
+`deepseek_beanbag_stylized_001`; its base-drift, whole-shape rebuild, manual-edit and initial
+compression failure history remains session-reported, not independently reproduced here.
+Its fixed mask heights, density targets and seam placement are asset-specific observations,
+not general modelling rules. The reported historical geometry hashes were not independently
+matched during this inspection.
+
+Read-only live inspection found `beanbag_stylized_source_041_uv_bottom_seam_review.blend`
+open with dirty state false, Object Mode and both occupied keys at zero. `Beanbag_Settled`
+has 386 vertices / 768 edges / 384 quads, a level-1 unapplied subdivision modifier, and
+Basis-relative `Occupied` / `Occupied_Strong` with 386 points each. Evaluation at that state
+gave 1,538 vertices / 3,072 triangles. All 384 faces use the fabric slot; clay/checker slots
+remain available. `Fabric_UV`, `Fabric_UV_Seam` and active/render `Fabric_UV_Seam2` exist.
+The fabric has named UV Map nodes, while its tangent-space Normal Map UV field is empty;
+an explicitly matched field would remove dependence on active/render UV selection. A final
+link inspection confirmed `Fabric_UV_Seam2` feeds the fabric Mapping node. Dirty state
+remained false, Object Mode and key values zero after inspection; no source save occurred.
+
+Inspected captures under that asset's `captures/` include `uv2_checker_front_close.png`,
+`uv2_checker_rear.png`, `uv2_checker_underside.png`, `fabric_bottom_basis_front_close.png`,
+`fabric_bottom_strong_front_close.png`, `fabric_bottom_basis_rear.png`,
+`fabric_bottom_basis_game.png`, and both `shading_clay_raking_sub1_close.png` /
+`shading_clay_raking_sub2_close.png`. Front/rear fabric reads improved and the clay comparison
+does not expose a clear faceting change at that view; it does not establish an all-view
+shading diagnosis. The checker still shows size variation toward the lower body and severe
+underside concentration. This is not a clean accepted delivery unwrap.
+
+Independent source-face adjacency across matching UV edge endpoints found one 370-face
+island plus 14 one-face islands and 36 discontinuous edges. The current height-threshold
+seam recipe therefore does not produce a single clean bottom-cap island. Evaluated triangle
+UV-area/world-area ratios reach about 571 near sole Z = 0.0023 m; this is a triangle/evaluated
+measurement, not directly interchangeable with the handoff's maximum 351.08 calculated by
+an unspecified aggregation. Neither extreme alone measures directional stretch. Next review
+should isolate an inspected underside patch with only its perimeter cut, keep all shape/key
+coordinates unchanged and verify the lower visible body as well as the bottom. No asset
+edit, save, unwrap, export or in-game verification was performed by this review. Remaining
+normal-map quality and material/UV acceptance are not waived.
+
 ## Asset library coverage
 
 Exercised in the pond-scene trials (2026-10-19–20, Blender 5.2.2, addon 1.8):

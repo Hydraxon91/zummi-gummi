@@ -17,6 +17,11 @@ Record concise decisions and observable evidence, not hidden reasoning.
   source materials and separately authorized export/integration stages. Distinguish
   editable source, evaluated source and re-imported export counts.
 - **Target/evidence:** reference landmarks, dimensions, units, coordinate space and uncertainty.
+- **Reference coherence:** compare supplied views for conflicting part counts, panel layouts,
+  attachment points and operating states, not just dimensions. Name the authority view and
+  flag consequential contradictions for user decision before building. Generated views are
+  design proposals, not proof of hidden construction or mechanical feasibility. This check
+  applies in every fidelity mode and does not authorize new image generation.
 - **Reference calibration:** authority view, crop rectangles, pixels-per-metre scale, plane
   collection and the overlay captures used for the gate. If no reference was supplied, state
   that explicitly. In reference-faithful/reconstruction or requested measured matching,
@@ -31,6 +36,10 @@ Record concise decisions and observable evidence, not hidden reasoning.
 - **Method:** chosen approach, why it fits, and the principal alternative's drawback.
 - **Editable controls:** source cage/profiles, symmetry, support loops, thickness,
   hinge/sweep axis, modifiers and recoverable source.
+- **Motion contract (if requested):** choose controls using the guide below; record rest
+  and recovery states, ranges, allowed combinations, contact/support requirements, prohibited
+  outcomes and representative test states. Mark motion excluded for a static asset rather
+  than adding a rig by default.
 - **Geometry/material split:** list features that must be modelled (silhouette, thickness,
   openings, parallax, attachment, articulation, deformation) and features that can be
   texture/material (printed graphics, fine relief, roughness, colour boundaries). State the
@@ -58,6 +67,41 @@ acceptance. Follow `assembly-verification.md`; do not conceal failed constructio
 Choose from geometry, not names: a coiled shell and a hinged laptop clamshell need different
 construction. Derive counts/offsets from scale and curvature, not tutorial constants.
 Preserve procedural sources before applying arrays or bridging evaluated copies.
+
+## Deformation controls and motion contract — unvalidated
+
+Choose the simplest controls that support the approved behavior before detailing. These
+are candidates, not permission to change an existing actor representation or build a rig.
+
+| Required behavior | First candidate | Representative check |
+| --- | --- | --- |
+| One fixed art-directed form | Editable cage / proportional edits | Preserve support/contact and required silhouette |
+| Authored squash or expression states | Shape keys with matching topology | Basis, intermediate and full states; approved combinations and recovery |
+| Articulated rigid parts | Explicit pivots and parenting, or a small bone rig | Joint limits, attachment endpoints and required clearance throughout travel |
+| A limb must reach or keep a contact target | IK where useful; FK for directly controlled articulation | Reach limits, planted contact, joint direction and stable body movement |
+
+Keep the contract short and reuse the approved work card. Specify:
+
+- The rest/Basis state and the intended recovery target; these need not be a pristine or
+  symmetric shape. State whether deformation resets, settles or persists.
+- Named controls, ranges and whether variants are alternatives or may combine. Do not
+  assume separate shape keys are mutually exclusive or safe at simultaneous full weight.
+- Support/contact and moving interfaces: what stays planted, what may move, and each
+  required link/actuator's attachment endpoints. State the allowed sliding or clearance.
+- Failure cues such as floor penetration, detached parts, clipping, pinching, implausible
+  filling loss or impossible joint travel. Agree relevant tolerances rather than inventing
+  physical accuracy, occupant dimensions or travel limits.
+
+After primary-form approval, prove one representative moving region on the simple source
+before replicating it or adding fine detail/full rig polish. Inspect intermediate states
+and recovery, not only endpoints. Use viewport playback or representative viewport frames;
+do not add a video pipeline for this review. A few stills establish only the sampled states,
+not timing, smoothness or the complete motion envelope.
+
+Blender controls are authoring mechanisms, not a runtime-support guarantee. Before separately
+approved export, identify what becomes object transforms, skin animation or morph weights;
+IK, constraints and drivers do not automatically transfer as runtime solvers. Any necessary
+animation bake needs its own approved scope and source-versus-export motion comparison.
 
 ## Laptop example (illustrative, not a validated pattern)
 
