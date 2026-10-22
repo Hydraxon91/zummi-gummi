@@ -431,6 +431,11 @@ editing shader values, establish what a capture is actually showing.
 - Framing targets does not imply isolation. Use `capture_review.py --isolate` with explicit
   targets for host/attachment checks and inspect the image. Add `--focus-targets` and
   `--focus-view` for a bounds-based interface close-up; do not guess a camera distance.
+- For a direct in-session capture call, use `asset_capture.render_view` with the
+  objects, view and reference planes; it restores render state and visibility on
+  success or failure. It updates the view layer after positioning, so projection
+  checks see the current camera transform. A capture proves only what the inspected
+  image shows.
 - Animated captures require explicit `--frame`; `--pose-object` records an evaluated
   hinge/controller matrix. `check_evidence.py` compares frames, matrices, hashes and
   frame-specific fingerprints. An "open" label is not a pose assertion.

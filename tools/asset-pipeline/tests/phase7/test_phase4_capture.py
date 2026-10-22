@@ -105,12 +105,13 @@ if helper:
     assert state() == before
     assert tuple(bg.inputs[0].default_value) == color
     from types import SimpleNamespace
-    original_bpy = can.bpy
+    capture_module = can._asset_capture()
+    original_bpy = capture_module.bpy
     class RenderFailureProxy:
         ops = SimpleNamespace(render=SimpleNamespace(render=failure))
         def __getattr__(self, name):
             return getattr(original_bpy, name)
-    can.bpy = RenderFailureProxy()
+    capture_module.bpy = RenderFailureProxy()
     try:
         try:
             can.render(str(out / 'can_render_failure.png'), 'front', (0, 0, 0.2), 1.5,
@@ -120,7 +121,7 @@ if helper:
         else:
             raise AssertionError('Render exception hidden')
     finally:
-        can.bpy = original_bpy
+        capture_module.bpy = original_bpy
     assert state() == before
     assert tuple(bg.inputs[0].default_value) == color
     try:

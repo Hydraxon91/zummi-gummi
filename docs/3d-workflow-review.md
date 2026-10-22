@@ -50,10 +50,16 @@ Python is prevented from exporting or that documentation completeness proves fit
 Follow-up capture repair: reference-visibility loops in the local adapter reused
 the snapshot variable, causing restoration to fail when named reference objects
 were present. The snapshot now uses a distinct name and temporary-world cleanup
-runs even if restoration raises. The updated disposable fixture includes both
-`REF_front` and `REF_top` and checks success and injected-render-failure restoration.
-The rerun passed in Blender 5.2.2; evidence is under
-`.dev-shots/asset-pipeline/phase4-tool-repair/capture-siylohae/`.
+runs even if restoration raises.
+
+The reusable behaviour is now tracked in `tools/asset-pipeline/scripts/asset_capture.py`;
+the ignored can-local helper delegates to it instead of keeping a divergent copy.
+`test_asset_capture.py` exercises named reference objects, front/side orientation,
+invalid views, injected render failure and wire mode. It exposed a second defect:
+setting the camera transform directly left `matrix_world` stale, so projection
+checks read an identity camera until a view-layer update. The helper now updates
+the view layer after positioning. Passing evidence: `front.png`, `side.png`,
+`wire.png` under `.dev-shots/asset-pipeline/phase4-tool-repair/capture-p4et5aoh/`.
 
 The local helper was located at `.dev-shots/asset-pipeline/deepseep_wateringcan/source/tools/cantools.py`.
 Its volume bug, silent evaluation fallback, mixed representations and consumed

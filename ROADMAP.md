@@ -527,13 +527,14 @@ confirmed. Laptop `_050` is a new mask/colour candidate (saturation 1.5, contras
 pale under unchanged lighting. Stronger contrast and exact classic MSN reference
 fidelity remain deferred; no new generation or host-material edits were performed.
 
-**Known follow-ups — can capture snapshot collision (fixed):** With `REF_front` or
-`REF_top` present, the local `cantools.py` visibility loops overwrote the saved
-capture snapshot with a Boolean and broke restoration. The snapshot now has a
-distinct name; temporary-world removal also runs if restoration raises. The
-disposable capture fixture now includes both references and verifies restoration
-after successful capture and an injected render failure. Live Blender and can
-geometry were untouched; the helper repair remains local/gitignored.
+**Known follow-ups — can capture snapshot collision (fixed; reusable helper tracked):** With
+`REF_front` or `REF_top` present, the local `cantools.py` visibility loops
+overwrote the saved capture snapshot with a Boolean and broke restoration. The
+reusable behaviour now lives in tracked `tools/asset-pipeline/scripts/asset_capture.py`
+and the local helper delegates to it. `test_asset_capture.py` covers named
+references, invalid views, injected render failure and wire mode, and exposed a
+stale `matrix_world` after direct camera positioning; the helper now updates the
+view layer. Live Blender and can geometry were untouched.
 
 **Known follow-ups — authoring workflow and diagnostics (Phase 4 core repairs fixture-tested):** Mixed successful/multi-criterion candidate histories previously triggered
 the incorrect global seven-entry limit in

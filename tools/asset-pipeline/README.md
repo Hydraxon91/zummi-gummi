@@ -105,6 +105,11 @@ untouched.
 - `scripts/audit_asset.py` — read-only Blender audit.
 - `scripts/capture_review.py` — staged Workbench/material/final captures with state restoration,
   explicit frames, evaluated pose records and bounds-based focus captures.
+- `scripts/asset_capture.py` — reusable single-view clay/wire capture of an object
+  set with reference-plane visibility and scene-state restoration. Unlike the
+  staged CLI it takes objects directly, so a modelling helper can call it. It
+  updates the view layer after positioning the camera; without that, matrix-based
+  projection checks read a stale identity transform.
 - `scripts/reference_sheet.py` — explicit view cropping, shared-scale validation and locked,
   render-hidden Blender reference planes from author-supplied pixel rectangles.
 - `scripts/run_comfy_workflow_stable_materials.py` — reusable StableMaterials ComfyUI runner
@@ -302,10 +307,14 @@ Additional disposable fixture commands (never run these in the live scene):
 
 ```bash
 /Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python-exit-code 1 --python tools/asset-pipeline/tests/phase7/test_mesh_diagnostics.py
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python-exit-code 1 --python tools/asset-pipeline/tests/phase7/test_asset_capture.py
 /Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python-exit-code 1 --python tools/asset-pipeline/tests/phase7/test_phase4_capture.py
 ```
 
 Capture evidence goes under `.dev-shots/asset-pipeline/phase4-tool-repair/`.
+`test_asset_capture.py` exercises the tracked helper with named reference objects,
+successful and failed renders, invalid views and wire mode. It checks projection
+orientation and restores world contents, materials, collections and visibility.
 Set `CAN_HELPER` to an explicit can-local `cantools.py` path to additionally test
 the ignored adapter; otherwise only tracked capture tooling is exercised.
 Helper gates constrain their entry points, not arbitrary MCP Python.
