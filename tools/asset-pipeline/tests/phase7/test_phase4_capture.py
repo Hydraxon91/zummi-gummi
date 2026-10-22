@@ -67,7 +67,7 @@ capture.render_still = inspect_render
 capture.main()
 assert state() == before, (state(), before)
 
-def failure():
+def failure(**kwargs):
     raise RuntimeError('injected render failure')
 capture.render_still = failure
 sys.argv[sys.argv.index('asymmetric')] = 'exception'
@@ -86,6 +86,10 @@ import os
 helper = os.environ.get('CAN_HELPER')
 if helper:
     can = load('can_fixture', Path(helper))
+    for name in ('REF_front', 'REF_top'):
+        reference = bpy.data.objects.new(name, None)
+        scene.collection.objects.link(reference)
+        reference.hide_render = name == 'REF_front'
     # World shader contents must not be edited by capture.
     world = scene.world
     world.use_nodes = True
@@ -98,6 +102,25 @@ if helper:
     before = state()
     can.render(str(out / 'can_front.png'), 'front', (0, 0, 0.2), 1.5,
                res=(320, 320), engine='CURRENT')
+    assert state() == before
+    assert tuple(bg.inputs[0].default_value) == color
+    from types import SimpleNamespace
+    original_bpy = can.bpy
+    class RenderFailureProxy:
+        ops = SimpleNamespace(render=SimpleNamespace(render=failure))
+        def __getattr__(self, name):
+            return getattr(original_bpy, name)
+    can.bpy = RenderFailureProxy()
+    try:
+        try:
+            can.render(str(out / 'can_render_failure.png'), 'front', (0, 0, 0.2), 1.5,
+                       engine='CURRENT')
+        except RuntimeError as exc:
+            assert 'injected' in str(exc)
+        else:
+            raise AssertionError('Render exception hidden')
+    finally:
+        can.bpy = original_bpy
     assert state() == before
     assert tuple(bg.inputs[0].default_value) == color
     try:

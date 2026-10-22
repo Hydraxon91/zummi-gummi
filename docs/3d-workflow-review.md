@@ -47,6 +47,14 @@ Python is prevented from exporting or that documentation completeness proves fit
 
 ## Phase 4 tooling results
 
+Follow-up capture repair: reference-visibility loops in the local adapter reused
+the snapshot variable, causing restoration to fail when named reference objects
+were present. The snapshot now uses a distinct name and temporary-world cleanup
+runs even if restoration raises. The updated disposable fixture includes both
+`REF_front` and `REF_top` and checks success and injected-render-failure restoration.
+The rerun passed in Blender 5.2.2; evidence is under
+`.dev-shots/asset-pipeline/phase4-tool-repair/capture-siylohae/`.
+
 The local helper was located at `.dev-shots/asset-pipeline/deepseep_wateringcan/source/tools/cantools.py`.
 Its volume bug, silent evaluation fallback, mixed representations and consumed
 cutters were source-confirmed. `health` and `boolean` now delegate to tracked
