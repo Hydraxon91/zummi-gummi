@@ -9,6 +9,44 @@ caps rAF around 20–30 Hz).
 
 ## Unified family/Glass profile — Phase F (Oct 2026)
 
+### Hosted behavior-test rendering comparison — 2026-10-22
+
+Revision `d88631b391548c21fc1be63bd189b57bb49feda0`, manual workflow
+[39831909017](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39831909017).
+Seven existing nonvisual social/gifting scenarios, three paired samples each,
+same revision and runner within each pair, sequential fresh browser processes
+and profiles. Sample 2 reverses normal/opaque order. Both modes use the existing
+900×600 low-quality profile, `FAST=1`, `STALL_DIAGNOSTICS=1`, unchanged checks and
+the same bounded startup retry. All 42 reports identify ANGLE Vulkan SwiftShader
+(Subzero). `testRender=opaque` changes the scene material override, not geometry
+or physics, and does not cover all custom rendering paths.
+
+| Measure | Normal | Opaque |
+|---|---:|---:|
+| Executions passing after allowed boot recovery | 21/21 | 21/21 |
+| Executions needing a second boot attempt | 3 | 0 |
+| Median execution wall time | 167 s | 34 s |
+| Execution wall-time range | 93–281 s | 25–67 s |
+| Sum of execution wall times | 3665 s | 747 s |
+| Median boot time, including failed-attempt time | 33.119 s | 9.510 s |
+
+Wall times are shell elapsed seconds around each whole scenario execution,
+including browser startup, boot recovery, readiness, assertions and cleanup;
+runner setup and artifact upload are excluded. Sums are execution seconds, not
+overall workflow duration or billed runner minutes. Boot times are retained
+`bootAttempts[].elapsedMs`, including launch/connect and boot polling. This is a
+startup/test-throughput comparison, not a frame-time or FPS benchmark. Debugger
+instrumentation is enabled equally in both lanes. No warm-up samples were
+discarded: cold startup and its failures are the target. Normal required CI on
+the same SHA separately failed gift-persistence boot twice (run 39831895521).
+The 21 opaque samples support further use for nonvisual testing but cannot
+establish zero flakiness or exact state parity. Keep this dated result as history;
+future samples must name their revision, backend, scenario set and instrumentation
+rather than silently replacing it. Earlier frame-time tables below are separate
+measurements and are retained unchanged.
+
+### Unified frame-time measurements
+
 Method: `node scripts/perf-profile.mjs` (headless Chrome, 1440×900, **DPR 1**,
 quality 2, effects off, adaptive off, day look, the current 8 soft-body actors +
 2 Glass, six simulated seconds to settle family/Glass state, then frozen AI and

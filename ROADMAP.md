@@ -2007,7 +2007,7 @@ hitbox/proxy renderer. Hosted stalls remain unresolved; no CI rollout is approve
 by this pilot. Evidence is in `.dev-shots/opaque-pilot-comparison.json` and
 `social-opaque-pilot-{normal,simple}-partnership.json`.
 
-**Startup diagnostic retention (fixed locally, hosted verification pending):**
+**Startup diagnostic retention (verified locally and hosted):**
 `connectBootedBrowser` now preserves page diagnostics for every failed boot,
 including its stall probe, lifecycle, errors and polling timings. Both interaction
 reports retain all attempts and elapsed boot times, including failures followed
@@ -2020,7 +2020,7 @@ The latest hosted partnership failure (39825423266) exhausted both fresh-process
 attempts without executing assertions; its successful HTTP requests do not prove
 application boot or identify the exact rendering stall.
 
-**Render comparison experiment (implemented locally; not yet run on GitHub):**
+**Render comparison experiment (hosted sample completed):**
 `.github/workflows/render-comparison.yml` is manual-only, independent of required
 CI and Pages. It runs three paired samples of pair, rivalry, partnership, groups,
 Glass-social, gift-flow and gift-persistence: 21 jobs / 42 existing-test executions.
@@ -2041,6 +2041,25 @@ CI reliability or exact seeded state parity. Reports:
 `.dev-shots/{social,gifting}-comparison-{normal,opaque}-all.json`.
 An extracted workflow-loop fixture under `bash -e` also verified that a nonzero
 normal-mode exit still runs opaque, fails the pair, and respects reversed order.
+
+Hosted run [39831909017](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39831909017)
+at `d88631b391548c21fc1be63bd189b57bb49feda0` passed all 21 paired jobs.
+All 42 reports confirmed SwiftShader (Subzero) and passed their original checks
+without page errors. Opaque passed 21/21 with zero failed boot attempts; normal
+passed 21/21 after three initial boot failures recovered by the existing retry
+(rivalry sample 1, groups sample 3, gift-persistence sample 2). Median per-execution
+wall time was normal 167 s versus opaque 34 s; total execution wall seconds were
+3665 versus 747, excluding runner setup/artifact upload. See `PERFORMANCE.md`
+for method and ranges. This is one paired batch, not zero-flake acceptance.
+
+Required Smoke test [39831895521](https://github.com/Hydraxon91/zummi-gummi/actions/runs/39831895521)
+on the same SHA **failed** only `Browser (gift-persistence)` after two 180-second
+boot attempts, before any assertions. Both page diagnostic snapshots survived:
+GPU `ReadPixels` stall warnings, repeated CDP evaluation timeouts and debugger
+probe/pause timeouts, without page errors. No JavaScript stack was recovered;
+the exact blocking operation remains unresolved. No rerun or production-lane
+switch was made. Opaque evidence supports a rendering-related mitigation for
+nonvisual tests, not proof of a specific model defect or storage bug.
 
 ## Modular NPC behavior system (step 3, Oct 2026)
 
