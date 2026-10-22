@@ -83,24 +83,54 @@ def validate_ledger(data, errors, expected_ids=None):
         errors.append("candidate ledger must contain a non-empty entries list")
         return
     seen = set()
+    failures = {}
+    continuation_attempts = {}
     for index, entry in enumerate(entries):
         label = f"candidate ledger entry {index + 1}"
         if not isinstance(entry, dict):
             errors.append(f"{label} must be an object")
             continue
         attempt = entry.get("attempt")
-        if not isinstance(attempt, int) or attempt < 1:
+        criterion_key = entry.get("criterion")
+        criterion_key = criterion_key if isinstance(criterion_key, str) else None
+        if type(attempt) is not int or attempt < 1:
             errors.append(f"{label} attempt must be a positive integer")
-        elif attempt in seen:
+        elif (criterion_key, attempt) in seen:
             errors.append(f"{label} repeats attempt {attempt}")
         else:
-            seen.add(attempt)
+            seen.add((criterion_key, attempt))
         for field in ("criterion", "hypothesis", "changed_control", "outcome"):
             value = entry.get(field)
             if not isinstance(value, str) or not value.strip():
                 errors.append(f"{label} field is missing or empty: {field}")
-    if len(entries) > 7:
-        errors.append("candidate ledger exceeds the seven-attempt criterion budget")
+        kind, result = entry.get("kind"), entry.get("result")
+        if kind not in ("construction", "repair") or result not in ("success", "failure"):
+            errors.append(f"{label} requires explicit kind (construction/repair) and result (success/failure); legacy prose cannot establish budget compliance")
+        elif kind == "repair":
+            criterion = entry.get("criterion")
+            if isinstance(criterion, str):
+                if failures.get(criterion, 0) >= 7:
+                    continuation_attempts[criterion] = continuation_attempts.get(criterion, 0) + 1
+                if result == "failure":
+                    failures[criterion] = failures.get(criterion, 0) + 1
+    continuations = data.get("continuations", [])
+    if not isinstance(continuations, list):
+        errors.append("continuations must be a list")
+        continuations = []
+    allowances = {}
+    for continuation in continuations:
+        if (not isinstance(continuation, dict)
+                or not all(isinstance(continuation.get(k), str) and continuation[k].strip()
+                           for k in ("criterion", "approval", "hypothesis", "scope", "checks"))
+                or type(continuation.get("additional_attempts")) is not int
+                or continuation["additional_attempts"] < 1):
+            errors.append("continuation requires criterion, approval reference, hypothesis, scope, checks and positive additional_attempts")
+            continue
+        criterion = continuation["criterion"]
+        allowances[criterion] = allowances.get(criterion, 0) + continuation["additional_attempts"]
+    for criterion, count in continuation_attempts.items():
+        if count > allowances.get(criterion, 0):
+            errors.append(f"{criterion}: exceeds the seven-attempt failed-repair budget plus approved continuations")
 
 
 def validate_evidence(data, errors, source_blend=None):

@@ -35,6 +35,7 @@ try:
         "hypothesis": "shared seam plan closes",
         "changed_control": "lid seam ring",
         "outcome": "thin seam",
+        "kind": "repair", "result": "failure",
     }]}
     closed_manifest = root / "closed.json"
     open_manifest = root / "open.json"
@@ -104,6 +105,34 @@ try:
     report = module.run(brief_path, ledger_path, evidence_path)
     assert report["status"] == "fail"
     assert any("seven-attempt" in error for error in report["errors"])
+
+    entries = [{**ledger["entries"][0], "attempt": i + 1,
+                "kind": "construction", "result": "success"} for i in range(12)]
+    errors = []
+    module.validate_ledger({"entries": entries}, errors)
+    assert not errors, errors
+    entries = [{**ledger["entries"][0], "attempt": i + 1,
+                "criterion": criterion} for criterion in ("rim", "base") for i in range(7)]
+    errors = []
+    module.validate_ledger({"entries": entries}, errors)
+    assert not errors, errors
+    entries.append({**entries[-1], "attempt": 8})
+    errors = []
+    module.validate_ledger({"entries": entries[:-1] + [{**entries[-1], "result": "success"}]}, errors)
+    assert any("seven-attempt" in e for e in errors)
+    errors = []
+    continuation = {"criterion": "base", "approval": "user message reference",
+                    "hypothesis": "new evidence", "scope": "base only",
+                    "checks": "matched comparison", "additional_attempts": 1}
+    module.validate_ledger({"entries": entries, "continuations": [continuation]}, errors)
+    assert not errors, errors
+    errors = []
+    module.validate_ledger({"entries": [{k: v for k, v in entries[0].items()
+                                        if k != "kind"}]}, errors)
+    assert any("explicit kind" in e for e in errors)
+    errors = []
+    module.validate_ledger({"entries": [{**entries[0], "criterion": [], "attempt": True}]}, errors)
+    assert errors
 
     ledger_path.write_text(json.dumps(ledger))
     failed_evidence = dict(evidence, status="fail")

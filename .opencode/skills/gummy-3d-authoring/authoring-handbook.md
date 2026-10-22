@@ -277,6 +277,10 @@ run its installer, or import its web compression defaults automatically.
 - `scripts/asset_qa.py`: read-only evaluated topology and winding diagnostics; strict
   closed-solid default, explicit open-panel mode. No automated report proves correct
   outward/cavity orientation, attachment fit or reference fidelity.
+- Repository `tools/asset-pipeline/scripts/mesh_diagnostics.py`: separate base and
+  evaluated mesh-local reports; evaluation failures raise. Its Boolean helper retains
+  operands and leaves modifiers unapplied. See the pipeline README for units,
+  explicit ledger classifications/continuations and the disposable regression commands.
 - `scripts/uv_report.py`: read-only world-space texel-density/UV-area report. Does not
   unwrap, pack, modify UVs or certify overlap/padding.
 - `scripts/render_state_audit.py`: read-only visibility and material-slot audit — objects

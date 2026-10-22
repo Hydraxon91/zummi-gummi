@@ -110,6 +110,7 @@ try:
         "hypothesis": "gate accepts complete evidence",
         "changed_control": "none",
         "outcome": "fixture",
+        "kind": "construction", "result": "success",
     }]}))
 
     bpy.context.scene.frame_set(1)

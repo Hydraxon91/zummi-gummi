@@ -69,7 +69,8 @@ try:
                          "basis": "fixture view"}, "decision": "proceed"}))
     ledger.write_text(json.dumps({"target_ids": [cube_id], "entries": [{
         "attempt": 1, "criterion": "fixture", "hypothesis": "gate passes",
-        "changed_control": "none", "outcome": "fixture"}]}))
+        "changed_control": "none", "outcome": "fixture",
+        "kind": "construction", "result": "success"}]}))
     glb = rootdir / "office.glb"
     report = rootdir / "office.json"
     sys.argv = ["blender", "--", "--glb", str(glb), "--report", str(report),

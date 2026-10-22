@@ -293,8 +293,10 @@ class StateSnapshot:
         self.camera_transform = None
         if self.camera:
             self.camera_transform = (
-                self.camera.location.copy(),
-                self.camera.rotation_euler.copy(),
+                {key: (tuple(getattr(self.camera, key)) if key != "rotation_mode"
+                       else self.camera.rotation_mode)
+                 for key in ("location", "rotation_mode", "rotation_euler",
+                             "rotation_quaternion", "rotation_axis_angle", "scale")},
                 self.camera.data.type,
                 self.camera.data.ortho_scale,
                 self.camera.data.lens,
@@ -313,44 +315,44 @@ class StateSnapshot:
         try:
             scene.render.image_settings.file_format = self.image["file_format"]
         except TypeError:
-            pass
+            raise RuntimeError("Failed to restore image file format")
         try:
             scene.render.image_settings.color_mode = self.image["color_mode"]
         except TypeError:
-            pass
+            raise RuntimeError("Failed to restore image color mode")
         try:
             scene.render.image_settings.color_depth = self.image["color_depth"]
         except TypeError:
-            pass
+            raise RuntimeError("Failed to restore image color depth")
         for key, value in self.view.items():
             try:
                 setattr(scene.view_settings, key, value)
             except (AttributeError, TypeError, ValueError):
-                pass
+                raise RuntimeError(f"Failed to restore view setting {key}")
         if self.cycles is not None and hasattr(scene, "cycles"):
             scene.cycles.samples = self.cycles["samples"]
             scene.cycles.use_denoising = self.cycles["use_denoising"]
             try:
                 scene.cycles.device = self.cycles["device"]
             except TypeError:
-                pass
+                raise RuntimeError("Failed to restore Cycles device")
         if self.eevee is not None and hasattr(scene, "eevee"):
             try:
                 scene.eevee.taa_render_samples = self.eevee["taa_render_samples"]
             except AttributeError:
-                pass
+                raise RuntimeError("Failed to restore Eevee samples")
         for key, value in self.shading.items():
             try:
                 setattr(scene.display.shading, key, value)
             except (AttributeError, TypeError, ValueError):
-                pass
+                raise RuntimeError(f"Failed to restore shading {key}")
         scene.world = self.world
         scene.camera = self.camera
         scene.frame_set(self.frame)
         if self.camera and self.camera_transform:
-            location, rotation, camera_type, ortho_scale, lens = self.camera_transform
-            self.camera.location = location
-            self.camera.rotation_euler = rotation
+            transform, camera_type, ortho_scale, lens = self.camera_transform
+            for key, value in transform.items():
+                setattr(self.camera, key, value)
             self.camera.data.type = camera_type
             self.camera.data.ortho_scale = ortho_scale
             self.camera.data.lens = lens
@@ -384,12 +386,13 @@ def main():
     if args.pose_object and pose_object is None:
         raise RuntimeError(f"Missing pose object: {args.pose_object}")
     state = StateSnapshot()
-    camera = add_temporary_camera()
+    camera = None
     temp_lights = None
     temp_world = None
     hidden = {}
     captures = []
     try:
+        camera = add_temporary_camera()
         if args.frame >= 0:
             scene.frame_set(args.frame)
         objects = target_objects(args)
@@ -438,9 +441,10 @@ def main():
         if args.preset != "solid" and scene.world is None:
             temp_world = bpy.data.worlds.new("Review_Capture_World")
             temp_world.use_nodes = True
-            temp_world.node_tree.nodes["Background"].inputs["Color"].default_value = (
+            background = next(n for n in temp_world.node_tree.nodes if n.type == "BACKGROUND")
+            background.inputs["Color"].default_value = (
                 0.08, 0.09, 0.10, 1.0)
-            temp_world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.6
+            background.inputs["Strength"].default_value = 0.6
             scene.world = temp_world
 
         if args.isolate:
@@ -513,15 +517,13 @@ def main():
                 },
             })
     finally:
-        state.restore()
-        for name_key, hidden_value in hidden.items():
-            obj = bpy.data.objects.get(name_key)
-            if obj is not None:
-                obj.hide_render = hidden_value
-        remove_temporary_lights(temp_lights)
-        if temp_world is not None:
-            bpy.data.worlds.remove(temp_world)
-        remove_temporary_camera(camera)
+        try:
+            state.restore()
+        finally:
+            remove_temporary_lights(temp_lights)
+            if temp_world is not None:
+                bpy.data.worlds.remove(temp_world)
+            remove_temporary_camera(camera)
 
     manifest = {
         "tool": "capture_review.py",

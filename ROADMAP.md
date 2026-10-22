@@ -527,17 +527,22 @@ confirmed. Laptop `_050` is a new mask/colour candidate (saturation 1.5, contras
 pale under unchanged lighting. Stronger contrast and exact classic MSN reference
 fidelity remain deferred; no new generation or host-material edits were performed.
 
-**Known follow-ups — authoring workflow and diagnostics (documentation reorganised;
-tool repairs deferred):** Mixed successful/multi-criterion candidate histories trigger
+**Known follow-ups — authoring workflow and diagnostics (Phase 4 core repairs fixture-tested):** Mixed successful/multi-criterion candidate histories previously triggered
 the incorrect global seven-entry limit in
-`tools/asset-pipeline/scripts/construction_gate.py`; source-confirmed, not fixed.
+`tools/asset-pipeline/scripts/construction_gate.py`; fixed with explicit entry classes,
+criterion-local budgets and bounded continuation records. Malformed criterion/boolean
+attempt values are now rejected without a validation crash.
 The user's can audit also reports translation-dependent signed volume, mixed
 base/evaluated health, fallback-on-evaluation-error and consumed cutters in an
-asset-local helper; not independently reproduced in this documentation pass.
-Do not use those affected diagnostics as acceptance or source-repair authority.
+asset-local helper; subsequently located and repaired through the tracked diagnostic
+core. Disposable fixtures verify volume, representation separation and operand
+preservation. Capture restoration also preserves quaternion channels and source-world
+contents; projection fixtures and inspected captures pass. Legacy ledgers need explicit
+classification, never automatic rewriting. No historical asset acceptance is implied.
 Stage/capture policy and reference-review authority are now routed through short
 entry points; specialist material is preserved. Fresh-session loading, runtime
-fixtures and controlled modelling trials remain unverified and separately scoped.
+acceptance and controlled modelling trials remain unverified and separately scoped. The local adapter
+remains gitignored; reusable fixes/tests are tracked. See the Phase 4 result record.
 See `docs/3d-workflow-review.md` for the requirement map, warnings and deferred checks.
 
 ### Skill validation backlog — unverified, not accepted

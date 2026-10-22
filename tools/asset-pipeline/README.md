@@ -276,6 +276,40 @@ python3 tools/asset-pipeline/tests/phase7/test_comfy_qwen_image_edit_runner.py
 
 ## Shape review
 
+Camera names denote camera positions: front is −Y, right/side +X, top +Z, all
+looking toward the target. Z is up in horizontal views. Front screen-right is +X;
+right-view screen-right is +Y. This is not automatic reference-sheet registration.
+
+Ledger entries require `kind: construction|repair` and `result: success|failure`
+beside existing fields. Attempt numbers are unique within each criterion. Legacy
+prose-only entries need explicit classification; text is never guessed. After seven
+failed repairs, any further repair needs a `continuations` entry with `criterion`,
+`approval` (user-decision reference), `hypothesis`, `scope`, `checks` and positive
+integer `additional_attempts`. Every additional repair consumes that allowance;
+history is never reset. Recorded approval is not authenticated permission. Diagnosis
+after two unchanged failures and review at six remain procedural responsibilities.
+
+`scripts/mesh_diagnostics.py` reports separate `base` and `evaluated` health.
+Legacy flat fields are base-only. Signed volume is mesh-local Blender units cubed,
+not world-space liquid capacity; open components have no reported volume. Evaluation
+failures raise rather than substituting base results. This does not certify outward
+normals, self-intersections or attachment fit. Its `boolean(target, cutter, op)`
+adds an unapplied modifier and retains both operands. Callers manage visibility
+and inspect the evaluated result; this changes the can-local helper's old
+apply-and-delete behaviour deliberately.
+
+Additional disposable fixture commands (never run these in the live scene):
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python-exit-code 1 --python tools/asset-pipeline/tests/phase7/test_mesh_diagnostics.py
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python-exit-code 1 --python tools/asset-pipeline/tests/phase7/test_phase4_capture.py
+```
+
+Capture evidence goes under `.dev-shots/asset-pipeline/phase4-tool-repair/`.
+Set `CAN_HELPER` to an explicit can-local `cantools.py` path to additionally test
+the ignored adapter; otherwise only tracked capture tooling is exercised.
+Helper gates constrain their entry points, not arbitrary MCP Python.
+
 Use staged captures during construction; do not run a multi-angle final render batch after
 every edit. `capture_review.py` snapshots and restores render state, supports `solid`,
 `material` and `final` presets, can isolate target meshes, refuses overwrites and writes a

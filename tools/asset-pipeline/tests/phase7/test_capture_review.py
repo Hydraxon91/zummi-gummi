@@ -388,6 +388,7 @@ try:
         "hypothesis": "shared seam",
         "changed_control": "seam ring",
         "outcome": "thin seam",
+        "kind": "construction", "result": "success",
     }]}))
     construction_out = root / "gate-construction.json"
     sys.argv = [

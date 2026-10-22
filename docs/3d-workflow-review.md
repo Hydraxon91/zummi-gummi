@@ -5,8 +5,9 @@
 Phases 1–3 documentation work: shorter entry points, on-demand detailed references,
 one stage/capture policy and a reference-interpretation policy. No Blender state,
 asset geometry, helper implementation, OpenCode configuration or game behaviour is
-changed. Tool repairs, controlled modelling trials and resuming the watering can
-are separate approvals. Documentation review is not modelling validation.
+changed by the documentation pass. Phase 4 tooling repairs were subsequently
+approved and exercised as recorded below. Controlled modelling trials and resuming
+the watering can remain separate approvals. Documentation review is not modelling validation.
 
 ## Requirement-preservation map
 
@@ -30,7 +31,7 @@ delivery or integration safeguard is intentionally removed. Handbook/procedure
 summaries are not independent policy authorities. Existing unvalidated guidance
 and tool limitations retain that status.
 
-## Diagnostic quarantine — not repairs
+## Original diagnostic quarantine — historical findings before Phase 4
 
 | Finding | Evidence and present restriction | Deferred action |
 | --- | --- | --- |
@@ -43,6 +44,57 @@ and tool limitations retain that status.
 A faulty report invalidates its claims, not automatically its subject geometry.
 Helper gates enforce only their own paths. No claim is made that arbitrary MCP
 Python is prevented from exporting or that documentation completeness proves fit.
+
+## Phase 4 tooling results
+
+The local helper was located at `.dev-shots/asset-pipeline/deepseep_wateringcan/source/tools/cantools.py`.
+Its volume bug, silent evaluation fallback, mixed representations and consumed
+cutters were source-confirmed. `health` and `boolean` now delegate to tracked
+`tools/asset-pipeline/scripts/mesh_diagnostics.py`: corrected fan indices, explicit
+local units, separate base/evaluated metrics, no fallback, and unapplied Booleans
+with both operands retained. This is not an automatic repair or topology verdict.
+
+The local capture adapter now copies its review world rather than editing the source
+world, restores the prior camera/settings/visibility through the shared snapshot,
+and rejects invalid view names before camera creation. Shared snapshots preserve
+raw quaternion/Euler/axis-angle channels rather than decomposing a matrix; a fixture
+exposed measurable drift in matrix-based restoration. Restoration errors are no
+longer silently swallowed in the shared helper; temporary capture cleanup also runs
+when restoration raises.
+
+Ledger validation now uses explicit kind/result classifications, criterion-local
+attempt identities, and failed-repair budgets with recorded bounded continuations.
+It rejects unclassified legacy entries rather than inferring success/failure from
+prose. Fixture ledgers were updated; real historical ledgers were not rewritten.
+Malformed criterion/boolean attempt input is rejected without crashing. Approval
+authenticity, classification honesty, and review/diagnosis are still procedural.
+
+Passing fixtures in Blender 5.2.2 LTS: `test_mesh_diagnostics.py` (known-volume
+concave L prism, translated/rotated, independent triangulated BMesh volume,
+inverted/open/degenerate/loose cases, modifier-created boundaries, explicit evaluation
+exception and preserved Boolean operands); `test_phase4_capture.py` with the local
+adapter (asymmetric front/right projection, success/exception restoration, original
+world contents). Pure `test_construction_gate.py` covers independent criteria,
+successful construction, exhausted budget including a subsequent successful repair,
+continuation and explicit legacy rejection. Existing capture and export-guard suites
+were also exercised; see final verification report for latest reruns.
+
+Viewed accepted fixture captures under
+`.dev-shots/asset-pipeline/phase4-tool-repair/capture-fz6ss_r8/`:
+`asymmetric_front_solid.png`, `asymmetric_right_solid.png`, `can_front.png`.
+Earlier blank factory-cube-occluded captures are failed fixture evidence, not accepted
+results; the fixture explicitly hides the startup occluder. No can geometry was
+opened, edited, saved or exported. The local adapter remains ignored/local-only;
+tracked core repairs and tests are reproducible, but a clone without that adapter
+cannot claim its local capture branch was exercised. Live Blender was untouched.
+
+Final verification: six suites passed (`test_construction_gate`,
+`test_mesh_diagnostics`, `test_phase4_capture` with `CAN_HELPER`,
+`test_capture_review`, `test_export_guard`, `test_office_export_fixture`). Synthetic
+export fixtures exercised guarded export; no project asset was exported. Expected
+negative-case failures inside those suites are assertions, not suite failures.
+No owned Blender background process remained after the runs. Game/runtime tests
+and can-specific reference comparisons were not run and are not claimed.
 
 ## Documentation review scenarios
 
