@@ -12,15 +12,16 @@ import { normalizeTraits, TRAIT_AXES } from './behaviors/traits.js';
 import { normalizeMourning } from './behaviors/mourning.js';
 import { normalizePartnerUid, normalizeRivals } from './relationships.js';
 import { normalizeCarriedFood } from './foodportions.js';
+import { normalizePreferences, normalizeHabits, validActivityValues } from './behaviors/preferences.js';
 
 // 2 is trait/grief/guardian/delta-free, 3 carries traits, 4 carries per-save
 // mourning, 5 carries a baby's guardian, 6 carries bond-delta history, 7
 // carries a persisted daily gift day, and 8 carries rivalry, partnership or a
-// carried gift portion (older fields may ride along).
-export const ACTOR_SAVE_VERSION = 8;
+// carried gift portion; 9 carries activity preferences/habits (older fields may ride along).
+export const ACTOR_SAVE_VERSION = 9;
 
 const STAGES = new Set(['baby', 'teen', 'adult']);
-const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
+const SUPPORTED_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 const NUMERIC_FIELDS = [
   'scale', 'health', 'hunger', 'thirst', 'energy', 'age',
   'gestation', 'mateCooldown', 'social', 'affection', 'bold',
@@ -55,16 +56,16 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
       errors.push(`${where}.guardianUid requires stage baby`);
     }
     if (a.actorVersion !== 5 && a.actorVersion !== 6 && a.actorVersion !== 7 &&
-        a.actorVersion !== 8) {
-      errors.push(`${where}.guardianUid requires actorVersion 5, 6, 7 or 8`);
+        a.actorVersion !== 8 && a.actorVersion !== 9) {
+      errors.push(`${where}.guardianUid requires actorVersion 5, 6, 7, 8 or 9`);
     }
   }
   if (a.lastGiftDay !== undefined) {
     if (!isNum(a.lastGiftDay) || a.lastGiftDay < 0) {
       errors.push(`${where}.lastGiftDay is invalid`);
     }
-    if (a.actorVersion !== 7 && a.actorVersion !== 8) {
-      errors.push(`${where}.lastGiftDay requires actorVersion 7 or 8`);
+    if (a.actorVersion !== 7 && a.actorVersion !== 8 && a.actorVersion !== 9) {
+      errors.push(`${where}.lastGiftDay requires actorVersion 7 or 8 or 9`);
     }
   }
   if (a.actorVersion === 7 && !isNum(a.lastGiftDay)) {
@@ -81,7 +82,7 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
     } else if (a.stage !== 'adult') {
       errors.push(`${where}.partnerUid requires stage adult`);
     }
-    if (a.actorVersion !== 8) errors.push(`${where}.partnerUid requires actorVersion 8`);
+    if (a.actorVersion !== 8 && a.actorVersion !== 9) errors.push(`${where}.partnerUid requires actorVersion 8 or 9`);
   }
   if (a.rivals !== undefined) {
     if (!isObj(a.rivals)) errors.push(`${where}.rivals is invalid`);
@@ -92,7 +93,7 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
         errors.push(`${where}.rivals.${uid} is invalid`);
       }
     }
-    if (a.actorVersion !== 8) errors.push(`${where}.rivals requires actorVersion 8`);
+    if (a.actorVersion !== 8 && a.actorVersion !== 9) errors.push(`${where}.rivals requires actorVersion 8 or 9`);
   }
   if (a.carriedFood !== undefined) {
     if (!isObj(a.carriedFood)) errors.push(`${where}.carriedFood is invalid`);
@@ -104,13 +105,21 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
         errors.push(`${where}.carriedFood is invalid`);
       }
     }
-    if (a.actorVersion !== 8) errors.push(`${where}.carriedFood requires actorVersion 8`);
+    if (a.actorVersion !== 8 && a.actorVersion !== 9) errors.push(`${where}.carriedFood requires actorVersion 8 or 9`);
   }
   if (a.actorVersion === 8 &&
       a.partnerUid === undefined && a.rivals === undefined && a.carriedFood === undefined) {
     errors.push(`${where} has actorVersion 8 but no version-8 field`);
   }
   if (a.bonds !== undefined && !isObj(a.bonds)) errors.push(`${where}.bonds is invalid`);
+  for (const key of ['preferences', 'habits']) {
+    if (a[key] === undefined) continue;
+    if (!validActivityValues(a[key])) errors.push(`${where}.${key} is invalid`);
+    if (a.actorVersion !== 9) errors.push(`${where}.${key} requires actorVersion 9`);
+  }
+  if (a.actorVersion === 9 && a.preferences === undefined && a.habits === undefined) {
+    errors.push(`${where} has actorVersion 9 but no version-9 field`);
+  }
 
   if (a.actorVersion === 3 && !isObj(a.traits)) {
     errors.push(`${where}.traits is required for actorVersion 3`);
@@ -152,8 +161,8 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
       }
     });
   }
-  if (historyDeltas && a.actorVersion !== 6 && a.actorVersion !== 7 && a.actorVersion !== 8) {
-    errors.push(`${where}.bondDelta requires actorVersion 6, 7 or 8`);
+  if (historyDeltas && a.actorVersion !== 6 && a.actorVersion !== 7 && a.actorVersion !== 8 && a.actorVersion !== 9) {
+    errors.push(`${where}.bondDelta requires actorVersion 6, 7, 8 or 9`);
   }
   if (a.actorVersion === 6 && !historyDeltas) {
     errors.push(`${where}.bondDelta is required for actorVersion 6`);
@@ -185,8 +194,8 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
       }
     });
     if (a.actorVersion !== 4 && a.actorVersion !== 5 && a.actorVersion !== 6 &&
-        a.actorVersion !== 7 && a.actorVersion !== 8) {
-      errors.push(`${where}.mourning requires actorVersion 4-8`);
+        a.actorVersion !== 7 && a.actorVersion !== 8 && a.actorVersion !== 9) {
+      errors.push(`${where}.mourning requires actorVersion 4-9`);
     }
   }
   if (a.actorVersion === 4 && !Array.isArray(a.mourning)) {
@@ -241,7 +250,11 @@ export function migrateActorRecord(record) {
   const rivals = normalizeRivals(record.rivals);
   const carriedFood = normalizeCarriedFood(record.carriedFood);
   const advanced = partnerUid !== null || Object.keys(rivals).length > 0 || carriedFood !== null;
-  const versioned = advanced ? 8
+  const preferences = normalizePreferences(record.preferences);
+  const habits = normalizeHabits(record.habits);
+  const hasPreferences = Object.keys(preferences).length > 0;
+  const hasHabits = Object.keys(habits).length > 0;
+  const versioned = hasPreferences || hasHabits ? 9 : advanced ? 8
     : (giftDay !== null ? 7
       : (hasDelta ? 6 : (guardianUid ? 5 : (mourning.length ? 4 : (hasTraits ? 3 : 2)))));
   const migrated = {
@@ -262,6 +275,10 @@ export function migrateActorRecord(record) {
   else delete migrated.rivals;
   if (carriedFood) migrated.carriedFood = carriedFood;
   else delete migrated.carriedFood;
+  if (hasPreferences) migrated.preferences = preferences;
+  else delete migrated.preferences;
+  if (hasHabits) migrated.habits = habits;
+  else delete migrated.habits;
   if (mourning.length) migrated.mourning = mourning;
   else delete migrated.mourning;
   return migrated;

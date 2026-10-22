@@ -27,7 +27,7 @@ test('v8 persists rivalry, partnership and a carried portion', () => {
     carriedFood: carried,
     lastGiftDay: 2,
   }), { flavor: 0 });
-  assert.equal(ACTOR_SAVE_VERSION, 8);
+  assert.equal(ACTOR_SAVE_VERSION, 9);
   assert.equal(record.actorVersion, 8);
   assert.equal(record.partnerUid, 2);
   assert.deepEqual(record.rivals, { 3: { sinceDay: 2, sinceHour: 9.5 } });

@@ -124,7 +124,8 @@ records with traits use `actorVersion: 3`; records carrying mourning use
 `actorVersion: 4`; a baby carrying a guardian uses `actorVersion: 5`; any record
 carrying an interaction bond delta uses `actorVersion: 6`; a giver carrying
 `lastGiftDay` alone uses `actorVersion: 7`; and rivalry, partnership or a carried
-gift portion uses `actorVersion: 8` (older fields may ride along). `guardianUid` is stored only on baby-stage
+gift portion uses `actorVersion: 8`; non-neutral activity preferences or learned
+habits use `actorVersion: 9` (older fields may ride along). `guardianUid` is stored only on baby-stage
 actors and never rewrites `parentUids`. Old saves load without traits and get the
 same hashed founder values once personality is enabled.
 
@@ -147,8 +148,8 @@ Importing these values neither assigns actors nor enables personality. No preset
 application UI/API or preset ID persistence is introduced. Opt-in consumers would
 use ordinary trait values and the existing cache/save contract; integrating such
 assignment is a separately approved change. Founder hashing, normalization and
-inheritance remain unchanged. Preferences, habits and goals are separate future
-chunks in `ROADMAP.md`, not additional trait axes hidden in this implementation.
+inheritance remain unchanged. Preferences/habits are the separate layer below;
+activity proposals and goals remain future chunks in `ROADMAP.md`.
 
 ## Mood (off by default)
 
@@ -164,6 +165,68 @@ kinds contribute (born, mated, child, meal, lesson, taught, playdate, visit,
 stage, home, moved, bond); there are no conflict/sting history kinds. Thought
 bubbles use the derived mood for a tint only, via a lazy `plan().mood` field.
 `?behaviors=legacy` ignores mood.
+
+## Preferences and habits (off by default)
+
+`preferences` and `habits` are independent, global, modules-only feature flags.
+There is no new settings UI, random founder assignment or automatic preset application.
+Stable traits, derived temporary mood, explicitly assigned likes and learned habits
+have separate records and lifecycles. Neither preferences nor habits are inherited;
+the existing trait axes, founder hashing and inheritance draws are unchanged.
+
+The first supported activity is Glass stargazing. `preferences.js` owns immutable
+activity definitions and pure validation/normalization, learning, decay and bounded
+offset functions. It accepts plain records and elapsed simulation days, never live
+engine objects, wall time, storage, rendering, physics or RNG. `engine.js` is the
+host adapter for actors, elapsed `dt / daySeconds` and completion/cancellation;
+`config.js` composes trait → mood → activity offsets and owns cached profiles.
+The input/output fixtures in `tests/behavior-preferences.test.mjs` are translation
+checks for a future Godot implementation, not a promise of JavaScript reuse.
+
+| Rule | Stargazing prototype |
+| --- | --- |
+| Saved preference | `actor.preferences.stargaze`, `0..1`, absent means neutral `.5` |
+| Preference effect | `2 × (preference − .5) × .04` on the existing chance |
+| Saved habit | `actor.habits.stargaze`, `0..1`, absent means zero |
+| Habit effect | `strength × .02` on the existing chance |
+| Learning | +`.1`, capped at 1, once per uninterrupted completed session |
+| Decay | −`.05` per active simulated day; host supplies day length |
+| Final chance | Existing `0.02–0.25` clamps; effect rounded to 4 decimals |
+
+At the unchanged base chance `.10`, dislike = `.06`, neutral = `.10`, like = `.14`,
+and like + full habit = `.16`. Durations, ordered selection, eligibility and survival
+priorities stay unchanged; no new selection or inheritance RNG draws are introduced.
+Only existing supported/enabled activity sections receive effects. Bear/Gummy do
+not acquire stargazing through a preference. Existing module configuration scopes
+still resolve before these offsets; the two new feature flags themselves are global,
+not per-species/per-actor toggles.
+
+Disable removes that layer's effect immediately. Disabling habits freezes learned
+strength and invalidates any current learning token, without cancelling/changing the
+existing activity. Re-enable resumes stored effects/decay but cannot reward the
+partially observed session. Grab, explicit interruption, detachment, survival exits,
+map/save teardown and global AI disable cannot award completion learning. Paused,
+inactive-map and offline time do not decay habits. Active sleeping/possessed actors
+still accrue simulated time, as needs already do. No pair, claim, bond or resource
+effects are added by this prototype.
+
+Runtime setters reject unknown activities, non-numeric/non-finite/out-of-range values
+before normalization. Save validation likewise rejects malformed new fields. Sparse
+normalization omits neutral preferences and zero habits; old actors get empty records
+semantically without adding fields or changing their previous record versions. Only
+actors with meaningful saved disposition state emit v9. Older builds cannot read v9.
+The save boundary clones records; no module-level UID cache or learning token is saved.
+Cache signatures use the same rounded offset as profile composition, so continuous
+sub-resolution decay survives saves without rebuilding the profile every frame.
+
+Debug hooks: `__gummy.activityPreference(uid, 'stargaze', value)` assigns a liking;
+`__gummy.dispositions(uid)` returns detached values and the resolved chance.
+`__gummy.setBehaviorFeature('preferences'|'habits', boolean)` enables either layer.
+Assigning a preference while disabled saves the value but has no behavioral effect.
+The flags are runtime configuration, not actor-save fields. For verification, run
+`node --test tests/behavior-preferences.test.mjs` and, with `launch.py` serving,
+`node scripts/preferences-test.mjs`. The browser check observes natural selection
+and completion, then save/load, inactive-map isolation, birth and another-game restore.
 
 ## Departure hook (off by default)
 

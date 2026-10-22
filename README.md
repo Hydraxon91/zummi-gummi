@@ -195,6 +195,12 @@ Behavior extension foundations are documented in `src/behaviors/README.md`.
 explicit support declarations; `node --test tests` includes positive/negative
 contract fixtures and personality-preset validation. Presets are unapplied data:
 personality remains off by default and existing actor/save/RNG behavior is preserved.
+The opt-in preferences/habits prototype adds saved individual stargazing likes and
+completion-based learning, independently of traits and mood. Both flags default off;
+only actors carrying the new state need actor record v9. Pure translation-friendly
+rules and their approved bounds are documented in `src/behaviors/README.md`.
+With the app served, `node scripts/preferences-test.mjs` checks natural selection,
+learning, persistence, inactive-map isolation and non-inheritance in the actual game.
 
 The dedicated `SCENARIO=settings` social harness uses `?race=off`, retains an
 initial rendered background, then gates subsequent animation callbacks while

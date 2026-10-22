@@ -21,6 +21,7 @@ import { relationshipsModule } from './relationships.js';
 import { groupActivitiesModule } from './groups.js';
 import { applyTraitOffsets, founderTraits, normalizeTraits } from './traits.js';
 import { applyMoodOffsets } from './mood.js';
+import { applyActivityOffsets, activityCacheKey, validActivityValues, normalizePreferences } from './preferences.js';
 
 // Feature flags for known quirks. Every flag is off by default, so the engine
 // behaves exactly like the legacy path until a flag is deliberately enabled.
@@ -34,6 +35,8 @@ export const FEATURE_DEFAULTS = Object.freeze({
   thoughtBubbles: false,       // UI-only plan().reason overlay; no simulation reads
   personality: false,          // trait offsets; modules engine only, no reads while off
   mood: false,                 // derived mood offsets; modules engine only, runtime-only
+  preferences: false,          // explicit saved activity likes; no founder assignment
+  habits: false,               // saved completion learning and active-time decay
   departures: false,           // runtime-only departure capture; no mourning or save fields
   farewells: false,            // stars master switch; modules engine only
   starsOldAge: false,          // old-age fading
@@ -177,6 +180,9 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
       const mood = Number.isFinite(actor.ai?.moodBucket) ? actor.ai.moodBucket : 0;
       out = applyMoodOffsets(out, mood);
     }
+    if (actor && (features.preferences || features.habits)) {
+      out = applyActivityOffsets(out, actor.preferences, actor.habits, features);
+    }
     return out;
   }
 
@@ -189,11 +195,22 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
 
   function forActor(actor) {
     if (!actor) return resolve(actor);
+    const activityKey = features.preferences || features.habits
+      ? activityCacheKey(actor.preferences, actor.habits, features) : '';
     const cached = cache.get(actor);
-    if (cached && cached.version === version) return cached.value;
+    if (cached && cached.version === version && cached.activityKey === activityKey) return cached.value;
     const value = resolve(actor);
-    cache.set(actor, { version, value });
+    cache.set(actor, { version, activityKey, value });
     return value;
+  }
+
+  function setPreference(actor, id, value) {
+    if (!actor || !validActivityValues({ [id]: value })) return false;
+    const preferences = normalizePreferences({ ...actor.preferences, [id]: value });
+    if (Object.keys(preferences).length) actor.preferences = preferences;
+    else delete actor.preferences;
+    invalidateActor(actor);
+    return true;
   }
 
   function scopeTarget(scope) {
@@ -295,6 +312,7 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
     setModuleEnabled,
     setModuleParams,
     setActorConfig,
+    setPreference,
     setFeature,
     invalidateActor,
     reset,

@@ -97,6 +97,17 @@ parity acceptance.
 
 ## Feature-specific coverage
 
+Preferences/habits: run `node --test tests/behavior-preferences.test.mjs` for pure
+translation fixtures, strict validation, cache freshness, active-time decay,
+completion/interruption, RNG reproducibility and actor v9 migration. With the app
+served, `node scripts/preferences-test.mjs` verifies real natural stargazing and
+learning (no forced entry/completion), disabled freeze/re-enable, save/load,
+inactive-map isolation, non-inheritance and another-game restore. These features
+are independent, global, modules-only and default off. Keep enabled functional/RNG
+evidence separate from the default disabled short/long parity matrices. Pair/claim
+effects are not part of this solo-activity prototype; existing survival priority,
+activity eligibility and timing remain protected.
+
 Stars/mourning: `node scripts/stars-test.mjs` covers the farewell lifecycle and
 `node scripts/mourning-test.mjs` covers departure, grief, comfort, save/load
 isolation and a Glass-survivor round trip. `mourning-test.mjs` exits non-zero when

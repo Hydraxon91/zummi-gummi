@@ -45,6 +45,7 @@ import {
   ADOPTION_DEFAULTS, adoptionStatus, guardianCandidate,
 } from './adoption.js';
 import { createStars } from './stars.js';
+import { decayHabits, reinforceHabit, normalizePreferences, normalizeHabits } from './preferences.js';
 
 const STUCK_DIST2 = .04;
 
@@ -683,6 +684,7 @@ export function createBehaviorModules({
 
   function cancelPair(actor) {
     if (!actor || !actor.ai) return;
+    if (actor.ai.stargazeLearning) delete actor.ai.stargazeLearning;
     if (MODULE_CANCELLABLE.has(actor.ai.state)) {
       const owner = moduleStateOwner(actor.ai.state);
       if (owner && typeof owner.interrupt === 'function') {
@@ -1140,6 +1142,11 @@ export function createBehaviorModules({
     if (!enabled || !actor || !actor.active) return;
     if (!actor.ai) attach(actor);
     if (!actor.ai) return;
+    if (features.habits && actor.habits) {
+      const habits = decayHabits(actor.habits, dt / daySeconds);
+      if (Object.keys(habits).length) actor.habits = habits;
+      else delete actor.habits;
+    }
     noteCoverage(actor);
     updateMood(actor, dt);
     const p = profile(actor);
@@ -1714,6 +1721,11 @@ export function createBehaviorModules({
 
   function setFeature(name, value) {
     const changed = config.setFeature(name, value);
+    if (changed && name === 'habits' && !value) {
+      for (const actor of actors()) {
+        if (actor.ai) delete actor.ai.stargazeLearning;
+      }
+    }
     if (changed && name === 'farewells' && !value) stars.cancelAll();
     if (changed && name === 'adoption' && !value) suspendGuardianFollows();
     if (changed && name === 'gifting' && !value) {
@@ -1760,6 +1772,7 @@ export function createBehaviorModules({
 
   function interruptActor(actor, reason) {
     if (!actor || !actor.ai) return null;
+    if (actor.ai.stargazeLearning) delete actor.ai.stargazeLearning;
     const owner = moduleStateOwner(actor.ai.state);
     if (owner && typeof owner.interrupt === 'function') {
       owner.interrupt(contextFor(actor, { reason }), reason);
@@ -1797,6 +1810,11 @@ export function createBehaviorModules({
     cancelFarewell: (actor) => stars.cancel(actor),
     cancelFarewells,
     ensureTraits, invalidateActor: (actor) => config.invalidateActor(actor),
+    learnActivity: (actor, id) => {
+      if (!features.habits || !actor) return false;
+      actor.habits = reinforceHabit(actor.habits, id);
+      return true;
+    },
     mood: (actor) => actor && actor.ai ? {
       value: finite(actor.ai.mood, 0),
       bucket: finite(actor.ai.moodBucket, 0),
@@ -1824,6 +1842,12 @@ export function createBehaviorModules({
       ? giftingModule.dropCarried(actor, field, contextFor(actor)) : null,
     startSeekHome, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind),
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
+    setPreference: (actor, id, value) => config.setPreference(actor, id, value),
+    dispositions: (actor) => actor ? {
+      preferences: normalizePreferences(actor.preferences),
+      habits: normalizeHabits(actor.habits),
+      stargazeChance: profile(actor).stargaze?.chance ?? null,
+    } : null,
     invalidateActor: (actor) => config.invalidateActor(actor),
     stars,
     adoption: adoptionInfo,

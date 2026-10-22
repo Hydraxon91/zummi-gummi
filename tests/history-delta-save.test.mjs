@@ -34,7 +34,7 @@ test('bond-delta history uses actorVersion 6 and round-trips', () => {
   applyCommonActorState(restored, record);
   assert.equal(restored.history[0].bondBefore, .4);
   assert.equal(restored.history[0].bondAfter, .52);
-  assert.equal(ACTOR_SAVE_VERSION, 8);
+  assert.equal(ACTOR_SAVE_VERSION, 9);
 });
 
 test('a Glass record with a bond delta validates on v6', () => {

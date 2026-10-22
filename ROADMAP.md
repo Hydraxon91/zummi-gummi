@@ -1802,14 +1802,15 @@ can proceed with the current runtime and assets.
 
 ## Personality and modular-AI extension track
 
-This is an additive foundation, not a replacement engine. Only chunk 1 is approved
-for implementation. Other chunks require their own behavior/persistence decisions
-and approval; their presence here is not authorization to start them.
+This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved;
+chunk 2 is limited to the stargazing prototype below. Chunks 3–4 require their own
+behavior/persistence decisions and approval. New core logic uses plain data and
+explicit host inputs for easy translation to Godot; this is not an engine migration.
 
 | Chunk | Status / dependencies | Scope | Acceptance gate |
 | --- | --- | --- | --- |
-| **1 — Contracts and personality definitions/presets** | ✅ Implemented and verified locally (uncommitted); hosted run pending separate push approval | Guidance; validated module contracts and registration/config checks; explicit supported/unsupported toggle policies; reusable conformance tests; ordered trait definitions and validated, unapplied shy/adventurous/food-motivated preset data | Positive/negative contract fixtures; scope/admission/existing-activity/re-enable/cleanup checks where supported; unchanged defaults, trait order, founder values, inheritance RNG and save shape; Node/browser/parity evidence. No automatic preset assignment or personality enablement. |
-| **2 — Preferences, habits and personality extension points** | Planned; depends on 1 | Separate stable traits, temporary mood, preferences and learned habits. Extend supported bounded parameter effects and reusable inheritance/migration/cache contracts. Prove one representative opt-in addition before replication. | Approve trait/preset values, effect targets, acquisition/decay rules and persistence first. Verify visible behavioral differentiation, save/load and map isolation, enabled determinism/RNG and disabled compatibility; survival priorities remain authoritative. |
+| **1 — Contracts and personality definitions/presets** | ✅ Implemented and committed as `99e9e36`; subsequent code run `39795559309` passed hosted CI | Guidance; validated module contracts and registration/config checks; explicit supported/unsupported toggle policies; reusable conformance tests; ordered trait definitions and validated, unapplied shy/adventurous/food-motivated preset data | Positive/negative contract fixtures; scope/admission/existing-activity/re-enable/cleanup checks where supported; unchanged defaults, trait order, founder values, inheritance RNG and save shape; Node/browser/parity evidence. No automatic preset assignment or personality enablement. |
+| **2 — Preferences, habits and personality extension points** | ✅ Stargazing prototype implemented and verified locally; uncommitted, no hosted CI for this batch | Separate stable traits, temporary mood, preferences and learned habits. Extend supported bounded parameter effects and reusable inheritance/migration/cache contracts. Prove one representative opt-in addition before replication. | Approved bounds/persistence below. Behavioral differentiation, save/load, map isolation, enabled determinism/RNG and disabled compatibility verified; survival priorities remain authoritative. |
 | **3 — Optional activity proposals** | Planned; depends on 1–2 | Shared eligibility/preference/explanation interface; initially preserve ordered selection. A separately enabled optional-activity chooser may use personality, preferences, habits and relationships. | Approve eligible activity set, scoring/ties, evaluation budget, refusal and interruption policy. Explain selection/rejection; verify real natural selection, exactly-once effects, pair/claim cleanup and determinism. No override of essential needs or existing player-command rules. |
 | **4 — Bounded goals over existing actions** | Planned; depends on 3 | Goal preconditions, progress/completion, expiry/abandonment, interruption/resumption and bounded memory/evaluation. Reuse existing movement and interaction protocols; prove one small multi-step goal before general planning. | Approve representative goal, persistence and limits first. Verify successful and impossible plans, interruptions, claim cleanup, save/load, map/new-game isolation, deterministic behavior and runtime budget. No unbounded planner or second simulation system. |
 
@@ -1826,6 +1827,53 @@ capability declarations, 34 states and 19 opportunities with no errors. HTTP smo
 67/67, core browser regression and the short all-race parity matrix pass; a fresh
 15-case long parity matrix reports `tier: long`, `acceptance: true`, zero reuse.
 No hosted CI or personality-enabled visual evidence was produced by this chunk.
+
+**Chunk 2 approved contract:** independent off-by-default `preferences` and `habits`
+flags; Glass stargazing only. Explicit liking `0..1` (neutral `.5`) adds up to ±`.04`
+to chance; learned strength `0..1` adds up to `.02`. A completed uninterrupted session
+adds `.1`; active simulated days decay `.05` each. Paused/inactive/offline time freezes
+state. Disabling stops that effect/learning/decay but retains saved values and clears
+current learning eligibility. Neither likes nor habits are inherited. Existing chance
+clamps, eligibility, order, survival gates, session timing and RNG calls are preserved.
+Sparse actor record v9 carries meaningful preference/habit state; old records retain
+their previous versions. Core pure rules live in `src/behaviors/preferences.js`, actor
+and clock wiring in the existing host, and migration in the existing save boundary.
+No activity chooser, general goals, dependencies, UI toggle or Godot integration.
+
+**Chunk 2 acceptance:** 316 Node tests pass, including 13 disposition-specific tests
+for pure translation fixtures, malformed input, cache freshness, neutral/disabled
+effects, natural ordered selection, survival interruption, exactly-once learning,
+post-grab resumption, active-time decay, seeded enabled traces with instrumented RNG,
+v9 migration and coexistence with prior save fields. The served prototype harness
+(`node scripts/preferences-test.mjs`) passes all 12 checks: default-off and enabled
+effects, real natural stargazing/completion, disabled freeze/re-enable, actual v9
+save/load, inactive-map freeze/return, Glass newborn non-inheritance and loading an
+unrelated game with reused UIDs. Its report is `.dev-shots/preferences-test.json`.
+The feature does not add a pair, reservation, bond/resource effect, UI or new visual
+asset; those additions are excluded rather than implied by solo-activity checks.
+
+HTTP smoke 67/67 and behavior contracts 17 declarations/34 states/19 opportunities
+pass. Full browser regression with Studio passes for both modules and legacy;
+the 180-step seeded browser trace matches, and full social (16) and gifting (8)
+checks pass. Existing desktop/mobile Settings captures were inspected. Short
+all-race parity passes 9/9; final fresh long parity passes 15/15, 20 days × five
+seeds × three races, `tier: long`, `acceptance: true`, zero reuse. Enabled behavior
+evidence is separate from that disabled compatibility matrix. No commit, push or
+hosted CI result is claimed for chunk 2; optional features remain off by default.
+
+**Known follow-ups — stargaze timer is decremented twice (deferred):** active
+stargazing runs the generic `ai.idleT -= dt` in `src/behaviors/engine.js` and then
+another decrement in `src/behaviors/stargaze.js`. Sessions can finish in roughly half
+their sampled timer. This is inherited behavior, not introduced by preferences;
+changing it would alter timing and legacy parity. Batch 2 preserves it and rewards
+only the existing successful completion transition. Fix separately with an explicit
+timing/parity decision.
+
+**Known follow-ups — historical interruption flag must not gate new learning
+(fixed in batch 2):** Glass can retain `ai.interrupted` after grab/release; using
+that host flag to decide whether a later stargazing session completed would suppress
+learning indefinitely. Completion now uses only the per-session token cleared by
+cancellation, and a grab/release/new-session regression proves learning resumes.
 
 **Known follow-ups — module setter accepts unknown IDs (needs decision):**
 `setModuleEnabled('notAModule', true)` and `setModuleParams(...)` return `true`

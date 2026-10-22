@@ -38,6 +38,7 @@ export const stargazeModule = defineBehaviorModule({
       api.coverHour('stargaze', api.hoursNow());
       ai.state = 'stargaze';
       ai.idleT = p.stargaze.min + ctx.rng() * (p.stargaze.max - p.stargaze.min);
+      if (ctx.features.habits) ai.stargazeLearning = true;
       api.stop(actor);
       return true;
     },
@@ -47,6 +48,11 @@ export const stargazeModule = defineBehaviorModule({
     if (!ai || ai.state !== 'stargaze') return false;
     ai.idleT = Math.max(0, ai.idleT - dt);
     if (ai.idleT <= 0 || actor.hunger > .85 || actor.thirst > .88) {
+      if (ctx.features.habits && ai.stargazeLearning &&
+          ai.idleT <= 0 && actor.hunger <= .85 && actor.thirst <= .88) {
+        api.learnActivity(actor, 'stargaze');
+      }
+      if (ai.stargazeLearning) delete ai.stargazeLearning;
       api.coverHour('stargaze-exit', api.hoursNow());
       ai.state = 'wander';
       ai.idleT = 0;

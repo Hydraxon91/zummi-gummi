@@ -7330,6 +7330,14 @@ window.__gummy = {
     return behavior && typeof behavior.setFeature === 'function'
       ? behavior.setFeature(name, value) : false;
   },
+  activityPreference(uid, id, value){
+    if (!behavior || typeof behavior.setPreference !== 'function') return false;
+    return behavior.setPreference(actorView.byUid(uid), id, value);
+  },
+  dispositions(uid){
+    if (!behavior || typeof behavior.dispositions !== 'function') return null;
+    return behavior.dispositions(actorView.byUid(uid));
+  },
   departures(){ return departures ? departures.list() : []; },
   clearDepartures(){ if (departures) departures.clear(); return true; },
   routines(uid){

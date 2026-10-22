@@ -13,6 +13,7 @@ import {
   normalizePartnerUid, normalizeRivals,
 } from './relationships.js';
 import { normalizeCarriedFood } from './foodportions.js';
+import { normalizePreferences, normalizeHabits } from './behaviors/preferences.js';
 
 function round(value, digits = 4) {
   const n = Number(value);
@@ -35,11 +36,15 @@ export function snapshotActor(actor, extra = {}) {
   const rivals = normalizeRivals(actor.rivals);
   const carriedFood = normalizeCarriedFood(actor.carriedFood);
   const advanced = partnerUid !== null || Object.keys(rivals).length > 0 || carriedFood !== null;
+  const preferences = normalizePreferences(actor.preferences);
+  const habits = normalizeHabits(actor.habits);
+  const hasPreferences = Object.keys(preferences).length > 0;
+  const hasHabits = Object.keys(habits).length > 0;
   const record = {
     // Trait-free records remain v2; traits v3; grief v4; a guardian v5; bond
     // deltas v6; a persisted gift day v7; rivalry, partnership or a carried
-    // portion v8. The highest applicable version is emitted only.
-    actorVersion: advanced ? 8
+    // portion v8; activity preferences/habits v9. Emit only the highest needed.
+    actorVersion: hasPreferences || hasHabits ? 9 : advanced ? 8
       : (giftDay !== null ? 7
         : (historyHasBondDelta(history) ? 6
           : (guardianUid ? 5 : (mourning.length ? 4 : (actor.traits ? 3 : 2))))),
@@ -79,6 +84,8 @@ export function snapshotActor(actor, extra = {}) {
   if (partnerUid !== null) record.partnerUid = partnerUid;
   if (Object.keys(rivals).length) record.rivals = rivals;
   if (carriedFood) record.carriedFood = carriedFood;
+  if (hasPreferences) record.preferences = preferences;
+  if (hasHabits) record.habits = habits;
   if (actor.kind === 'glass') {
     record.kind = 'glass';
     record.species = 'glass';
@@ -101,6 +108,12 @@ export function applyCommonActorState(actor, record) {
   actor.skills = normalizeSkills(record.skills);
   actor.history = normalizeHistory(record.history);
   actor.playdates = normalizePlaydates(record.playdates);
+  const preferences = normalizePreferences(record.preferences);
+  const habits = normalizeHabits(record.habits);
+  if (Object.keys(preferences).length) actor.preferences = preferences;
+  else delete actor.preferences;
+  if (Object.keys(habits).length) actor.habits = habits;
+  else delete actor.habits;
   actor.fatherUid = Number.isFinite(record.fatherUid) ? record.fatherUid : 0;
   if (record.traits) actor.traits = normalizeTraits(record.traits);
   if (record.mourning !== undefined) actor.mourning = normalizeMourning(record.mourning);
