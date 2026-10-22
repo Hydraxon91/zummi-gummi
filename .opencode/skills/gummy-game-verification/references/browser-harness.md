@@ -87,6 +87,13 @@ captures and server logs even on success; inspect failures, do not retry for gre
 The push matrix is aggregated by `Required CI checks`; only explicitly allowlisted
 documentation-only diffs may skip browsers. Pages requires successful tested main
 code, not merely a successful deployment command.
+
+The dedicated social `settings` scenario uses `race=off` and verifies a rendered
+background before gating further animation callbacks. Desktop/mobile controls and
+CSS transitions remain live; captures must show the actual settings sheet without
+a pause overlay. It skips unused actor fixtures and Glass readiness only in this
+scenario. The default `all` scope retains Glass and normal animation. Do not use
+the dedicated settings scenario as evidence for animation or Glass correctness.
 For a bounded stall investigation, set `STALL_DIAGNOSTICS=1`. On the first
 evaluation timeout the harness retains a debugger stack, process inventory and
 (on macOS) a one-second browser-process sample under `harness.stall`. This adds

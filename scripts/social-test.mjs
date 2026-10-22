@@ -9,6 +9,7 @@ TARGET.searchParams.set('autostart', '1');
 TARGET.searchParams.set('behaviors', 'modules');
 const TAG = process.env.TAG || 'social';
 const SCENARIO = process.env.SCENARIO || 'all';
+if (SCENARIO === 'settings') TARGET.searchParams.set('race', 'off');
 if (!['all', 'settings', 'pair', 'rivalry', 'partnership', 'groups', 'glass'].includes(SCENARIO)) {
   throw new Error(`Unknown social SCENARIO: ${SCENARIO}`);
 }
@@ -17,7 +18,7 @@ const FAST = process.env.FAST === '1';
 const WIDTH = Number(process.env.WIDTH || 1440);
 const HEIGHT = Number(process.env.HEIGHT || 900);
 const lowQuality = process.env.LOW_QUALITY === '1';
-const initScript = lowQuality ? `(() => {
+const qualityScript = lowQuality ? `(() => {
   try {
     localStorage.setItem('gummy.qualityLevel', '3');
     localStorage.setItem('gummy.qualityCap', '3');
@@ -27,6 +28,12 @@ const initScript = lowQuality ? `(() => {
     localStorage.setItem('gummy.profile', 'performance');
   } catch (error) {}
 })()` : null;
+const initScript = SCENARIO === 'settings' ? `(() => {
+  const request = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = callback => request(time => {
+    if (!window.__ciStopFrames) callback(time);
+  });
+})();${qualityScript || ''}` : qualityScript;
 const REPORT = `${ROOT}/.dev-shots/social-${TAG}-${SCENARIO}.json`;
 await mkdir(`${ROOT}/.dev-shots`, { recursive: true });
 
@@ -44,7 +51,14 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 try {
   page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
   await page.waitFor('!!window.__gummy?.booted', 90000);
-  await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
+  if (SCENARIO !== 'settings') {
+    await page.waitFor('window.__gummy.glass().count > 0 && window.__gummy.glass().actors.every(a => a.ready)', 150000);
+  } else {
+    // Settings assert DOM controls, not Glass rendering. Retain a real rendered
+    // background, then avoid letting unrelated frames starve DOM/CDP requests.
+    await page.waitFor('window.__gummy.three().renderer.info.render.frame > 0', 90000);
+    await evaluate('window.__ciStopFrames = true');
+  }
   await evaluate('window.__gummy.seed(421337)');
   if (FAST && SCENARIO !== 'settings') await evaluate('window.__gummy.pause(true)');
 
@@ -90,7 +104,7 @@ try {
   await sleep(250);
   }
 
-  const setup = await evaluate(`(() => {
+  const setup = SCENARIO === 'settings' ? null : await evaluate(`(() => {
     const g = window.__gummy;
     const source = g.foodSources().find(s => s.ripe && !s.claimed);
     const x = source ? source.approachX : 6;
@@ -470,6 +484,10 @@ try {
   await evaluate('window.__gummy.pause(true)');
   const mobile = await browser.openPage({ url: TARGET.href, width: 390, height: 844, initScript });
   await mobile.waitFor('!!window.__gummy?.booted', 60000);
+  if (SCENARIO === 'settings') {
+    await mobile.waitFor('window.__gummy.three().renderer.info.render.frame > 0', 90000);
+    await mobile.evaluate('window.__ciStopFrames = true');
+  }
   await mobile.evaluate("document.getElementById('settingsBtn').click()");
   await sleep(400);
   const mobileSettings = await mobile.evaluate(`(() => {

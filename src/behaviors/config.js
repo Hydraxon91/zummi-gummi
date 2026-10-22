@@ -11,6 +11,7 @@
 import { profileFor } from '../behaviorprofiles.js';
 import { listSpecies } from '../species.js';
 import { hiveModule } from './hive.js';
+import { mateModule } from './mate.js';
 import { directivesModule } from './directives.js';
 import { conflictModule } from './conflict.js';
 import { stargazeModule } from './stargaze.js';
@@ -50,6 +51,7 @@ export const FEATURE_DEFAULTS = Object.freeze({
 });
 
 const MODULE_DEFAULTS = Object.freeze({
+  mate: mateModule.defaults,
   hive: hiveModule.defaults,
   conflict: conflictModule.defaults,
   directives: directivesModule.defaults,

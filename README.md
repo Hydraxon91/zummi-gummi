@@ -190,6 +190,13 @@ largest levers. The full report, including the previous post-polish and original
 
 ## Verification
 
+The dedicated `SCENARIO=settings` social harness uses `?race=off`, retains an
+initial rendered background, then gates subsequent animation callbacks while
+checking desktop/mobile DOM controls and capturing the sheet. It does not spawn
+interaction fixtures or wait for Glass. The default full social suite still runs
+with Glass and normal animation. This isolates settings acceptance from unrelated
+transmission-shader work; it is not an animated-scene or pointer-input benchmark.
+
 The Box3D port passes a 16-check headless self-test covering NaN/bounds, bounce counting, pour, head pull/stretch readout, upright hang, press squash, snap-back, throws, release launch, surface validity, vertex limits and the bear ceiling. Separate checks drive the cannon through the UI, the keyboard (`L`/`Esc`), the debug API and real mouse events, including move-mode and direct-drag placement, validation and 8-unit wall handles. Phase 2 checks additionally cover map switching with independent bear/cannon state, field layout/nav validation, pond buoyancy, cottage collision, tree/grass controls, mobile captures and the final visual beats. The polish pass adds checks for villa door headroom (1.646 m opening vs 1.375 m adult), both portal directions, sky-look/high-orbit camera limits, and day/night firefly visibility and motion.
 
 A continuous-integration smoke test also runs on every push and pull request (`.github/workflows/smoke.yml`). It boots `launch.py`, then `scripts/smoke.mjs` fetches the page shell, source modules, licenses and `box3d.wasm` over HTTP and instantiates the wasm — asserting the `application/wasm` MIME type, the `\0asm` header, the linear memory and the exported `_g3_*` wrapper API. Run it locally with `python3 launch.py --no-open &` then `node scripts/smoke.mjs`.

@@ -18,6 +18,8 @@ function dist(a, b) {
 
 function canMatePair(ctx, other) {
   const { actor, ai, p, api } = ctx;
+  if (p.behaviorModules.mate.enabled === false ||
+      ctx.config.forActor(other).behaviorModules.mate.enabled === false) return false;
   if (!actorAvailable(actor) || !actorAvailable(other)) return false;
   if (actor === other) return false;
   if (actor.inside || other.inside) return false;
@@ -49,6 +51,7 @@ function startSeekMate(ctx, partner) {
 
 function acquireMate(ctx) {
   const { actor, ai, p, api, rng } = ctx;
+  if (p.behaviorModules.mate.enabled === false) return null;
   if (!actor || actor.pregnant || actor.stage !== 'adult' || actor.mateCooldown > 0) return null;
   if (actor.health < 70 || actor.hunger > .40 || actor.thirst > .60 || actor.energy < .30) return null;
   if (api.safeFoodCount() < MATE_FOOD_MIN) return null;
@@ -132,7 +135,8 @@ export const mateModule = defineBehaviorModule({
   opportunities: [{
     id: 'mate.seek',
     order: 80,
-    canRun: (ctx) => !!ctx.actor && ctx.actor.stage === 'adult' && ctx.actor.mateCooldown <= 0,
+    canRun: (ctx) => ctx.p.behaviorModules.mate.enabled !== false &&
+      !!ctx.actor && ctx.actor.stage === 'adult' && ctx.actor.mateCooldown <= 0,
     enter: (ctx) => {
       const chance = ctx.p.mate.chance;
       if (chance < 1 && ctx.rng() >= chance) return false;

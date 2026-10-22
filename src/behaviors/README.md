@@ -306,6 +306,11 @@ Later layers win:
 The resolved object is cached per actor by config version, so modules never
 merge config in the hot loop.
 
+The `mate` module is registered in layered config. Disabling it prevents new
+courtship selection (including recruitment of a disabled recipient), but existing
+courtship/mating completes normally. Re-enabling restores admission. This changes
+neither default-enabled behavior nor the physics timestep, and adds no save fields.
+
 ## Quirks
 
 All flags default off. They are documented, not permission to change behavior.
