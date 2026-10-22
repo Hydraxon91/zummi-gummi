@@ -847,6 +847,12 @@ Treat a new species/variant as a rig and delivery contract, not only a new silho
 
 ## Deformation and export (only when requested)
 
+- For subdivided morph assets, demonstrate the delivery method on a separate copy before
+  committing to conversion. Compare evaluated source against the delivery/re-imported Basis,
+  every required morph state and representative intermediate weights under matched conditions.
+  Verify target identity, correspondence and motion, not only counts or the neutral shape.
+  Do not assume applying subdivision or enabling exporter modifiers preserves shape keys.
+  Keep source editable; an unsupported transfer blocks delivery, not permission to drop morphs.
 - Physics bodies, deformation controls/bones and the visible surface are separate.
   Do not assume 24 physics spheres require 24 bones. Inspect the current runtime:
   the bear baseline uses sphere physics and a generated metaball surface, not an

@@ -208,6 +208,9 @@ live inspection during construction.
   Inventory connected UV islands after unwrapping. A continuous prominent surface plus a
   separate cap may be useful, but neither one-island layouts nor underside cuts are universal
   requirements. Intentional fabric seams and accidental texture discontinuities are different.
+- Compare actual connected UV islands and their face ownership with the proposed layout.
+  Seam counts, island counts alone and successful unwrap operators do not prove that a
+  coherent cap or continuous body was produced. Report unexpected fragmentation before packing.
 - Choose seam-based unwrap for controlled islands, minimum-stretch for suitable organic
   forms, or smart projection for appropriate hard-surface blockouts. Verify the actual API.
 - Use a checker texture to inspect stretching and orientation. Compare texel density
@@ -252,6 +255,10 @@ live inspection during construction.
 
 ## Optimization and GLB delivery
 
+- After approved shape/UV/material criteria pass, move to authorized delivery verification.
+  Do not reopen construction merely to pursue perfectly uniform checkers, more subdivision
+  or lower counts. A demonstrated requirement failure needs a scoped repair; an optional
+  quality/budget change needs approval. Acceptance never waives unverified export/runtime checks.
 - Establish a user-approved budget for triangles, exported vertices, material primitives,
   texture memory and file size. Web defaults from another project are not our budget.
 - Measure first. Consider genuinely invisible geometry and unnecessary planar density

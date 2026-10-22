@@ -116,6 +116,12 @@ silently retarget the fabric. Inspect links, including node groups, rather than 
 UV Map nodes; an unused node is not proof of binding. Preserve comparison layouts and
 record the chosen layer with the material setup.
 
+Pre-export checklist: trace the image Vector inputs to the intended named UV layer,
+then independently check the Normal Map node's tangent UV field. Feeding a normal image
+through a UV Map node does not set that field. Confirm the exported texture-coordinate
+selection and tangent response in the clean import/target preview; correct Blender wiring
+alone is not transfer evidence.
+
 Blender, glTF and three.js use OpenGL-style tangent-space normals (Y+). Unreal and some
 Substance presets use DirectX (Y−). Do not flip the green channel without knowing the source
 and target convention. Bake and export with the same triangulation and tangent basis; otherwise

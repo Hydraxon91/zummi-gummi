@@ -133,6 +133,26 @@ coordinates unchanged and verify the lower visible body as well as the bottom. N
 edit, save, unwrap, export or in-game verification was performed by this review. Remaining
 normal-map quality and material/UV acceptance are not waived.
 
+### Follow-up review of `_047`
+
+Read-only inspection of `beanbag_stylized_source_047_uv_bottom_cap_minstretch_review.blend`
+found dirty state false, Object Mode, the level-1 subdivision modifier and both Basis-relative
+occupied keys at zero. Independent UV-edge adjacency confirmed exactly 346 body faces plus
+38 cap faces on render UV `Fabric_UV_BottomCap_MS`; source/evaluated counts remained
+386 vertices / 384 quads and 1,538 vertices / 3,072 triangles. Historical preservation hashes
+were not independently rechecked. The fabric's image-coordinate chain explicitly uses that
+layer, but the tangent-space Normal Map UV field was still empty at inspection. Its active
+render fallback currently matches; explicitly setting the field remains a setup follow-up.
+
+Inspected all five `uv4_checker_*` captures (front close, rear, side, lower body, underside)
+and all six `fabric_final_{basis,occupied,strong}_{game,front_close}.png` captures. The
+fragmented underside/pinching problem is visibly improved; lower-body checker-size variation
+remains, without an obvious disruptive fabric transition in these views. The review recommended
+UV/material art acceptance at the intended stylized scale, not automatic user approval,
+all-view perfection or game readiness. No model edit/save, export or runtime test occurred.
+Next proposed stage is explicit tangent-UV binding followed by a separately approved
+morph-preserving delivery plan; no further construction was warranted by the inspected views.
+
 ## Asset library coverage
 
 Exercised in the pond-scene trials (2026-10-19–20, Blender 5.2.2, addon 1.8):
