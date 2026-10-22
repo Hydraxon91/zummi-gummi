@@ -1836,6 +1836,15 @@ a silent no-op into an error for existing callers; choosing between rejecting,
 warning and leaving it permissive is a design decision, so it is deferred rather
 than changed here. Trigger: any caller toggling a misspelled or unwired module ID.
 
+**Known follow-ups — hosted Settings mobile boot timeout (fixed in harness):** run
+39785806336 for `d86d09a` failed only `Browser (settings)`; the mobile page's
+`__gummy.booted` wait (60 s) expired while the finished desktop page still held its
+WebGL context under software rendering, so `Required CI checks` failed and Pages was
+correctly skipped. The Settings scenario now closes the desktop target before opening
+the mobile viewport and allows 120 s for that boot. Local captures remain unobscured
+and all four assertions pass; hosted re-verification is pending. The other 12 jobs
+passed, so this was not a regression in game or personality code.
+
 ## Modular NPC behavior system (step 3, Oct 2026)
 
 One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be

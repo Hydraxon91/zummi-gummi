@@ -481,9 +481,15 @@ try {
   }
 
   if (selected('settings')) {
-  await evaluate('window.__gummy.pause(true)');
+  if (SCENARIO === 'settings') {
+    // Free the finished desktop page so the second viewport does not contend for
+    // the single software renderer while booting.
+    await browser.send('Target.closeTarget', { targetId: page.targetId });
+  } else {
+    await evaluate('window.__gummy.pause(true)');
+  }
   const mobile = await browser.openPage({ url: TARGET.href, width: 390, height: 844, initScript });
-  await mobile.waitFor('!!window.__gummy?.booted', 60000);
+  await mobile.waitFor('!!window.__gummy?.booted', 120000);
   if (SCENARIO === 'settings') {
     await mobile.waitFor('window.__gummy.three().renderer.info.render.frame > 0', 90000);
     await mobile.evaluate('window.__ciStopFrames = true');
