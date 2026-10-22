@@ -3,6 +3,16 @@
 **Status: unvalidated.** Project-authored candidate guidance. Follow the main skill's
 character, rigging and reference rules. Do not reuse humanoid proportions by default.
 
+## Game-first application
+
+Read the shared [game-asset contract](game-asset-contract.md). Keep density for the
+species-defining silhouette, characteristic face/appendages and required limb/spine bends.
+Represent fine fur, scales and feather markings with materials when allowed; avoid
+per-strand/per-feather geometry by default. Silhouette masses may still need geometry.
+Alpha cards can increase overdraw, so they are not automatically cheaper than a small
+opaque mesh. Budget repetition, skinning, material primitives and shadows; test delivery
+reductions in required poses rather than optimizing only the standing animal.
+
 ## 1. Identify the species and characteristic structure
 
 Record species or approved creature design, stylisation, age/sex only if specified,
@@ -20,7 +30,7 @@ forcing the quadruped landmarks below. Mark missing reference views as uncertain
 | If… | Start with… | Risk |
 | --- | --- | --- |
 | A simple stylised animal is required | Low-resolution cage with species-specific masses and joints | A rounded generic body may erase the species silhouette |
-| Organic anatomy needs sculptural shaping | Primary-mass sculpt/blockout before surface detail | Fur/scales may conceal unresolved anatomy in a hero render |
+| Organic anatomy needs sculptural shaping | Primary-mass sculpt/blockout; a dense source needs approved purpose and separate runtime delivery | Fur/scales may conceal unresolved anatomy in a hero render |
 | The animal must move | Deformation-aware cage or scoped sculpt-to-retopology workflow | Neutral pose quality does not establish limb or spine behaviour |
 | Repeated appendages follow an established body plan | Prove one complete limb/wing/segment before repetition | Mirrored copies may inherit wrong axes or attachment |
 

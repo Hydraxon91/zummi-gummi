@@ -536,7 +536,8 @@ asset/tool defects retain their own Known follow-ups below. Documentation checks
 must not promote any guide to validated or imply model acceptance.
 
 Each row requires both a **higher-tier** and a **lower-tier LLM** evaluation; unchecked
-means neither dual-tier coverage nor human acceptance is established. Model choices and
+means required validation/acceptance is incomplete; partial and failed evaluations are
+recorded separately, not erased. Model choices and
 actual access must be confirmed before running; DeepSeek V4.1 Flash is a requested
 lower-tier candidate, not a verified available model. No benchmark executions, purchases,
 installation, game integration or source rebuild are authorized by this backlog.
@@ -552,6 +553,10 @@ installation, game integration or source rebuild are authorized by this backlog.
 | [ ] Rigid furniture | Bevelled member/seat/back joint, complete frame/support contact and operating clearance where required. |
 | [ ] Sprite normals | Approved tool preflight; asymmetric sprite, flat and inverted-Y controls; alpha/colour-space/convention checks, atlas registration, source timing/loops and playback. In-game evidence only after separate integration approval. |
 | [ ] Asset families | One approved representative followed by a small family with controlled variants/states; native-size/contact-sheet review, consistent scale/pivots/material response and complete provenance. |
+| [ ] Assisted stylized props and fidelity routing | Approve gameplay-read cues and omissions before building; exercise concise human-feedback checkpoints, supplied material reuse and a separate budgeted delivery copy with both model tiers. Verify calibrated requirements remain intact for reference-faithful/reconstruction tasks. |
+| [ ] Shape-repair iteration policy | Distinguish successful construction from failed repairs; test two-unchanged-failure diagnosis, six-failure review, seven-failure stop and explicit bounded continuation without erasing history or downgrading a required feature. |
+| [ ] Background-prop delivery and runtime budget | Agree screen size/camera range, instance count, triangles/materials/textures; inspect reduction at that scale, verify re-imported export counts/UVs/materials and separately approved game loading, lifecycle, appearance and measured performance. A vertex count alone cannot pass. |
+| [ ] Shared game-first contract across all categories | With both model tiers, exercise each of the seven construction guides under approved runtime geometry/material/texture budgets. Check modest source construction, reuse, category-specific repetition/deformation/alpha costs and separate delivery verification. A reference-faithful task must not be silently stylized; dense CGI/bake sources require explicit purpose/approval and must not become default runtime output. Preserve every existing safety/export/runtime gate. |
 | [ ] UI/input extensions | Real boot/menu readiness, supported focus/device transitions, multiple viewport/aspect cases, interaction assertions, persistence where affected and bright/dark native-size captures. Hardware not exercised remains unverified. |
 | [ ] Verification routing and completeness | Compare original requirements/commands with all seven extracted references; verify links/paths, cumulative routes for cross-system changes, stage/evidence rules and no dropped acceptance criteria. Exercise representative browser, behavior/save, physics/map, rendering/UI and performance tasks. |
 | [ ] Dual-tier end-to-end usability | Apply the protocol below to every guide and routing scenario; retain failures as well as passes. A successful higher-tier run cannot certify the lower-tier lane or vice versa. |
@@ -576,6 +581,15 @@ and tested scope explicitly. Do not remove an unvalidated label based on one pas
 artifact, links/format checks, clean topology or an LLM's self-assessment. The verification
 router and guides contain no new runtime dependency; an unavailable tool/model is a named
 coverage gap, not a pass.
+
+Initial independent beanbag submissions from the user-labelled DeepSeek and GPT-6.1 Sol
+sessions have been reviewed from reports, captures and both live final meshes. Both fail
+their original reference-fidelity brief; neither validates soft goods. Preserve those
+submissions and their original attempt histories. The user now requests a cutesy background
+prop workflow with human direction rather than exact dimples: that is a new assisted
+production lane, not retroactive benchmark acceptance. Review findings, measured counts
+and cost-evidence limits are in `docs/3d-authoring-notes.md`. No model edits, optimization,
+export or integration are authorized by these documentation changes.
 
 **Known follow-ups — beanbag reference orientation (side mapping fixed; source unchanged):** The calibrated
 `Ref_Side` in `beanbag_source_026.blend` places the back toward −Y, whereas the source

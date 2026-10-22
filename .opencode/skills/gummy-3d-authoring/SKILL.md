@@ -17,6 +17,43 @@ species-variant rig/export notes are in "Character and variant authoring" and
 Last reviewed: 2026-10-22. Update this line when the commands, scripts or delivery
 contract below materially change; `AGENTS.md` remains the policy source.
 
+## Game-first destination
+
+Runtime game assets are the default across every construction category. Read the shared
+[game-asset contract](references/game-asset-contract.md) before the construction brief
+and applicable module. It is **unvalidated** guidance, not a guarantee of performance.
+Agree role, camera/screen coverage, instances, geometry/material/texture budgets and
+required motion first. Prefer modest editable sources and budgeted delivery copies;
+dense CGI/sculpt sources need an explicit approved purpose and a delivery strategy.
+Game-first and reference fidelity are independent: preserve the approved likeness mode.
+This does not authorize optimization of unrelated assets or game integration.
+
+## Fidelity and production route
+
+Agree the mode and required cues before modelling; do not default every reference image
+to exact reconstruction. If unspecified, propose the mode and budget and wait for the
+normal plan approval. Use this choice consistently in all construction references below.
+
+| Mode | Acceptance target | Reference procedure |
+| --- | --- | --- |
+| Stylized / gameplay read | Approved identifying silhouette, major forms and readability at intended game scale; explicitly simplify secondary details | Inspect images as visual guides, declare dimensions, compare neutral multi-angle views; calibrated overlays only when measured matching is requested |
+| Reference-faithful | Specified structural proportions, interfaces and reference features | Calibrated authority view, locked planes, aligned overlays and stated uncertainty |
+| Reconstruction | Measured multi-view matching of the agreed visible structure | Calibration/overlays plus explicit landmark, coverage and discrepancy analysis; unsupported hidden structure remains unverified |
+
+Modes do not waive mesh health, protected-state checks, required openings/contact,
+source preservation, export gates or runtime verification. Required versus optional/
+omitted features come from the approved brief, not every visible wrinkle in an image.
+Changing an existing brief's fidelity requires approval and invalidates affected acceptance
+claims; it does not retroactively turn failed benchmarks into successes.
+
+For assisted stylized background props read
+[stylized game props](references/stylized-game-props.md), then the applicable construction
+module. This **unvalidated** route prioritizes useful human art-direction checkpoints,
+existing materials and a budgeted delivery copy, not exhaustive reconstruction analysis.
+Record camera distance or screen coverage, likely instances, triangle/material/texture
+budgets, motion/collision needs, available source materials and authorized delivery stages.
+Do not call a Blender source game-ready without the export/runtime evidence that claim needs.
+
 ## Default authoring workflow: live MCP first
 
 Use live Blender MCP as the primary shape-authoring workflow. MCP can execute Python;
@@ -48,7 +85,8 @@ a smooth primitive can read as a rigid bowl rather than a yielding fabric form.
 
 ## Construction routing
 
-Before completing the construction brief, read the applicable modules below. These are
+Before completing the construction brief, read the shared game-asset contract and the
+applicable modules below. These are
 specialist references under this skill, not separate installed skills or generators.
 **All seven are unvalidated:** practical candidate procedures, not established project
 recipes. They do not authorize edits, override approvals or justify rebuilding a source.
@@ -388,6 +426,11 @@ do not authorize edits; do not add wear or rework accepted geometry without appr
 
 ## Reference calibration (before modeling)
 
+Required for reference-faithful/reconstruction work and requested dimensional matching.
+Stylized/gameplay-read work without measured matching instead follows its declared
+dimensions and visual-guide review; it must not claim calibrated likeness. Existing
+reference planes must still be preserved and may not be warped to hide discrepancies.
+
 1. Record real target dimensions (e.g. wheelbase, overall width/length, tyre diameter,
    ride height). Ask the user for any that are unknown and mark estimates as estimates.
 2. Measure what each reference sheet actually encodes, and check that the sheets agree
@@ -413,6 +456,11 @@ do not authorize edits; do not add wear or rework accepted geometry without appr
    confident but false results.
 
 ## Direct comparison with reference planes
+
+Use this measured-comparison gate in the calibrated-reference modes above. A stylized
+visual guide does not require per-edit overlays; inspect neutral multi-angle form changes
+and capture the approved shape gate. If an overlay is used as measured evidence, all
+calibration, framing and source-freshness requirements still apply.
 
 - When calibrated reference planes are available, capture reference-only, reference plus
   model edges, and solid-model views with identical aligned orthographic framing before
@@ -459,7 +507,8 @@ source fingerprints; approvals require fresh four-view evidence and are revalida
 detail/delivery. Materials, keys, bezels, seams and delivery exports come after the shell
 reads correctly.
 
-The shape gate is **feature presence plus overlay comparison, not bounds**. Inspect top and
+The shape gate is **approved feature presence plus mode-appropriate visual comparison,
+not bounds**; calibrated modes require overlays. Inspect top and
 three-quarter views specifically for cavities, openings and recline; a missing required
 feature blocks the next stage regardless of how finished the rest looks.
 
@@ -604,8 +653,11 @@ motion, material-transfer or user-acceptance evidence, and do not reset attempt 
 
 ## Regression stop
 
-Follow `AGENTS.md` section 5: up to seven evidence-driven attempts, with a progress review at
-six. After two unchanged failures, validate the target and diagnostic before editing again.
+Follow `AGENTS.md` sections 5 and 15: count failed repairs against the unresolved criterion,
+not successful inspected construction steps or ordinary approved artistic direction.
+At six failed repairs review progress; at seven stop autonomous retries. A user-approved
+additional bounded repair batch must name its hypothesis, scope, checks and attempt budget
+while retaining the prior ledger. After two unchanged failures validate the diagnostic.
 A new defect class stops the current edit chain: restore the last good scoped checkpoint and
 explain the alternative before proceeding within approved scope. Do not reset the attempt
 count by changing strategy names. Preserve unrelated work; reopening a whole `.blend` needs

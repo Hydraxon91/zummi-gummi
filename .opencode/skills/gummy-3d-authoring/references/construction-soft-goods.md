@@ -4,6 +4,19 @@
 rate is established. Follow the main skill's safety, calibration and approval rules.
 Use for filled fabric forms, cushions, beanbags, padded seats and loose fabric.
 For an underlying rigid frame also read [rigid furniture](construction-rigid-furniture.md).
+Select fidelity through the main skill first. In stylized/gameplay-read mode use only
+the approved required cues; follow [stylized game props](stylized-game-props.md) for
+assisted production and delivery budgeting. A visible reference pleat is not automatically
+required geometry. This does not permit omitting an approved cavity, lip or contact patch.
+
+## Game-first application
+
+Read the shared [game-asset contract](game-asset-contract.md). Keep loops for the
+approved silhouette, sitting cavity, contact and any required deformation. Fine fabric
+weave, dimples and small seams need not be geometry; omit or texture them according to
+the brief. Do not turn a static game prop into simulated cloth or a dense sculpt by
+default. Reuse fabric sources, keep source subdivision editable and compare the delivery
+copy at game scale: reducing density must not close the seat or remove ground contact.
 
 ## 1. Recognise the form before choosing a method
 
@@ -36,7 +49,8 @@ own approved scope; this table does not authorize them.
    Then test depth separately. Keep each state in a key or recoverable checkpoint.
 5. Compare cage displacement and evaluated subdivision-surface movement separately.
    Include the modifier's neighbourhood of influence in protection checks.
-6. Inspect matched front, side, top and seat-oblique views with reference overlays.
+6. Inspect matched front, side, top and seat-oblique views; use calibrated reference
+   overlays when the selected fidelity mode requires measured matching.
    Only after shape approval add structural folds, seam relief and material detail.
 
 **Editable controls:** footprint width/length, seat floor, inner-wall slope, front-lip

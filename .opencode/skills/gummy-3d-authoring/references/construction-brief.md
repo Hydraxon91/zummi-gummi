@@ -6,11 +6,23 @@ Record concise decisions and observable evidence, not hidden reasoning.
 
 ## Template
 
+- **Destination contract:** read [game-first production](game-asset-contract.md).
+  Runtime delivery is the default in every likeness mode. If a dense CGI/sculpt/bake
+  source is needed, state its approved purpose and how it stays separate from delivery.
+- **Fidelity and scope:** stylized/gameplay-read, reference-faithful or reconstruction;
+  required identifying cues, optional/simplified/omitted details, independent evaluation
+  versus assisted production, and who approves shape/style.
+- **Game budget:** intended camera distance or screen coverage, expected instances,
+  proposed delivery triangles/materials/texture sizes, motion/collision needs, available
+  source materials and separately authorized export/integration stages. Distinguish
+  editable source, evaluated source and re-imported export counts.
 - **Target/evidence:** reference landmarks, dimensions, units, coordinate space and uncertainty.
 - **Reference calibration:** authority view, crop rectangles, pixels-per-metre scale, plane
   collection and the overlay captures used for the gate. If no reference was supplied, state
-  that explicitly. Calibration must exist before the first geometry edit; dimensions agreed
-  only in chat do not count.
+  that explicitly. In reference-faithful/reconstruction or requested measured matching,
+  calibration must precede geometry; dimensions agreed only in chat do not count as
+  calibration. For stylized visual-guide work, state that no calibrated match is claimed,
+  record declared dimensions and name the neutral shape-review views instead.
 - **Geometry drivers:** silhouette, section progression, curvature, thickness, openings,
   interfaces and operating poses. Identify protected surfaces/transforms.
 - **Construction routing:** modules read from the main skill's routing table, their

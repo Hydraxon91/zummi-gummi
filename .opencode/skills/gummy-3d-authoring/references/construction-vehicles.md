@@ -5,6 +5,16 @@ main skill's calibration, protected-geometry and approval rules. For curved body
 read [curved products](construction-curved-products.md). Vehicle type determines which
 wheel, suspension, articulation or hull checks apply; state exclusions explicitly.
 
+## Game-first application
+
+Read the shared [game-asset contract](game-asset-contract.md). Set parked background,
+interactive or hero use before budgeting body panels, wheels, glass and moving parts.
+Spend loops on identifying body/arch curves and required operating clearance; do not
+model engine internals, hidden cabin detail or every fastener by default. Keep parts
+separate where movement requires it, not merely because a CAD assembly would. Budget
+transparent glazing, shadows and material primitives as well as triangles. Test any
+approved delivery reduction in the required poses and at intended camera scale.
+
 ## 1. Establish the vehicle, not just its bounding box
 
 Record authoritative views, overall dimensions, wheelbase/track when applicable, axle
@@ -19,7 +29,7 @@ silhouettes, not livery or shadows. Missing interior/reference data stays unveri
 
 | If the system is… | Start with… | Avoid… |
 | --- | --- | --- |
-| Smooth continuous bodywork | Calibrated longitudinal/transverse sections, Mirror and controlled subdivision | A single scaled primitive with details hiding its profile |
+| Smooth continuous bodywork | Longitudinal/transverse sections at approved scale (calibrated for measured matching), Mirror and controlled subdivision | A single scaled primitive with details hiding its profile |
 | Fabricated body panels or frame | Dimensioned panels/members, thickness and scoped bevels | Treating painted boundaries as separate structural panels |
 | Wheels or other rotational parts | Revolved profiles with explicit centres and axes | Guessing tyre profile from total diameter alone |
 | Glazing or apertures | Real opening boundary and mating pane/seal geometry | A dark decal substituting for an opening visible in silhouette |
@@ -35,7 +45,8 @@ than applying a car-body recipe. No physical or aerodynamic performance is impli
 3. For a wheeled vehicle test one arch/fender adjoining the body, including thickness,
    inner opening, wheel clearance and curvature under subdivision. For other vehicles
    test the defining section junction identified in the brief.
-4. Capture aligned orthographic reference-only, edge overlay and solid views. Compare
+4. Review neutral multi-angle shape views; for measured matching capture aligned
+   orthographic reference-only, edge overlay and solid views. Compare
    upper and lower contours, overhangs, openings and axle landmarks, not just roof height.
 5. Inspect curved interfaces under broad reflection strips. Test required steering,
    suspension or panel poses using evaluated geometry before mirroring/replication.

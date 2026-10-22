@@ -3,6 +3,16 @@
 **Status: unvalidated.** Candidate construction guidance, not a validated anatomy,
 sculpting or rigging workflow. Follow the main skill's character/deformation procedures.
 
+## Game-first application
+
+Read the shared [game-asset contract](game-asset-contract.md). Budget mesh density and
+required bones/clips/influences with the approved rig and expected simultaneous actors.
+Concentrate loops where silhouette, facial read or actual bends require them. Do not
+sculpt pores, model every hair strand or add expressions beyond the brief by default.
+A dense sculpt is an approved source stage with a runtime retopology/bake strategy,
+not an animation-ready delivery. Verify reduced meshes in required poses and preserve
+skin/shape-key/material ownership; a good neutral render is insufficient.
+
 ## 1. Establish proportions and use
 
 Identify human-like anatomy versus deliberate stylisation, reference landmarks,
@@ -16,7 +26,7 @@ Do not silently assign age, sex, body type or character cues absent from the bri
 | If the requirement is… | First candidate | Limit |
 | --- | --- | --- |
 | A simple stylised figure | Deliberate low-resolution cage with primary masses | Sphere stacking is a blockout, not resolved anatomy |
-| Detailed organic anatomy for a static image | Sculpt/blockout of masses, then primary/secondary forms | High resolution cannot repair incorrect proportions |
+| Explicitly approved detailed sculpt/bake source or CGI exception | Sculpt/blockout of masses, then primary/secondary forms with a separate delivery plan | High resolution cannot repair incorrect proportions or prove runtime suitability |
 | Animated body or face | Deformation-aware base cage, or sculpt plus scoped retopology | A good neutral sculpt is not animation-ready topology |
 | A compatible existing rig/character | Inspect reusable cage, rest pose, weights and rights first | Do not change the representation or rig contract without approval |
 

@@ -4,6 +4,15 @@
 Follow the main skill; use for moulded shells, curved housings and swept/revolved parts.
 Also read the category module when the product is furniture, a vehicle or architecture.
 
+## Game-first application
+
+Read the shared [game-asset contract](game-asset-contract.md). Use only enough section
+and bevel resolution to preserve approved curves at the nearest intended view. Fine
+grooves, legends and grain can use existing material/normal detail when they do not
+need physical depth. Strip-reflection diagnostics reveal defects; they do not demand
+film-smooth geometry invisible in-game. Keep the editable cage/high source separate from
+delivery and recheck rim thickness, opening boundaries and normal/UV splits after reduction.
+
 ## 1. Recognise the geometric drivers
 
 Identify section changes, curvature direction, symmetry, openings, rim thickness,

@@ -95,6 +95,15 @@ For source production of coherent asset sets read the 3D skill's
 lit sprites read its [sprite-normal guide](../gummy-3d-authoring/references/sprite-normals.md).
 These new guides are **unvalidated** and do not authorize integration. Keep source
 production separate from in-game rendering, UI/input, lifecycle and performance acceptance.
+For every integrated asset category, use the authoring skill's shared
+[game-asset contract](../gummy-3d-authoring/references/game-asset-contract.md) and the
+unvalidated runtime-acceptance extension in the species/assets/save reference. Budget
+checks apply to faithful and stylized assets alike; neither automatically passes runtime
+acceptance. For assisted stylized props also read
+[stylized game props](../gummy-3d-authoring/references/stylized-game-props.md) and the
+applicable construction guide. Check
+the approved fidelity and delivery budget rather than imposing reconstruction criteria
+or assuming an asset below a vertex threshold is game-ready.
 
 ## Behaviour and regression checks
 

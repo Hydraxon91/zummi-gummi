@@ -86,8 +86,8 @@ working in this repo.
 - **Avoid over-deliberation:** plan once, then act. Do not re-plan or second-guess a chosen
   approach more than once before executing unless new information genuinely changes the
   picture. Reserve deep reasoning for genuinely ambiguous or destructive decisions. This
-  never overrides the 6–7 attempt limit in Approved Work Chunks or the regression stop in 3D
-  Asset Authoring.
+  never overrides the repair limits, explicit continuation approvals or regression stop
+  in Approved Work Chunks and 3D Asset Authoring.
 
 ## 4. Destructive Actions, Commits and Pushes
 
@@ -121,7 +121,8 @@ While executing an approved chunk:
    unchanged failures, re-establish the target and validate the diagnostic before another edit.
    A fix that introduces a new failure counts as a failed attempt. If you are stuck, the seventh
    attempt fails, or the fix needs something outside the chunk, stop and report with evidence — do
-   not commit failing work unless asked.
+   not commit failing work unless asked. For 3D shape work, section 15 specifies failed-
+   repair counting and the separate approval required for an additional bounded batch.
 4. Do not expand scope, refactor unrelated code, or touch anything not enumerated.
 5. Follow the approved-chunk row in Commit Discipline for commits, and report at the
    chunk boundary. Do not start the next chunk until instructed.
@@ -520,6 +521,16 @@ approved work chunk.
 
 ## 15. 3D Asset Authoring
 
+- **Game-first destination across all categories.** Default to runtime game assets, not
+  CGI render assets, independently of the approved likeness mode. Read the authoring
+  skill's shared game-asset contract before the category construction guide. Plan modest
+  editable geometry, material reuse and an approved delivery budget at the intended
+  camera scale/instance count. Dense sculpt/subdivision or CGI-scale texture sources need
+  an explicit approved purpose (such as a bake source or supported hero view) and a
+  runtime delivery strategy; they are not automatic deliverables. Game-first never
+  authorizes reference simplification, representation changes, destructive optimization,
+  dependencies or integration outside scope. Export and in-game evidence are separate gates.
+
 - **Choose construction before editing shape.** State defining sections/silhouette,
   chosen method and main alternative, editable controls, likely failure modes and a small
   representative test. Read the applicable construction modules routed by the authoring
@@ -530,15 +541,35 @@ approved work chunk.
   openings, thickness, attachment, parallax and articulation, and use materials for printed
   graphics, colour boundaries, fine relief and non-structural variation.
 
+- **Agree fidelity and delivery budgets first.** Choose stylized/gameplay-read,
+  reference-faithful or reconstruction before modelling. Record required identifying
+  cues, deliberately simplified/omitted details, intended camera distance or screen size,
+  expected instance count, motion needs and proposed triangle/material/texture budgets
+  for approval. Do not default a background prop to reconstruction. Fidelity modes change
+  likeness requirements, not safety, topology, required functionality or delivery checks.
+  Reference-faithful and reconstruction work use calibrated planes and aligned overlays
+  below; stylized/gameplay-read may use inspected reference images as visual guides,
+  declared dimensions and neutral multi-angle shape review unless measured matching is
+  requested. Never call an uncalibrated comparison a dimensional match. Read the authoring
+  skill's stylized-prop route for economical assisted production.
+
 - **Evaluated contact is a separate claim.** Matching cage rings, bounds, object joins or
   clean topology do not prove flushness or attachment. Check evaluated mating surfaces,
   coverage and operating poses; unsigned nearest distances prove neither clearance nor
   penetration. Diagnose subdivision/cap shrinkage before adding filler or trim. Use
   `check_evidence.py` for pose/frame/hash freshness; `check_interface.py` is experimental
   local sampling, not a complete-contact proof.
-- **Attempts follow the unresolved criterion.** Candidate filenames, techniques and turns
-  do not reset the seven-attempt limit. Record hypothesis, changed control and evidence;
-  after two unchanged results validate the diagnostic before editing again.
+- **Count failed shape repairs, not normal construction.** Successful inspected blockout,
+  proportion, material and optimization steps are not failed repair attempts. An edit that
+  fails its stated repair criterion or introduces a regression counts even if called
+  polish; new filenames, techniques and turns do not reset the criterion's history. Keep
+  hypothesis, changed control and evidence. After two unchanged failures validate the
+  diagnostic; at six failed repairs review progress; at seven stop autonomous retries.
+  A user may explicitly approve a further bounded repair batch with a new evidence-backed
+  hypothesis, scope, acceptance checks and additional attempt budget. Retain the earlier
+  ledger; this is not a silent reset or authority to relax acceptance. Ordinary artistic
+  feedback is welcome within scope, but an unresolved failure cannot be renamed a new
+  preference to evade the review. These shape-specific rules supplement section 5.
 - **Separate acceptance evidence.** Report mesh health, interface fit, reference fidelity,
   motion and user acceptance separately. A structural gate PASS is not visual approval.
   Capture framing is not isolation; verify returned images and explicit poses. Revalidate
@@ -584,8 +615,9 @@ approved work chunk.
 - **Check shared data before edits.** Inventory mesh, material and image users, parents,
   constraints and modifier dependencies. Make an approved independent copy when necessary;
   changing one part must not silently change linked parts or their placement.
-- **Reference images require calibrated planes before any shape edit.** Record the real
-  target dimensions, measure what each reference sheet actually encodes, pick one sheet as
+- **Measured reference matching requires calibrated planes before any shape edit.** For
+  reference-faithful/reconstruction work, or explicitly requested dimensional matching,
+  record real target dimensions, measure what each reference sheet actually encodes, pick one sheet as
   the dimensional authority and never non-uniformly scale a reference to force agreement.
   If the task models from a supplied image or sheet, build locked reference planes with one
   shared scale *before* the first geometry operation; dimensions agreed only in chat, bounds
@@ -596,7 +628,8 @@ approved work chunk.
   colours or decal boundaries, for geometry measurements. Lock calibrated references;
   recalibration requires reporting the discrepancy, approval and rechecking dependent
   measurements.
-- **Silhouette approval requires overlays.** A silhouette or shape gate is valid only with
+- **Measured silhouette approval requires overlays.** In the calibrated-reference modes
+  above, a silhouette or shape gate is valid only with
   aligned orthographic captures of the model over the calibrated planes — reference-only,
   model-edges-over-reference and solid model, identical framing — plus inspection of those
   captures. Use a verified see-through or wireframe overlay so both model edges and
@@ -605,10 +638,12 @@ approved work chunk.
   and lower silhouettes, openings and fixed structural landmarks, not only overall bounds or
   sampled top heights. Numeric bounds, vertex counts or a hero render make the gate **fail**,
   not "unverified". Preserve reference calibration and restore temporary visibility settings.
-- **Feature-presence gate before detail and delivery.** Before materials, bake or export,
-  list the required features read from the reference — openings, cavities, recline, contact
-  patch, seams, hardware — and mark each **present / absent / unverified** with the capture
-  that shows it. Any "absent" blocks the stage. The capture must actually demonstrate the
+- **Feature-presence gate before detail and delivery.** Agree the required features and
+  optional/omitted details in the brief before building, at the chosen fidelity level.
+  A reference seam or dimple is not automatically a delivery requirement. Before materials,
+  bake or export, list the approved required features — openings, cavities, recline, contact
+  patch, seams or hardware as applicable — and mark each **present / absent / unverified**
+  with the capture that shows it. Any "absent" blocks the stage. The capture must actually demonstrate the
   feature: a front render cannot certify a seat bowl, and a manifest cannot certify a
   silhouette. Speed goals, "one shot" instructions or a nearly-finished pipeline do not
   relax this gate. Before reporting a delivery, re-read the brief's required features and
@@ -629,11 +664,18 @@ approved work chunk.
   local-to-world transforms against visually identifiable landmarks. Never substitute a
   bounding range for the actual surface being tested. Missing samples are unverified
   regions, not passes; exclude them only with a documented geometric reason.
-- **Reference fidelity before optimisation.** Establish the silhouette and proportions
-  first. Reduce geometry only while preserving the approved appearance; do not equate
-  low-poly with flat shading or choose an arbitrary minimum triangle count.
+- **Approved appearance and runtime budget together.** Establish silhouette and proportions
+  within the agreed fidelity and target budget. Avoid building detail invisible at the
+  intended game scale and relying on decimation to remove it later. Optimize a separate
+  delivery copy, preserving editable source and approved visible cues; low-poly does not
+  mean flat shading. Measure raw, evaluated and re-imported export triangles/vertices,
+  materials and texture sizes separately; UV/normal splits may increase export vertices.
+  There is no universal vertex ceiling or automatic performance pass below a budget.
+  Inspect at the intended camera scale and instance count; in-game readiness requires
+  separately approved runtime verification, not polygon counts alone.
 - **Classify the form and pass a shape gate before detail.** Fabricated hard surfaces use
-  panels/booleans/bevels; moulded products use a calibrated profile cage, lofted sections,
+  panels/booleans/bevels; moulded products use a profile cage scaled to the approved brief
+  (calibrated for measured matching), lofted sections,
   shell thickness and controlled subdivision; soft goods use a quad cage with broad
   contact, deformation and folds. Build only the primary silhouette and major sections,
   inspect neutral front/side/top/three-quarter captures, check thickness/openings/hinge
@@ -713,7 +755,8 @@ approved work chunk.
   with the locked baseline. A transient pass during editing is still a failure.
 - **Two unchanged failures trigger diagnosis, not blind retries.** Reconfirm the visible
   target, material/UV path and measuring tool before a third edit. Continue within section 5's
-  seven-attempt ceiling only with new evidence and a stated hypothesis; report attempts and
+  failed-repair budget (or an explicitly approved bounded continuation) only with new
+  evidence and a stated hypothesis; report attempts and
   remaining uncertainty. More attempts never relax acceptance or authorize unsuitable tools.
 - **Report on a call budget.** At twenty tool calls in one turn, post one line: done,
   blocked, next. Do not keep working past it silently.

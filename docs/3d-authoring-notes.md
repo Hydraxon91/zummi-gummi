@@ -53,6 +53,45 @@ vertex displacement and identical ordered connectivity. Tests `_009`/`_010` rema
 diagnostics only; the unresolved criterion is at the six-attempt review, not reset by
 filenames. No topology rebuild, bake or export was performed.
 
+## Independent beanbag comparison and assisted-production follow-up
+
+The submitted sources are under `.dev-shots/asset-pipeline/gpt61sol_beanbag_chair/`
+(`beanbag_010_final_diagnostic.blend`) and `deepseek_beanbag_chair/`
+(`beanbag_010_final.blend`). Their reports and inspected front/top/oblique, side-overlay
+and underside images both disclose failed likeness. A subsequent live inspection used
+comparable neutral studio shading and angle; neither source was edited or saved.
+
+- Sol's continuous rim and crown read more coherently, but folds radiate into a starburst
+  and the raised cushion is not convincingly visible. DeepSeek's cushion is explicit but
+  reads as a mound inside a scoop, with a visible crown step and pinched inner boundary.
+- Evaluated live counts: Sol 16,898 vertices / 16,896 quad faces (33,792 triangles);
+  DeepSeek 13,106 vertices / 13,104 quad faces (26,208 triangles). Both have zero sampled
+  non-manifold edges, loose vertices and inconsistent-winding edges. These are not
+  exhaustive self-intersection or reference-fidelity checks.
+- Sol minimum Z is approximately +8 mm; no evaluated vertex lies within 1 micrometre of
+  ground. DeepSeek has 1,153 such vertices spanning approximately 0.392 × 0.386 m.
+  That measures ground-level vertex coverage, not structural loading or physical stability.
+- File hashes remained `31bca9c232ebb6265df6c353889571758f9b9a03fe13128a7b091272ed7e857f`
+  (Sol) and `34df7bc3a959e2e752a5b8326d53be7fa17e570a275c5ba9a349bf8ec8296c1e`
+  (DeepSeek). Sol's file was restored as the active Blender file after inspection.
+- Process findings: Sol reports five shape attempts, initial reference-facing errors
+  and stacked shape-key control errors; the iteration cap did not force its stop.
+  DeepSeek discloses overwritten checkpoints and lists further shape edits after seven
+  plus material work despite the failed gate. More completed stages is not acceptance.
+
+The user reports approximate DeepSeek usage/cost of 300k tokens/$0.30 versus Sol
+70k tokens/$1.50. Billing, provider/model variant, cache treatment and token breakdown
+were not independently verified; these figures motivate testing assisted production,
+not a measured cost-per-accepted-asset win. User artistic feedback is legitimate in
+that new lane, and must be recorded separately from independent benchmark runs.
+
+The next proposed contract is stylized/gameplay read with approved major cues, permitted
+omissions, existing fabric reuse and an explicit background-prop delivery budget. The
+user's concern was 10,000 vertices, not 100,000; exported triangles/vertices, instances,
+materials and actual camera scale need evaluation rather than a universal threshold.
+No candidate was promoted, rebuilt or optimized by this review. The new assisted route,
+fidelity routing and budget/runtime extension remain unvalidated until exercised.
+
 ## Asset library coverage
 
 Exercised in the pond-scene trials (2026-10-19–20, Blender 5.2.2, addon 1.8):

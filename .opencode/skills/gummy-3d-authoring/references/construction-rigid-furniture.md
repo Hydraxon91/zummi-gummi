@@ -5,6 +5,16 @@ manufacturing certification. Follow the main skill's preservation and assembly c
 For cushions read [soft goods](construction-soft-goods.md); for moulded continuous shells
 read [curved products](construction-curved-products.md). Do not route all chairs alike.
 
+## Game-first application
+
+Read the shared [game-asset contract](game-asset-contract.md). Budget frame/member
+curvature, material primitives and room-scale repetition. Grain, small screws and fine
+joinery can be material detail or omitted when approved; do not model an engineering
+assembly by default. Keep geometry for required tube ends, joints, gaps and seat/back
+silhouette. Choose bend/bevel segments by intended screen coverage, not a tutorial count.
+Test one joint/member before replication, then inspect the optimized copy's contacts and
+moving clearance. Do not merge away a required hinge or dispose shared instance data.
+
 ## 1. Recognise members, joints and use
 
 Identify seat/table height, width/depth, leg spread, back rake, member thickness,

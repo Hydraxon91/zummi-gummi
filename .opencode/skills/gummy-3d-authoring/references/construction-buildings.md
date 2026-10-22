@@ -3,6 +3,16 @@
 **Status: unvalidated.** Project-authored construction guidance, not architectural,
 engineering or building-code certification. Follow the main skill and approved scope.
 
+## Game-first application
+
+Read the shared [game-asset contract](game-asset-contract.md). Budget visible modules
+and their repeated use, not only one facade. Prove a module before repetition; reuse
+materials/UV scale where suitable and preserve project batching/instancing ownership.
+Do not build inaccessible interiors, hidden joinery or physical bricks unless required
+by views or gameplay. Required reveals, overhangs and cutaway thickness still need form.
+Keep collision/navigation requirements distinct from render detail. Check module seams,
+material primitives and shadow cost at representative repetition before runtime claims.
+
 ## 1. Identify the viewing and construction contract
 
 Record plans/elevations, units, footprint, storeys, floor/roof levels, wall thickness,
