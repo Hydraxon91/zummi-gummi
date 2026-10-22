@@ -1859,6 +1859,17 @@ first Glass frame blocking for roughly 100 s under SwiftShader, so the boot gate
 below the documented worst case; the three browser harnesses now allow 180 s to
 boot. Assertions, the Glass-ready gate and the 12-minute job timeouts are unchanged.
 
+Run 39790957070 then passed 12 of 13 jobs, but a different single job
+(`gift-persistence`) still failed to boot even with 180 s: `Runtime.evaluate` timed
+out for the whole gate with no stack. A different arbitrary job failing each run,
+always before the first frame and never in an assertion, matches a wedged renderer
+rather than an app defect. The shared harness now passes `--disable-dev-shm-usage`
+(container `/dev/shm` exhaustion is a known cause of software-rendered WebGL hangs)
+and boots through `openBootedPage`, which makes one recorded relaunch with a fresh
+target when `booted` never appears. The first attempt's diagnostics and the retry
+are written to the report; assertions and job timeouts are unchanged, so a genuine
+boot regression still fails visibly.
+
 ## Modular NPC behavior system (step 3, Oct 2026)
 
 One behavior engine for Bear, Gummy and Glass, with each behavior a module that can be

@@ -73,6 +73,9 @@ export async function launchBrowser({
     '--no-default-browser-check',
     '--disable-background-timer-throttling',
     '--disable-renderer-backgrounding',
+    // Container /dev/shm is small; software-rendered WebGL can exhaust it and
+    // wedge the renderer before the first frame.
+    '--disable-dev-shm-usage',
     ...(swiftshader ? ['--enable-unsafe-swiftshader'] : []),
     '--window-size=1440,900',
     ...args,
@@ -320,4 +323,27 @@ export async function connectBrowser(launched) {
   }
 
   return { send, openPage, close, pageErrors, diagnostics };
+}
+
+// Boot a page, retrying once with a fresh target when the renderer never reaches
+// `booted`. The first attempt's diagnostics are reported so a real application
+// boot failure stays visible instead of being hidden by the relaunch.
+export async function openBootedPage(browser, options, {
+  timeout = 180000, attempts = 2, onRetry = null,
+} = {}) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const page = await browser.openPage(options);
+    try {
+      await page.waitFor('!!window.__gummy?.booted', timeout);
+      return { page, attempt };
+    } catch (error) {
+      lastError = error;
+      if (onRetry) onRetry(error, attempt, page.diagnostics());
+      if (attempt >= attempts) throw error;
+      await browser.send('Target.closeTarget', { targetId: page.targetId }, null, 20000)
+        .catch(() => {});
+    }
+  }
+  throw lastError;
 }

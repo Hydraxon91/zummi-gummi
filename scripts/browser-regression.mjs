@@ -7,7 +7,7 @@
 // selects a Chromium-family browser; the harness uses a temporary profile and cleans up.
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, connectBrowser } from './browser-harness.mjs';
+import { launchBrowser, connectBrowser, openBootedPage } from './browser-harness.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TAG = process.env.TAG || 'current';
@@ -36,16 +36,14 @@ const browser = await connectBrowser(launched);
 let failure = null;
 let page = null;
 try {
-  page = await browser.openPage({
+  page = (await openBootedPage(browser, {
     url: target.href,
     width: Number(process.env.WIDTH || 1440),
     height: Number(process.env.HEIGHT || 900),
     mobile: process.env.MOBILE === '1',
     initScript,
-  });
-  // Software rendering can block the first frame past 90 s; see the CI notes on
-  // the boot allowance. Job timeouts and assertions are unchanged.
-  await page.waitFor('!!window.__gummy?.booted', 180000);
+  }, { onRetry: (error, attempt) => console.log('STEP boot retry', JSON.stringify({ attempt,
+    error: String(error).slice(0, 200) })) })).page;
   if (!CORE) {
     console.log('STEP glass ready');
     try {

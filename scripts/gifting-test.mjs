@@ -2,7 +2,7 @@
 // map cleanup and v7 save.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, connectBrowser } from './browser-harness.mjs';
+import { launchBrowser, connectBrowser, openBootedPage } from './browser-harness.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TARGET = new URL(process.env.GAME_URL || 'http://localhost:8000/');
@@ -46,10 +46,15 @@ try {
   launched = await launchBrowser();
   browser = await connectBrowser(launched);
   report.pageErrors = browser.pageErrors;
-  page = await browser.openPage({ url: TARGET.href, width: WIDTH, height: HEIGHT, initScript });
-  // Software rendering can block the first frame past 90 s; see the CI notes on
-  // the boot allowance. Job timeouts and assertions are unchanged.
-  await page.waitFor('!!window.__gummy?.booted', 180000);
+  const booted = await openBootedPage(browser, {
+    url: TARGET.href, width: WIDTH, height: HEIGHT, initScript,
+  }, { onRetry: (error, attempt, diag) => {
+    report.bootRetry = { attempt, error: String(error).slice(0, 300),
+      lastWaitError: diag && diag.lastWaitError };
+    console.log('STEP boot retry', JSON.stringify(report.bootRetry));
+  } });
+  page = booted.page;
+  report.bootAttempt = booted.attempt;
   console.log('STEP glass ready');
   await page.waitFor(GLASS_READY, 150000);
   console.log('STEP glass done');
