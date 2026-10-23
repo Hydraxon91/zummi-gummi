@@ -202,6 +202,14 @@ chosen. M2b–M2d remain pending.
 
 ### M5 — Actor/session identity and lifecycle contract (M; M0)
 
+**M5 contract complete:** [actor/session identity and lifecycle](actor-session-lifecycle.md)
+records UID allocation/reservation, pooled slots, attach/detach, birth/growth,
+real removal, map/save despawn and New Game, with six focused tests in
+`tests/actor-lifecycle-contract.test.mjs` and 66 directly relevant existing tests
+passing. App-internal spawn/pool/remove ordering and partial-creation failure
+cleanup remain Inspected/Unverified because they are not importable without a
+DOM/WebGL/physics boot; no production exports were added. M6 extraction remains.
+
 - Inventory UID allocation, pool reuse, attach/detach, real removal versus map
   despawn, birth/growth and reset. Keep persistent, runtime and renderer state
   distinct without replacing live actors by copied records.
