@@ -382,6 +382,20 @@ because they intentionally consume injected DOM/read-model inputs.
 
 ## 6. Unsupported and deferred list
 
+### Closeout audit finding: purity-guard false negatives (U-023)
+
+At baseline `6023644`, direct probes of the actual
+`stripCommentsAndStrings` function and import/ambient patterns in
+`tests/pure-boundaries.test.mjs` showed three missed violations:
+`import './host.js';`, `const x = import('./host.js');`, and
+``const x = `${window.location}`;``. String stripping removes the side-effect
+import target and the executable template interpolation; the import pattern
+also misses dynamic imports. Expected: reject those dependencies/accesses.
+Actual: all three escape the guard, while the existing 14 boundary/debug tests
+pass. This limits the source guard's claims; it is not evidence that shipped
+pure modules currently contain these violations. Strengthening the guard and
+adding negative tests is planned, not implemented by this audit.
+
 Recording an item here or in the register does not authorize a fix, test seam or
 design change.
 
