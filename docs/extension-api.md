@@ -348,11 +348,23 @@ Explicit unsupported/deferred boundaries:
 ## 5. Narrow boundary checks implemented in H2
 
 H2 implements these narrow source checks in `tests/pure-boundaries.test.mjs`
-against the exact fixed list below. The test strips comments and string literals,
-then rejects `import`/`export ... from`, ambient DOM/storage/three.js/clock/RNG
-words and accesses (`window`, `document`, `localStorage`, `sessionStorage`,
-`performance`, `Date`, `Math.random`, `THREE`, `three`), while allowing ordinary
-numeric math such as `Math.sin`/`Math.hypot`/`Math.round`. The list is
+against the exact fixed list below. The analysis is `boundaryViolations(source,
+path)`: comments and string literals are replaced by placeholders,
+template-literal interpolations are scanned as code (including nested braces,
+nested strings and nested templates), and the resulting code is checked for
+static imports (including side-effect form), dynamic `import()`, `export ...
+from`, ambient DOM/storage/three.js/clock/RNG words and accesses (`window`,
+`document`, `localStorage`, `sessionStorage`, `performance`, `Date`,
+`Math.random`, `THREE`, `three`, timers and animation-frame APIs), while allowing
+ordinary numeric math such as `Math.sin`/`Math.hypot`/`Math.round`. The same
+function is used by the 12 fixed-module checks and by a fixture table (8 positive,
+17 negative) covering the audit's side-effect import, dynamic import and
+`` `${window.location}` `` false negatives plus export-from and ambient accesses.
+Literal template text, ordinary strings, comments and plain object keys such as
+`performance:` remain accepted. This is a small scanner, not a JavaScript parser:
+unterminated strings/comments/templates/regexes report `unsupported`, and an
+unusual regex position can be read as code and fail closed (a false positive),
+never silently pass. The list is
 intentionally fixed and must not be generalized into a repository-wide import
 ban; adding an import or ambient dependency to one of these modules requires an
 explicit boundary review and a list update. The following modules were
@@ -392,9 +404,15 @@ At baseline `6023644`, direct probes of the actual
 import target and the executable template interpolation; the import pattern
 also misses dynamic imports. Expected: reject those dependencies/accesses.
 Actual: all three escape the guard, while the existing 14 boundary/debug tests
-pass. This limits the source guard's claims; it is not evidence that shipped
-pure modules currently contain these violations. Strengthening the guard and
-adding negative tests is planned, not implemented by this audit.
+pass. This limited the source guard's claims; it is not evidence that shipped
+pure modules currently contain these violations. C01 fixes the false negatives:
+`boundaryViolations(source, path)` scans interpolations and every import form, and
+the positive/negative fixture table proves the three audit probes are rejected
+while the 12 fixed modules still pass. C01 evidence: focused
+`node --test tests/pure-boundaries.test.mjs tests/debug-api.test.mjs` 39/39, full
+`node --test tests` 719/719, `node scripts/check-behavior-contracts.mjs` 17
+modules, `git diff --check` clean. U-023 is resolved; the guard remains a
+heuristic scanner with fail-closed limitations described in §5.
 
 Recording an item here or in the register does not authorize a fix, test seam or
 design change.
