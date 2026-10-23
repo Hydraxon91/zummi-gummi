@@ -1,9 +1,8 @@
 # Agent procedures — task-specific reference
 
 Read the sections routed by `AGENTS.md`, not this whole reference. Paths are
-repository-relative. The authoring skill's `references/stage-review.md` owns
-Blender progression and capture policy; `references/reference-review.md` owns
-reference interpretation. Technical requirements here supplement those policies.
+repository-relative. Source authoring belongs to AssetWorkshop; this guide owns
+game work and separately approved destination intake/integration.
 
 Gummy Bears is a browser game: ES-module JavaScript + **three.js**, with soft-body
 jelly physics running on **Box3D** compiled to WebAssembly. There is no bundler, no
@@ -97,7 +96,7 @@ working in this repo.
   approach more than once before executing unless new information genuinely changes the
   picture. Reserve deep reasoning for genuinely ambiguous or destructive decisions. This
   never overrides the repair limits, explicit continuation approvals or regression stop
-  in Approved Work Chunks and 3D Asset Authoring.
+   in Approved Work Chunks.
 
 ## 4. Destructive Actions, Commits and Pushes
 
@@ -131,8 +130,8 @@ While executing an approved chunk:
    unchanged failures, re-establish the target and validate the diagnostic before another edit.
    A fix that introduces a new failure counts as a failed attempt. If you are stuck, the seventh
    attempt fails, or the fix needs something outside the chunk, stop and report with evidence — do
-   not commit failing work unless asked. For 3D shape work, section 15 specifies failed-
-   repair counting and the separate approval required for an additional bounded batch.
+   not commit failing work unless asked. Additional attempts need explicit bounded
+   continuation approval, not a renamed task or replacement worker.
 4. Do not expand scope, refactor unrelated code, or touch anything not enumerated.
 5. Follow the approved-chunk row in Commit Discipline for commits, and report at the
    chunk boundary. Do not start the next chunk until instructed.
@@ -530,343 +529,16 @@ approved work chunk.
   ramp and compare rows from the same session, not across a contended machine.
 - Keep the scene's batching/instancing structure; measure, don't guess.
 
-## 15. 3D Asset Authoring
+## 15. Asset intake and integration
 
-### Operational contract
+Source production, Blender, UVs, materials/ComfyUI, baking and export tooling belong
+to `/Users/hydraxon/Documents/GitHub/AssetWorkshop`. Do not manipulate live Blender
+from this game project. Historical authoring reports and recovery assets are not
+active workflow instructions.
 
-The authoring skill's `references/stage-review.md` governs progression and approval;
-the following sequence summarises it, rather than adding extra review boundaries.
-
-1. **Inspect and agree:** live state, references, fidelity, dimensions, budget and scope.
-2. **Preserve and construct:** retain editable profiles/cages, cutters and operands;
-   test one difficult region, then make scoped, visually inspected changes.
-3. **Review the current stage:** state the source checkpoint, current part, pending
-   approval, blocked downstream work and next action at review or handoff. A user-requested
-   part-first gate overrides an earlier batch's progression. Relaxing likeness does not
-   approve the current shape or unlock the next part; respect the agreed review boundary.
-4. **Diagnose before repairing:** stop geometry edits on contradictory diagnostics;
-   establish whether the fault is in the measurement, operand or operation first.
-5. **Deliver only within scope:** separate visual approval, structural checks, export
-   verification and runtime verification. A successful check is not user approval.
-
-Construction uses targeted viewport/solid checks; acceptance uses the required fresh,
-mode-appropriate captures. Do not run the full delivery suite after every small edit.
-
-- **Game-first destination across all categories.** Default to runtime game assets, not
-  CGI render assets, independently of the approved likeness mode. Read the authoring
-  skill's shared game-asset contract before the category construction guide. Plan modest
-  editable geometry, material reuse and an approved delivery budget at the intended
-  camera scale/instance count. Dense sculpt/subdivision or CGI-scale texture sources need
-  an explicit approved purpose (such as a bake source or supported hero view) and a
-  runtime delivery strategy; they are not automatic deliverables. Game-first never
-  authorizes reference simplification, representation changes, destructive optimization,
-  dependencies or integration outside scope. Export and in-game evidence are separate gates.
-
-- **Choose construction before editing shape.** State defining sections/silhouette,
-  chosen method and main alternative, editable controls, likely failure modes and a small
-  representative test. Read the applicable construction modules routed by the authoring
-  skill before completing its construction brief. Prove the difficult
-  interface before replication. A topology pass does not establish method suitability;
-  record concise decisions and evidence, not an internal reasoning transcript. Decide what
-  must be geometry versus texture/material at the closest intended view; model silhouette,
-  openings, thickness, attachment, parallax and articulation, and use materials for printed
-  graphics, colour boundaries, fine relief and non-structural variation.
-
-- **Agree fidelity and delivery budgets first.** Choose stylized/gameplay-read,
-  reference-faithful or reconstruction before modelling. Record required identifying
-  cues, deliberately simplified/omitted details, intended camera distance or screen size,
-  expected instance count, motion needs and proposed triangle/material/texture budgets
-  for approval. Do not default a background prop to reconstruction. Fidelity modes change
-  likeness requirements, not safety, topology, required functionality or delivery checks.
-  Reference-faithful and reconstruction work use calibrated planes and aligned overlays
-  below; stylized/gameplay-read may use inspected reference images as visual guides,
-  declared dimensions and neutral multi-angle shape review unless measured matching is
-  requested. Never call an uncalibrated comparison a dimensional match. Read the authoring
-  skill's stylized-prop route for economical assisted production.
-
-- **Evaluated contact is a separate claim.** Matching cage rings, bounds, object joins or
-  clean topology do not prove flushness or attachment. Check evaluated mating surfaces,
-  coverage and operating poses; unsigned nearest distances prove neither clearance nor
-  penetration. Diagnose subdivision/cap shrinkage before adding filler or trim. Use
-  `check_evidence.py` for pose/frame/hash freshness; `check_interface.py` is experimental
-  local sampling, not a complete-contact proof.
-- **Count failed shape repairs, not normal construction.** Successful inspected blockout,
-  proportion, material and optimization steps are not failed repair attempts. An edit that
-  fails its stated repair criterion or introduces a regression counts even if called
-  polish; new filenames, techniques and turns do not reset the criterion's history. Keep
-  hypothesis, changed control and evidence. After two unchanged failures validate the
-  diagnostic; at six failed repairs review progress; at seven stop autonomous retries.
-  A user may explicitly approve a further bounded repair batch with a new evidence-backed
-  hypothesis, scope, acceptance checks and additional attempt budget. Retain the earlier
-  ledger; this is not a silent reset or authority to relax acceptance. Ordinary artistic
-  feedback is welcome within scope, but an unresolved failure cannot be renamed a new
-  preference to evade the review. These shape-specific rules supplement section 5.
-- **Separate acceptance evidence.** Report mesh health, interface fit, reference fidelity,
-  motion and user acceptance separately. A structural gate PASS is not visual approval.
-  Capture framing is not isolation; verify returned images and explicit poses. Revalidate
-  evidence against the final source after the last edit/save.
-
-- **Respect resource pauses.** If the user closes Blender for GPU/CPU headroom, do not
-  launch live or background Blender, baking or rendering until they authorize resuming.
-- **Keep acceptance fixed.** Extra attempts do not authorize looser thresholds, overlap or
-  collapsed-UV exceptions, geometry exclusions, or confident names for unresolved regions.
-  Propose any acceptance change and obtain approval before using it to publish a delivery.
-- **Coverage is not correctness.** Object counts, populated names and successful exports
-  establish inventory only. Report structural, visual, semantic and transfer verification
-  separately; diagnostic or exception-bearing output is not automatically accepted delivery.
-- **Validate diagnostics before repairing assets.** Establish units, coordinate spaces,
-  tolerances and expected results on known-good and deliberately failing fixtures. A failed
-  helper may indicate a tool defect, not a mesh defect. Reusing the same core calculation is
-  not independent verification. Keep experimental helpers distinct from supported tooling.
-- **Geometry contradictions block repairs.** Compare raw source, evaluated source, bake
-  candidate and re-imported export as distinct representations, at explicit poses and
-  modifier settings. Never infer duplication from raw-versus-evaluated counts. If a
-  summary contradicts a named-part result, stop edits and rebuilds until one same-snapshot
-  inventory (object/mesh identity, representation, frame and counts) resolves it. Counts
-  and nearest distances alone do not prove preservation: verify multiplicity or explicit
-  correspondence, connectivity, face/material ownership, UVs and parent transforms.
-  Prove ownership survives each topology-changing operation; do not assume index ranges
-  survive join or triangulation, or invent count multipliers as guards. Reproduce a
-  candidate defect independently on the evaluated source before proposing source repair;
-  classify it as inherited, introduced or uncertain. Follow the 3D skill's geometry
-  transfer verification procedure and realistic positive/negative fixture requirements.
-- **The same scope and approval rules apply to Blender.** Inspect the live file path,
-  unsaved state, scene inventory and target objects before editing. Establish a
-  recoverable checkpoint before destructive work (a new, incrementally named `.blend`,
-  e.g. `name_001.blend`); never silently overwrite a saved asset, clear the scene or change
-  unrelated cameras, lights and materials. State units and axis conventions in the plan.
-- **Keep source editable.** Preserve source geometry/parameters before applying
-  destructive booleans, remeshing or decimation. Use a separate export/evaluated copy
-  where appropriate. A requested change to one part must not silently reshape others.
-- **UV/material-only edits preserve shape.** Record and compare ordered topology, base-mesh
-  and every shape-key coordinate block, key settings, transforms and modifier configuration
-  before/after. Counts and unchanged bounds are not preservation evidence. Use geometry-only
-  comparisons separately from whole-asset fingerprints, which should change when UVs or
-  materials change. A failed preservation check blocks delivery; restore the scoped change
-  without discarding unrelated user work.
-- **A user-posed assembly is data.** When the user has moved or rotated an imported part,
-  capture the full hierarchy (root and children, including rotation mode/quaternion) or
-  export the posed hierarchy at identity as a new source. Reapplying only the root
-  transform does not reproduce per-part edits; compare rebuilt world matrices against the
-  live placement.
-- **Viewport-first motion review.** Use Blender viewport playback for shape-key, rig and
-  deformation previews. If playback cannot be shared through the available tools, use a
-  small sequence of viewport captures at representative frames. Do not hunt for bundled
-  encoders, build video pipelines or render full animations merely to inspect motion. Video
-  encoding requires an explicit user request or separate approval; an existing binary is
-  not authorization to use it.
-- **Check shared data before edits.** Inventory mesh, material and image users, parents,
-  constraints and modifier dependencies. Make an approved independent copy when necessary;
-  changing one part must not silently change linked parts or their placement.
-- **Measured reference matching requires calibrated planes before any shape edit.** For
-  reference-faithful/reconstruction work, or explicitly requested dimensional matching,
-  record real target dimensions, measure what each reference sheet actually encodes, pick one sheet as
-  the dimensional authority and never non-uniformly scale a reference to force agreement.
-  If the task models from a supplied image or sheet, build locked reference planes with one
-  shared scale *before* the first geometry operation; dimensions agreed only in chat, bounds
-  estimates or "we can compare later" are not calibration. Supplying an image and starting to
-  model in the same step is a process error. If sheets conflict, that is the user's decision
-  (see the Fix-Classification Gate): present the numbers and wait.
-  Use visually confirmed structural landmarks and physical silhouettes, not livery, paint
-  colours or decal boundaries, for geometry measurements. Lock calibrated references;
-  recalibration requires reporting the discrepancy, approval and rechecking dependent
-  measurements.
-- **Measured silhouette approval requires overlays.** In the calibrated-reference modes
-  above, a silhouette or shape gate is valid only with
-  aligned orthographic captures of the model over the calibrated planes — reference-only,
-  model-edges-over-reference and solid model, identical framing — plus inspection of those
-  captures. Use a verified see-through or wireframe overlay so both model edges and
-  reference features remain visible; hide unrelated reference planes to prevent overlapping
-  drawings. Enabling an X-ray setting alone does not prove transparency works. Compare upper
-  and lower silhouettes, openings and fixed structural landmarks, not only overall bounds or
-  sampled top heights. Numeric bounds, vertex counts or a hero render make the gate **fail**,
-  not "unverified". Preserve reference calibration and restore temporary visibility settings.
-- **Feature-presence gate before detail and delivery.** Agree the required features and
-  optional/omitted details in the brief before building, at the chosen fidelity level.
-  A reference seam or dimple is not automatically a delivery requirement. Before materials,
-  bake or export, list the approved required features — openings, cavities, recline, contact
-  patch, seams or hardware as applicable — and mark each **present / absent / unverified**
-  with the capture that shows it. Any "absent" blocks the stage. The capture must actually demonstrate the
-  feature: a front render cannot certify a seat bowl, and a manifest cannot certify a
-  silhouette. Speed goals, "one shot" instructions or a nearly-finished pipeline do not
-  relax this gate. Before reporting a delivery, re-read the brief's required features and
-  check each against a named capture; a feature without a capture is unverified, not passed.
-- **Fit mating parts without reshaping unrelated geometry.** When trim, flares or other
-  attachments must follow an existing surface, verify both gaps and excessive penetration
-  across the complete interface, including endpoints. Do not reshape an approved host
-  surface merely to accommodate a convenient primitive without explicit approval. Global
-  bounds and sparse samples do not establish a correct fit.
-- **Account for bevels and continuous members.** A nominal joint overlap smaller than the
-  combined bevel radius reads as a gap; extend rails, aprons and stretchers to the host
-  member's centre or deeper. Align rear legs with back stiles. Joining objects does not
-  remove intersecting faces, so use a Boolean solid where the intersection would be
-  visible. For cutaway rooms, verify the exterior wall corner and floor perimeter from
-  top/exterior views, not only the interior faces. Hidden overlap is acceptable; visible
-  flicker or z-fighting is the blocker, and suspect joints need camera motion.
-- **Validate measurement coordinates before trusting results.** Verify image/UV axes and
-  local-to-world transforms against visually identifiable landmarks. Never substitute a
-  bounding range for the actual surface being tested. Missing samples are unverified
-  regions, not passes; exclude them only with a documented geometric reason.
-- **Approved appearance and runtime budget together.** Establish silhouette and proportions
-  within the agreed fidelity and target budget. Avoid building detail invisible at the
-  intended game scale and relying on decimation to remove it later. Optimize a separate
-  delivery copy, preserving editable source and approved visible cues; low-poly does not
-  mean flat shading. Measure raw, evaluated and re-imported export triangles/vertices,
-  materials and texture sizes separately; UV/normal splits may increase export vertices.
-  There is no universal vertex ceiling or automatic performance pass below a budget.
-  Inspect at the intended camera scale and instance count; in-game readiness requires
-  separately approved runtime verification, not polygon counts alone.
-- **Classify the form and pass a shape gate before detail.** Fabricated hard surfaces use
-  panels/booleans/bevels; moulded products use a profile cage scaled to the approved brief
-  (calibrated for measured matching), lofted sections,
-  shell thickness and controlled subdivision; soft goods use a quad cage with broad
-  contact, deformation and folds. Build only the primary silhouette and major sections,
-  inspect neutral front/side/top/three-quarter captures, check thickness/openings/hinge
-  axes/contact, then add keys, bezels, textures, seams and delivery exports. Capture
-  manifests carry a source fingerprint; source edits invalidate them. Detail and delivery
-  require a matching recorded silhouette approval, and builders/export paths must refuse
-  unapproved GLB delivery. A topology or validator pass cannot override a failed shape gate.
-- **Factory-startup scenes contain a 2 m cube, camera and light.** Delete or explicitly
-  inventory them before building or capturing. A review camera placed inside the default
-  cube will make every capture look like a wall; automated bounds and topology checks will
-  not report it.
-- **Build for clean topology, one system per step.** Model symmetric parts as one half plus
-  Mirror, as closed manifold solids where solid geometry is intended, using modifiers and
-  unapplied boolean cutters. Deliberate cage, edge-loop and proportional edits are appropriate
-  for moulded and soft forms when they establish the silhouette. Editable procedural
-  revolutions, lofts and sweeps are allowed; use coherent section loops and consistent
-  winding rather than ad-hoc face patches. Do
-  not use primitive stacking as a substitute for the required form. Report non-manifold edges,
-  loose vertices and flipped faces after every step; all three must be 0 for intended closed
-  solids before continuing. Report intentional boundaries on open panels, references and
-  construction geometry separately; unexpected non-manifold edges, loose vertices and flipped
-  faces must still be 0. Check consistent winding and component orientation with Face
-  Orientation captures; positive signed volume alone does not prove correct normals.
-- **Material splits follow shared boundaries.** When splitting geometry for a new material,
-  keep the boundary vertices shared: use one continuous mesh with an edge loop and material
-  slots, or coincident, welded mating boundaries. Do not duplicate coincident faces or
-  shells for a material-only change; separate pieces need a gap, offset or thickness reason.
-  A material change alone must not introduce a visible seam gap or z-fighting.
-- **Material ownership follows topology.** Identify actual face bands and shared boundary
-  loops before assigning materials. Do not classify rounded corners by face-centre or
-  bounding-box thresholds when an appropriate loop exists. Preserve unrelated assignments
-  and geometry. Teeth, isolated patches or unchanged results require ownership diagnosis,
-  not more subdivision or speculative shader changes. Use temporary flat-colour isolation
-  before blaming transparency or reflections; restore it afterward. Follow the authoring
-  skill's material-boundary procedure and inspect every affected corner.
-- **Live Blender MCP is the default for shape authoring.** Choose construction from the
-  requested form and references, not from an existing generator or historical prototype.
-  Inspect the target with `look`, make a scoped editable change, then inspect again.
-  Python supports construction, repetition, measurement, checks, captures and export,
-  but does not replace visual inspection. Regenerating a derived mesh from preserved
-  editable parameters is allowed within scope; discarding the only source or rebuilding
-  unrelated parts is not. If MCP disconnects, stop live editing and report rather than
-  silently regenerating the asset. Live MCP can perform verification; headless batches
-  are optional, not a substitute for required delivery checks. Keep trial history in
-  project reports, not general instructions. Load optional recipes from the authoring skill
-  only when relevant to the task.
-- **Regression recovery.** A new defect class requires stopping the current edit chain and
-  safely restoring the last good scoped checkpoint before an evidence-based alternative.
-  Preserve unrelated live changes; reopening a whole `.blend` requires approval if it would
-  discard them. If safe restoration is blocked, stop and report. Attempts follow section 5;
-  do not keep patching a failing generator or reset the count by renaming the approach.
-- **Locate the target before editing it.** When a change is aimed at something visible,
-  confirm the object/component using picking or a raycast tied to the actual capture camera,
-  then inspect an isolation capture. Record the object, face/component and world position;
-  the first hit may be an occluder, not the target. If camera/pixel correspondence is unknown,
-  reproduce the view or ask for a marked target. Names, bounds and proximity alone do not
-  establish identity; do not invent coordinates to satisfy this check.
-- **Distinguish isolation from replacement.** Temporary diagnostic hiding is allowed within
-  scope and must be restored in `finally`. Before deleting, superseding or excluding an
-  object from delivery, print its island inventory and identify structural surfaces versus
-  details. Preserve the source and verify silhouette and structural completeness afterward.
-- **Handle partial-mesh boundaries deliberately.** Prefer complete connected components,
-  isolated copies or closed boolean operands. Partial cuts can leave T-junctions or open
-  boundaries; verify selection, closure and neighboring topology, then immediately run the
-  manifold/loose/flipped check. Do not assume either failure or safety from the operation alone.
-- **One coordinate space per build.** State whether coordinates are local or world before
-  writing geometry, and never mix them: `v.co` is local, `matrix_world` is not, and a rotated
-  object's local Z is not world Z. Build one instance, print its world bounding box against
-  the target, then replicate.
-- **Verify deformation locality.** Before a localized deformation, identify the target
-  region and protected landmarks or surfaces, and record their baseline positions in a
-  stated coordinate space. Afterward, measure unintended movement outside the target
-  region against the agreed tolerance. Smooth falloff, unchanged bounds and clean
-  topology do not establish preservation.
-- **Locked dimensions are asserts.** After every geometry step, print the locked values
-  (roof, nose, tail, wheel size and position, track, overall bounding box) and compare them
-  with the locked baseline. A transient pass during editing is still a failure.
-- **Report on a call budget.** At twenty tool calls in one turn, post one line: done,
-  blocked, next. Do not keep working past it silently.
-- **Scripts are not transactions.** After an exception, inspect which edits already ran
-  before retrying. Restore temporary diagnostics and state in `finally`; do not rerun a
-  partly applied script blindly or treat a failed call as proof that nothing changed.
-- **Cleanup requires an explicit manifest.** Propose the exact keep/move/delete sets,
-  collision handling and rationale before approval. Preserve accepted checkpoints and
-  important baseline/verification evidence; recency or a fixed capture count alone is not
-  a retention policy. Inspect destinations and verify the resulting inventory afterward.
-- **Generated-material colour gate.** Treat raw generated base colour as a candidate, not
-  a delivery. StableMaterials colour drift is a known limitation, not a prompt failure;
-  skipping correction because the detail or tiling looks good is not acceptable. Inspect
-  the raw map and tiling/offset previews; record colour-only failures separately from
-  seam, stain, lighting or content failures. Correct only a `colour_only`
-  candidate against an approved target with a reproducible colour-correction script,
-  preserving the generated detail and the untouched raw file. Never use colour correction
-  to hide a texture, tiling or normal/roughness problem, and never alter those channels
-  merely to make colour pass. Re-inspect the corrected map before wiring it into Blender.
-  The established procedure is in `tools/asset-pipeline/tests/phase5/README.md`; use
-  `tools/asset-pipeline/scripts/run_comfy_workflow_stable_materials.py` for reusable
-  generation jobs and `review_colour.py` with an explicit review record for correction.
-- **ComfyUI jobs are reusable data.** Both runners
-  (`run_comfy_workflow_stable_materials.py`, `run_comfy_workflow_qwen_image_edit.py`)
-  take a **job JSON** plus an **API-format** workflow, must be dry-run before a real
-  submission, and never start or reconfigure ComfyUI. Workflows live in
-  `tools/asset-pipeline/workflows/`, jobs in `tools/asset-pipeline/examples/`; never
-  inline a workflow in a script. Workflow-format, prompt-length, colour-gate and
-  map-application details are in `docs/comfyui-materials.md`.
-- **Bake and export faithfully.** A new noise texture is a replacement, not a bake of the
-  original shader. Preserve source graphs, transfer all required channels and compare under
-  matching conditions; simplifications require approval. Verify self-contained exports in
-  a clean import with original texture paths unavailable, inspect connected maps and view
-  the result. A Blender round trip does not prove support in the destination engine.
-- **UV guides are deliveries too.** Export from the exact final object/UV layer, record source
-  and UV/albedo fingerprints, decode the saved PNG and view an aligned albedo overlay. Header
-  recognition, filenames and successful writes do not prove validity or correspondence. Keep
-  readable artist boundaries separate from topology overlays; preserve older files explicitly.
-  Island manifests, id/zone maps and masks are per-object UV space: never merge separate
-  layouts into one map, never invent semantic island names, and treat a PASS as structural
-  validation only. See the skill's `uv-island-export` reference and `uv_island_export.py`.
-- **Asset-library coverage is asset-specific.** Poly Haven, Sketchfab and Poly Pizza were
-  exercised in the pond trials; this is not blanket validation. Follow `gummy-3d-authoring`'s
-  `references/asset-libraries.md`, preserve provenance and import transforms, and verify each
-  new asset independently. Record source, author and licence, verify scale, axis and origin,
-  and do not substitute a library asset for a reference-faithful part without approval.
-  A downloaded library item is not evidence of likeness.
-- **Inspect, don't infer success.** Choose targeted construction or acceptance
-  captures using the stage-review matrix; use neutral solid shading as well as material/rendered
-  views. Check topology and, when applicable, rig weights/deformation. A successful
-  script or boolean is not proof of likeness, watertightness or good deformation. State the
-  noise of any measurement taken from reference images and do not tune below it. Save
-  scratch captures under `.dev-shots/` as described in Visual Verification. True orthographic
-  captures need a PNG written there; if the session is read-only, ask for a mode switch
-  before starting rather than after a failed audit.
-- **Every shipped asset has a manifest.** Record the tracked file, SHA-256, byte size,
-  scale/axis, bounds, mesh/skin/clip/material inventory, extensions, source and rights
-  beside the asset (for example `assets/MSN_Figure/asset.json` and its README), and keep
-  `node --test tests` passing against it. A GLB that loads is not a verified delivery.
-- **Editable source is not delivery.** The tracked GLB and manifest are reproducible
-  deliverables; local `.blend` checkpoints are not backups. Record the authoritative
-  checkpoint and keep an external copy, or add a zipped snapshot with explicit approval.
-- **Generated assets need a preflight.** `generate_3d` may cost a credit and creates one
-  object, not a scene. Confirm the target, provider and cost before using it; generation
-  is not topology, material, reference or in-game verification.
-- **Separate delivery states.** Report whether work exists only in the live scene,
-  is saved to a `.blend`, is exported, or is verified in-game. Asset authoring does
-  not authorize game integration. Measure evaluated/exported triangles and vertices,
-  check export material support, and validate exports before claiming game readiness.
-- **Blender scripting exception to Tool-Call Discipline:** Blender MCP Python may edit the
-  approved scene and save/export approved assets. Repository source/config/document
-  edits still use file-edit tools; MCP is not an alternative filesystem editor.
-- **Load the relevant project skill:** `gummy-3d-authoring` for Blender/asset work;
-  `gummy-game-verification` for game verification. Skills supply procedures, not
-  additional authorization, and do not override this guide.
+Use `docs/asset-intake.md`, `assets/README.md`, the affected consumer and §7 ownership
+contracts for separately approved integration. Retain per-asset manifests, hashes,
+rights/provenance and tests; validate delivered assets and actual runtime behavior
+with `gummy-game-verification`. Source approval, validator success and low polygon
+counts do not establish game readiness. New cross-project delivery-contract/intake
+versioning remains separately scoped; do not invent compatibility claims.

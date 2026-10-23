@@ -1,9 +1,0 @@
-{
-  "source": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/atlas-review-005/retro_laptop_atlas_review_005.blend",
-  "objects": ["Atlas_Shell_Root"],
-  "out_dir": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/atlas-review-005/closed-review",
-  "views": "top,three_quarter",
-  "preset": "material",
-  "frame": 1,
-  "resolution": [900, 800]
-}

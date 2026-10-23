@@ -1,43 +1,10 @@
 # Tools
 
-## uv-layout-extractor
+Blender authoring, UV extraction, texturing/ComfyUI, baking, source export and
+standalone preview tools have moved to the independent AssetWorkshop project:
+`/Users/hydraxon/Documents/GitHub/AssetWorkshop`.
 
-Vendored copy of the standalone `uv-layout-extractor` project.
-
-- Entry point: `tools/uv-layout-extractor/README.md`
-- Public scripts: `tools/uv-layout-extractor/scripts/`
-- Optional repair/rebind: `tools/uv-layout-extractor/extras/`
-- Standalone tests: `cd tools/uv-layout-extractor && python3 -m unittest discover -s tests -p 'test_*.py'`
-- Blender smoke test: `BLENDER=/path/to/blender tools/uv-layout-extractor/tests/blender/run.sh`
-
-The canonical upstream is maintained separately. See
-`tools/uv-layout-extractor/UPSTREAM.md`.
-
-## asset-pipeline
-
-Phase 1a/1b read-only audit, delivery profiles, provenance schema and advisory
-camera-projected texel-density policy, plus Phase 2 unified export verification, Phase 3
-bake fixtures, a Phase 4 crate material-zone trial, a Phase 5 material-generation pilot
-and a Phase 6 crate GLB-delivery trial for the Blender → AI-assisted materials → glTF
-pipeline.
-
-- Roadmap: `docs/asset-pipeline-roadmap.md`
-- Entry point: `tools/asset-pipeline/README.md`
-- Audit: `tools/asset-pipeline/scripts/audit_asset.py`
-- Density policy: `tools/asset-pipeline/scripts/density_policy.py`
-- Export verification: `tools/asset-pipeline/scripts/verify_asset.mjs`
-- Validator provisioning: `tools/asset-pipeline/scripts/provision_validator.mjs`
-- Standalone preview: `tools/asset-pipeline/preview/index.html`
-- Profiles: `tools/asset-pipeline/profiles/`
-- Python tests: `python3 -m unittest discover -s tools/asset-pipeline/tests -p 'test_*.py'`
-- Phase 2 tests: `tools/asset-pipeline/tests/phase2/run.sh`
-- Phase 3 fixtures: `tools/asset-pipeline/tests/phase3/`
-- Phase 4 crate zone trial: `tools/asset-pipeline/tests/phase4/`
-- Phase 5 material pilot: `tools/asset-pipeline/tests/phase5/`
-- Phase 6 crate delivery trial: `tools/asset-pipeline/tests/phase6/`
-- Phase 7A/7B validation, procedural 7C pebble, 7D desk-lamp and 7E office-corner benchmarks: `tools/asset-pipeline/tests/phase7/`
-- Blender fixtures: `BLENDER=/path/to/blender tools/asset-pipeline/tests/blender/run.sh`
-
-This tooling is read-only and does not export, repair, generate textures, modify the game
-loader or integrate assets into the game. Density thresholds are advisory, not an
-acceptance gate; validator and preview evidence remain separate from game integration.
+This game repository retains runtime loading, approved integration and asset
+intake checks. See `docs/asset-intake.md`, `assets/README.md` and
+`scripts/glb-inventory.mjs`. Historical reports and recovery sources are preserved;
+their old authoring commands are not active instructions for this repository.

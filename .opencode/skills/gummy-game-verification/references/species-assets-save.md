@@ -41,15 +41,15 @@ passes, plus `LOOK=alpha` when the Glass fallback path changes.
 
 ### Game-asset runtime acceptance — extension unvalidated
 
-Apply across all asset categories and fidelity modes. Use the authoring skill's
-[game-asset contract](../../gummy-3d-authoring/references/game-asset-contract.md).
+Apply across all asset categories and fidelity modes. Use repository
+`docs/asset-intake.md` for the destination contract.
 Game-first is the destination, not permission to change a reference-fidelity brief or
 an actor representation. Animated assets also require the existing rig/clip/pose checks;
 repeated modules and transparent/foliage assets need their relevant performance checks.
 
 Read the approved asset brief for fidelity, camera/screen coverage, intended instance
 count, delivery geometry/material/texture budgets and motion/collision requirements.
-Source/GLB validation belongs to the authoring skill; this reference verifies actual
+Source/GLB validation belongs to AssetWorkshop; this reference verifies actual
 integration only after it is approved. A background prop need not reproduce optional
 reference dimples, but still must retain its required silhouette/cavities and safe state.
 

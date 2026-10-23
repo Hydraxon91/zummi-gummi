@@ -1,9 +1,0 @@
-{
-  "source": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/hybrid-review-004/retro_laptop_hybrid_review_004.blend",
-  "objects": ["RetroLaptop_Root"],
-  "out_dir": ".dev-shots/asset-pipeline/phase7/benchmark/retro-laptop-detail-001/hybrid-review-004/closed-review",
-  "views": "top,three_quarter",
-  "preset": "material",
-  "frame": 1,
-  "resolution": [900, 800]
-}

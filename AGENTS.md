@@ -26,23 +26,28 @@ unless the user names one.
 - Known-broken required features block delivery. Report failed and unverified
   criteria honestly; checks do not confer user approval. Record discovered bugs
   in `ROADMAP.md` Known follow-ups with trigger, affected state and disposition.
-- Keep scope and source intact. For Blender preserve editable controls/operands
-  as well as recoverable, new-name checkpoints. Neither permits unrelated rebuilds.
+- Keep scope and source intact; do not rebuild or discard unrelated assets.
 - Use file-edit tools for repository changes, not shell scripts or Blender Python.
-  Blender MCP may edit the approved scene and save/export approved assets.
+  This game repository does not control live Blender.
   Keep dependent operations sequential; parallelise independent reads/checks.
 - After interruption/compaction or “continue”, confirm approved scope, inspect
   `git status --short` and re-read unfinished targets before editing. Exceptions
   can leave partial changes: inspect actual state before retrying.
-- Keep progress concise. Use todos when available. At twenty calls in 3D work
-  report done/blocked/next; around thirty calls without a result or plan, stop
-  and report. Do not invent resource budgets. Stop owned verification processes.
+- Keep progress concise. Use todos when available. Do not invent resource budgets.
+  Stop owned verification processes.
 - Update living docs invalidated by a change. Keep rules/procedures free of
   incident journals; put evidence in topic docs. Historical records stay immutable.
 - Scratch captures belong in `.dev-shots/` and must be viewed. Do not commit
   `inspiration/`, scratch captures, local self-tests or third-party references.
 
 ## Load only the active route
+
+### Asset authoring boundary
+
+Standalone authoring belongs to `/Users/hydraxon/Documents/GitHub/AssetWorkshop`.
+This game project must not manipulate live Blender. Game-side asset intake and
+integration remain separately approved work here; see `docs/asset-intake.md`.
+Historical reports and recovery sources are preserved, not active authoring routes.
 
 Detailed procedures are in [docs/agent-procedures.md](docs/agent-procedures.md).
 Read the named sections when applicable, not that whole document on every task.
@@ -53,7 +58,7 @@ Read the named sections when applicable, not that whole document on every task.
 | Multi-step game feature | Procedures §5, including requirements-to-check mapping and failure limits |
 | Game verification | `gummy-game-verification` skill; procedures §9 for commands, §13 for game captures |
 | Performance claim | Procedures §14 and `PERFORMANCE.md`; remeasure, do not infer |
-| Blender/3D asset | `gummy-3d-authoring` skill; its active-stage references, not game verification |
+| Asset intake/integration | `docs/asset-intake.md`, affected loaders/contracts and game verification |
 | Save/species/assets contract | Relevant ownership in procedures §7, `assets/README.md`, affected Node tests |
 | Commit/push | Procedures §12; verified atomic units, no push implied; monitor applicable CI after a code push |
 | Documentation/tooling workflow | Procedures §10–11 and affected commands/cross-references |
@@ -67,11 +72,8 @@ without approval. Respect module ownership and shared asset leases; preserve
 batching/instancing and avoid per-frame foliage CPU loops. Full ownership and
 supported exceptions are maintained in procedures §7, not duplicated here.
 
-Standalone Blender work does **not** require booting the game or `window.__gummy`.
-Export, standalone preview and game integration are different scopes and evidence.
-Do not launch Blender after a user resource pause without permission. Paid
-generation requires target/provider/cost approval. Do not add agents, plugins,
-change models or migrate configuration merely to repair authoring instructions.
+Authoring/export/standalone preview and game integration are separate scopes and
+evidence. This repository owns destination integration, not source production.
 
 ## Approval and recovery details
 
@@ -79,11 +81,10 @@ Procedures §3–6 and §12 retain the detailed approval, repair and commit cont
 Inside a chunk, verify each step at its affected layer. Allow at most seven
 evidence-driven failed repairs per failing criterion: diagnose after two unchanged
 failures, review at six, stop at seven unless an explicit bounded continuation is
-approved. Successful construction is not a failed repair. Preserve the ledger
-across filenames and techniques. A new geometry regression stops the edit chain;
-restore only scoped work safely, or stop if that would discard unrelated work.
+approved. Preserve the ledger across filenames and techniques; never discard
+unrelated work to recover.
 
 This entry owns common safety and routing. Detailed references explain execution;
-the authoring stage policy owns Blender progression. A more specific user gate
-(for example “body only”) remains binding. Report implemented, verified, blocked
+AssetWorkshop owns authoring progression. More specific user scope gates remain
+binding. Report implemented, verified, blocked
 and deferred work separately; then wait for the next task.

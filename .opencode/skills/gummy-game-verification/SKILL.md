@@ -1,14 +1,14 @@
 ---
 name: gummy-game-verification
-description: Verify Gummy Bears code, physics, map, UI and rendering changes using the existing HTTP smoke test, window.__gummy hooks, local physics harness and inspected screenshots. Use before reporting any game change complete, and whenever the user asks to test, verify, check, profile or screenshot the game, even if they do not name this skill. Blender asset work uses gummy-3d-authoring instead.
+description: Verify Gummy Bears code, physics, map, UI and rendering changes using the existing HTTP smoke test, window.__gummy hooks, local physics harness and inspected screenshots. Use before reporting any game change complete, and whenever the user asks to test, verify, check, profile or screenshot the game, even if they do not name this skill. Source authoring belongs to AssetWorkshop.
 ---
 
 # Gummy Game Verification
 
 Read `AGENTS.md`: Verification & Self-Test Standards, Commit Discipline, Visual Verification
 and Performance Discipline, plus the affected module's callers. This skill does not
-authorize implementation, installation, commits or pushes. For Blender asset checks
-(topology, reference matching, export) use `gummy-3d-authoring`; use this skill for the
+authorize implementation, installation, commits or pushes. Blender asset checks
+(topology, reference matching, export) belong to AssetWorkshop; use this skill for the
 in-game result once integration is approved.
 Paths below are relative to the project root, not this skill directory.
 
@@ -91,20 +91,12 @@ Existing procedures were extracted without establishing fresh runtime evidence.
 The new UI/input extensions are explicitly **unvalidated**. Document/link checks do
 not validate gameplay, new procedures or usefulness with a particular LLM.
 
-For source production of coherent asset sets read the 3D skill's
-[asset-family guide](../gummy-3d-authoring/references/asset-families.md); for approved
-lit sprites read its [sprite-normal guide](../gummy-3d-authoring/references/sprite-normals.md).
-These new guides are **unvalidated** and do not authorize integration. Keep source
-production separate from in-game rendering, UI/input, lifecycle and performance acceptance.
-For every integrated asset category, use the authoring skill's shared
-[game-asset contract](../gummy-3d-authoring/references/game-asset-contract.md) and the
-unvalidated runtime-acceptance extension in the species/assets/save reference. Budget
-checks apply to faithful and stylized assets alike; neither automatically passes runtime
-acceptance. For assisted stylized props also read
-[stylized game props](../gummy-3d-authoring/references/stylized-game-props.md) and the
-applicable construction guide. Check
-the approved fidelity and delivery budget rather than imposing reconstruction criteria
-or assuming an asset below a vertex threshold is game-ready.
+Source production belongs to AssetWorkshop, not this verification skill. For every
+integrated asset category use repository `docs/asset-intake.md` and the runtime
+acceptance extension in the species/assets/save reference (still unvalidated).
+Check the approved fidelity and delivery budget; neither stylization nor a low
+vertex count automatically establishes game readiness. Verify actual in-game
+rendering, native-size family/sprite readability, lifecycle and performance.
 
 ## Behaviour and regression checks
 
