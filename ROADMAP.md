@@ -1862,6 +1862,27 @@ review between steps; B1's portions provider is complete. M3 will reject unknown
 module IDs and whole mixed actor-config patches without mutation. Remaining
 behavior/presentation and host-lifecycle work is not claimed complete.
 
+**Known follow-ups — M4 species admission/restore mismatch (fixed):**
+Trigger: restoring a registered soft-body species without a rig, or a registered
+skinned species without a matching runtime adapter. `spawnFromState()` in
+`src/app.js` uses `speciesDef.rig || RIGCFG` without passing `opts.species` to
+`spawn`, allowing the rigless record to take the Bear fallback (source-inspected,
+not host-run). `validateActorWorld()` accepts a registered skinned species
+(independently reproduced in Node), while `glassColony.restore()` in `src/glass.js`
+skips non-Glass species in the prior implementation. Disposition: user-approved
+runtime/save admission now rejects these combinations before mutation, without
+tightening registration or adding an adapter. Parent verified 448 Node tests and
+the asserted browser rejection/restore probe. See
+`docs/species-extension-recipe.md`.
+
+**Known follow-ups — B3 browser collision recurrence (unresolved):** the existing
+Studio regression collision fixture also failed locally with separation
+0.2418645257 against 0.25 after six samples. Other full runs passed; they do not
+erase this failure. Actor admission does not change solver/force/readback logic,
+but the cause is not established. Preserve the existing collision disposition;
+no threshold, solver or fixture change is authorized here. Asset refs 4–5 matched
+one Studio lease plus the live Meadow Glass count and are not evidence of a leak.
+
 ## Personality and modular-AI extension track
 
 This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved and

@@ -184,6 +184,158 @@ export function getSpecies(id, fallback = 'bear') {
   return registry.get(id) || registry.get(fallback) || null;
 }
 
+const SOFTBODY_LANDMARKS = [
+  'P_HEAD', 'P_CHEST', 'P_BELLY', 'P_HANDL', 'P_HANDR', 'P_FOOTL', 'P_FOOTR',
+];
+
+const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const isArrayLike = value => value !== null && typeof value === 'object' &&
+  Number.isInteger(value.length);
+
+function finiteArray(value, length, { positive = false, nonNegative = false } = {}) {
+  if (!isArrayLike(value) || value.length !== length) return false;
+  for (let i = 0; i < length; i++) {
+    const item = value[i];
+    if (!Number.isFinite(item)) return false;
+    if (positive && item <= 0) return false;
+    if (nonNegative && item < 0) return false;
+  }
+  return true;
+}
+
+function validIndex(value, np) {
+  return Number.isInteger(value) && value >= 0 && value < np;
+}
+
+function softbodyRigIssue(rig) {
+  if (!isObject(rig)) return 'soft-body rig is missing';
+  const np = rig.NP;
+  if (!Number.isInteger(np) || np <= 0) return 'rig.NP is invalid';
+  if (!Array.isArray(rig.RIG) || rig.RIG.length !== np) return 'rig.RIG is invalid';
+  for (let i = 0; i < np; i++) {
+    const point = rig.RIG[i];
+    if (!isObject(point) || typeof point.n !== 'string' || !point.n) {
+      return `rig.RIG[${i}] is invalid`;
+    }
+    for (const key of ['x', 'y', 'z', 'r', 'm', 'hz']) {
+      if (!Number.isFinite(point[key])) return `rig.RIG[${i}].${key} is invalid`;
+    }
+    if (point.r <= 0 || point.m <= 0 || point.hz < 0) return `rig.RIG[${i}] is invalid`;
+    if (!Number.isInteger(point.parent) || point.parent < -1 ||
+        point.parent >= np || point.parent === i) {
+      return `rig.RIG[${i}].parent is invalid`;
+    }
+  }
+  if (!finiteArray(rig.REST, np * 3)) return 'rig.REST is invalid';
+  if (!finiteArray(rig.MASS, np, { positive: true })) return 'rig.MASS is invalid';
+  if (!finiteArray(rig.RSURF, np, { positive: true })) return 'rig.RSURF is invalid';
+  if (!finiteArray(rig.RCOLL, np, { positive: true })) return 'rig.RCOLL is invalid';
+  if (!finiteArray(rig.PARENT, np)) return 'rig.PARENT is invalid';
+  if (!finiteArray(rig.PARENT_LEN, np, { nonNegative: true })) return 'rig.PARENT_LEN is invalid';
+  if (!finiteArray(rig.JOINT_HZ, np, { nonNegative: true })) return 'rig.JOINT_HZ is invalid';
+  for (let i = 0; i < np; i++) {
+    const parent = rig.PARENT[i];
+    if (!Number.isInteger(parent) || parent < -1 || parent >= np || parent === i) {
+      return `rig.PARENT[${i}] is invalid`;
+    }
+  }
+  if (!Number.isFinite(rig.TOTAL_M) || rig.TOTAL_M <= 0) return 'rig.TOTAL_M is invalid';
+  if (!Number.isFinite(rig.REST_H) || rig.REST_H <= 0) return 'rig.REST_H is invalid';
+  if (!Number.isFinite(rig.REST_COM_Y) || rig.REST_COM_Y <= 0) return 'rig.REST_COM_Y is invalid';
+  if (!Number.isFinite(rig.REST_DY)) return 'rig.REST_DY is invalid';
+  if (!Array.isArray(rig.PTS) || rig.PTS.length !== np) return 'rig.PTS is invalid';
+  for (let i = 0; i < np; i++) {
+    const point = rig.PTS[i];
+    if (!isObject(point)) return `rig.PTS[${i}] is invalid`;
+    for (const key of ['x', 'y', 'z', 'r', 'm']) {
+      if (!Number.isFinite(point[key])) return `rig.PTS[${i}].${key} is invalid`;
+    }
+  }
+  if (!Array.isArray(rig.CAPS)) return 'rig.CAPS is invalid';
+  for (let i = 0; i < rig.CAPS.length; i++) {
+    const cap = rig.CAPS[i];
+    if (!Array.isArray(cap) || cap.length !== 3 ||
+        !validIndex(cap[0], np) || !validIndex(cap[1], np) ||
+        !Number.isFinite(cap[2]) || cap[2] <= 0) {
+      return `rig.CAPS[${i}] is invalid`;
+    }
+  }
+  if (!Array.isArray(rig.BRACES)) return 'rig.BRACES is invalid';
+  for (let i = 0; i < rig.BRACES.length; i++) {
+    const brace = rig.BRACES[i];
+    if (!Array.isArray(brace) || brace.length !== 4 ||
+        !validIndex(brace[0], np) || !validIndex(brace[1], np) ||
+        brace[0] === brace[1] ||
+        !Number.isFinite(brace[2]) || brace[2] < 0 ||
+        !Number.isFinite(brace[3]) || brace[3] < 0) {
+      return `rig.BRACES[${i}] is invalid`;
+    }
+  }
+  for (const key of SOFTBODY_LANDMARKS) {
+    if (!validIndex(rig[key], np)) return `rig.${key} is invalid`;
+  }
+  return null;
+}
+
+function isShippedGlass(def) {
+  const glass = registry.get('glass');
+  return !!glass && def.id === 'glass' && def.kind === 'skinned' &&
+    def.asset === glass.asset &&
+    def.assetManifest === glass.assetManifest &&
+    def.assetId === glass.assetId;
+}
+
+// Narrow runtime admission, not a universal representation validator. Registration
+// stays permissive for unhosted definitions; callers use this before creating or
+// restoring an actor. `expectedKind` maps a save collection to the host it needs.
+export function speciesRuntimeIssue(def, rig = def && def.rig, { expectedKind = null } = {}) {
+  if (!def || typeof def.id !== 'string' || !def.id) return 'species is not registered';
+  if (expectedKind && def.kind !== expectedKind) {
+    return `species "${def.id}" representation is unsupported: kind "${def.kind}" is not "${expectedKind}"`;
+  }
+  if (def.kind === 'skinned') {
+    if (!isShippedGlass(def)) {
+      return `species "${def.id}" representation is unsupported: only the shipped glass skinned adapter is hosted`;
+    }
+    return null;
+  }
+  if (def.kind !== 'softbody') {
+    return `species "${def.id}" representation is unsupported: kind "${def.kind}" has no host`;
+  }
+  const rigIssue = softbodyRigIssue(rig);
+  if (rigIssue) return `species "${def.id}" representation is unsupported: ${rigIssue}`;
+  const marker = rig.species === undefined ? 'bear' : rig.species;
+  if (typeof marker !== 'string' || !marker) {
+    return `species "${def.id}" representation is unsupported: rig species marker is invalid`;
+  }
+  if (marker !== def.id) {
+    return `species "${def.id}" representation is unsupported: rig species marker "${marker}" does not match`;
+  }
+  return null;
+}
+
+export function requireSpeciesRuntime(def, rig = def && def.rig, options = {}) {
+  const issue = speciesRuntimeIssue(def, rig, options);
+  if (issue) throw new Error(`${options.context || 'runtime'}: ${issue}`);
+  return def;
+}
+
+// Saved skinned/Glass records are prevalidated as a complete list before the
+// adapter constructs any actor, so one bad later entry cannot leave a partial
+// restore. Missing kind/species keeps the legacy Glass defaults.
+export function glassRestoreIssue(state) {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) {
+    return 'actor record is invalid';
+  }
+  if (state.kind !== undefined && state.kind !== 'glass' && state.kind !== 'skinned') {
+    return `actor kind "${state.kind}" is not supported by the glass adapter`;
+  }
+  if (state.species !== undefined && state.species !== 'glass') {
+    return `species "${state.species}" is not supported by the glass adapter`;
+  }
+  return null;
+}
+
 export function speciesForRig(rig) {
   if (!rig) return getSpecies('bear');
   return getSpecies(rig.species || 'bear');

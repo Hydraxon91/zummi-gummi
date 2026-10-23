@@ -208,6 +208,18 @@ not a dynamic plugin API.
 
 ### M4 — Species and representation extension recipe (M; M0)
 
+**B3/M4 admission and recipe complete:** the user approved permissive registration
+with strict runtime/save admission. [The recipe](species-extension-recipe.md)
+and fixture tests cover existing-representation registration, eligibility, actor
+view, save/common-state boundaries and unsupported representation rejection.
+Save validation rejects before mutation; spawn/restore no longer substitutes Bear
+or silently skips unsupported skinned species. Parent full Node passed 448/448;
+the asserted browser probe independently passed invalid-load non-mutation,
+supported fixture restore and direct Glass all-before-creation rejection.
+Live birth remains unverified. The broader Studio regression had passes and an
+unresolved collision failure (0.241865 versus 0.25); it is not a clean regression
+acceptance claim or a physics fix. The pre-existing collision follow-up remains.
+
 - Document biology/capabilities, rig/asset representation and species balance as
   distinct responsibilities. Inspect callback/typed-array dependencies before
   proposing a data split; neutral JSON is not mandatory.

@@ -5,7 +5,7 @@
 // unknown content.
 
 import { DNA_VERSION } from './dna.js';
-import { getSpecies } from './species.js';
+import { getSpecies, speciesRuntimeIssue } from './species.js';
 import {
   normalizeSkills, normalizeHistory, normalizePlaydates, historyHasBondDelta,
 } from './family.js';
@@ -212,6 +212,10 @@ function validateCommon(a, where, errors, { kind, requireFlavor }) {
     const def = typeof a.species === 'string' ? getSpecies(a.species, null) : null;
     if (!def) errors.push(`${where}.species is unknown`);
     else if (def.kind !== kind) errors.push(`${where}.species is not ${kind}`);
+    else {
+      const issue = speciesRuntimeIssue(def, def.rig, { expectedKind: kind });
+      if (issue) errors.push(`${where}.${issue}`);
+    }
   }
 
   // Genome is optional for v1 saves created before the DNA pass; spawn supplies

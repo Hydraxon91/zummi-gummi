@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { getSpecies } from './species.js';
+import { getSpecies, requireSpeciesRuntime, glassRestoreIssue } from './species.js';
 import { defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { assetStore, disposeInstanceSkeletons } from './assetstore.js';
 import { snapshotActor, applyCommonActorState } from './actorrecord.js';
@@ -690,6 +690,12 @@ export function createGlassColony({
   }
 
   function makeActor(opts = {}) {
+    requireSpeciesRuntime(GLASS_SPECIES, null, {
+      expectedKind: 'skinned', context: 'glass.makeActor',
+    });
+    if (opts.species !== undefined && opts.species !== 'glass') {
+      throw new Error(`glass.makeActor: species "${opts.species}" is not supported by the glass adapter`);
+    }
     if (!scene) return null;
     if (actors.length >= MAX_ACTORS) return null;
     const stage = opts.stage || 'adult';
@@ -837,8 +843,16 @@ export function createGlassColony({
 
   function restore(states) {
     if (!Array.isArray(states)) return 0;
-    for (const state of states.slice(0, MAX_ACTORS)) {
-      if (!state || state.kind === 'bear' || state.species && state.species !== 'glass') continue;
+    requireSpeciesRuntime(GLASS_SPECIES, null, {
+      expectedKind: 'skinned', context: 'glass.restore',
+    });
+    const accepted = [];
+    for (const state of states) {
+      const issue = glassRestoreIssue(state);
+      if (issue) throw new Error(`glass.restore: ${issue}`);
+      accepted.push(state);
+    }
+    for (const state of accepted.slice(0, MAX_ACTORS)) {
       const actor = makeActor({
         x: state.x, z: state.z, uid: state.uid, name: state.name,
         sex: state.sex, stage: state.stage, age: state.age, scale: state.scale,

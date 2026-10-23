@@ -21,7 +21,7 @@ import { createGlassColony } from './glass.js';
 import { createGiftVisuals } from './giftvisuals.js';
 import { assetStore } from './assetstore.js';
 import { createActorView, isGlassActor } from './npc.js';
-import { getSpecies, speciesForRig, listSpecies } from './species.js';
+import { getSpecies, speciesForRig, listSpecies, requireSpeciesRuntime } from './species.js';
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
@@ -577,10 +577,27 @@ let bounces = 0;
 const lifeStats = { births: 0, stageUps: 0, blockedBirths: 0 };
 
 function spawn(x, z, y, flavor, opts={}){
+  const explicitSpecies = opts.species !== undefined;
+  let requestedDef = null;
+  if (explicitSpecies) {
+    if (typeof opts.species !== 'string' || !opts.species) {
+      throw new Error('spawn: species must be a non-empty registered id');
+    }
+    requestedDef = getSpecies(opts.species, null);
+    if (!requestedDef) throw new Error(`spawn: species "${opts.species}" is not registered`);
+  }
+  const rigCfg = opts.rig || (requestedDef && requestedDef.rig) || (explicitSpecies ? null : RIGCFG);
+  if (!explicitSpecies) {
+    const marker = rigCfg && typeof rigCfg === 'object' && rigCfg.species !== undefined
+      ? rigCfg.species : 'bear';
+    if (typeof marker !== 'string' || !marker) {
+      throw new Error('spawn: rig species marker must be a non-empty string');
+    }
+    requestedDef = getSpecies(marker, null);
+    if (!requestedDef) throw new Error(`spawn: species "${marker}" is not registered`);
+  }
+  requireSpeciesRuntime(requestedDef, rigCfg, { expectedKind: 'softbody', context: 'spawn' });
   if (bears.length >= bearCeiling) removeBear(bears[0], { departure: 'removed' });
-  const requestedSpecies = opts.species ? getSpecies(opts.species) : null;
-  if (requestedSpecies && !requestedSpecies.rig) return null;
-  const rigCfg = opts.rig || (requestedSpecies && requestedSpecies.rig) || RIGCFG;
   const b = getFreeBear(rigCfg);
   if (!b) return null;
   clearFarewellRuntime(b);
@@ -6131,6 +6148,20 @@ function snapshotBear(b){
   });
 }
 function spawnFromState(st){
+  if (!st || typeof st !== 'object') throw new Error('spawnFromState: actor record is invalid');
+  let speciesDef;
+  if (st.species === undefined) {
+    speciesDef = getSpecies('bear', null);
+  } else {
+    if (typeof st.species !== 'string' || !st.species) {
+      throw new Error('spawnFromState: species must be a non-empty registered id');
+    }
+    speciesDef = getSpecies(st.species, null);
+    if (!speciesDef) throw new Error(`spawnFromState: species "${st.species}" is not registered`);
+  }
+  requireSpeciesRuntime(speciesDef, speciesDef.rig, {
+    expectedKind: 'softbody', context: 'spawnFromState',
+  });
   let x = st.x, z = st.z;
   if (isMeadow() && field){
     if (!field.nav.isWalkable(x,z)){
@@ -6142,9 +6173,8 @@ function spawnFromState(st){
     z = clamp(z, -TABLE.hz+0.28, TABLE.hz-0.28);
   }
   const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), st.yaw || 0);
-  const speciesDef = getSpecies(st.species, 'bear');
   if (speciesDef.id === 'msn' && !RACE_ENABLED) return null;
-  const rigCfg = speciesDef.rig || RIGCFG;
+  const rigCfg = speciesDef.rig;
   const genome = st.genome ? normalizeGenome(st.genome) : defaultGenome(speciesDef.id);
   const b = spawn(x, z, 0.004, st.flavor >= 0 ? st.flavor : 0, {
     rig: rigCfg,

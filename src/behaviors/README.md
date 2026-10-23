@@ -151,6 +151,16 @@ checks run in tooling/tests rather than adding per-tick work.
 5. Do not route a new race through the BEAR fallback; the fallback is only for
    unknown species and logs one warning.
 
+Balance is separate from the species/representation entry. See
+[the species/representation extension recipe](../../docs/species-extension-recipe.md)
+for the implemented M4 runtime-admission contract: the supported Bear/MSN
+soft-body path, shipped Glass adapter, save/restore ownership and the remaining
+unsupported combinations. Registration stays permissive for unhosted
+definitions, but save validation and spawn/restore reject unknown, unsupported
+or malformed representations before mutation. Parent acceptance is still
+separate. A registered species without a profile still resolves the Bear
+balance; that fallback is not a supported profile.
+
 ## Personality (off by default)
 
 `personality` is a modules-engine feature flag. It is **off by default** and is
