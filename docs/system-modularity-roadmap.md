@@ -293,6 +293,13 @@ coordinated rebuild remain unsupported, not delivered as an editor feature.
 
 ### M10 — World state versus browser quick-resume storage (M; M0)
 
+**B5/M10 complete:** `createWorldState({ getStorage })` provides independent
+sessions and explicit hydration; importing `world.js` no longer reads browser
+storage. The app hydrates the existing singleton before use. Keys, legacy launcher
+precedence, truthiness quirks, read-merge-write and best-effort persistence remain.
+Parent full Node passed 478/478 and the browser hydration/map/save/load/New Game
+probe passed 18/18. See [world/storage contract](world-storage-contract.md).
+
 - Isolate `world.js` import-time localStorage access behind explicit hydration/
   persistence collaborators while preserving keys, defaults and launcher fallback.
 - Keep one authoritative active-map state and no second world store.

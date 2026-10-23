@@ -24,7 +24,7 @@ import { createActorView, isGlassActor } from './npc.js';
 import { getSpecies, speciesForRig, listSpecies, requireSpeciesRuntime } from './species.js';
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
-import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS } from './world.js';
+import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS, hydrateWorld } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
 import { snapshotActor, applyCommonActorState } from './actorrecord.js';
 import { maxActorUid } from './actorsave.js';
@@ -32,6 +32,11 @@ import { buildRelationshipView } from './relationshipview.js';
 import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
+
+// Explicit, early composition: hydrate world preferences before any
+// activeWorld/map state is read. Storage denial stays inside world.js's
+// documented best-effort getter.
+hydrateWorld();
 
 const BEHAVIOR_ENGINE = behaviorEngineFromSearch(typeof location !== 'undefined' ? location.search : '');
 const nativeRandom = Math.random;
