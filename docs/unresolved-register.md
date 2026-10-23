@@ -64,6 +64,18 @@ Status values: `open`, `needs-decision`, `blocked`, `resolved`, `superseded`,
 | U-017 | M14 pond-recovery and eye-continuity host proof | verification | open | M14 closure | `src/app.js` `rescuePondBear`, `writeEyeInstance`; F1 seeded probe | F1 proved pond entry and continuous deformed surfaces/eyes by inspection, but did not prove return-to-shore recovery within the 2.5 s probe window and did not numerically pin eye placement continuity. Lattice math is separately fixture- and random-checked. | Add a longer/targeted host probe before claiming those M14 gates; no production hook or fix is authorized by this record. |
 | U-018 | M16 visual pond/terrain host split | deferred | open | Environment ownership | `src/field.js` pond/water/terrain composition | F2 extracted only the pure pond query and water spots. The inventory records shared sand/grass materials, wind/sun uniforms, path mask, shoreline phases/wobble, reflector camera/target/cadence and pond nav/colliders that block a visual split. | Requires a separate approved design covering material/uniform/shoreline/collider/camera ownership; this record does not authorize extraction. |
 
+### Batch E/F boundary reconciliation (2026-10-23)
+
+E3/M20a, E4/M20b, E5/M21, F1/M14 and F2/M16 closed with independent parent
+review and atomic commits through `882055e`. The boundary reran full Node
+677/677, contracts 17 modules, short parity 9/9, smoke 68/68 and a fresh long
+parity 15/15 (`acceptance:true`), plus the E3/E4/E5/F1/F2 browser probes at the
+final HEAD. New entries: U-016 (landing-refusal host proof, open), U-017
+(pond-recovery/eye-continuity host proof, open) and U-018 (visual pond/terrain
+split, deferred/open). Existing U-003, U-006, U-011 and deferred M7–M10 gaps are
+unchanged. No duplicate aliases were introduced and no entry is treated as fixed
+by this boundary. Batch G/H remain unstarted; no push was made.
+
 ## Pending audit
 
 `ROADMAP.md` contains older Known follow-ups for authoring, assets, UI, published

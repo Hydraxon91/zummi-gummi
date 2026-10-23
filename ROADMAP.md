@@ -1867,8 +1867,15 @@ remain open in the register; M6's real async host gate is not claimed green. M3
 rejects unknown module IDs and whole mixed actor-config patches without mutation.
 Batch I is a cross-cutting [unresolved-items register](docs/unresolved-register.md):
 I1 records the active known items, I2 requires every D–H step to update it, and I3
-audits the older backlog after H. Batch E has not started; recording an item in
-the register does not authorize its repair.
+audits the older backlog after H. Batch E and F execution is complete through
+`882055e`: M17/M19 settings/input slices, M20 roster and panel controllers, M21
+cannon math, M14 surface-lattice fixture and M16 water-access boundary passed
+independent review and atomic commits. The E/F boundary passed full Node 677/677,
+contracts, short parity 9/9, smoke 68/68, the affected browser probes and a fresh
+long parity 15/15 (`acceptance:true`). U-016/U-017 remain open verification gaps
+and U-018 records the deferred visual pond/terrain split; Batch G/H have not
+started. Recording an item in the register does not authorize its repair. No push
+was made.
 
 **Known follow-ups — M4 species admission/restore mismatch (fixed):**
 Trigger: restoring a registered soft-body species without a rig, or a registered

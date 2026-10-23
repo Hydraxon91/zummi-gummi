@@ -730,6 +730,18 @@ U-003 (M5 app lifecycle) and U-006 (direct Glass detach) also remain open. Batch
 has not started. Batch I2 captured the D evidence in the
 [unresolved-items register](unresolved-register.md); I3 still owns the older
 backlog. No push is implied.
+
+**Batch E and F execution is complete:** E3/M20a roster read model, E4/M20b panel
+controllers, E5/M21 cannon boundary, F1/M14 surface-lattice fixture and F2/M16
+water-access boundary passed independent review and atomic commits through
+`882055e`. The boundary ran full Node 677/677, contracts 17 modules, short parity
+9/9, smoke 68/68, a fresh long parity 15/15 (`acceptance:true`) and the
+E3/E4/E5/F1/F2 browser probes at the final HEAD. M20/M21/M14/M16 are complete for
+these bounded slices; visual pond/terrain extraction, settings-body ownership,
+pond recovery, numeric eye continuity and landing-refusal host proof remain
+recorded as U-018/U-017/U-016 or existing gaps. Batch G (translation pilot) and
+H (final audit) have not started. No push is implied.
+
 The M3 policy is settled: reject unknown module IDs without mutation/version
 changes, and reject an entire actor-config patch containing any unknown ID.
 Supported admission must remain explicit; species warning/fallback is unchanged.
