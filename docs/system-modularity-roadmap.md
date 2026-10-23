@@ -190,6 +190,14 @@ chosen. M2b–M2d remain pending.
 
 ### M3 — Configuration and module admission contracts (M; M0)
 
+**B2/M3 complete:** configurable IDs are exactly the source-registered layered
+defaults. Unknown, malformed and profile-only IDs return `false` without changing
+config/cache versions; actor patches containing any unknown module key reject
+atomically. Species fallback and supported toggle policies are unchanged. Parent
+full Node suite passed 434/434 and browser admission/version checks passed;
+coder short parity passed nine race/seed cases. Registration remains source-based,
+not a dynamic plugin API.
+
 - Resolve the documented unknown-ID setter policy (reject/warn/permissive) before
   editing. Keep essential/profile-only behavior honestly non-toggleable.
 - Audit cache invalidation, per-species/actor/runtime precedence and feature-off

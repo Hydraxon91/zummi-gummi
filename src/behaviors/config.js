@@ -66,6 +66,14 @@ const MODULE_DEFAULTS = Object.freeze({
   groupActivities: groupActivitiesModule.defaults,
 });
 export const CONFIGURED_MODULE_IDS = Object.freeze(Object.keys(MODULE_DEFAULTS));
+// Admission is source registration: only modules with an explicit layered
+// defaults block can be configured. Profile-only engine modules (rest, forage,
+// water, wander, social, follow, family, flee) are deliberately not members.
+const CONFIGURED_MODULE_ID_SET = new Set(CONFIGURED_MODULE_IDS);
+
+function isConfiguredModuleId(id) {
+  return typeof id === 'string' && CONFIGURED_MODULE_ID_SET.has(id);
+}
 
 // Profiles written before the modules reshape still used flat capability keys.
 // They remain a fallback for callers that build a profile by hand.
@@ -241,7 +249,7 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
   const map = { actorModules, speciesModules, runtimeModules };
 
   function setModuleEnabled(id, value, scope = null) {
-    if (!id) return false;
+    if (!isConfiguredModuleId(id)) return false;
     const target = scopeTarget(scope);
     const current = target.kind === 'global'
       ? runtimeModules.get(id) || {}
@@ -254,7 +262,7 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
   }
 
   function setModuleParams(id, patch, scope = null) {
-    if (!id || !isObject(patch)) return false;
+    if (!isConfiguredModuleId(id) || !isObject(patch)) return false;
     const target = scopeTarget(scope);
     const current = target.kind === 'global'
       ? runtimeModules.get(id) || {}
@@ -273,6 +281,11 @@ export function createBehaviorConfig({ features: featureOverrides = null } = {})
     const key = String(Number(uid));
     if (!Number.isFinite(Number(uid)) || !isObject(patch)) return false;
     const incoming = moduleOverrideFrom(patch) || {};
+    // Reject the whole patch before storing any entry when a module key is not
+    // source-registered. Order and entry shape do not affect atomicity.
+    for (const id of Object.keys(incoming)) {
+      if (!isConfiguredModuleId(id)) return false;
+    }
     let entry = actorModules.get(key) || {};
     if (!isObject(entry.modules)) entry = { modules: entry };
     const modules = { ...entry.modules };

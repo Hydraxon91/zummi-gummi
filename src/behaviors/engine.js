@@ -1819,19 +1819,19 @@ export function createBehaviorModules({
 
   function setModuleEnabled(id, value, scope = null) {
     const result = config.setModuleEnabled(id, value, scope);
-    configVersion++;
+    if (result) configVersion++;
     return result;
   }
 
   function setModuleParams(id, patch, scope = null) {
     const result = config.setModuleParams(id, patch, scope);
-    configVersion++;
+    if (result) configVersion++;
     return result;
   }
 
   function setActorConfig(uid, patch) {
     const result = config.setActorConfig(uid, patch);
-    configVersion++;
+    if (result) configVersion++;
     return result;
   }
 

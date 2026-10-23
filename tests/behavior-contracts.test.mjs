@@ -25,7 +25,9 @@ test('checker accepts a valid fixture and detects deliberately broken inventorie
   for (const change of [
     { configuredIds: [] }, { engineModules: [] }, { contracts: [] },
     { configuredIds: ['example', 'unknown'] },
+    { configuredIds: ['example', 'example'] },
     { contracts: [entry('example'), entry('example')] },
+    { contracts: [{ ...entry('example'), configuration: 'profile-only' }] },
     { engineModules: [module('example'), module('example')] },
     { engineModules: [module('example'), module('second', 'example')] },
     { engineModules: [module('example'), module('second', 'other', 'example.seek')] },
@@ -38,11 +40,39 @@ test('module authoring validation rejects malformed and duplicate definitions', 
   const base = { id: 'example', states: ['idle'], defaults: { enabled: true, params: {} } };
   assert.doesNotThrow(() => defineBehaviorModule(base));
   for (const patch of [
-    { id: 7 }, { states: ['idle', 'idle'] }, { defaults: { enabled: 'yes' } },
-    { defaults: { params: [] } }, { activeStates: ['unknown'] }, { activeStates: 'idle' },
+    { id: 7 }, { states: [] }, { states: ['idle', 'idle'] }, { defaults: null },
+    { defaults: { enabled: 'yes' } }, { defaults: { params: [] } },
+    { activeStates: ['unknown'] }, { activeStates: 'idle' },
     { opportunities: {} },
+    { opportunities: [{ id: '', order: 1, enter: () => true }] },
     { opportunities: [1, 2].map(() => ({ id: 'same', order: 1, enter: () => true })) },
   ]) assert.throws(() => defineBehaviorModule({ ...base, ...patch }));
+});
+
+test('support declarations preserve the reviewed configuration and disable policy', () => {
+  assert.deepEqual(
+    BEHAVIOR_CONTRACTS.map(({ id, configuration, disable, registration }) =>
+      [id, configuration, disable, registration]),
+    [
+      ['hive', 'layered', 'legacy-unverified', 'engine'],
+      ['rest', 'profile-only', 'unsupported', 'engine'],
+      ['forage', 'profile-only', 'unsupported', 'engine'],
+      ['water', 'profile-only', 'unsupported', 'engine'],
+      ['wander', 'profile-only', 'unsupported', 'engine'],
+      ['social', 'profile-only', 'unsupported', 'engine'],
+      ['mate', 'layered', 'finish-current', 'engine'],
+      ['conflict', 'layered', 'legacy-unverified', 'engine'],
+      ['follow', 'profile-only', 'unsupported', 'engine'],
+      ['stargaze', 'layered', 'legacy-unverified', 'engine'],
+      ['family', 'profile-only', 'unsupported', 'engine'],
+      ['flee', 'profile-only', 'unsupported', 'engine'],
+      ['gifting', 'layered', 'feature-only', 'engine'],
+      ['pairActivities', 'layered', 'feature-only', 'engine'],
+      ['relationships', 'layered', 'feature-only', 'engine'],
+      ['groupActivities', 'layered', 'feature-only', 'engine'],
+      ['directives', 'layered', 'legacy-unverified', 'capability'],
+    ],
+  );
 });
 
 for (const entry of BEHAVIOR_CONTRACTS.filter(c => c.configuration === 'layered')) {

@@ -97,7 +97,8 @@ collection are unavailable, and source collection keeps the
 2. Register it in `engine.js` with `registerModule(...)`.
 3. Read race values from `ctx.p`; do not merge config per tick.
 4. Add the module to `MODULE_DEFAULTS` in `config.js` if it has a profile
-   capability block.
+   capability block. That entry is also its config admission: without it the
+   module is profile-only and config setters reject its ID.
 5. Add pure tests for its gates/outcomes and a scenario pack if the branch is
    rare in open-world runs.
 6. Run the parity gates below. A new state or opportunity must show up in the
@@ -111,8 +112,12 @@ means balance remains in the existing flat profile. `disable` deliberately
 distinguishes `finish-current` (mate), `feature-only` (activity feature flags),
 `legacy-unverified` (existing capability configuration, not full toggle acceptance)
 and `unsupported`. Essential rest/food/water do not acquire generic disable behavior.
-These declarations document support; they do not make existing setters stricter or
-rewrite dispatch. Do not expose an unsupported module flag as an effective toggle.
+Admission follows those declarations: configurable setters accept only IDs with a
+source-registered `MODULE_DEFAULTS` entry (`CONFIGURED_MODULE_IDS`, exactly the
+`layered` contracts). `profile-only` modules are not accepted as effective toggles,
+and unknown, empty, inherited or non-string IDs return `false` without changing
+values, config version or cached profiles. Declarations still do not rewrite
+dispatch or prove in-flight disable behavior.
 
 Run `node scripts/check-behavior-contracts.mjs`. It inspects the actual engine map
 and config IDs, plus the directives config-only capability; duplicate module/state/
@@ -521,6 +526,16 @@ Later layers win:
 
 The resolved object is cached per actor by config version, so modules never
 merge config in the hot loop.
+
+Only IDs source-registered in `MODULE_DEFAULTS` are configurable
+(`CONFIGURED_MODULE_IDS`). `setModuleEnabled`/`setModuleParams` reject an unknown,
+empty, non-string or profile-only ID before scoping or mutation. `setActorConfig`
+prevalidates every module key and rejects the whole patch atomically if any key is
+not registered, in either flat or `{ modules: ... }` form. Rejection returns
+`false` and leaves values, `getVersion()`, `forActor` cache identity and existing
+overrides unchanged; the engine's `configVersion` counter also advances only when
+the underlying call returns `true`. Species fallback/warning and parameter merge
+semantics are unchanged. There is no dynamic registration API.
 
 The `mate` module is registered in layered config. Disabling it prevents new
 courtship selection (including recruitment of a disabled recipient), but existing
