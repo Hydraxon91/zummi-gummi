@@ -557,11 +557,13 @@ Execution order and internal slices:
 **Batch A is complete:** M2a, M5, M23, the M13 investigation and M18a are
 committed. No production runtime changed in A.
 
-**B+C execution is approved:** run B1 portions, B2 M3, B3 M4, B4 M7 and B5 M10,
-then C1 M2b social invitation/visit entry, C2 M2c cancellation conformance,
-C3 M2d test-only representative extension, C4 M8, C5 M9 and C6 M15. Each step
-still has a separate coder session, independent review and verified atomic
-commit; passing review advances automatically. B1 is complete. No push is implied.
+**B+C execution is complete:** B1 portions, B2 M3, B3 M4, B4 M7, B5 M10, C1
+M2b social entry, C2 M2c cancellation conformance, C3 M2d test-only extension,
+C4 M8, C5 M9 and C6 M15 all passed independent review and atomic commits. The
+final fresh long parity matrix passed 15/15 (`acceptance:true`). Batch D is not
+started. Known follow-ups remain explicit: M4 live birth/late Glass host proof,
+M5 app-lifecycle internals, C2-F2 pond/social survival, C2-F4 direct Glass removal,
+M7 editor/connectivity policy, and M15 host late-completion. No push is implied.
 The M3 policy is settled: reject unknown module IDs without mutation/version
 changes, and reject an entire actor-config patch containing any unknown ID.
 Supported admission must remain explicit; species warning/fallback is unchanged.
