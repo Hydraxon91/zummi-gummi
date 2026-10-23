@@ -198,7 +198,7 @@ until the next conflict acquisition overwrites them.
 | member list, leader/role | Membership maintenance | `behaviors/groups.js` `membersOf`, `chooseLeader` | Filters `group.members`; rewrites `leaderUid` and `groupRole` | Prunes inactive actors; no notification to removed actors | `startGroup`, `cancelGroup`, `tickGroup`, `completeGroup` | Inspected |
 | group lifecycle | Group cancel/dissolve/complete | `behaviors/groups.js` `cancelGroup`, `dissolve`, `completeGroup` | Removes member or clears all, sets `done`, clears member fields/cooldowns | Below three members dissolves without effects; completion emits once | Engine cancel/module disable, critical need, debug | Inspected |
 | group cleanup on generic cancel | Engine module interrupt | `behaviors/engine.js` `cancelPair` → `groupActivitiesModule.interrupt` | Calls `cancelGroup` for `group` state | Handles reciprocal pair and food release after module cancel | Grab, detach, disable, removal | Inspected |
-| group cleanup on Glass removal | App / Glass removal | `app.js` `removeGlassActor`, `glass.js` `removeActor` | No `cancelPair`/`detach` call in these functions | Group filters inactive members on the next tick; pair references may persist until the partner's next think | Stars departure (after `commitFarewell`) | Sampled |
+| group cleanup on Glass removal | App / Glass removal | `app.js` `removeGlassActor`, `actorremove.js` `removeGlassActor`, `glass.js` `removeActor` | Successful colony removal calls `ai.detach` before reference clearing; `glass.js` still disposes the actor | `detach` runs `cancelPair` (including group interrupt) and releases food on both sides | Stars departure (after `commitFarewell`); refused/absent colony removal does not detach | Inspected and tested |
 
 ### Claims, reservations and gift/conflict state
 
@@ -329,10 +329,11 @@ Discovered behavior and open questions:
   not `visitT`, `inviteT`, `socialT`, `declineT` or `visitRetryT`. Entry paths
   overwrite the relevant timers, so no stale link or read was observed; this is
   a residual timer observation, not a reproducer.
-- **Finding C2-F4 (Glass removal).** `removeGlassActor` still does not call
-  `detach`/`cancelPair`. The stars path commits a farewell first. There is no
-  public single-Glass-removal hook, so this probe exercised only map switch and
-  New Game colony clearing; direct Glass removal remains source-inspected.
+- **Finding C2-F4 (Glass removal) — resolved by C04.** At C2 inspection
+  `removeGlassActor` did not call `detach`/`cancelPair`; the stars path commits a
+  farewell first and no public single-Glass-removal hook existed. C04 now calls
+  portable `onDetach` only after a successful colony removal, and the app passes
+  `ai.detach`; the stars farewell and disposal order are unchanged.
 - **Finding C2-F5 (browser variability).** Load/map return/New Game allow
   immediate natural pair or family-task selection. Browser assertions must
   inspect histories, visit fields, claims and removed identities rather than
@@ -397,7 +398,7 @@ C3 commands and results are recorded in `.dev-shots/c3/results.md` (scratch).
 | Pond entry | `ai.js` marks `interrupted`, releases food and ticks needs only while `inPond`; it does **not** call `cancelPair`. Partner-side checks such as `social.thinkSeekCompany` may cancel later, but gifting/conflict/mate do not receive a pond-specific cancellation. New pairs are blocked because `actorAvailable` rejects `inPond`. | Inspected; no test found for pair state during pond entry. |
 | AI disable | `engine.setEnabled(false)` calls `cancelPair` and `releaseFood` for every actor, then stops locomotion. `ai.js` additionally clears invite/social/decline/conflict/mate timers and shove for bears. Module cancellable states are interrupted; conflict pointers and playdate mirrors are not specifically cleared. | Inspected; disable is used in a preferences interruption test, but pair/claim cleanup is not asserted there. |
 | Actor removal (Bear) | `app.removeBear` drops carried food, releases portion/food claims, calls `ai.detach` (which runs `cancelPair`), nulls `ai`, then clears persistent refs unless `preserveRefs`. Group membership is cancelled through the engine interrupt. | Inspected; group detach and gifting detach are tested with `engine.detach`. |
-| Actor removal (Glass) | `app.removeGlassActor` drops carried food, releases claims, removes the colony actor and clears persistent UID refs. It does **not** call `cancelPair`/`detach`. The stars path commits a farewell first, and `commitFarewell` ends partnership and cancels the pair. Other callers of Glass removal do not get that guarantee. | Sampled; no direct test of live pair cleanup for this removal function. |
+| Actor removal (Glass) | `app.removeGlassActor` drops carried food, releases claims, removes the colony actor, then calls `ai.detach` (which releases food and runs `cancelPair`) and clears persistent UID refs. Detach runs only when `glassColony.removeActor` returns true, so a refused removal leaves behavior and pair state untouched. The stars path commits a farewell first. | Tested by `tests/actor-remove.test.mjs`; `stars-test.mjs` covers the live farewell removal. |
 | Map switch / despawn | `requestMapSwitch` saves with `dropCarried: true`, then `activateMap` releases grabs, `despawnAll` removes every Bear (each `detach` cancels pairs/claims), and `glassColony.clear()` disposes Glass actors. Inactive-map snapshots keep only persistent records. | Inspected; no dedicated map-switch test. |
 | Save / load restore | Actor records exclude `ai` and all runtime pair/task/group/visit/conflict fields. `partnerUid`, `rivals`, `playdates` and `carriedFood` are persisted; carried food is converted to a dropped portion on load. Loading despawns the live roster before activating the saved map. | Inspected; save/relationship tests cover records and reciprocity, not live interaction cleanup. |
 | New Game / reset | `resetNewGame` despawns all actors, clears Glass, resets food and portions, drops both world snapshots and resets UID allocation. Runtime pair/task/group state disappears with the actors. | Inspected; no test found. |
@@ -426,7 +427,7 @@ disable or critical-need reasons.
 | `interrupted-critical-need` | Thirst or hunger reaches its critical threshold while the actor is in the engine's optional-state list. | Engine tick. | `cancelPair`, then acquire water, food or a contest. Pair/task/claim handling is the same as generic cancellation. Conflict and `seekConflict` are not in the critical-need state list. | None. | Inspected. |
 | `interrupted-stall` | No-progress recovery. | Engine `recoverStall`. | Chat/cuddle/reconcile/partner/group/gift states call `interruptActor(actor, 'no-progress')` and end through the module interrupt; visit calls `finishVisitPair(false)`; `familyTask` calls own-side `cancelTask`; food/hive/conflict recovery releases the source and clears contest pointers. | None. | Inspected. |
 | `removed-ceiling` | Population ceiling trim. | App `removeBear(..., { departure: 'removed' })`. | Captures a departure snapshot, drops carried food, releases portion claims, `ai.detach` (release food and `cancelPair`), `food.releaseBear`, nulls `ai`, clears persistent references unless `preserveRefs`, and ends any active grab. | Departure `cause: 'removed'` is runtime-only; no actor history entry. | Inspected. |
-| `removed-stars` | Stars farewell commits for `oldAge`, `starvation` or `sting`, then the fade completes. | `stars.start`/`onFarewell` -> app `startFarewell`/`commitFarewell` -> `removeBear` or `removeGlassActor`. | `commitFarewell` ends a partnership as `departed`, calls `cancelPair`, releases food and resets movement. Final removal drops carried food, releases portion/food claims, detaches (Bear) or disposes (Glass), and clears persistent references. `removeGlassActor` does not detach behavior itself. | Departure `cause: 'stars'` and the star reason are runtime-only. A `separated` history entry is persisted if a partnership existed; the star reason is not written to actor history. | Inspected for Bear; Sampled for Glass. |
+| `removed-stars` | Stars farewell commits for `oldAge`, `starvation` or `sting`, then the fade completes. | `stars.start`/`onFarewell` -> app `startFarewell`/`commitFarewell` -> `removeBear` or `removeGlassActor`. | `commitFarewell` ends a partnership as `departed`, calls `cancelPair`, releases food and resets movement. Final removal drops carried food, releases portion/food claims, detaches (Bear and now Glass after successful colony removal) or disposes, and clears persistent references. | Departure `cause: 'stars'` and the star reason are runtime-only. A `separated` history entry is persisted if a partnership existed; the star reason is not written to actor history. | Inspected; `stars-test.mjs` covers Bear and Glass removal. |
 | `despawn-map-switch` | `requestMapSwitch`, after saving the current world. | App `saveCurrentWorld({ dropCarried: true })` -> `activateMap`. | Save drops carried food for live actors. `activateMap` releases grabs, `despawnAll` removes Bears through `removeBear(..., { preserveRefs: true })` (detach/`cancelPair`/claim release), and `glassColony.clear()` disposes Glass. Persistent cross-map references are preserved. | Saved world snapshot only; no departure record and no interaction reason. Glass claim cleanup through `clear()` is unverified. | Inspected; no dedicated test. |
 | `despawn-save-load` | `applySavePayload` activates the saved map. | App `applySavePayload` -> `activateMap`. | Portions are restored first; `activateMap` despawns live Bears and clears Glass as above; food is restored afterwards and carried food becomes a dropped portion. Persistent references are pruned and preserved across maps. | Save payload only; no departure record and no interaction reason. | Inspected; no dedicated test. |
 | `reset-new-game` | `resetNewGame`. | App `resetNewGame`. | `despawnAll`, `glassColony.clear()`, food/portion reset, world snapshots set to `null`, UID allocation reset and stored world key removed. | None. | Inspected; no test found. |
@@ -459,7 +460,7 @@ has no reason record.
 | Pond pair state | No dedicated case found | Gap |
 | Map switch and New Game live cleanup | No dedicated case found | Gap |
 | Save/load live pair/task cleanup | No case; saved records are covered, runtime `ai` is excluded | Gap |
-| Actor removal via Glass `removeGlassActor` | No direct case | Gap |
+| Actor removal via Glass `removeGlassActor` | `tests/actor-remove.test.mjs` covers successful detach/reference order, refusal/no-remover with no detach, and unchanged departure/farewell/drop/portion/food order; `stars-test.mjs` covers live Glass farewell removal | App wrapper and portable ordering |
 | Playdate partner mirrors after interruption/completion | No case | Gap |
 | Conflict pointers after generic cancel | No case | Gap |
 | Direct-write coverage outside `behaviors/family.js` | No equivalent source assertion for social/conflict/mate/groups/glass | Gap |
@@ -475,7 +476,7 @@ broad rewrite.
 | --- | --- | --- |
 | Social invite/visit pair family | Pair creation is mostly local to `social.js`; completion already uses `endPair`; existing module tests cover acceptance, decline, visit roles and completion. | `startInvite`/`startVisit` bypass `beginPair`; visit completion has an external stall-recovery caller; partner mirror/visit timer cleanup is uneven. Selected for the C1 pilot under a narrow entry-only brief; no cancellation/reward cleanup moved. |
 | Gifting claim/reservation family | Reservations, drops, carried state and feature-disable cleanup already sit behind `gifting.js`; the strongest existing interruption/removal test coverage is here. | Source and portion claims are separate registries; cancel behavior differs between source, collected and dropped portions; app removal also releases claims. |
-| Group membership family | Group state is a single shared object with per-member fields and an existing module `interrupt`; below-three dissolution is explicit. | Live `members` array and leader UID must stay consistent across removal; Glass removal does not call `detach`, so membership cleanup relies on lazy filtering. |
+| Group membership family | Group state is a single shared object with per-member fields and an existing module `interrupt`; below-three dissolution is explicit. | Live `members` array and leader UID must stay consistent across removal; Glass removal calls `detach` after successful colony removal, so membership cleanup uses the engine interrupt. |
 | Family playdate/task mirrors | Task construction and most clearing already live in `interactions.js`/`family.js`; playdate completion is test-covered. | Partner-side playdate mirrors are not cleared by `endPair`; meals are solo tasks with a different cleanup path; lesson and playdate share the same `familyTask` shape. |
 | Conflict pair and claimed source | Pair entry is shared and the conflict module owns a clear finish path with claim transfer. | Generic `cancelPair` does not clear conflict pointers; claim ownership can outlive an interrupted conflict; conflict is solo-claim plus pair interaction, not a simple pair family. |
 
@@ -490,9 +491,10 @@ broad rewrite.
 - The pond interruption path does not invoke `cancelPair`. Partner-side checks
   may eventually clear a social pair, but conflict/mate/gifting behavior was not
   traced through a full pond cycle.
-- Glass removal (`removeGlassActor`) does not detach behavior. The stars path
-  calls `commitFarewell` first, so the inspected production caller is covered by
-  that preceding cleanup; other removal callers are unverified.
+- Glass removal (`removeGlassActor`) now detaches behavior after a successful
+  colony removal, before reference clearing. The stars path still calls
+  `commitFarewell` first; map-clear/`glassColony.clear()` does not use this
+  removal path and remains unverified for pair cleanup.
 - Save/load intentionally drops runtime interaction state. Whether any UI or
   debug reader expects a restored `playdate`/`visit` mirror after load was not
   found in this pass.

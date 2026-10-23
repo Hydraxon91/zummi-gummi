@@ -54,6 +54,7 @@ export function removeGlassActor(actor, {
   onReleasePortions,
   onReleaseFood,
   removeFromColony,
+  onDetach,
   onClearReferences,
 } = {}) {
   if (!actor) return false;
@@ -64,6 +65,9 @@ export function removeGlassActor(actor, {
   onReleasePortions?.(actor);
   onReleaseFood?.(actor);
   const removed = typeof removeFromColony === 'function' ? removeFromColony(actor) : false;
-  if (removed) onClearReferences?.(actor);
+  if (removed) {
+    onDetach?.(actor);
+    onClearReferences?.(actor);
+  }
   return !!removed;
 }

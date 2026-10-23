@@ -209,7 +209,7 @@ test('removal draws no RNG and leaves unrelated actors and fields alone', () => 
 
 function glassHarness(actor, { removed = true, departure } = {}) {
   const events = [];
-  const seen = { uidCalls: [] };
+  const seen = { uidCalls: [], detachCalls: 0 };
   const opts = {
     departure,
     onDeparture(a, d) { events.push('departure'); seen.departure = [a, d]; },
@@ -218,6 +218,7 @@ function glassHarness(actor, { removed = true, departure } = {}) {
     onReleasePortions(a) { events.push('portions'); seen.portions = a; },
     onReleaseFood(a) { events.push('food'); seen.food = a; },
     removeFromColony(a) { events.push('colony'); seen.colony = a; return removed; },
+    onDetach(a) { events.push('detach'); seen.detach = a; seen.detachCalls++; },
     onClearReferences(a) { events.push('refs'); seen.refs = a; seen.uidCalls.push(a.uid); },
   };
   return { events, seen, opts };
@@ -229,6 +230,8 @@ test('Glass removal returns false and clears no references when the colony decli
   assert.equal(removeGlassActor(actor, opts), false);
   assert.deepEqual(events, ['departure', 'farewell', 'drop', 'portions', 'food', 'colony']);
   assert.equal(seen.refs, undefined);
+  assert.equal(seen.detach, undefined);
+  assert.equal(seen.detachCalls, 0);
   assert.equal(actor.unrelated, 'keep');
   assert.equal(actor.active, true);
 });
@@ -237,11 +240,14 @@ test('Glass removal returns true and clears references exactly once when the col
   const actor = makeGlass();
   const { events, seen, opts } = glassHarness(actor, { removed: true, departure: 'stars' });
   assert.equal(removeGlassActor(actor, opts), true);
-  assert.deepEqual(events, ['departure', 'farewell', 'drop', 'portions', 'food', 'colony', 'refs']);
+  assert.deepEqual(events, ['departure', 'farewell', 'drop', 'portions', 'food', 'colony', 'detach', 'refs']);
   assert.equal(seen.refs, actor);
+  assert.equal(seen.detach, actor);
+  assert.equal(seen.detachCalls, 1);
   assert.equal(seen.uidCalls.length, 1);
   assert.equal(seen.departure[1], 'stars');
-  assert.ok(!events.includes('detach'));
+  assert.ok(events.indexOf('detach') > events.indexOf('colony'));
+  assert.ok(events.indexOf('detach') < events.indexOf('refs'));
   assert.ok(!events.includes('cancel'));
   assert.ok(!events.includes('mesh'));
   assert.equal(actor.unrelated, 'keep');
@@ -263,5 +269,6 @@ test('Glass removal is inert for an absent actor and without a colony remover', 
   delete opts.removeFromColony;
   assert.equal(removeGlassActor(actor, opts), false);
   assert.deepEqual(events, ['farewell', 'drop', 'portions', 'food']);
+  assert.ok(!events.includes('detach'));
   assert.ok(!events.includes('refs'));
 });

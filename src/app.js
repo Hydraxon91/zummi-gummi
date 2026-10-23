@@ -881,6 +881,7 @@ function removeGlassActor(actor, opts = {}){
     onReleasePortions: target => { if (field && field.portions) field.portions.releaseActor(target); },
     onReleaseFood: target => { if (field && field.food) field.food.releaseBear(target); },
     removeFromColony: target => glassColony.removeActor(target),
+    onDetach: actor => { if (ai) ai.detach(actor); },
     onClearReferences: () => {
       clearGuardianReferences(uid);
       clearRelationshipReferences(uid);
