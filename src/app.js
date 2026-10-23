@@ -10,6 +10,10 @@ import { createDepartureHook } from './departures.js';
 import { createEffects } from './effects.js';
 import { GRAPHICS_GROUPS, GRAPHICS_DEFAULTS, normalizeGraphics, readGraphics, createGraphicsPanel } from './graphics.js';
 import {
+  DEFAULT_NATURE, SETTINGS_PROFILE_IDS, normalizeNature, createSettingsProfiles,
+  resolveSettingsProfile,
+} from './settings.js';
+import {
   HOME_CAPACITY, MATE_COOLDOWN, GESTATION_TIME, STAGE_ORDER,
   advanceAge, advanceGestation, ageForStage, scaleForStage, stageForAge,
   blendTraits,
@@ -2377,7 +2381,6 @@ const LOW_POWER_DEVICE = (() => {
   catch (err) { return innerWidth < 720; }
 })();
 const DEFAULT_EFFECTS = LOW_POWER_DEVICE ? 'off' : 'soft';
-const DEFAULT_NATURE = Object.freeze({ canopy:1, leafSize:1, coverage:1, drawDistance:56 });
 let effectsMode = DEFAULT_EFFECTS;
 let effectsDof = false;
 let natureState = { ...DEFAULT_NATURE };
@@ -2406,14 +2409,13 @@ try {
     if (Number.isFinite(savedScale)) quality.renderScale = clamp(savedScale, .6, 1);
   }
   const savedProfile = localStorage.getItem('gummy.profile');
-  if (savedProfile === 'custom' ||
-      ['auto','performance','balanced','quality','ultra'].includes(savedProfile)) {
-    settingsProfile = savedProfile;
-  } else if (localStorage.getItem('gummy.effects') !== null ||
-             localStorage.getItem('gummy.effectsDof') !== null ||
-             localStorage.getItem('gummy.nature') !== null) {
-    settingsProfile = 'custom';
-  }
+  const storedProfileValid = savedProfile === 'custom' || SETTINGS_PROFILE_IDS.includes(savedProfile);
+  const hasLegacySettings = !storedProfileValid && (
+    localStorage.getItem('gummy.effects') !== null ||
+    localStorage.getItem('gummy.effectsDof') !== null ||
+    localStorage.getItem('gummy.nature') !== null
+  );
+  settingsProfile = resolveSettingsProfile({ storedProfile: savedProfile, hasLegacySettings });
   const savedNature = JSON.parse(localStorage.getItem('gummy.nature') || 'null');
   if (savedNature && typeof savedNature === 'object') natureState = normalizeNature(savedNature);
   toonEnabled = localStorage.getItem('gummy.toon') === '1';
@@ -2434,37 +2436,7 @@ const LEVELS = [
   { dpr:1.25, grid:25, shadowEvery:3, shadowMap:0,    transmission:0.36, dispersion:false, snap:false },
 ];
 
-function normalizeNature(v = {}) {
-  return {
-    canopy: clamp(Number(v.canopy) || 1, .35, 1),
-    leafSize: clamp(Number(v.leafSize) || 1, .65, 1.4),
-    coverage: clamp(Number(v.coverage) || 1, .35, 1),
-    drawDistance: clamp(Math.round(Number(v.drawDistance) || 56), 28, 76),
-  };
-}
-
-const PROFILES = {
-  auto: {
-    label: 'Auto', tier: 0, renderScale: 1, effects: DEFAULT_EFFECTS, dof: false,
-    adaptive: true, nature: { canopy:1, leafSize:1, coverage:1, drawDistance:56 },
-  },
-  performance: {
-    label: 'Performance', tier: 3, renderScale: .70, effects: 'off', dof: false,
-    adaptive: false, nature: { canopy:.55, leafSize:.85, coverage:.45, drawDistance:28 },
-  },
-  balanced: {
-    label: 'Balanced', tier: 2, renderScale: .85, effects: 'soft', dof: false,
-    adaptive: false, nature: { canopy:.75, leafSize:.95, coverage:.70, drawDistance:40 },
-  },
-  quality: {
-    label: 'Quality', tier: 1, renderScale: .95, effects: 'full', dof: false,
-    adaptive: false, nature: { canopy:.90, leafSize:1, coverage:.90, drawDistance:48 },
-  },
-  ultra: {
-    label: 'Ultra', tier: 0, renderScale: 1, effects: 'full', dof: false,
-    adaptive: false, nature: { canopy:1, leafSize:1, coverage:1, drawDistance:48 },
-  },
-};
+const PROFILES = createSettingsProfiles({ autoEffects: DEFAULT_EFFECTS });
 
 function saveSettings() {
   try {

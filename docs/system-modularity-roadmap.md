@@ -488,6 +488,13 @@ proof or recreation mechanism was added.
 
 ### M17 — Settings definitions, storage and UI adapters (M; M0)
 
+**E1/M17 pure settings boundary complete:** `src/settings.js` owns frozen preset
+records, nature normalization and stored-profile resolution; app keeps browser
+keys/legacy detection, DOM, application/reset order and quality policy. Parent
+full Node passed 599/599; the settings browser probe covered preset values,
+Custom transition, reload persistence, invalid/legacy fallback, reset, focus and
+900×600 layout with no page errors. No shipped default or quality policy changed.
+
 - Separate pure normalization/preset resolution from browser keys/URL flags and
   DOM construction. Preserve Custom semantics, reset and application ordering.
 - **Probe/gate:** a fixture setting flows definition → normalization → control →
