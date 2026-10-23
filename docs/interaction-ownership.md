@@ -1,18 +1,21 @@
 # Interaction ownership inventory
 
-**Status: M2a source inventory only. No implementation, centralization decision
-or test change is included.** Baseline HEAD `8703a6e` with a clean working tree.
-This document records who writes the shared interaction state that already
-exists, where reciprocal links and resource reservations can outlive the pair,
-and which outcomes have source or test evidence. It does not propose a central
-registry, a broad rewrite or a preferred M2b family.
+**Status: M2a source inventory, updated with the C1 M2b pilot record.** Baseline
+HEAD `8703a6e` for the inventory; C1 pilot baseline `a05ce72` with a clean
+working tree. This document records who writes the shared interaction state that
+already exists, where reciprocal links and resource reservations can outlive the
+pair, and which outcomes have source or test evidence. It does not propose a
+central registry or a broad rewrite. C1 routes only the social invite/visit entry
+partner assignments through one own-side helper; it does not centralize the
+other writers.
 
 Scope: partner, family task, playdate, visit, group, food/portion claim and
-gift/conflict interaction state. Production runtime, tests, configuration,
-generated files, roadmaps and package metadata are unchanged. The prior
-[system ownership contracts](system-ownership-contracts.md) remain the
-authoritative system-boundary reference; this file adds the source-backed
-interaction detail that M2 needs.
+gift/conflict interaction state. The M2a pass left production runtime, tests,
+configuration, generated files, roadmaps and package metadata unchanged. The C1
+pilot adds `linkPartner`, the two social entry callers, focused tests and this
+note. The prior [system ownership contracts](system-ownership-contracts.md)
+remain the authoritative system-boundary reference; this file adds the
+source-backed interaction detail that M2 needs.
 
 ## Evidence labels
 
@@ -23,8 +26,10 @@ interaction detail that M2 needs.
 - **Unverified** — plausible from surrounding code but not established here, or
   not exercised by a check. Not a claim of correctness.
 
-No browser, Node suite or parity run was performed for this documentation pass.
-Test names below are existing coverage, not fresh test results.
+No browser or parity run was performed for the M2a documentation pass. C1's
+focused Node results are recorded with the pilot below; they are not a full-suite
+or browser result. Other test names below are existing coverage, not fresh test
+results from this documentation pass.
 
 ## State inventory
 
@@ -157,8 +162,8 @@ until the next conflict acquisition overwrites them.
 | `ai.partner`, `ai.state`, idle/task/social cooldowns | Shared pair exit | `interactions.js` `endPair` | Acting actor and reciprocal partner: state, partner, idle/task/social cooldowns, familyPlay, playmateKind, visit fields, familyTask | Reciprocal only when `partner.ai.partner === actor`; stops both | Social completion/decline/visit completion, mate completion, family playdate/lesson, activities, relationships, gifting | Inspected |
 | `ai.partner`, visit/family flags/task | Shared forced break | `interactions.js` `breakPair` | Partner side (when reciprocal): partner, state/timers, visit fields, family flags, familyTask; acting side: partner and fields only, **not its own state** | Stops both; caller must reset the acting state | `engine.cancelPair`; legacy `behavior.js` `cancelPair` | Inspected |
 | pair + paired feature states | Engine cancel wrapper | `behaviors/engine.js` `cancelPair` | Calls module `interrupt` for cancellable states, `releaseFood` on both, `breakSharedPair`, then resets pair/seek states | Clears reciprocal partner and familyTask; leaves conflict/playdate/invite timers | `onGrab`, `detach`, `setEnabled(false)`, `debugState`, forced debug pairs, directives, rest/flee | Inspected |
-| `ai.state`, `partner`, invite timers | Social invitation | `behaviors/social.js` `startInvite` | Direct both-side writes of partner, `inviteAccepted`, `inviteT`, `declineT`, plan/face; partner state `invite` or `decline` | Writes both directly instead of `beginPair`; clears plan/path but leaves familyTask | `thinkSeekCompany`; debug `forceInvite` | Inspected |
-| `ai.state`, partner, visit fields | Social visit entry | `behaviors/social.js` `startVisit` | Direct both-side partner, state, visit home/role/phase/timer/arrived, targets | Writes both directly; no `familyTask` clear | `endSocialPair` visit chance, `forceVisit` | Inspected |
+| `ai.state`, `partner`, invite timers | Social invitation | `behaviors/social.js` `startInvite` | Own-side `linkPartner` calls for both actors in the existing order; direct state, `inviteAccepted`, `inviteT`, `declineT`, plan/face; partner state `invite` or `decline` | Reciprocity is two calls; no `beginPair`; clears plan/path but leaves familyTask | `thinkSeekCompany`; debug `forceInvite` | Inspected |
+| `ai.state`, partner, visit fields | Social visit entry | `behaviors/social.js` `startVisit` | Own-side `linkPartner` calls for both actors in the existing order; direct state, visit home/role/phase/timer/arrived, targets | Reciprocity is two calls; no `beginPair`; no `familyTask` clear | `endSocialPair` visit chance, `forceVisit` | Inspected |
 | visit phase/timer/arrival | Visit state machine | `behaviors/social.js` `beginVisitHangout`, `tickVisit` | Both actors' `visitPhase`, `visitT`, `visitArrived`, targets, animation | Completion path calls `endPair`; interrupted travel path calls `finishVisitPair` | Social tick/think | Inspected |
 | pair, state, conflict fields | Conflict entry/finish | `behaviors/conflict.js` `startConflict`, `finishConflict` | Entry via `beginPair`; finish directly nulls both partners, conflict/contest fields and timers | Finish clears both; transfer/refusal of the food claim is handled separately | Conflict opportunity/think | Inspected |
 | pair, state, mate timer | Mate entry/exit | `behaviors/mate.js` `startSeekMate`, `startMatePair`, `thinkSeekMate`, `finishMatePair` | `beginPair` for both pairs; direct own-side nulls in thinking/finish; quirk path (`matePairOnPathFailure`) clears both | Completion uses `endPair`; quirk flag is off by default | Mate opportunity/think/tick, `forceMate` | Inspected |
@@ -215,6 +220,7 @@ Existing shared primitives:
 
 | Primitive | Writes | Current callers |
 | --- | --- | --- |
+| `linkPartner` | One actor's `ai.partner`; rejects missing actor/ai, missing partner/ai or self | `social.js` `startInvite`/`startVisit` (one call per side) |
 | `beginPair` | Both state/partner, task clear, optional timer, stop/face | `social.js` (company, social, decline), `conflict.js`, `mate.js` (seek/mate), `affection.js`, `relationships.js`, `gifting.js` |
 | `endPair` | Acting + reciprocal partner fields, state/timers, visit/family flags, task | `social.js` (social, decline, visit), `mate.js`, `affection.js`, `relationships.js`, `family.js` (playdate, lesson), `gifting.js` |
 | `breakPair` | Reciprocal partner plus shared flags; no acting-state reset | `engine.cancelPair`, legacy `behavior.js` `cancelPair` |
@@ -225,9 +231,10 @@ Existing shared primitives:
 
 Direct writers outside the protocol that change pair/task/group state:
 
-- `behaviors/social.js` `startInvite`, `startVisit`, `beginVisitHangout`,
-  `tickVisit`, `finishVisitPair` (direct role/visit/partner writes; completion
-  uses `endPair`).
+- `behaviors/social.js` `startInvite`, `startVisit` use two `linkPartner` calls
+  for pair entry but still write state/timers/targets directly;
+  `beginVisitHangout`, `tickVisit`, `finishVisitPair` continue direct role/visit
+  writes (completion uses `endPair`).
 - `behaviors/family.js` task phases, playdate mirrors, meal/lesson completion.
 - `behaviors/conflict.js` `finishConflict` direct pair/conflict cleanup and
   claim transfer.
@@ -244,6 +251,26 @@ Direct writers outside the protocol that change pair/task/group state:
 `finishVisitPair` is exported as `finishVisit` and is called by engine stall
 recovery in addition to the social tick. That means an interrupted visit can be
 completed/closed from outside the module.
+
+## M2b C1 pilot: social invite/visit entry
+
+Baseline HEAD `a05ce72`; allowed source changes were `src/interactions.js` and
+`src/behaviors/social.js` plus tests/docs. `linkPartner(actor, partner)` validates
+and writes only `actor.ai.partner`, returns `true`, and rejects a missing
+actor/ai, missing partner/ai or self. `social.startInvite` and
+`social.startVisit` call it once per side in the existing order. No state, timer,
+target, path, face, emote, familyTask or eligibility write moved. This is not a
+`beginPair` replacement: reciprocity remains two calls, and visit cancellation,
+reward logic, visit completion and the direct writers above stay for later
+separately approved steps.
+
+C1 evidence: `tests/interaction-entry.test.mjs` covers the primitive, invite
+accept/decline and profile-threshold entry, visit roles/targets/fallback and
+incidental family/visit state. A file-level fixed-RNG probe matched observable
+state/callback order and instrumented draw counts before and after the change.
+C1 also ran the focused and full Node suites, the development short parity
+matrix and a browser entry trace; these are development evidence, not long
+acceptance.
 
 ## Lifecycle outcomes
 
@@ -322,6 +349,7 @@ has no reason record.
 | Playdate partner mirrors after interruption/completion | No case | Gap |
 | Conflict pointers after generic cancel | No case | Gap |
 | Direct-write coverage outside `behaviors/family.js` | No equivalent source assertion for social/conflict/mate/groups/glass | Gap |
+| Pair-entry own-side link | `tests/interaction-entry.test.mjs` primitive one-side writes/rejections; invite/visit entry order, RNG and incidental state | Modules source and social module isolation |
 
 ## Candidate interaction families for M2b
 
@@ -331,7 +359,7 @@ broad rewrite.
 
 | Candidate | Why it is bounded | Risk notes |
 | --- | --- | --- |
-| Social invite/visit pair family | Pair creation is mostly local to `social.js`; completion already uses `endPair`; existing module tests cover acceptance, decline, visit roles and completion. | `startInvite`/`startVisit` bypass `beginPair`; visit completion has an external stall-recovery caller; partner mirror/visit timer cleanup is uneven. |
+| Social invite/visit pair family | Pair creation is mostly local to `social.js`; completion already uses `endPair`; existing module tests cover acceptance, decline, visit roles and completion. | `startInvite`/`startVisit` bypass `beginPair`; visit completion has an external stall-recovery caller; partner mirror/visit timer cleanup is uneven. Selected for the C1 pilot under a narrow entry-only brief; no cancellation/reward cleanup moved. |
 | Gifting claim/reservation family | Reservations, drops, carried state and feature-disable cleanup already sit behind `gifting.js`; the strongest existing interruption/removal test coverage is here. | Source and portion claims are separate registries; cancel behavior differs between source, collected and dropped portions; app removal also releases claims. |
 | Group membership family | Group state is a single shared object with per-member fields and an existing module `interrupt`; below-three dissolution is explicit. | Live `members` array and leader UID must stay consistent across removal; Glass removal does not call `detach`, so membership cleanup relies on lazy filtering. |
 | Family playdate/task mirrors | Task construction and most clearing already live in `interactions.js`/`family.js`; playdate completion is test-covered. | Partner-side playdate mirrors are not cleared by `endPair`; meals are solo tasks with a different cleanup path; lesson and playdate share the same `familyTask` shape. |

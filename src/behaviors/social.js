@@ -9,7 +9,7 @@ import {
   addBond, bondOf, pairBond, familyRelation, socialAcceptBonus, schedulePlaydate,
   nextPlaydateDay, PLAYDATE_WINDOW, pushHistory,
 } from '../family.js';
-import { pairAvailable, beginPair, endPair } from '../interactions.js';
+import { pairAvailable, linkPartner, beginPair, endPair } from '../interactions.js';
 import { comfortMourning } from './mourning.js';
 import { defineBehaviorModule } from './module.js';
 import { defineProposalCandidate } from './proposals.js';
@@ -174,14 +174,14 @@ function startInvite(ctx, partner, acceptedOverride) {
   if (!canCompany(ctx, partner)) return false;
   const accepted = acceptedOverride === undefined ? decideAccept(ctx, partner) : !!acceptedOverride;
   ai.state = 'invite';
-  ai.partner = partner;
+  linkPartner(actor, partner);
   ai.inviteAccepted = accepted;
   ai.inviteT = ctx.p.social.inviteTime;
   ai.moving = false;
   ai.path = null;
   ai.target = { x: partner.cx, z: partner.cz };
   api.face(actor, partner.cx, partner.cz);
-  partner.ai.partner = actor;
+  linkPartner(partner, actor);
   partner.ai.inviteAccepted = accepted;
   partner.ai.inviteT = api.profile(partner).social.inviteTime;
   partner.ai.declineT = api.profile(partner).social.declineTime;
@@ -337,8 +337,8 @@ function startVisit(ctx, partner) {
   }
   ai.state = 'visit';
   partner.ai.state = 'visit';
-  ai.partner = partner;
-  partner.ai.partner = actor;
+  linkPartner(actor, partner);
+  linkPartner(partner, actor);
   ai.visitHome = home.name;
   partner.ai.visitHome = home.name;
   ai.visitRole = 'host';

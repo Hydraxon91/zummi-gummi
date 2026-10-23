@@ -178,7 +178,15 @@ field-independent behavior host or an engine-neutral architecture claim.
 records pair/task/group/claim writers, protocol boundaries, lifecycle outcomes,
 an explicit outcome/reason vocabulary, existing test coverage and gaps. It is a
 source inventory only; no centralization, runtime change or M2b family was
-chosen. M2b–M2d remain pending.
+chosen.
+
+**C1/M2b social-entry pilot complete:** invite and visit pair links now use a
+narrow own-side `linkPartner` primitive while preserving the existing state,
+timer, target, path, face, emote and family-task write order. Parent full Node
+passed 490/490; development short parity passed 9/9; the browser entry trace
+passed 5/5 and the existing social pair scenario passed 2/2. This pilot does not
+move visit cancellation, rewards or the other direct writers. M2c–M2d remain
+pending.
 
 - Inventory writers of partner/task/group/reservation state before choosing any
   centralization. Specify completion, refusal, interruption and removal reasons.

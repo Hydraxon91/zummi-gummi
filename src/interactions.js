@@ -76,6 +76,15 @@ export function pairAvailable(a, other, { states = ['wander'], health = 15, allo
   return true;
 }
 
+// Assign one actor's live partner link. Pair entry that needs reciprocity calls
+// this once per side in its existing write order; it deliberately does not touch
+// state, timers, tasks, plans or the other actor.
+export function linkPartner(actor, partner) {
+  if (!actor || !actor.ai || !partner || !partner.ai || actor === partner) return false;
+  actor.ai.partner = partner;
+  return true;
+}
+
 export function beginPair(a, b, nextState, { stop, face, durationField, duration } = {}) {
   if (!a || !a.ai || !b || !b.ai || a === b) return false;
   a.ai.state = nextState;

@@ -36,6 +36,14 @@ in parity by the harness.
 `modules.<id>.{ enabled, params }`; a derived flat view keeps the legacy engine
 working. Other balance blocks (`wander`, `needs`, `social`, …) stay flat.
 
+## Pair entry ownership
+
+`interactions.js` exports `linkPartner(actor, partner)` for one actor's live
+`ai.partner` link. Pair entry uses one call per side in its existing write order;
+the helper does not replace state, timer, target, plan, task or reciprocal
+cleanup writes. Social invite and visit entry are the current pilot; other
+direct writers remain in place.
+
 ## Host path and navigation queries
 
 `createBehaviorModules` accepts an optional
