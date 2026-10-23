@@ -535,7 +535,18 @@ Custom transition, reload persistence, invalid/legacy fallback, reset, focus and
 maps existing literal fixtures to rules, separates JS-vs-JS parity from
 cross-language evidence, lists gaps C1–C25 and specifies one pure-rule
 (`combineGenomes`) plus one wire-UID adapter pilot. No target engine/language or
-project was selected; M18b–M18d remain pending.
+project was selected at M18a.
+
+**G1/M18b target decision complete:** the selected target is **CPython 3.14.6,
+standard library only**, recorded in the
+[translation target decision](translation-target-decision.md). The
+[Python fixture harness](../tools/translation-pilot-py/README.md) contains the
+pinned genome-inheritance and wire-UID manifests, canonical hashes, exact/tolerance
+policy and failure negatives, plus a stdlib validator and self-test. Parent checks
+passed `validate` and `--self-test`, a tamper copy was rejected, full Node passed
+677/677, contracts covered 17 modules and `git diff --check` was clean. This is
+fixture data plus validation only; G2/M18c (pure rule) and G3/M18d (adapter) remain
+pending. No JS-vs-JS result is treated as cross-language proof.
 
 - Inventory existing literal fixtures and supplement observable missing rules:
   numbers/Float32, null versus missing, unsigned hashes/RNG, ordering/ties, live

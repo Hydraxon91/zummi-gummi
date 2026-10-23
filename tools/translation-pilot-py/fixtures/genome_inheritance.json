@@ -1,0 +1,270 @@
+{
+  "fixtureVersion": 1,
+  "fixtureId": "genome-inheritance",
+  "fixtureKind": "pure-rule",
+  "manifestHash": "e6712b76799c263a302cd3c854c95e438929e115e81ea752d93967af83344ecb",
+  "provenance": {
+    "repositoryPath": "tests/dna.test.mjs",
+    "sourceCases": [
+      "translation fixtures: fixed inheritance outputs and RNG draw counts",
+      "translation fixtures: seeded inheritance outputs and draw order"
+    ],
+    "baselineCommit": "80ebd3f",
+    "dnaVersion": 1,
+    "fixtureDate": "2026-10-23",
+    "canonicalHashRule": "UTF-8 SHA-256 of json.dumps(manifest without manifestHash, sort_keys=True, separators=(',', ':'))"
+  },
+  "constants": {
+    "DNA_VERSION": 1,
+    "drawCount": 10,
+    "phenotype": "softbody-bear"
+  },
+  "policy": {
+    "comparison": "field-by-field",
+    "exactFields": [
+      "species",
+      "genes.color",
+      "genes.material",
+      "hybridTarget",
+      "phenotype",
+      "drawCount",
+      "parentsUnchanged"
+    ],
+    "tolerance": {
+      "kind": "absolute",
+      "value": 1e-12,
+      "fields": [
+        "genes.size",
+        "genes.rigidity",
+        "genes.softness",
+        "genes.stretch",
+        "genes.hopPace[0]",
+        "genes.hopPace[1]"
+      ]
+    },
+    "rounding": "none",
+    "singlePrecisionAccepted": false
+  },
+  "parents": {
+    "bearA": {
+      "version": 1,
+      "species": {
+        "bear": 1
+      },
+      "genes": {
+        "color": "#102030",
+        "size": 0.75,
+        "rigidity": 0.25,
+        "softness": 0.5,
+        "stretch": 0.5,
+        "material": "bearGummy",
+        "hopPace": [
+          0.5,
+          1.5
+        ]
+      },
+      "phenotype": "softbody-bear",
+      "hybridTarget": null
+    },
+    "bearB": {
+      "version": 1,
+      "species": {
+        "bear": 1
+      },
+      "genes": {
+        "color": "#80c0e0",
+        "size": 1.25,
+        "rigidity": 0.5,
+        "softness": 0.75,
+        "stretch": 1.5,
+        "material": "bearGummy",
+        "hopPace": [
+          0.75,
+          1.25
+        ]
+      },
+      "phenotype": "softbody-bear",
+      "hybridTarget": null
+    },
+    "msnB": {
+      "version": 1,
+      "species": {
+        "msn": 1
+      },
+      "genes": {
+        "color": "#80c0e0",
+        "size": 1.25,
+        "rigidity": 0.5,
+        "softness": 0.75,
+        "stretch": 1.5,
+        "material": "msnGummy",
+        "hopPace": [
+          0.75,
+          1.25
+        ]
+      },
+      "phenotype": "softbody-msn",
+      "hybridTarget": null
+    }
+  },
+  "options": {
+    "mutation": 0.04,
+    "rng": "injected by the hidden target runner; no global RNG"
+  },
+  "seededRng": {
+    "kind": "lcg32",
+    "seed": 11,
+    "multiplier": 1664525,
+    "increment": 1013904223,
+    "modulus": 4294967296,
+    "output": "(state >>> 0) / 2 ** 32"
+  },
+  "cases": [
+    {
+      "id": "same-species",
+      "label": "same species",
+      "parentA": "bearA",
+      "parentB": "bearB",
+      "fixedRng": {
+        "kind": "constant",
+        "value": 0.5,
+        "drawCount": 10
+      },
+      "fixedExpected": {
+        "species": {
+          "bear": 1
+        },
+        "genes": {
+          "color": "#487088",
+          "size": 1,
+          "rigidity": 0.375,
+          "softness": 0.625,
+          "stretch": 1,
+          "material": "bearGummy",
+          "hopPace": [
+            0.625,
+            1.375
+          ]
+        },
+        "hybridTarget": null,
+        "phenotype": "softbody-bear",
+        "drawCount": 10,
+        "parentsUnchanged": true
+      },
+      "seededExpected": {
+        "species": {
+          "bear": 1
+        },
+        "genes": {
+          "color": "#3f6580",
+          "size": 0.9972803003057837,
+          "rigidity": 0.3770659795805812,
+          "softness": 0.6283276194415987,
+          "stretch": 0.9940259193077683,
+          "material": "bearGummy",
+          "hopPace": [
+            0.5932915655896067,
+            1.3520984780229628
+          ]
+        },
+        "hybridTarget": null,
+        "phenotype": "softbody-bear",
+        "drawCount": 10,
+        "parentsUnchanged": true
+      }
+    },
+    {
+      "id": "mixed-species",
+      "label": "mixed species",
+      "parentA": "bearA",
+      "parentB": "msnB",
+      "fixedRng": {
+        "kind": "constant",
+        "value": 0.5,
+        "drawCount": 10
+      },
+      "fixedExpected": {
+        "species": {
+          "bear": 0.5,
+          "msn": 0.5
+        },
+        "genes": {
+          "color": "#487088",
+          "size": 1,
+          "rigidity": 0.375,
+          "softness": 0.625,
+          "stretch": 1,
+          "material": "msnGummy",
+          "hopPace": [
+            0.625,
+            1.375
+          ]
+        },
+        "hybridTarget": "bear-msn",
+        "phenotype": "softbody-bear",
+        "drawCount": 10,
+        "parentsUnchanged": true
+      },
+      "seededExpected": {
+        "species": {
+          "bear": 0.5,
+          "msn": 0.5
+        },
+        "genes": {
+          "color": "#3f6580",
+          "size": 0.9972803003057837,
+          "rigidity": 0.3770659795805812,
+          "softness": 0.6283276194415987,
+          "stretch": 0.9940259193077683,
+          "material": "msnGummy",
+          "hopPace": [
+            0.5932915655896067,
+            1.3520984780229628
+          ]
+        },
+        "hybridTarget": "bear-msn",
+        "phenotype": "softbody-bear",
+        "drawCount": 10,
+        "parentsUnchanged": true
+      }
+    }
+  ],
+  "negatives": [
+    {
+      "id": "draw-count-9",
+      "category": "draw-count",
+      "description": "The hidden target runner reports nine draws instead of ten.",
+      "expectedToFail": true
+    },
+    {
+      "id": "draw-count-11",
+      "category": "draw-count",
+      "description": "The hidden target runner reports eleven draws instead of ten.",
+      "expectedToFail": true
+    },
+    {
+      "id": "gene-off-by-1e-6",
+      "category": "changed-gene",
+      "description": "One numeric gene differs from its expected value by 1e-6, outside the 1e-12 tolerance.",
+      "expectedToFail": true
+    },
+    {
+      "id": "wrong-hybrid-target",
+      "category": "hybrid-target",
+      "description": "The mixed-species result reports hybridTarget 'bear-msn' as another value.",
+      "expectedToFail": true
+    },
+    {
+      "id": "mutated-parent",
+      "category": "mutated-parent",
+      "description": "Either parent genome changes after inheritance.",
+      "expectedToFail": true
+    },
+    {
+      "id": "wrong-phenotype",
+      "category": "phenotype",
+      "description": "The result reports phenotype 'skinned' instead of 'softbody-bear'.",
+      "expectedToFail": true
+    }
+  ]
+}

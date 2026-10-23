@@ -1,0 +1,364 @@
+{
+  "fixtureVersion": 1,
+  "fixtureId": "wire-uid",
+  "fixtureKind": "bounded-adapter",
+  "manifestHash": "33d50315b15dcf44ff9c4acfc573f234e42807d3b971ff75709f84e61a23ddc0",
+  "provenance": {
+    "repositoryPath": [
+      "tests/relationship-save.test.mjs",
+      "tests/actor-lifecycle-contract.test.mjs"
+    ],
+    "sourceCases": [
+      "v8 persists rivalry, partnership and a carried portion",
+      "partnership and rivalry references must be reciprocal and present",
+      "common restore applies UID references without adopting saved live pointers"
+    ],
+    "baselineCommit": "80ebd3f",
+    "actorSaveVersion": 9,
+    "saveVersion": 1,
+    "fixtureRecordActorVersion": 8,
+    "fixtureDate": "2026-10-23",
+    "canonicalHashRule": "UTF-8 SHA-256 of json.dumps(manifest without manifestHash, sort_keys=True, separators=(',', ':'))"
+  },
+  "constants": {
+    "ACTOR_SAVE_VERSION": 9,
+    "SAVE_VERSION": 1,
+    "fixtureRecordActorVersion": 8
+  },
+  "policy": {
+    "comparison": "field-by-field",
+    "exactFields": [
+      "uid",
+      "actorVersion",
+      "partnerUid",
+      "rivals",
+      "bonds",
+      "carriedFood",
+      "lastGiftDay",
+      "keyPresence",
+      "booleans",
+      "errors"
+    ],
+    "rounding": {
+      "fields": [
+        "x",
+        "z"
+      ],
+      "digits": 3,
+      "rule": "compare x/z exactly after the documented 3-decimal snapshotActor rounding"
+    },
+    "keyOrder": "not compared (translation-fixtures.md G16)"
+  },
+  "records": {
+    "A": {
+      "uid": 1,
+      "active": true,
+      "kind": "softbody",
+      "species": "bear",
+      "name": "Bear 1",
+      "flavor": 0,
+      "sex": "F",
+      "stage": "adult",
+      "age": 700,
+      "scale": 1,
+      "health": 100,
+      "hunger": 0.2,
+      "thirst": 0.2,
+      "energy": 1,
+      "social": 0.3,
+      "affection": 0.25,
+      "bold": 0.5,
+      "bonds": {
+        "2": 0.7
+      },
+      "skills": {},
+      "history": [],
+      "playdates": {},
+      "home": "Home 1",
+      "pregnant": false,
+      "gestation": 0,
+      "mateCooldown": 0,
+      "fatherUid": 0,
+      "parentUids": [],
+      "cx": 1,
+      "cz": 2,
+      "partnerUid": 2,
+      "rivals": {
+        "3": {
+          "sinceDay": 2,
+          "sinceHour": 9.5
+        }
+      },
+      "carriedFood": {
+        "id": "gift-1",
+        "kind": "flower",
+        "satiation": 0.2
+      },
+      "lastGiftDay": 2,
+      "ai": {
+        "state": "wander"
+      },
+      "mesh": {
+        "isMesh": true
+      },
+      "body": {
+        "handle": 3
+      }
+    },
+    "B": {
+      "uid": 2,
+      "active": true,
+      "kind": "softbody",
+      "species": "bear",
+      "name": "Bear 2",
+      "flavor": 0,
+      "sex": "F",
+      "stage": "adult",
+      "age": 700,
+      "scale": 1,
+      "health": 100,
+      "hunger": 0.2,
+      "thirst": 0.2,
+      "energy": 1,
+      "social": 0.3,
+      "affection": 0.25,
+      "bold": 0.5,
+      "bonds": {},
+      "skills": {},
+      "history": [],
+      "playdates": {},
+      "home": "Home 1",
+      "pregnant": false,
+      "gestation": 0,
+      "mateCooldown": 0,
+      "fatherUid": 0,
+      "parentUids": [],
+      "cx": 1,
+      "cz": 2,
+      "partnerUid": 1
+    },
+    "C": {
+      "uid": 3,
+      "active": true,
+      "kind": "softbody",
+      "species": "bear",
+      "name": "Bear 3",
+      "flavor": 0,
+      "sex": "F",
+      "stage": "adult",
+      "age": 700,
+      "scale": 1,
+      "health": 100,
+      "hunger": 0.2,
+      "thirst": 0.2,
+      "energy": 1,
+      "social": 0.3,
+      "affection": 0.25,
+      "bold": 0.5,
+      "bonds": {},
+      "skills": {},
+      "history": [],
+      "playdates": {},
+      "home": "Home 1",
+      "pregnant": false,
+      "gestation": 0,
+      "mateCooldown": 0,
+      "fatherUid": 0,
+      "parentUids": [],
+      "cx": 1,
+      "cz": 2,
+      "rivals": {
+        "1": {
+          "sinceDay": 2,
+          "sinceHour": 9.5
+        }
+      }
+    }
+  },
+  "world": {
+    "field": {
+      "bears": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "studio": {}
+  },
+  "expected": {
+    "snapshot": {
+      "A": {
+        "actorVersion": 8,
+        "uid": 1,
+        "partnerUid": 2,
+        "rivals": {
+          "3": {
+            "sinceDay": 2,
+            "sinceHour": 9.5
+          }
+        },
+        "bonds": {
+          "2": 0.7
+        },
+        "carriedFood": {
+          "id": "gift-1",
+          "kind": "flower",
+          "satiation": 0.2
+        },
+        "lastGiftDay": 2,
+        "forbiddenKeys": [
+          "ai",
+          "mesh",
+          "handles",
+          "body",
+          "groups",
+          "active",
+          "partner"
+        ]
+      },
+      "B": {
+        "actorVersion": 8,
+        "uid": 2,
+        "partnerUid": 1,
+        "forbiddenKeys": [
+          "ai",
+          "mesh",
+          "body",
+          "partner"
+        ]
+      },
+      "C": {
+        "actorVersion": 8,
+        "uid": 3,
+        "rivals": {
+          "1": {
+            "sinceDay": 2,
+            "sinceHour": 9.5
+          }
+        },
+        "forbiddenKeys": [
+          "ai",
+          "mesh",
+          "body",
+          "partner"
+        ]
+      }
+    },
+    "validation": {
+      "validateActorWorld": {
+        "world": "field",
+        "errors": []
+      },
+      "validateGameRelationships": {
+        "world": "full",
+        "errors": []
+      }
+    },
+    "apply": {
+      "targetUid": 1,
+      "sourceRecord": "A",
+      "recordOverrides": {
+        "ai": {
+          "state": "poison"
+        },
+        "mesh": {
+          "poison": true
+        },
+        "body": {
+          "poison": true
+        },
+        "partner": {
+          "uid": 2
+        }
+      },
+      "sets": {
+        "partnerUid": 2,
+        "rivals": {
+          "3": {
+            "sinceDay": 2,
+            "sinceHour": 9.5
+          }
+        },
+        "lastGiftDay": 2
+      },
+      "deletes": [
+        "carriedFood"
+      ],
+      "preservesLive": [
+        "ai",
+        "mesh",
+        "body"
+      ],
+      "doesNotAdopt": [
+        "partner"
+      ]
+    },
+    "prune": [
+      {
+        "id": "all-live-uids",
+        "validUids": [
+          1,
+          2,
+          3
+        ],
+        "expectedChanged": false,
+        "expected": {
+          "partnerUid": 2,
+          "bonds": {
+            "2": 0.7
+          },
+          "rivals": {
+            "3": {
+              "sinceDay": 2,
+              "sinceHour": 9.5
+            }
+          }
+        }
+      },
+      {
+        "id": "partner-and-rival-removed",
+        "validUids": [
+          1
+        ],
+        "expectedChanged": true,
+        "deletes": [
+          "partnerUid",
+          "bonds.2",
+          "rivals.3"
+        ]
+      }
+    ]
+  },
+  "negatives": [
+    {
+      "id": "non-reciprocal-partner",
+      "category": "non-reciprocal-partner",
+      "description": "A.partnerUid is 2 while B.partnerUid points elsewhere; validateGameRelationships must report it.",
+      "expectedToFail": true
+    },
+    {
+      "id": "missing-partner-actor",
+      "category": "missing-actor",
+      "description": "A.partnerUid is 99 with no actor 99 in either map; validation must report the missing reference.",
+      "expectedToFail": true
+    },
+    {
+      "id": "duplicate-uid-across-maps",
+      "category": "duplicate-uid",
+      "description": "A studio record reuses uid 2 from the field map; game-wide duplicate validation must reject it.",
+      "expectedToFail": true
+    },
+    {
+      "id": "saved-ai-mesh-adoption",
+      "category": "saved-live-adoption",
+      "description": "applyCommonActorState adopts a saved ai, mesh, body or partner pointer instead of preserving the live object's handles.",
+      "expectedToFail": true
+    },
+    {
+      "id": "prune-inactive-map-partner",
+      "category": "inactive-map-partner-prune",
+      "description": "Pruning uses only an active-map UID set and removes a partner that exists on the inactive map; the game-wide set must be used.",
+      "expectedToFail": true
+    }
+  ]
+}

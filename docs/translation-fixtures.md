@@ -10,6 +10,14 @@ does not create a target project, and does not add a fixture framework.
 Baseline: `HEAD 3436ece`, clean working tree before this document was added.
 This step adds exactly one new file, `docs/translation-fixtures.md`.
 
+**M18b target update (2026-10-23, baseline `80ebd3f`):** the target is selected
+as **CPython 3.14.6, standard library only**, and the fixture harness lives in
+[`tools/translation-pilot-py/`](../tools/translation-pilot-py/README.md). The
+decision, limits and G2/G3 scope are recorded in
+[`translation-target-decision.md`](translation-target-decision.md). The M18a
+inventory below remains historical: it did not select a target, add a runner or
+change a test.
+
 Evidence labels used below:
 
 - **Inspected** — the named test case and the source it exercises were read
@@ -345,8 +353,11 @@ behavior at all, usually because it lives in the browser host.
 
 ## 4. Proposed minimal target-pilot fixture set
 
-This is a specification for a later, separately approved M18b step. It does not
-implement a target, choose an engine/language, add a runner or modify a test.
+This was the M18a specification for the later M18b step. M18b selected the
+target (CPython 3.14.6, standard library only) and created the fixture manifests
+and validator under `tools/translation-pilot-py/`; see
+[`translation-target-decision.md`](translation-target-decision.md). The rules,
+tolerances and negatives below remain the pinned fixture specification.
 
 ### 4.1 Pure rule: genome inheritance (`combineGenomes`)
 
@@ -473,8 +484,11 @@ A later target result is acceptable only when all of the following are recorded:
    fidelity and whole-game determinism require their own evaluation; passing the
    pure and adapter fixtures does not imply them.
 
-The target engine/version/language and the success criteria remain an explicit
-decision for M18b. This document does not recommend one.
+The target engine/version/language and success criteria were selected in M18b:
+CPython 3.14.6, standard library only, with exact/`1e-12` policies and required
+failure negatives as recorded in
+[`translation-target-decision.md`](translation-target-decision.md). The M18a
+evidence requirements above still govern G2/G3.
 
 ## 6. Related contracts
 
