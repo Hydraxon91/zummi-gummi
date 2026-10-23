@@ -26,6 +26,7 @@ import { getSpecies, speciesForRig, listSpecies, requireSpeciesRuntime } from '.
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { applyStageGrowth } from './actorlife.js';
 import { planBirth } from './actorbirth.js';
+import { removeSoftActor, removeGlassActor as removeGlassActorCore } from './actorremove.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS, hydrateWorld } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
@@ -770,24 +771,29 @@ function separatePartnershipFor(actor){
 }
 
 function removeBear(b, opts = {}){
-  const i = bears.indexOf(b); if (i<0) return;
-  if (opts.departure) departures?.snapshot(b, opts.departure, opts);
-  dropCarriedFood(b, activeWorld.mapId);
-  if (field && field.portions) field.portions.releaseActor(b);
-  if (ai) ai.detach(b);
-  if (field && field.food) field.food.releaseBear(b);
-  b.ai = null;
-  clearFarewellRuntime(b);
-  destroyBearBodies(b);
-  bears.splice(i,1);
-  if (!opts.preserveRefs) {
-    clearGuardianReferences(b.uid);
-    clearRelationshipReferences(b.uid);
-  }
-  for (const g of Array.from(grabs.values())) if (g.bear === b) endGrab(g, false);
-  b.active=false; b.grabs=0;
-  b.mesh.visible=false;
-  writeEyeInstance(b, true);
+  removeSoftActor(b, {
+    actors: bears,
+    preserveRefs: opts.preserveRefs,
+    departure: opts.departure,
+    onDeparture: (actor, departure) => departures?.snapshot(actor, departure, opts),
+    onDropCarried: actor => dropCarriedFood(actor, activeWorld.mapId),
+    onReleasePortions: actor => { if (field && field.portions) field.portions.releaseActor(actor); },
+    onDetach: actor => { if (ai) ai.detach(actor); },
+    onReleaseFood: actor => { if (field && field.food) field.food.releaseBear(actor); },
+    onClearFarewell: actor => clearFarewellRuntime(actor),
+    onDestroyBodies: actor => destroyBearBodies(actor),
+    onClearReferences: actor => {
+      clearGuardianReferences(actor.uid);
+      clearRelationshipReferences(actor.uid);
+    },
+    onEndGrabs: actor => {
+      for (const g of Array.from(grabs.values())) if (g.bear === actor) endGrab(g, false);
+    },
+    onDeactivate: actor => {
+      actor.mesh.visible=false;
+      writeEyeInstance(actor, true);
+    },
+  });
 }
 function despawnAll(){
   cancelFarewellVisuals();
@@ -854,18 +860,20 @@ function cancelFarewellFor(actor){
 
 function removeGlassActor(actor, opts = {}){
   if (!glassColony || !actor) return false;
-  if (opts.departure) departures?.snapshot(actor, opts.departure, opts);
-  clearFarewellRuntime(actor);
   const uid = actor.uid;
-  dropCarriedFood(actor, activeWorld.mapId);
-  if (field && field.portions) field.portions.releaseActor(actor);
-  if (field && field.food) field.food.releaseBear(actor);
-  const removed = glassColony.removeActor(actor);
-  if (removed) {
-    clearGuardianReferences(uid);
-    clearRelationshipReferences(uid);
-  }
-  return removed;
+  return removeGlassActorCore(actor, {
+    departure: opts.departure,
+    onDeparture: (target, departure) => departures?.snapshot(target, departure, opts),
+    onClearFarewell: target => clearFarewellRuntime(target),
+    onDropCarried: target => dropCarriedFood(target, activeWorld.mapId),
+    onReleasePortions: target => { if (field && field.portions) field.portions.releaseActor(target); },
+    onReleaseFood: target => { if (field && field.food) field.food.releaseBear(target); },
+    removeFromColony: target => glassColony.removeActor(target),
+    onClearReferences: () => {
+      clearGuardianReferences(uid);
+      clearRelationshipReferences(uid);
+    },
+  });
 }
 
 function makeFarewellFx(actor, reason){

@@ -286,7 +286,14 @@ placement, genome, sex and parent UIDs; `birthChild()` still owns spawning,
 traits, bonds, history, mother reset, stats and emotes. Parent full Node passed
 547/547; seeded live Bear birth and save export/import restore passed, as did
 Glass lifecycle, HTTP smoke and short parity. U-001 is resolved; U-003/U-011
-remain open. Removal/async and M6 completion are not claimed.
+remain open.
+
+**D3/M6c removal-sequencing slice complete:** `src/actorremove.js` owns the
+portable soft/Glass removal order and `preserveRefs`/colony-result gates; the app
+wrappers keep food/portion claims, behavior detach, bodies, references, grabs,
+mesh/eye work and Glass disposal. Parent full Node passed 559/559; `departure-test`
+(8/8) and `stars-test` removal paths passed with no page errors. U-003/U-006/U-011
+remain open; async completion, map teardown and M6 completion are not claimed.
 
 - Move birth/growth/removal orchestration out of app in bounded slices, with
   explicit representation callbacks. Keep Bear/Gummy and Glass implementations

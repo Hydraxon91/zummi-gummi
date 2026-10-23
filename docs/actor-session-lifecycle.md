@@ -1,18 +1,21 @@
 # Actor and session identity/lifecycle contract
 
 Status: current-contract inventory for the M5 lifecycle, updated for the D1/M6a
-soft-body growth-orchestration and D2/M6b birth-planning slices. The M5 inventory
-described existing orchestration without changing production runtime; D1 extracts
-stage growth, D2 extracts birth planning, and their focused tests/docs.
+soft-body growth-orchestration, D2/M6b birth-planning and D3/M6c removal-sequencing
+slices. The M5 inventory described existing orchestration without changing
+production runtime; D1 extracts stage growth, D2 extracts birth planning, D3
+extracts removal ordering, and each slice adds focused tests/docs.
 
 Baseline: historical M5 inventory at `HEAD 4856ce6` (`docs: inventory interaction
 ownership for M2a`), clean working tree. D1 starts from `HEAD 10331f7`, clean
-working tree. D2 starts from `HEAD 6c66613`, clean working tree. M5 evidence was
-source inspection plus the focused Node tests named in §8; its browser save/load,
-map-switch and New Game flows were not executed. D1 adds focused Node coverage and
-a seeded Bear growth host probe; Glass growth was rerun through the existing
-`glass-test` growth scenario. D2 adds focused plan tests, a seeded Bear birth and
-save-restore host probe, and a Glass lifecycle rerun.
+working tree. D2 starts from `HEAD 6c66613`, clean working tree. D3 starts from
+`HEAD 820bafb`, clean working tree. M5 evidence was source inspection plus the
+focused Node tests named in §8; its browser save/load, map-switch and New Game
+flows were not executed. D1 adds focused Node coverage and a seeded Bear growth
+host probe; Glass growth was rerun through the existing `glass-test` growth
+scenario. D2 adds focused plan tests, a seeded Bear birth and save-restore host
+probe, and a Glass lifecycle rerun. D3 adds focused sequencing tests plus the
+existing `departure-test` and `stars-test` host checks.
 
 Evidence labels used throughout:
 
@@ -21,8 +24,9 @@ Evidence labels used throughout:
 - **Unverified** — no executed check exists in this step, or the boundary is not
   importable in Node.
 
-This is a contract, not an extraction. The app still owns the live roster,
-allocator, pool and removal ordering; no module boundary was introduced.
+D3 introduces a real portable boundary for removal ordering only. The app still
+owns the live roster, allocator, pool, concrete side effects and all spawn/map/save
+callers.
 
 ## 1. Scope and owners
 
@@ -39,6 +43,7 @@ allocator, pool and removal ordering; no module boundary was introduced.
 | Behavior runtime | `src/behavior.js`, `src/behaviors/engine.js` | `attach()` / `detach()` own `actor.ai`; `src/app.js:752` detaches on soft-body removal. |
 | Soft-body stage growth | `src/actorlife.js` + `src/app.js` | `applyStageGrowth()` owns eligibility, deferred stage, COM scaling and leaving-baby cleanup. The app `applyBearStage()` wrapper supplies life-species admission, physics/surface rebuild, stage sparks, stats and history. |
 | Birth planning | `src/actorbirth.js` + `src/app.js` | `planBirth()` owns eligibility, safe-food/father/species/cap gates, flavor/pace, home/door/nearest-walkable placement, genome, sex and parent UIDs. The host supplies read-only callbacks; the app `birthChild()` keeps spawn/finalization, traits, bonds, history, mother-state changes, stats and emotes. |
+| Removal sequencing | `src/actorremove.js` + `src/app.js` | `removeSoftActor()` and `removeGlassActor()` own only the portable callback order. The app wrappers supply departures, food/portion claims, behavior detach, bodies, grabs, reference clearing, presentation and the Glass colony call. |
 | Session/world snapshots | `src/world.js` + `src/app.js` | `worlds.field` / `worlds.studio` hold saved arrays for the inactive map; the active map is captured by `saveCurrentWorld()` (`src/app.js:6194`). |
 
 `actorView` is a query surface, not an owner. `all()` returns `[...soft(), ...glass()]`
@@ -234,28 +239,59 @@ unchanged. Glass keeps its own `applyStage()` (`src/glass.js:348`).
 
 ### Real removal (soft body and Glass)
 
-`removeBear(b, opts)` (`src/app.js:747-766`) order:
+D3 moved only the ordering to `src/actorremove.js`. The app wrappers keep the
+concrete side effects; the module calls them in a fixed sequence.
 
-1. no-op if `b` is not in `bears`;
-2. `departures.snapshot()` when `opts.departure` is set;
-3. drop carried food into the active map;
-4. release the actor's food-portion claim;
-5. `ai.detach(b)` (releases food and cancels paired/task state);
-6. release the field-food claim; null `b.ai`; clear farewell runtime;
-7. destroy Box3D bodies;
-8. splice from `bears`;
-9. unless `preserveRefs`, clear guardian references and relationship references;
-10. end grabs, set `active = false`, `grabs = 0`, hide mesh and eye rows.
+`removeBear(b, opts)` (`src/app.js`, wrapper) calls
+`removeSoftActor(b, { actors: bears, preserveRefs, departure, ...callbacks })`.
+`removeSoftActor()` (`src/actorremove.js`) returns `false` without callbacks when
+the actor is absent or not in `actors`; otherwise it runs:
 
-`clearGuardianReferences()` scans `actorView.all()` (live actors only).
-`clearRelationshipReferences()` scans the live view **and** both world snapshot
-arrays (`src/app.js:703-716`). Removal is real: references are cleared unless the
-caller explicitly asks to preserve them.
+1. `onDeparture(actor, departure)` when `opts.departure` is set
+   (`departures.snapshot()`);
+2. `onDropCarried` (drop carried food into the active map);
+3. `onReleasePortions` (release the actor's food-portion claim);
+4. `onDetach` (`ai.detach`, which releases food and cancels paired/task state);
+5. `onReleaseFood` (release the field-food claim);
+6. set `actor.ai = null`;
+7. `onClearFarewell` (clear farewell runtime);
+8. `onDestroyBodies` (destroy Box3D bodies);
+9. splice the actor from `actors`;
+10. unless `preserveRefs`, call `onClearReferences` once (guardian then
+    relationship references);
+11. `onEndGrabs` (end grabs whose `bear` is this actor);
+12. set `active = false`, `grabs = 0`, then `onDeactivate` (hide mesh and eye
+    rows);
+13. return `true`.
 
-`removeGlassActor()` (`src/app.js:830-844`) snapshots departures, clears farewell
-runtime, drops carried food, releases portion/food claims, calls
-`glassColony.removeActor()` (which disposes the actor) and then always clears
-guardian and relationship references. It has no `preserveRefs` option.
+The app wrapper deliberately keeps its previous no-return behavior; callers do
+not receive the module's boolean. `clearGuardianReferences()` scans
+`actorView.all()` (live actors only). `clearRelationshipReferences()` scans the
+live view **and** both world snapshot arrays (`src/app.js`). Removal is real:
+references are cleared unless the caller explicitly asks to preserve them.
+
+`removeGlassActor()` (`src/app.js`, wrapper) keeps the `glassColony` guard and
+calls `removeGlassActorCore(actor, { departure, ...callbacks })`. The module runs:
+
+1. `onDeparture(actor, departure)` when a departure is requested;
+2. `onClearFarewell`;
+3. `onDropCarried`;
+4. `onReleasePortions`;
+5. `onReleaseFood`;
+6. `removeFromColony(actor)`;
+7. only when that returns truthy, `onClearReferences` once;
+8. return the colony result coerced to a boolean.
+
+The app passes `glassColony.removeActor()` (which disposes the actor) and clears
+guardian then relationship references with the UID captured before removal. Glass
+has no `preserveRefs` option, and D3 deliberately does **not** add behavior
+detach/cancel, mesh work or pool changes to direct Glass removal (U-006 stays a
+decision).
+
+Removal is not transactional. If a host callback throws, the remaining steps do
+not run and no rollback is attempted; a partial removal leaves the roster and
+actor partly mutated. The focused test records this current non-atomic behavior
+rather than inventing recovery.
 
 ### Stars departure
 
@@ -329,6 +365,9 @@ Not supported / Unverified:
 - No rollback or transaction exists for an exception thrown part-way through
   `spawn()` after `active = true` and `bears.push()` (bodies/mesh build are not
   wrapped in a compensating cleanup). Such an actor could remain in the roster.
+- Removal sequencing is likewise non-atomic: a throwing host callback stops the
+  remaining steps and leaves the roster/actor partly mutated
+  (`tests/actor-remove.test.mjs`).
 - `spawn()` evicts the oldest live bear when at `bearCeiling` **before** validating
   the requested species/rig and before acquiring a slot; a rejected spawn can
   therefore still have evicted an actor.
@@ -388,6 +427,12 @@ Not supported / Unverified:
   had none, resolves the current RNG at call time, and returns the decision record
   only. `birthChild()` remains authoritative for spawning, representation, traits,
   bonds, history, mother state, stats and emotes.
+- **C15. Removal ordering is host-independent; side effects stay app-owned.**
+  `removeSoftActor()`/`removeGlassActor()` own only the callback sequence, the
+  roster splice/index guard, `ai = null`, `active`/`grabs` reset and the
+  `preserveRefs`/colony-result gates. The app supplies arrival/departure snapshots,
+  claims, detach, bodies, grabs, reference clearing, mesh/eye work and Glass
+  disposal, and keeps its existing wrapper return behavior.
 
 ## 8. Test coverage map
 
@@ -448,6 +493,31 @@ also passed Glass birth, cross-species birth, family state and Glass save/load
 restore with no page errors. The probe uses existing `__gummy` hooks; no
 production hook was added.
 
+D3 focused removal test: `tests/actor-remove.test.mjs` (12 cases, all pass). It
+imports the real `src/actorremove.js` with fake actors/rosters/callbacks and does
+not boot the app.
+
+| D3 case | Covers |
+| --- | --- |
+| soft removal is inert for an absent actor or one outside the roster | missing/null actor and roster guards, no callbacks, no mutation, no throw on a missing roster |
+| soft removal runs callbacks in the recorded order and mutates roster state once | exact callback order, departure payload, `ai = null` before farewell, splice before refs, `active`/`grabs` reset, unchanged other actors |
+| departure snapshot is skipped when no departure is requested | optional departure gate |
+| `preserveRefs` skips only guardian/relationship clearing | refs callback skipped; splice, detach, food/portion, farewell, bodies, grabs and deactivation still run |
+| repeated soft removal after splice is inert | index guard after the first removal, no duplicate callbacks |
+| grab release only touches grabs owned by the removed actor | host-side matching when `onEndGrabs` runs |
+| a throwing host callback leaves a partial, non-atomic removal | no rollback, later callbacks skipped, roster/actor partly mutated |
+| removal draws no RNG and leaves unrelated actors and fields alone | no `Math.random` draw; unrelated actor/field preservation |
+| Glass removal returns false and clears no references when the colony declines | Glass order, false colony result gate |
+| Glass removal returns true and clears references exactly once when the colony removes | Glass order, one ref clear, no detach/cancel/mesh call |
+| Glass removal without a departure does not snapshot and repairs no actor fields | optional departure and unchanged actor on a declined removal |
+| Glass removal is inert for an absent actor and without a colony remover | null actor guard and missing-remover false result |
+
+D3-hosted evidence: `node scripts/departure-test.mjs` passed all 8 departure
+checks (including ceiling-culling `removeBear` and map/save/New Game non-departures)
+with no page errors; `node scripts/stars-test.mjs` passed its farewell/star checks,
+including Bear and Glass farewell removal, with no page errors
+(`.dev-shots/d3/`).
+
 Existing cases reused rather than duplicated:
 
 - `tests/actor.test.mjs` — predicates, active filtering, `byUid`, fixed-array view.
@@ -464,11 +534,16 @@ Existing cases reused rather than duplicated:
 Gaps:
 
 - `nextBearUid`, `reserveUid`, `reserveWorldUids`, `reserveGameUids`, `spawn`,
-  `getFreeBear`, `spawnFromState`, `removeBear`, `removeGlassActor`, `despawnAll`,
-  `applySavePayload` and `resetNewGame` remain app-internal and are not importable
-  in Node without a DOM/WebGL/physics boot. D1 added the `actorlife.js` growth
-  seam and D2 added the `actorbirth.js` planning seam; neither exports pool, spawn
-  or removal orchestration.
+  `getFreeBear`, `spawnFromState`, `despawnAll`, `applySavePayload` and
+  `resetNewGame` remain app-internal and are not importable in Node without a
+  DOM/WebGL/physics boot. D1 added the `actorlife.js` growth seam, D2 added the
+  `actorbirth.js` planning seam, and D3 added the `actorremove.js` sequencing seam;
+  none exports pool, spawn or map teardown orchestration. The app `removeBear`
+  wrapper still has no return value by design.
+- D3 host checks cover ceiling-culling removal and Bear/Glass farewell removal, but
+  not an arbitrary direct Glass removal caller (there is none) or removal during
+  every map/save overlap. U-003 (pool/spawn/partial cleanup) and U-006 (direct
+  Glass detach decision) remain open.
 - No executed browser evidence in M5 for map switch, save/load, stars departure or
   New Game ordering. Those sequences are **Inspected/Unverified**, not host-run.
   D1's host probe covers normal and deferred Bear growth only. D2 host evidence
@@ -491,4 +566,6 @@ Gaps:
 The new focused tests did not reveal a failing current behavior, so none is
 recorded as a defect. The partial-creation, material-lifetime, `physicsSuspended`
 and non-atomic apply items in §6 are stated as Unverified risks, not proven bugs;
-they were not fixed in M5.
+they were not fixed in M5. D3 likewise added no defect: the extraction preserved
+the recorded behavior, and non-atomic callback failure is documented as current
+(unfixed) behavior rather than a regression.
