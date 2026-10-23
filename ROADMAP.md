@@ -1837,6 +1837,17 @@ records the repository-wide audit, evidence limits, protected contracts and smal
 independently approvable work chunks. It does not authorize migration, refactors
 or personality/AI chunk 4. Audit first; approve useful refactors individually.
 
+**System-wide extensibility continuation — audit/docs only:**
+[System modularity, extensibility and engine portability](docs/system-modularity-roadmap.md)
+surveys current runtime families and proposes M0–M23 ownership/extension chunks.
+The goal is both portability and NPC-style extensibility, without imposing behavior
+plugins on physics/rendering or sacrificing batching. Proposed work covers actor
+and interaction lifecycle, world/storage/map coordination, content/navigation,
+resource leases, settings/UI/input, specialized environment/representation hosts,
+translation fixtures and a separately approved target-engine pilot. None of these
+chunks is implemented or approved by this listing. Recommended first step: M0
+ownership/extension contracts, then one M1 behavior-world capability pilot.
+
 ## Personality and modular-AI extension track
 
 This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved and

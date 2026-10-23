@@ -9,6 +9,18 @@ is approved by this document.
 
 ## Goal and boundaries
 
+### Forward track: system-wide modularity and extensibility
+
+The [system modularity roadmap](docs/system-modularity-roadmap.md) extends this
+completed P0–P5 baseline with a current-source boundary inventory and proposed
+M0–M23 chunks. It explicitly covers both safe feature extension and engine
+translation: behavior/interaction contracts, actor lifecycle, maps/persistence,
+content/resources/navigation, settings/UI/input, specialized representation and
+environment hosts, resource lifetimes and a separately gated target-engine pilot.
+All M chunks are proposals requiring individual approval; this documentation
+does not authorize extraction, gameplay changes or engine migration. P0–P5
+evidence and its limits below remain unchanged.
+
 Identify useful engine-independent rules/data, small host adapters and systems
 best left engine-specific. Preserve the current browser game throughout.
 Not everything benefits from abstraction. Portable JavaScript still requires

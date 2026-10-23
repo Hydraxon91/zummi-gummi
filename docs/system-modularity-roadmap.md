@@ -1,0 +1,392 @@
+# System modularity, extensibility and engine portability
+
+**Status: source audit and proposed roadmap only. No implementation approved.**
+
+This is the forward-looking continuation of
+[P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
+The goal has two independent acceptance axes: **easy, safe feature extension** and
+**explicit contracts that can be translated to another engine**. Neither implies
+a framework rewrite or an engine migration.
+
+## Audit method and limits
+
+This pass inspected the current, uncommitted working tree, including the P0–P5
+changes. It read the architecture ownership contract, the prior audit, behavior
+module/support contracts, world state/storage, graphics UI, launcher dependencies,
+actor removal, surface construction/scheduling and the field public interface.
+It surveyed runtime files/imports and application ownership regions. Other
+families below retain the prior P0/P5 inspection or representative-source sampling,
+as stated. This is a system-boundary audit, not an exhaustive branch, bug, security,
+performance or lifecycle certification.
+
+No browser, Node suite, physics test or benchmark was run for this documentation
+pass. P5's recorded 352 Node tests, 68 smoke checks and scheduler probe are prior
+evidence, not fresh verification of the proposed architecture. Existing user work
+was preserved. No runtime, dependency, CI, save or gameplay change is included.
+
+## Definition of done: modular does not mean arbitrarily pluggable
+
+A system is ready when it has:
+
+1. One documented owner for each mutable state/resource and authoritative write.
+2. An explicit, small public API; dependencies passed at composition boundaries,
+   not a service locator, global event bus or opaque universal context.
+3. Stable definition IDs separate from placed instances, live actors and saves.
+4. A lifecycle contract for create/attach, activate, interrupt, leave, restore and
+   release, declaring which operations are unsupported or application-lifetime.
+5. A documented extension recipe, with a representative successful addition and
+   deliberately invalid definition/transition tests.
+6. Headless rule/contract tests where appropriate and real-host integration checks
+   for wiring, ownership and side effects.
+7. Translation fixtures for portable decisions and explicit engine-specific
+   adapters for rendering, storage, input and physics.
+8. Preserved behavior, save compatibility, ordering, resource ownership and
+   measured hot-path cost where affected.
+
+The NPC system supplies the example: definitions, authored opportunity order,
+layered configuration, adapters, support declarations and conformance tests.
+It does **not** justify making survival, physics or every subsystem disableable.
+`behaviors/contracts.js` explicitly distinguishes profile-only, feature-only,
+finish-current, unsupported and legacy-unverified policies. Apply that honesty
+to other systems rather than promising uniform toggles.
+
+No target file count or line-count reduction constitutes acceptance. Keep direct
+calls, live identity, pooled buffers and batch submission where they are useful.
+Only introduce extension machinery when a concrete second case needs it.
+
+## Current system inventory
+
+Readiness describes boundaries, not correctness or a percentage of a future port.
+**Good** means a useful existing seam, **mixed** means rules and host overlap,
+**host** means predominantly platform/representation-specific, **unverified**
+means no implemented system or insufficient evidence. All proposals below remain
+pending individual approval.
+
+| Family / representative sources | Current boundary and extension friction | Readiness / next item |
+| --- | --- | --- |
+| Behavior modules: `behaviors/module.js`, `contracts.js`, `engine.js`, `config.js`, README | Validated states/opportunities and layered config exist; engine still supplies broad field context. Not every module supports toggling. Contracts inspected this pass; dispatch previously inspected. | Good/mixed; M1–M3 |
+| Traits, mood, habits, proposals: `behaviors/traits.js`, `mood.js`, `preferences.js`, `proposals.js` | Portable calculations and fixtures exist. Actor caching, feature flags and timing remain integrated. Prior audit/fixtures retained. | Good; M0, M18 |
+| Pair/group/social/family: `interactions.js`, `family.js`, `relationships.js`, behavior activity modules | Existing shared protocols, but direct pair/task writes remain distributed. Cancellation must be proved per feature, not inferred from file separation. Prior representative cleanup inspection. | Mixed; M2 |
+| Species, genetics, rigs: `species.js`, `dna.js`, `config.js`, `msnrig.js`, `buddyrig.js` | Registry and gene extensions exist; species imports executable rig data and inheritance functions. A new body is not just a JSON entry. Prior dependency audit. | Good/mixed; M4 |
+| Actor view, identity, lifecycle: `npc.js`, `actorrecord.js`, `actorsave.js`, app spawn/remove/growth/birth | Shared view/records exist; application still owns UID allocation, pooling, growth/body rebuild and removal. `removeBear` and surface paths inspected this pass. | Mixed; M5–M6 |
+| Navigation/avoidance/bounds: `navmesh.js`, `navdebug.js`, `avoidance.js`, `fieldshape.js` | Numeric navigation already separated from debug rendering. Dynamic obstacle/reachability composition still field/app-owned. P4/prior inspection retained. | Good/mixed; M7 |
+| Food, gifts, resources: `foodtypes.js`, `food.js`, `foodportions.js`, `behaviors/gifting.js`, `giftvisuals.js` | Definitions, mutable registries and visual mirror exist. Claims depend on live identity; entirely new risky food needs handler and visual work. Prior inspection retained. | Good/mixed; M8 |
+| Homes and occupancy: `homes.js`, `family.js`, app home/birth helpers, field composition | Visual styles are defined; ownership, capacity, door approaches and simulation queries span hosts. Interiors and placement are not implemented by modularization. Sampled dependencies. | Mixed; M9 |
+| Map/world/content: `world.js`, `mapcontent.js`, `floratypes.js`, app activation | Authored content is separated; world module reads storage at import and exports mutable singleton state; map IDs/restore paths assume current maps. World inspected this pass; P0 activation evidence retained. | Mixed; M10–M11 |
+| Saves/migration/storage: `saveformat.js`, `save.js`, `actorsave.js`, app save/New Game | Format/storage split exists. Ordered live capture/apply and quick-resume remain separate integration surfaces. P2/P0 evidence retained. | Good/mixed; M10, M12 |
+| Scheduler/clocks/RNG: app loop, `sky.js` | P5 documents existing gates and global stream; characterization is not decoupling. Visuals and decisions can consume the same RNG. | Mixed; M13 |
+| Physics and movement: `box3d.js`, `ai.js`, `glass.js`, app forces/grab/hop | Batched bridge and representation adapters exist; app still owns soft-body construction/readback and locomotion. Solver internals not newly audited. | Host/mixed; M6, M14 |
+| Surface/pose/eyes/shadows: app `poseAndTargets`, `buildBear`, `updateSurfaces`, `writeEyeInstance` | Numeric field construction shares actor, quality and three.js buffers; budgeted builds and stable lattice are load-bearing. Construction/scheduler sampled this pass, not fully verified. | Host/mixed; M14 |
+| Glass/Studio actor animation: `glass.js`, `msn.js`, app Gummy poses | Different representation lifecycles and picking paths; do not force skinned and metaball actors into one renderer. Prior loader cleanup inspection; Gummy path sampled. | Host/mixed; M4–M6, M14 |
+| Assets/catalog/leases: `assets.js`, `assetstore.js`, `assets/README.md` | Stable catalog and injected loader; coalesced leases and per-instance cleanup. Keep this ownership, not a second asset cache. Prior audit. | Good/host; M15 |
+| Field terrain/pond/water: `field.js` | Public API exposes nav, food, homes, colliders, sky, uniforms indirectly and visuals. Water/reflection, shoreline and simulation composition share a builder. API inspected this pass. | Host/mixed; M1, M16 |
+| Vegetation/scenery/wind/sun: `trees.js`, `bushes.js`, `backdrop.js`, `horizon.js`, `wind.js`, `sunlight.js`, `studiohouse.js` | Named render modules exist; authored batches, shader hooks, shared wind and reflection culling must survive extension. Dependency survey, not shader audit. | Host with good internal modules; M16 |
+| Sky/lighting/weather: `sky.js` | Clock and visual update share owner. Presets and uniforms are engine-specific; numeric clock contract is documented in P5. | Mixed/host; M13, M16 |
+| Effects/graphics/materials: `effects.js`, `graphics.js`, app profiles/toon/quality | Effects factory exists; graphics combines pure normalization, browser persistence and DOM controls. Composer lacks public teardown; do not assume safe recreation. Graphics inspected this pass; prior effects follow-up retained. | Host/mixed; M15, M17 |
+| Input/picking/camera/possession: app pointer handlers, camera and control regions; launcher | Overlapping gesture priorities and input-driven simulation/presentation. Launcher injects collaborators but also owns three.js/UI/input. Boundary survey and launcher constructor inspected. | Host/mixed; M19 |
+| UI/menu/settings/roster/save panels: app, `index.html`, `relationshipview.js`, `thoughtbubble.js`, `aidebug.js` | Some read models/overlays exist; substantial DOM listeners, commands and state are app-owned. Listener teardown not exhaustively inspected. | Host/mixed; M17, M20 |
+| Toys/fireworks/cannon: `launcher.js`, app blast/rocket/particle regions | Cannon factory exists; fireworks mix picking, impulses, pooled particles and visuals. New toys should not require copying app globals. Boundary survey. | Host/mixed; M21 |
+| Diagnostics/testing/tooling: app `__gummy`, scripts, tests | Rich hooks and parity evidence; public debug inventory and fixture portability are incomplete. Source-order tests are not general architectural checks. | Good/mixed; M0, M18, M22 |
+| Audio, inventory, village/jobs/editor and additional maps | No implemented general audio/inventory/village system established by this audit. Roadmap features are not existing extension APIs. | Unverified/future; M23 |
+
+## Priority and sequencing
+
+M labels are new proposals, not renamed completed P chunks. Effort is relative:
+S localized, M several collaborators, L high-risk cross-system work. Split M/L
+items into bounded approved steps after inspecting their current callers.
+
+1. **Foundation:** M0 → M1; M2/M3 can follow with their own behavior decisions.
+2. **Session ownership:** M5 inventory first; M10 → M11 → M12. M4, M7–M9 can
+   proceed as their consumers require them; not all must finish before UI work.
+3. **Browser modularity:** M17, then M20; M19 precedes M21 where input is shared.
+4. **Specialized hosts:** M6/M14–M16 only after contracts and baseline evidence.
+   Preserve existing factories that already suffice; avoid extraction for size.
+5. **Port evidence:** M18 pure pilot can run early after M0 and target selection;
+   its integrated slice follows the relevant ownership work. M22 is a final
+   extensibility review, not permission to run all scenarios indiscriminately.
+6. **New gameplay:** M23 is separate design work. Do not wait for every optional
+   extraction to finish before adding a bounded feature through proven seams.
+
+M13 clock/RNG work is a **decision gate**, not a prerequisite license to redesign
+simulation. P5's preserved policy remains the default.
+
+## Proposed implementation chunks
+
+Every item requires fresh target/caller/helper inspection, a bounded plan and
+explicit implementation approval. “Probe” means a disposable/test fixture unless
+a gameplay addition is separately approved.
+
+### M0 — Publish ownership and extension contracts (S; first)
+
+- Create a compact maintained table of state/resource owners, public operations,
+  lifecycle guarantees, supported extension types and forbidden dependencies.
+- Cover live actor identity versus saved UIDs; distinguish app-lifetime objects
+  from recreatable instances. Inventory existing tests before adding duplicates.
+- **Gate:** each inventory row has a named owner, callers and evidence gap; each
+  subsequent chunk maps requirements to checks. No generic plugin framework.
+
+### M1 — Narrow behavior world/presentation inputs (M; M0)
+
+- Continue the P3 callback pilot by exposing only the actual homes/navigation/
+  resource references used by behavior, preserving backing object identity.
+- Replace broad rendered-field access one capability at a time; retain synchronous
+  ordering, emote semantics and the legacy compatibility path.
+- **Probe/gate:** run a representative behavior with no three.js/DOM field builder;
+  missing capability fails explicitly; host/parity traces and RNG counts match.
+
+### M2 — Interaction ownership and cancellation conformance (L; M0)
+
+- Inventory writers of partner/task/group/reservation state before choosing any
+  centralization. Specify completion, refusal, interruption and removal reasons.
+- Move only agreed writes through existing protocols, one activity family per
+  chunk; preserve reciprocal live references and exactly-once resource effects.
+- **Probe/gate:** a representative new test activity uses existing pairing/slots;
+  grab, critical need, disable, removal, switch, load and New Game leave no stale
+  partners/claims. Existing activities and legacy parity remain unchanged.
+
+### M3 — Configuration and module admission contracts (M; M0)
+
+- Resolve the documented unknown-ID setter policy (reject/warn/permissive) before
+  editing. Keep essential/profile-only behavior honestly non-toggleable.
+- Audit cache invalidation, per-species/actor/runtime precedence and feature-off
+  cleanup; do not enable reserved conflict parameters as a cleanup.
+- **Probe/gate:** valid extension registers and resolves; invalid/duplicate IDs,
+  unsupported options and stale-cache negatives are covered. Any API tightening
+  is approved explicitly, not hidden in extraction.
+
+### M4 — Species and representation extension recipe (M; M0)
+
+- Document biology/capabilities, rig/asset representation and species balance as
+  distinct responsibilities. Inspect callback/typed-array dependencies before
+  proposing a data split; neutral JSON is not mandatory.
+- Specify minimum adapter operations for a *supported* new species and report
+  unsupported rig/asset/capability combinations instead of falling back silently.
+- **Probe/gate:** fixture species using an existing representation works through
+  registration, birth eligibility, actor view, save validation and restore;
+  malformed combinations fail. A new body/rig is a separate authored scope.
+
+### M5 — Actor/session identity and lifecycle contract (M; M0)
+
+- Inventory UID allocation, pool reuse, attach/detach, real removal versus map
+  despawn, birth/growth and reset. Keep persistent, runtime and renderer state
+  distinct without replacing live actors by copied records.
+- **Probe/gate:** repeated attach/remove, pooled reuse, cross-map references,
+  high-UID restore and another-game UID reuse preserve current contracts;
+  partial creation failures release only owned resources.
+
+### M6 — Extract actor host orchestration (L; M5, relevant M4 contracts)
+
+- Move birth/growth/removal orchestration out of app in bounded slices, with
+  explicit representation callbacks. Keep Bear/Gummy and Glass implementations
+  specialized and their shared decision owner unchanged.
+- **Probe/gate:** growth during grab/airborne states, birth cap blocking, real
+  removal, map teardown and async asset completion after removal are tested;
+  24-body rig, shape and force/readback order do not change.
+
+### M7 — Spatial queries, layout and placement boundary (M; M0)
+
+- Retain numeric nav/avoidance/bounds modules. Separate authored obstacle/layout
+  descriptions from debug/render objects where needed by a concrete consumer.
+- Define placement validation and edit-time nav rebuild ownership before Phase 9.
+- **Probe/gate:** asymmetric layout with doors, pond, cannon and blocked routes;
+  invalid placement/disconnection rejected, tie/path fixtures unchanged. Dynamic
+  editing remains a separately approved feature, not an extraction side effect.
+
+### M8 — Resource extensions and visual mirrors (M; M0, M2 for interactions)
+
+- Preserve food/portion registries and stable portion identities. Document the
+  boundary between a definition using an existing renderer and a new risk/action.
+- Narrow presentation callbacks rather than importing renderer objects into
+  claim/consume logic; preserve visibility timing and resource ownership.
+- **Probe/gate:** fixture food type using an existing visual; duplicate claim,
+  double consume, interrupted carry, restore-as-dropped and map isolation checks.
+  General inventory and risky-food plugins require separate semantics.
+
+### M9 — Home simulation versus building presentation (M; M7)
+
+- Specify resident/capacity/ownership queries and door/activity anchors apart
+  from villa meshes and occupancy effects. Preserve overflow and family rules.
+- **Probe/gate:** alternate existing home style reuses the same capacity/door
+  rules; bad/missing anchors fail; occupancy, baby home, sleep and door reachability
+  remain correct. No new interior simulation or capacity balance implied.
+
+### M10 — World state versus browser quick-resume storage (M; M0)
+
+- Isolate `world.js` import-time localStorage access behind explicit hydration/
+  persistence collaborators while preserving keys, defaults and launcher fallback.
+- Keep one authoritative active-map state and no second world store.
+- **Probe/gate:** independent headless sessions; missing/malformed storage,
+  existing saved preferences and fresh-game reset retain current behavior.
+
+### M11 — Map/session lifecycle coordinator (L; M5, M10)
+
+- Extract activate/leave sequencing with explicit save, input-release, actor,
+  scene and clock collaborators. Preserve pause and asynchronous switch semantics.
+- Audit two-map assumptions before a future map factory/registration contract;
+  new map IDs require an explicit save-validation decision.
+- **Probe/gate:** repeated field/Studio switches, guarded reentry, failure paths,
+  active-only simulation and no source/instance leaks. Test-only third-map fixture
+  only after its validation scope is approved; no playable map is implied.
+
+### M12 — Save capture/apply coordination (L; M5, M10–M11)
+
+- Retain the P2 format/storage boundary. Extract capture/apply sequencing only
+  after tracing load, autosave, switch and New Game overlap.
+- Decide concurrent-operation and failure behavior before introducing a lock or
+  queue; do not silently add rollback/transaction guarantees not implemented today.
+- **Probe/gate:** invalid input before mutation, sparse versions, cross-map UIDs,
+  carried portions, unrelated saves, current storage failures and chosen overlap
+  policy. No schema bump unless separately required/approved.
+
+### M13 — Clock and RNG ownership decision (S investigation; L redesign)
+
+- Use the P5 contract as baseline. Evaluate a narrow clock-read interface without
+  moving time advancement or splitting the global stream.
+- Separately decide sky versus life speed, visual RNG isolation and callback
+  cadence only if a real consumer requires policy changes.
+- **Gate:** preserve P5 gates/order/draws for mechanical work. A changed cadence,
+  independent stream or fixed-step gameplay requires new expectations, explicit
+  design approval and migration/compatibility decisions—not a parity waiver.
+
+### M14 — Surface, physics and representation host modules (L; M5)
+
+- First inventory numeric kernels versus three.js upload and Box3D state. Pilot
+  one numeric surface fixture before moving buffers or scheduler ownership.
+- Keep 24-body construction, stable lattice/hysteresis, rebuild priority/budget,
+  instanced eyes and pooled readback. Define adapter needs, not universal physics.
+- **Probe/gate:** asymmetric/deformed numeric cases, visual surface/eye continuity,
+  growth/grab/throw/pond recovery and unchanged batched solver integration; measure
+  affected hot paths using the established performance method. Box3D/WASM changes
+  remain separately gated and are not part of this extraction.
+
+### M15 — Resource and asynchronous lifetime contracts (M; M0)
+
+- Keep catalog/lease infrastructure. Audit partial construction, failed loads,
+  removal-before-completion, instance/source disposal and renderer-owned targets.
+- Address effects teardown only when recreation is actually required; distinguish
+  unsupported teardown from a falsely reusable factory.
+- **Probe/gate:** coalesced load, failed-load retry, late completion after removal,
+  no shared-texture disposal, repeated supported attach/release and no duplicate
+  listeners/resources. No second cache or blanket recreation requirement.
+
+### M16 — Field/environment composition by responsibility (L; M1, M7–M9)
+
+- Separate simulation resource/query access from scene composition, preserving
+  existing tree/bush/home/wind modules. Start with one consumer boundary.
+- Consider pond/water/reflection or terrain as cohesive modules only after their
+  shared uniforms, shoreline, collider and camera dependencies are inventoried.
+- **Probe/gate:** alternate definition using an existing builder; invalid content
+  references fail. Current authored order, hive hosts, wind coherence, reflected
+  visibility, instancing and draw submission stay intact; inspect views and measure
+  affected costs. No per-blade/per-branch CPU update loops.
+
+### M17 — Settings definitions, storage and UI adapters (M; M0)
+
+- Separate pure normalization/preset resolution from browser keys/URL flags and
+  DOM construction. Preserve Custom semantics, reset and application ordering.
+- **Probe/gate:** a fixture setting flows definition → normalization → control →
+  persistence; invalid values, presets, reset, reload and viewport/focus cases are
+  covered. Do not retune shipped graphics defaults or change frame quality policy.
+
+### M18 — Executable translation specification and target pilot (M; M0)
+
+- Inventory existing literal fixtures and supplement observable missing rules:
+  numbers/Float32, null versus missing, unsigned hashes/RNG, ordering/ties, live
+  identity versus wire UIDs and save migrations. Reuse existing tests first.
+- Choose target engine/version/language and success criteria before creating any
+  target project. First port one pure rule; then one bounded actor/world adapter
+  slice using the same fixture inputs and expected outputs.
+- **Gate:** independently executed target results, approved tolerances and failure
+  negatives. JS-vs-JS legacy parity is not cross-language proof. Native physics,
+  rendering fidelity and whole-game determinism are separate evaluation scopes.
+
+### M19 — Input routing, camera and possession (L; M0, M5)
+
+- Inventory pointer/keyboard/touch ownership and priority: UI, launcher, portal,
+  actor grab/select, possession, orbit/pan. Extract one owner at a time; reuse
+  existing paths rather than add a second input stack.
+- Keep camera/render coordinates in host adapters; expose intent/commands where
+  useful, not DOM events in simulation rules.
+- **Probe/gate:** real pointer grab/throw, selection, launcher, focus loss, held-key
+  transitions, touch cancel, possession exit/map change, resize and phone controls.
+  Unsupported hardware remains explicitly unverified.
+
+### M20 — UI read models and panel controllers (L; M17 where settings overlap)
+
+- Extend the relationship-view precedent: simulation supplies data and command
+  operations; panels own DOM, keyed rows, focus and listener cleanup.
+- Pilot the selected-actor/roster boundary, then menu/save/settings separately.
+  Keep markup/styles extraction distinct from state-ownership extraction.
+- **Probe/gate:** mocked read model without scene construction plus real-host
+  click/keyboard tests, stale selection, actor removal, save/load, map changes,
+  mobile layouts and inspected bright/dark captures. Preserve stable row identity.
+
+### M21 — Cannon/fireworks/toy interaction boundaries (M; M19)
+
+- Retain launcher factory; separate placement/fire eligibility and blast effects
+  from pointer picking and pooled particle presentation where useful.
+- Use explicit existing actor impulse capabilities for Bear/Gummy/Glass; do not
+  make a universal toy engine or alter cooldown/ballistics/containment.
+- **Probe/gate:** refused muzzle/landing, placement, firing, cross-representation
+  impulse, grab priority, map state and cleanup; new toy fixture uses existing
+  operation contracts without copied app globals.
+
+### M22 — Discoverability and final extensibility audit (M; per completed seam)
+
+- Publish supported debug/extension API inventory and copyable recipes with
+  exact owners, lifecycle and tests. Keep production hooks stable.
+- Add narrow architecture checks only for agreed boundaries (for example pure
+  core must not import DOM/three.js). Avoid a general import-ban framework.
+- **Gate:** a representative extension per completed seam changes only its
+  definition/handler, composition registration and tests/docs—not unrelated owners;
+  expected registration/format changes are counted honestly. Review unsupported
+  cases and maintain all deferred items. CI changes need separate approval.
+
+### M23 — Future-system admission checklist (design only)
+
+Before editor/village/jobs, general inventory, audio, additional maps or new
+activities, define state and resource owners, stable instance IDs, commands and
+queries, time domain, persistence, interruption/undo and presentation boundary.
+Reuse proven navigation, reservations, asset leases and behavior modules. Prove
+one representative feature before designing a reusable registry for the family.
+These remain the separate gameplay tracks in ROADMAP; this roadmap does not
+approve equipment, shops/currency, goals/planners, audio or authored interiors.
+
+## Verification, rollback and release gates
+
+For each approved extraction:
+
+- Record expected versus actual behavior and a requirements-to-check map before
+  editing. For ambiguous policies, obtain a decision rather than assume one.
+- Capture the scoped pre-change state and preserve unrelated uncommitted work.
+  Roll back only the approved extraction if a new regression cannot be repaired
+  safely; do not reset the whole working tree.
+- Run focused contracts first, relevant Node suites next and affected browser/
+  physics/map/input/visual checks through the existing verification route. Use
+  controlled parity for behavior boundaries and enabled-feature checks separately.
+- Check saves and lifecycle when affected; use disposable browser profiles.
+  Existing P5 scheduler probe remains required for changed clock/order boundaries.
+- Rendering/input changes require inspected captures; performance claims require
+  same-method measurements, not inference from smaller modules.
+- Update recipes and ownership docs, record failures/unverified criteria and stop
+  owned verification processes. Known broken required criteria block completion.
+- A feature probe is not engine migration, a green test is not implementation
+  approval, and neither authorizes a commit, push, dependency or CI change.
+
+## Deferred decisions and explicit non-goals
+
+The following remain decisions, not automatic fixes: unknown module setter
+behavior, centralized pair writes, concurrent save/map policy, all-system speed,
+RNG stream separation, target-engine language and solver integration. Existing
+documented bugs (including stargaze timing), hosted stalls and intermittent
+fixtures retain their dispositions in ROADMAP; modularization does not repair or
+waive them. Newly discovered defects must be recorded there before any repair.
+
+Do not introduce a universal ECS, dependency-injection container, plugin loader,
+event bus, engine-neutral scene graph, generalized physics facade or framework
+dependency merely to satisfy this roadmap. Modules can use different internal
+patterns while sharing ownership, lifecycle and verification discipline.
+
+**Recommended first approval:** M0 only, followed by one M1 capability pilot.
+Choose the target-engine pilot separately; no need to finish all optional
+modularity work before testing one pure translation.
