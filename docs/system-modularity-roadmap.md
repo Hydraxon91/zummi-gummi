@@ -273,6 +273,14 @@ DOM/WebGL/physics boot; no production exports were added. M6 extraction remains.
 
 ### M6 — Extract actor host orchestration (L; M5, relevant M4 contracts)
 
+**D1/M6a growth slice complete:** `src/actorlife.js` owns portable soft-body
+eligibility, deferred-stage state, COM-relative scaling and leaving-baby
+guardian/follow cleanup. The app `applyBearStage()` wrapper keeps Box3D/surface
+rebuild, sparks, stats and history, preserving callback/RNG order. Parent full
+Node passed 536/536; Glass growth, seeded Bear normal/deferred growth, HTTP smoke
+and short parity passed. U-001/U-003/U-011 remain open; birth, removal/async and
+M6 completion are not claimed.
+
 - Move birth/growth/removal orchestration out of app in bounded slices, with
   explicit representation callbacks. Keep Bear/Gummy and Glass implementations
   specialized and their shared decision owner unchanged.

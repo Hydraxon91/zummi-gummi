@@ -24,6 +24,7 @@ import { createActorView, isGlassActor } from './npc.js';
 import { chooseBirthHome as chooseBirthHomeRule, countHomeResidents } from './homesim.js';
 import { getSpecies, speciesForRig, listSpecies, requireSpeciesRuntime } from './species.js';
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
+import { applyStageGrowth } from './actorlife.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS, hydrateWorld } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
@@ -962,77 +963,45 @@ function chooseBirthHome(mother) {
   });
 }
 
-// Rebuild every representation of a bear together: physics radii/joints, the
-// metaball lattice, the rendered surface and the instanced eyes. Scale the live
-// points around the current COM so the bear grows in place instead of snapping
-// to a new origin.
+// The portable stage transition lives in actorlife.js. This wrapper keeps the
+// live Bear/Gummy representation, spark presentation and life/history effects in
+// the app so their RNG and callback order stays exactly as before.
 function applyBearStage(b, nextStage) {
-  if (!b || !b.active || !speciesOf(b).hasLife || !STAGE_ORDER.includes(nextStage) || b.stage === nextStage) {
-    if (b) b.pendingStage = null;
-    return false;
-  }
-  if (b.grabs > 0 || b.airborne || b.inPond) {
-    b.pendingStage = nextStage;
-    return false;
-  }
-  const oldScale = b.scale || 1;
-  const genomeSize = b.genome && Number.isFinite(b.genome.genes?.size) ? b.genome.genes.size : 1;
-  const nextScale = scaleForStage(nextStage) * genomeSize;
-  const factor = nextScale / oldScale;
-  for (let i = 0; i < b.np; i++) {
-    b.px[i] = b.cx + (b.px[i] - b.cx) * factor;
-    b.py[i] = b.cy + (b.py[i] - b.cy) * factor;
-    b.pz[i] = b.cz + (b.pz[i] - b.cz) * factor;
-    b.vx[i] *= factor;
-    b.vy[i] *= factor;
-    b.vz[i] *= factor;
-    b.snap[i*3] = b.px[i];
-    b.snap[i*3+1] = b.py[i];
-    b.snap[i*3+2] = b.pz[i];
-  }
-  b.scale = nextScale;
-  b.stage = nextStage;
-  b.pendingStage = null;
-  if (nextStage !== 'baby') {
-    delete b.guardianUid;
-    if (b.ai) b.ai.adoptionRetryAt = 0;
-  }
-  if (nextStage !== 'baby' && b.ai && b.ai.state === 'follow') {
-    b.ai.follow = null;
-    b.ai.state = 'wander';
-    b.ai.idleT = .5;
-    b.ai.path = null;
-    b.ai.moving = false;
-  }
-  destroyBearBodies(b);
-  createBearBodies(b);
-  b.lat = null;
-  b.contacts = 0;
-  b.airborne = false;
-  b.needsBuild = true;
-  if (b.ai) {
-    b.ai.hopState = null;
-    b.ai.hopWait = 0;
-    b.ai.turnWait = 0;
-    b.ai.stuckT = 0;
-    b.ai.interrupted = false;
-    b.ai.lastX = b.cx;
-    b.ai.lastZ = b.cz;
-    b.ai.nextThink = 0;
-  }
-  buildBear(b);
-  for (let i = 0; i < 12; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = 0.12 + Math.random() * 0.34;
-    spawnSpark(
-      b.cx + Math.cos(a) * r, b.cy + 0.25 + Math.random() * 0.55, b.cz + Math.sin(a) * r,
-      Math.cos(a) * 0.45, 0.7 + Math.random() * 0.8, Math.sin(a) * 0.45,
-      0.92, 0.78, 1.0, 0.035 + Math.random() * 0.03, 0.7 + Math.random() * 0.5, -0.35,
-    );
-  }
-  lifeStats.stageUps++;
-  pushHistory(b, { kind: 'stage', uid: 0, day: sky ? sky.day : 0, hour: sky ? sky.hours : 0 });
-  return true;
+  return applyStageGrowth(b, nextStage, {
+    isLifeActor: (actor) => speciesOf(actor).hasLife,
+    represent(actor) {
+      destroyBearBodies(actor);
+      createBearBodies(actor);
+      actor.lat = null;
+      actor.contacts = 0;
+      actor.airborne = false;
+      actor.needsBuild = true;
+      if (actor.ai) {
+        actor.ai.hopState = null;
+        actor.ai.hopWait = 0;
+        actor.ai.turnWait = 0;
+        actor.ai.stuckT = 0;
+        actor.ai.interrupted = false;
+        actor.ai.lastX = actor.cx;
+        actor.ai.lastZ = actor.cz;
+        actor.ai.nextThink = 0;
+      }
+      buildBear(actor);
+      for (let i = 0; i < 12; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 0.12 + Math.random() * 0.34;
+        spawnSpark(
+          actor.cx + Math.cos(a) * r, actor.cy + 0.25 + Math.random() * 0.55, actor.cz + Math.sin(a) * r,
+          Math.cos(a) * 0.45, 0.7 + Math.random() * 0.8, Math.sin(a) * 0.45,
+          0.92, 0.78, 1.0, 0.035 + Math.random() * 0.03, 0.7 + Math.random() * 0.5, -0.35,
+        );
+      }
+    },
+    onStageUp(actor) {
+      lifeStats.stageUps++;
+      pushHistory(actor, { kind: 'stage', uid: 0, day: sky ? sky.day : 0, hour: sky ? sky.hours : 0 });
+    },
+  });
 }
 
 function birthSpecies(mother, father) {

@@ -2,7 +2,8 @@
 //
 // Babies only; target selection uses mate.followDist. The retry throttle is the
 // current engine value (30s after the b7f5fea stall change; the older 8s literal
-// is historical). Stage-up cancellation stays in app.js applyBearStage().
+// is historical). Stage-up cancellation is delegated by app.js applyBearStage()
+// to actorlife.js applyStageGrowth().
 
 import { defineBehaviorModule } from './module.js';
 

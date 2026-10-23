@@ -1,13 +1,16 @@
 # Actor and session identity/lifecycle contract
 
-Status: current-contract inventory for roadmap step M5. This document describes
-what the code does today; it does not extract, rename or redesign orchestration.
-No production runtime changed in this step.
+Status: current-contract inventory for the M5 lifecycle, updated for the D1/M6a
+soft-body growth-orchestration slice. The M5 inventory described existing
+orchestration without changing production runtime; D1 extracts only stage growth
+and its focused tests/docs.
 
-Baseline: `HEAD 4856ce6` (`docs: inventory interaction ownership for M2a`), clean
-working tree before the step. Evidence below is source inspection plus the focused
-Node tests named in §8. Browser save/load, map-switch and New Game flows were not
-executed here.
+Baseline: historical M5 inventory at `HEAD 4856ce6` (`docs: inventory interaction
+ownership for M2a`), clean working tree. D1 starts from `HEAD 10331f7`, clean
+working tree. M5 evidence was source inspection plus the focused Node tests named
+in §8; its browser save/load, map-switch and New Game flows were not executed.
+D1 adds focused Node coverage and a seeded Bear growth host probe; Glass growth
+was rerun through the existing `glass-test` growth scenario.
 
 Evidence labels used throughout:
 
@@ -32,6 +35,7 @@ allocator, pool and removal ordering; no module boundary was introduced.
 | Save envelope | `src/saveformat.js` | `validateSave` rejects duplicate actor UIDs game-wide (`src/saveformat.js:63-78`), then `normalizeSave` migrates/clones. |
 | Pooled soft-body slot | `src/app.js` | `getFreeBear()` (`src/app.js:561`), `pool`, `BEAR_HARD_MAX = 256` (`src/app.js:201`), shared scratch field/cell buffers (`src/app.js:214-215`) and instanced eye rows (`src/app.js:484`). |
 | Behavior runtime | `src/behavior.js`, `src/behaviors/engine.js` | `attach()` / `detach()` own `actor.ai`; `src/app.js:752` detaches on soft-body removal. |
+| Soft-body stage growth | `src/actorlife.js` + `src/app.js` | `applyStageGrowth()` owns eligibility, deferred stage, COM scaling and leaving-baby cleanup. The app `applyBearStage()` wrapper supplies life-species admission, physics/surface rebuild, stage sparks, stats and history. |
 | Session/world snapshots | `src/world.js` + `src/app.js` | `worlds.field` / `worlds.studio` hold saved arrays for the inactive map; the active map is captured by `saveCurrentWorld()` (`src/app.js:6194`). |
 
 `actorView` is a query surface, not an owner. `all()` returns `[...soft(), ...glass()]`
@@ -196,12 +200,22 @@ creation returns `null`, `birthChild()` returns `false` before mutating the moth
 
 ### Growth
 
-`applyBearStage()` (`src/app.js:949-1003`) scales live points around the COM,
-updates stage/scale, clears `guardianUid` and follow state when leaving `baby`,
-destroys and recreates Box3D bodies, rebuilds the mesh and resets behavior
-timing. The UID is unchanged. If the actor is grabbed, airborne or in the pond the
-stage change is deferred via `pendingStage`. Glass has its own `applyStage()`
-(`src/glass.js:348`).
+D1 moved the portable half of soft-body growth to
+`applyStageGrowth(actor, nextStage, { isLifeActor, represent, onStageUp })`
+(`src/actorlife.js`). It owns the current eligibility checks (active, life
+species, ordered stage, not already there), the deferred `pendingStage` path for
+grabs/airborne/pond, COM-relative scaling of points and velocities, `snap`
+refresh, stage/scale assignment, and the `guardianUid`/adoption/follow cleanup
+when the next stage is not `baby`. Rejected requests clear `pendingStage` when an
+actor exists; deferred requests set it without scaling.
+
+`applyBearStage()` (`src/app.js`) is now the host wrapper. Its `represent()`
+callback destroys and recreates Box3D bodies, clears the lattice, contacts and
+airborne flag, requests a surface rebuild, resets AI timing, calls `buildBear()`
+and emits the existing 12 `spawnSpark()` draws. Its `onStageUp()` callback
+increments `lifeStats.stageUps` and appends the `stage` history event. The module
+calls `represent` once after state changes and `onStageUp` after it. The UID is
+unchanged. Glass keeps its own `applyStage()` (`src/glass.js:348`).
 
 ### Real removal (soft body and Glass)
 
@@ -346,6 +360,11 @@ Not supported / Unverified:
   for a different actor; cross-save comparison is not actor identity.
 - **C12. No rollback guarantee.** Partial creation/application paths do not promise
   transactional cleanup.
+- **C13. Growth rules are host-independent; representation stays host-owned.**
+  `applyStageGrowth()` performs only portable actor-state mutations and calls
+  `represent`/`onStageUp` in that order. It has no app, THREE, DOM or physics
+  import; the app wrapper remains authoritative for bodies, surfaces, sparks,
+  stats and history.
 
 ## 8. Test coverage map
 
@@ -359,6 +378,24 @@ Focused new test: `tests/actor-lifecycle-contract.test.mjs` (6 cases, all pass).
 | reservation scans every registered collection across both maps | `maxActorUid` ignores malformed entries, includes an extra registered collection and both maps |
 | saved records keep persistent UID references and omit live handles | `partnerUid`/`rivals`/`bonds`/`carriedFood` persist; `ai`/mesh/handles/body/groups/active are absent |
 | common restore applies UID references without adopting saved live pointers | `validateActorWorld` + `validateGameRelationships` accept reciprocal partner UIDs; `applyCommonActorState` restores the UID, preserves live `ai`/mesh/body, and does not adopt saved pointer fields |
+
+D1 focused growth test: `tests/actor-growth.test.mjs` (4 cases, all pass). It
+imports the real `src/actorlife.js` with a fake actor/host and does not duplicate
+the broader actor/life/family suites.
+
+| D1 case | Covers |
+| --- | --- |
+| invalid, inactive, non-life and same-stage requests clear pending without growth or callbacks | rejection ordering, pending cleanup, no point/scale mutation, no represent/stage-up |
+| grab, airborne and pond growth defers without representation or stage-up callbacks | all three deferred flags, pending assignment, no scaling or callbacks |
+| valid growth scales around COM, updates snap, clears leaving-baby state and orders callbacks | genome-scaled points/velocities/snap, stage/scale, guardian/adoption/follow cleanup, represent before stage-up, repeated same-stage inert |
+| a transition back to baby preserves guardian, adoption retry and follow state | the `nextStage === 'baby'` cleanup boundary |
+
+D1-hosted evidence: `node scripts/glass-test.mjs SCENARIO=growth` passed. A
+scratch seeded browser probe (`.dev-shots/d1/bear-growth-probe.mjs`) grew a real
+Bear from baby to teen, verified points/velocities/snap and rebuilt handles, then
+dropped a new Bear, confirmed natural airborne deferral, and let it land and apply
+the pending stage. Source inspection still covers the exact 12-spark draw order;
+the probe did not count individual spark RNG draws.
 
 Existing cases reused rather than duplicated:
 
@@ -377,11 +414,15 @@ Gaps:
 
 - `nextBearUid`, `reserveUid`, `reserveWorldUids`, `reserveGameUids`, `spawn`,
   `getFreeBear`, `spawnFromState`, `removeBear`, `removeGlassActor`, `despawnAll`,
-  `applySavePayload` and `resetNewGame` are app-internal and not importable in Node
-  without a DOM/WebGL/physics boot. No production exports or DOM hooks were added
-  for this contract step.
+  `applySavePayload` and `resetNewGame` remain app-internal and are not importable
+  in Node without a DOM/WebGL/physics boot. D1 added only the `actorlife.js` growth
+  seam; it did not export pool, spawn or removal orchestration.
 - No executed browser evidence in M5 for map switch, save/load, stars departure or
   New Game ordering. Those sequences are **Inspected/Unverified**, not host-run.
+  D1's host probe covers normal and deferred Bear growth only.
+- The exact per-draw spark RNG sequence is source-inspected, not individually
+  counted by a committed test. The D1 module adds no RNG draws; the wrapper keeps
+  the existing 12 `spawnSpark()` calls in place.
 - Pool reuse edge cases (`physicsSuspended`, per-spawn material disposal) and Glass
   load failure/retry remain **Unverified**.
 - No test asserts that a held stale `Bear` reference throws or is otherwise
