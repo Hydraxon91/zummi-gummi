@@ -396,6 +396,13 @@ change is approved. A future redesign remains a separate decision.
 
 ### M15 — Resource and asynchronous lifetime contracts (M; M0)
 
+**C6/M15 complete:** [async lifetime contract](async-lifetime-contract.md) and
+`tests/async-lifetime.test.mjs` cover coalesced loads, refcount/release,
+cancellation before lease resolution, failure/retry, preload/eviction and
+store-level late completion. Parent full Node passed 532/532. Glass late
+completion and effects teardown remain source-inspected/unsupported; no host
+proof or recreation mechanism was added.
+
 - Keep catalog/lease infrastructure. Audit partial construction, failed loads,
   removal-before-completion, instance/source disposal and renderer-owned targets.
 - Address effects teardown only when recreation is actually required; distinguish
