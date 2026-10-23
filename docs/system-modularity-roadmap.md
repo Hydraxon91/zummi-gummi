@@ -387,6 +387,12 @@ DOM/WebGL/physics boot; no production exports were added. M6 extraction remains.
 
 ### M23 — Future-system admission checklist (design only)
 
+**M23 complete:** the [future-system admission checklist](future-system-admission.md)
+defines the required owner/identity/command/time/persistence/interruption/
+presentation/asset/claim/test fields, reuse rules, representative-feature proof
+sequence, anti-patterns and separate decision gates. It is design-only and does
+not approve any future gameplay system.
+
 Before editor/village/jobs, general inventory, audio, additional maps or new
 activities, define state and resource owners, stable instance IDs, commands and
 queries, time domain, persistence, interruption/undo and presentation boundary.
