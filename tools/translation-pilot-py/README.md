@@ -2,8 +2,9 @@
 
 This directory is the independent G1/M18b target project for the two pilot
 fixtures specified in [`docs/translation-fixtures.md`](../../docs/translation-fixtures.md)
-§4. It is **fixture data plus a validator**, not a port. No game rule is
-implemented or executed here yet.
+§4. G1 is fixture data plus a validator. G2/M18c adds an independent Python port
+of the pure `combineGenomes` bear/msn rule exercised against the pinned genome
+fixture. The wire/UID adapter remains G3 scope.
 
 ## Target decision
 
@@ -25,11 +26,12 @@ No pip package, game runtime dependency, JavaScript import or CI job is involved
 | --- | --- |
 | `fixtures/genome_inheritance.json` | Pure `combineGenomes` pilot: parents, constant-RNG `.5` expected values, seeded-LCG seed `11` expected values, draw counts, exact/tolerance policy and deliberate failure negatives. |
 | `fixtures/wire_uid.json` | Bounded live-object ↔ saved-UID adapter pilot for records A(1), B(2), C(3): snapshot, validation, apply and prune expectations plus failure negatives. |
-| `run.py` | Standard-library CLI that validates schema, provenance, coverage and canonical hashes, and self-tests that rejection is real. |
+| `run.py` | Standard-library CLI that validates schema, provenance, coverage and canonical hashes, self-tests that rejection is real, and runs the G2 genome command. |
+| `genome.py` | G2 pure `combineGenomes` port for bear/msn only: normalization, colour blending, gene inheritance, hybrid target and the constant/LCG RNG interfaces. |
 
-G2 (pure-rule port) and G3 (bounded adapter port) are **not started**. The
-hidden target runner, RNG implementation, floating-point comparison and adapter
-function bodies remain a separate decision and approval gate.
+G2 (pure-rule port) is **complete**. G3 (bounded adapter port) is **not
+started**; the wire/UID adapter function bodies remain a separate decision and
+approval gate.
 
 ## Usage
 
@@ -38,6 +40,7 @@ Run from the repository root:
 ```sh
 python3 tools/translation-pilot-py/run.py validate
 python3 tools/translation-pilot-py/run.py --self-test
+python3 tools/translation-pilot-py/run.py genome
 ```
 
 `validate` exits `0` only when both manifests load, match their declared schema
@@ -48,6 +51,14 @@ hash. It exits `1` otherwise and prints a JSON summary.
 confirms that validation rejects each mutation. It never writes the fixtures.
 It also rehashes one semantic mutation to prove the schema checks are active
 independently of the hash check.
+
+`genome` verifies the pinned genome manifest hash through the same validator,
+reconstructs the three fixture parents from `default_genome`, runs both cases
+with the constant `.5` RNG and the pinned 32-bit LCG at seed `11`, compares every
+field under the manifest exact/`1e-12` policy, checks ten draws and parent
+non-mutation, and proves every manifest negative is rejected by the comparator.
+It exits `0` only when all comparisons and negatives pass. It imports no
+JavaScript, game module, browser API or third-party package.
 
 `--fixture-dir DIR` is a tamper-check aid. It reads both manifest filenames from
 `DIR`; it is not a second fixture source of truth.
@@ -91,8 +102,9 @@ A future G2/G3 result is acceptable only when it records all of the following:
 
 - No game runtime dependency, bundler, package metadata, third-party package or
   CI workflow.
-- No JavaScript import/execution and no port of `src/dna.js`,
-  `src/actorrecord.js`, `src/family.js` or `src/actorsave.js` in G1.
+- No JavaScript import/execution. G1 exercises no game rule; G2 ports only the
+  bear/msn `combineGenomes` subset, not the whole of `src/dna.js`. The
+  `src/actorrecord.js`, `src/family.js` and `src/actorsave.js` ports remain G3.
 - No source-authoring changes (AssetWorkshop owns that scope).
 - No native physics, Box3D/WASM, metaball, Three.js/rendering, whole-game
   determinism or frame-rate claims.

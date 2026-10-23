@@ -1,9 +1,9 @@
 # Translation target decision (M18b)
 
-**Status: selected for M18b, G1 only.** This document records the target language
-and runtime for the executable translation pilot. It does not claim that a port
-exists, that any game behavior was translated, or that the pilot proves
-whole-game portability.
+**Status: selected for M18b; G1 harness and G2 pure-rule port complete.** This
+document records the target language and runtime for the executable translation
+pilot. It does not claim that the bounded adapter port exists or that the pilot
+proves whole-game portability.
 
 Baseline: `HEAD 80ebd3f`, clean working tree before the G1 change. Fixture date
 `2026-10-23`.
@@ -104,7 +104,8 @@ The target project is `tools/translation-pilot-py/`:
 
 - `fixtures/genome_inheritance.json` — pure-rule pilot data and negatives.
 - `fixtures/wire_uid.json` — bounded adapter pilot data and negatives.
-- `run.py` — schema/provenance/hash validator and self-test.
+- `run.py` — schema/provenance/hash validator, self-test and G2 `genome` command.
+- `genome.py` — G2 bear/msn `combineGenomes` port with constant and LCG RNGs.
 - `README.md` — target decision summary, usage, evidence rules and non-goals.
 
 Scratch tamper copies and future captures belong in `.dev-shots/g1/` (ignored
@@ -137,6 +138,24 @@ object is required.
 
 Both remain separately approved steps. G1 stops after creating and validating the
 fixture harness.
+
+## 8a. G2 result (M18c)
+
+Baseline `HEAD 7cb8d55`, clean working tree. `genome.py` implements only the
+bear/msn subset of `normalizeWeights`, `dominantSpecies`, the seven gene
+definitions, `defaultGenome`, `normalizeGenome`, `blendColor`, `combineGenomes`
+and `hybridTargetFor`. Mutation stays at `0.04`.
+
+`python3 tools/translation-pilot-py/run.py genome` exits `0`, verifies the pinned
+manifest hash `e6712b76…44ecb`, and matches both fixture cases in constant-`.5`
+and LCG seed-`11` modes under the exact/`1e-12` policy. Each case consumes ten
+draws in registration order: three for colour, then size, rigidity, softness,
+stretch, material and two for hop pace. Colour uses `Math.round` semantics
+(halves toward positive infinity), not Python's bankers rounding. All six
+manifest negatives (draw 9, draw 11, a numeric gene off by `1e-6`, wrong hybrid
+target, mutated parent, wrong phenotype) are rejected by the comparator. The
+parents are unchanged and no JavaScript, game runtime or third-party package is
+imported. Evidence is scratch-only under `.dev-shots/g2/`.
 
 ## 9. Stop conditions
 

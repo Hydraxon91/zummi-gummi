@@ -548,6 +548,15 @@ passed `validate` and `--self-test`, a tamper copy was rejected, full Node passe
 fixture data plus validation only; G2/M18c (pure rule) and G3/M18d (adapter) remain
 pending. No JS-vs-JS result is treated as cross-language proof.
 
+**G2/M18c pure-rule port complete:** `tools/translation-pilot-py/genome.py`
+independently implements the bear/msn `combineGenomes` subset, and
+`run.py genome` verifies the pinned manifest hash, both cases in constant-`.5`
+and LCG seed-`11` modes, the ten-draw order, parent non-mutation and all six
+failure negatives. Parent rerun passed, and a 120-case randomized JS-vs-Python
+differential found zero differences. Full Node passed 677/677 and contracts
+covered 17 modules. G3/M18d remains pending; the port does not claim whole-game
+or native-engine parity.
+
 - Inventory existing literal fixtures and supplement observable missing rules:
   numbers/Float32, null versus missing, unsigned hashes/RNG, ordering/ties, live
   identity versus wire UIDs and save migrations. Reuse existing tests first.

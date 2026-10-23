@@ -17,6 +17,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import genome as genome_rules  # noqa: E402  (same-directory stdlib-only port)
+
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 FIXTURE_FILES = ("genome_inheritance.json", "wire_uid.json")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -483,6 +486,242 @@ def command_validate(fixture_dir: Path) -> int:
     return 0 if total_errors == 0 else 1
 
 
+NUMERIC_GENE_KEYS = ("size", "rigidity", "softness", "stretch")
+EXACT_GENE_KEYS = ("color", "material")
+
+
+def _close(actual, expected, tolerance: float) -> bool:
+    return is_number(actual) and is_number(expected) and abs(actual - expected) <= tolerance
+
+
+def compare_genome_result(actual: dict, expected: dict, tolerance: float = 1e-12,
+                          parents_before: dict | None = None,
+                          parents_after: dict | None = None) -> list[str]:
+    """Field-by-field comparator using the manifest's exact/tolerance policy."""
+
+    errors: list[str] = []
+    actual = actual if isinstance(actual, dict) else {}
+    expected = expected if isinstance(expected, dict) else {}
+
+    for field in ("species", "hybridTarget", "phenotype", "drawCount",
+                  "parentsUnchanged"):
+        if actual.get(field) != expected.get(field):
+            errors.append(
+                f"{field} mismatch: actual {actual.get(field)!r}, "
+                f"expected {expected.get(field)!r}"
+            )
+
+    actual_genes = actual.get("genes") if isinstance(actual.get("genes"), dict) else {}
+    expected_genes = expected.get("genes") if isinstance(expected.get("genes"), dict) else {}
+    for field in EXACT_GENE_KEYS:
+        if actual_genes.get(field) != expected_genes.get(field):
+            errors.append(
+                f"genes.{field} mismatch: actual {actual_genes.get(field)!r}, "
+                f"expected {expected_genes.get(field)!r}"
+            )
+    for field in NUMERIC_GENE_KEYS:
+        if not _close(actual_genes.get(field), expected_genes.get(field), tolerance):
+            errors.append(
+                f"genes.{field} outside {tolerance}: actual "
+                f"{actual_genes.get(field)!r}, expected {expected_genes.get(field)!r}"
+            )
+    actual_pace = actual_genes.get("hopPace")
+    expected_pace = expected_genes.get("hopPace")
+    if not (isinstance(actual_pace, list) and isinstance(expected_pace, list)
+            and len(actual_pace) == 2 and len(expected_pace) == 2):
+        errors.append("genes.hopPace must be two-element lists")
+    else:
+        for index in (0, 1):
+            if not _close(actual_pace[index], expected_pace[index], tolerance):
+                errors.append(
+                    f"genes.hopPace[{index}] outside {tolerance}: actual "
+                    f"{actual_pace[index]!r}, expected {expected_pace[index]!r}"
+                )
+
+    if parents_before is not None and parents_after is not None:
+        if parents_before != parents_after:
+            errors.append("a parent genome changed during inheritance")
+    return errors
+
+
+def _parent_transcription_errors(key: str, genome: dict, record: dict) -> list[str]:
+    errors = []
+    for field in ("version", "species", "genes", "phenotype", "hybridTarget"):
+        if genome.get(field) != record.get(field):
+            errors.append(
+                f"parents.{key}.{field} transcription mismatch: "
+                f"{genome.get(field)!r} != {record.get(field)!r}"
+            )
+    return errors
+
+
+def _genome_result(genome: dict, draw_count: int, parents_unchanged: bool) -> dict:
+    return {
+        "species": genome["species"],
+        "genes": genome["genes"],
+        "hybridTarget": genome["hybridTarget"],
+        "phenotype": genome["phenotype"],
+        "drawCount": draw_count,
+        "parentsUnchanged": parents_unchanged,
+    }
+
+
+def _negative_probe(negative: dict, actual: dict, expected: dict,
+                    parents_before: dict, parents_after: dict,
+                    tolerance: float) -> dict:
+    probe_actual = copy.deepcopy(actual)
+    probe_expected = copy.deepcopy(expected)
+    probe_before = copy.deepcopy(parents_before)
+    probe_after = copy.deepcopy(parents_after)
+    category = negative.get("category")
+    applied = True
+
+    if category == "draw-count":
+        match = re.search(r"(\d+)$", str(negative.get("id", "")))
+        probe_actual["drawCount"] = int(match.group(1)) if match else 9
+    elif category == "changed-gene":
+        probe_actual["genes"]["size"] += 1e-6
+    elif category == "hybrid-target":
+        probe_actual["hybridTarget"] = "bear-glass"
+    elif category == "mutated-parent":
+        first_parent = next(iter(probe_after))
+        probe_after[first_parent]["genes"]["size"] += 0.01
+    elif category == "phenotype":
+        probe_actual["phenotype"] = "skinned"
+    else:
+        applied = False
+
+    errors = compare_genome_result(
+        probe_actual, probe_expected, tolerance,
+        parents_before=probe_before, parents_after=probe_after,
+    )
+    return {
+        "id": negative.get("id"),
+        "category": category,
+        "rejected": bool(applied and errors),
+        "errors": errors,
+    }
+
+
+def command_genome(fixture_dir: Path) -> int:
+    filename = "genome_inheritance.json"
+    path = fixture_dir / filename
+    if not path.is_file():
+        print(json.dumps({
+            "command": "genome", "fixture": filename, "ok": False,
+            "errors": [f"missing fixture file {path}"],
+        }, indent=2))
+        return 1
+    try:
+        manifest = load_manifest(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(json.dumps({
+            "command": "genome", "fixture": filename, "ok": False,
+            "errors": [f"cannot read {path}: {exc}"],
+        }, indent=2))
+        return 1
+
+    validation_errors = validate_manifest(manifest, filename)
+    hash_verified = manifest_hash(manifest) == manifest.get("manifestHash")
+    if validation_errors:
+        print(json.dumps({
+            "command": "genome", "fixture": filename,
+            "fixtureHashVerified": hash_verified,
+            "ok": False, "errors": validation_errors,
+        }, indent=2))
+        return 1
+
+    tolerance = manifest["policy"]["tolerance"]["value"]
+    parents: dict[str, dict] = {}
+    transcription = []
+    for key, record in manifest["parents"].items():
+        species_ids = list(record["species"])
+        if len(species_ids) != 1:
+            transcription.append({
+                "parent": key, "ok": False,
+                "errors": ["fixture parent must name exactly one species"],
+            })
+            continue
+        parent = genome_rules.default_genome(species_ids[0], record["genes"])
+        errors = _parent_transcription_errors(key, parent, record)
+        parents[key] = parent
+        transcription.append({"parent": key, "ok": not errors, "errors": errors})
+
+    cases = []
+    negative_seed = None
+    for case in manifest["cases"]:
+        case_result = {"id": case["id"]}
+        for mode, expected_key in (("fixed", "fixedExpected"), ("seeded", "seededExpected")):
+            if case["parentA"] not in parents or case["parentB"] not in parents:
+                case_result[mode] = {
+                    "ok": False, "errors": ["fixture parent genome unavailable"],
+                }
+                continue
+            before = copy.deepcopy(parents)
+            if mode == "fixed":
+                rng = genome_rules.ConstantRng(case["fixedRng"]["value"])
+            else:
+                rng = genome_rules.Lcg32(manifest["seededRng"]["seed"])
+            combined = genome_rules.combine_genomes(
+                parents[case["parentA"]], parents[case["parentB"]],
+                mutation=manifest["options"]["mutation"], rng=rng,
+            )
+            after = copy.deepcopy(parents)
+            result = _genome_result(combined, rng.draws, before == after)
+            errors = compare_genome_result(
+                result, case[expected_key], tolerance,
+                parents_before=before, parents_after=after,
+            )
+            if rng.draws != manifest["constants"]["drawCount"]:
+                errors.append(
+                    f"draw count {rng.draws} != {manifest['constants']['drawCount']}"
+                )
+            case_result[mode] = {
+                "ok": not errors,
+                "drawCount": rng.draws,
+                "errors": errors,
+            }
+            if case["id"] == "mixed-species" and mode == "seeded":
+                negative_seed = (result, case[expected_key], before, after)
+        cases.append(case_result)
+
+    negative_results = []
+    if negative_seed is not None:
+        result, expected, before, after = negative_seed
+        negative_results = [
+            _negative_probe(negative, result, expected, before, after, tolerance)
+            for negative in manifest["negatives"]
+        ]
+    negative_categories = {item["category"] for item in negative_results}
+    missing_categories = EXPECTED_GENOME_NEGATIVES - negative_categories
+
+    failures = sum(len(item["errors"]) for item in transcription)
+    for case_result in cases:
+        for mode in ("fixed", "seeded"):
+            failures += len(case_result.get(mode, {}).get("errors", []))
+    for item in negative_results:
+        if not item["rejected"]:
+            failures += 1
+    if negative_seed is None:
+        failures += 1
+    if missing_categories:
+        failures += len(missing_categories)
+
+    summary = {
+        "command": "genome",
+        "fixture": filename,
+        "fixtureHash": manifest.get("manifestHash"),
+        "fixtureHashVerified": hash_verified,
+        "transcription": transcription,
+        "cases": cases,
+        "negatives": negative_results,
+        "ok": failures == 0 and hash_verified,
+        "failureCount": failures,
+    }
+    print(json.dumps(summary, indent=2))
+    return 0 if summary["ok"] else 1
+
+
 def mutate_case(manifest: dict, filename: str) -> None:
     if filename == "genome_inheritance.json":
         manifest["cases"][0]["fixedExpected"]["drawCount"] = 9
@@ -559,9 +798,10 @@ def command_self_test(fixture_dir: Path) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Validate G1/M18b translation-pilot fixture manifests (stdlib only)."
+        description="Validate G1 fixtures and execute the G2 pure genome port (stdlib only)."
     )
-    parser.add_argument("command", nargs="?", default="validate", choices=["validate"])
+    parser.add_argument("command", nargs="?", default="validate",
+                        choices=["validate", "genome"])
     parser.add_argument("--self-test", action="store_true",
                         help="prove validation rejects in-memory mutations without writing fixtures")
     parser.add_argument("--fixture-dir", type=Path, default=FIXTURE_DIR,
@@ -569,6 +809,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.self_test:
         return command_self_test(args.fixture_dir)
+    if args.command == "genome":
+        return command_genome(args.fixture_dir)
     return command_validate(args.fixture_dir)
 
 
