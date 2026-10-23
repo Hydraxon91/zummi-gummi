@@ -383,7 +383,13 @@ entry phases (enter/visuals, configure, camera, UID reserve, portions, spawn,
 Glass, UI/shadow sync); the app keeps every concrete action and the save/switch
 policy. Parent full Node passed 571/571; the D5 map-switch probe repeated the
 D4 lifecycle, guarded reentry, stable UIDs and save/load round trip with 27/27
-and no page errors. M11's two-map/failure audit and save-overlap policy remain.
+and no page errors.
+
+**D6/M11c two-map/failure audit complete:** [the save/map overlap contract](save-overlap-contract.md)
+records the exact `field`/`studio` assumptions in `world.js`, `saveformat.js`,
+`actorsave.js` and app loops/UI, plus the current non-atomic switch/apply failure
+behavior. No third map, dynamic registry or rollback is implemented. M11's current
+two-map session contract is complete; a new map remains a separate decision.
 
 - Extract activate/leave sequencing with explicit save, input-release, actor,
   scene and clock collaborators. Preserve pause and asynchronous switch semantics.
@@ -394,6 +400,12 @@ and no page errors. M11's two-map/failure audit and save-overlap policy remain.
   only after its validation scope is approved; no playable map is implied.
 
 ### M12 — Save capture/apply coordination (L; M5, M10–M11)
+
+**D6/M12 policy decided: reject-and-preserve.** One session operation may be
+active at a time. Save, export, load, import, map switch and New Game are rejected
+before mutation while another is active; autosave skips; there is no queue,
+rollback or transaction. The gate and capture/apply extraction remain to be
+implemented in D7. See [the save/map overlap contract](save-overlap-contract.md).
 
 - Retain the P2 format/storage boundary. Extract capture/apply sequencing only
   after tracing load, autosave, switch and New Game overlap.

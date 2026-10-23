@@ -144,8 +144,13 @@ audit or M6/M11/M12 completion.
 
 ## 6. Limits and follow-ups
 
-- M11 still owns the two-map/save-validation and failure audit.
-- M12 still owns save capture/apply coordination and concurrent save/map policy.
+- The M11 two-map/save-validation and failure audit is recorded in
+  [the save/map overlap contract](save-overlap-contract.md). Current maps remain
+  exactly `field` and `studio`; a third/dynamic map requires an explicit future
+  validation/activation decision. Activation failure is caught but not rolled
+  back.
+- M12's approved policy is **reject-and-preserve** (single-flight gate, no queue,
+  no overlap mutation); implementation remains pending in the next slice.
 - U-003 (app-internal pool/spawn/removal and partial cleanup) and U-011 (real
   Glass late completion/effects teardown) remain open and were not changed by
   this slice.
