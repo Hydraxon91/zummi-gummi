@@ -1,6 +1,6 @@
 # Unresolved-items register
 
-Status: **living register, Batch I.** Scope: active game/modularity work and
+Status: **living register, Batch I (I3 audit completed 2026-10-23).** Scope: active game/modularity work and
 its host/CI verification. Historical authoring, asset and published-run notes
 remain in `ROADMAP.md`; Batch I3 audits and links them rather than rewriting
 historical records.
@@ -63,6 +63,34 @@ Status values: `open`, `needs-decision`, `blocked`, `resolved`, `superseded`,
 | U-016 | M21 cannon landing-refusal host proof | verification | open | M21 closure | `src/launcher.js` landing check; `src/cannonaim.js` `cannonShotPlacement` | E5 unit tests cover the landing-refusal branch, but the browser probe could not force a landing point inside a static Meadow collider with existing hooks (table-clamped shots) and Studio skips field colliders. Not a known defect. See [the toy boundary contract](toy-boundary-contract.md). | Add a collider-adjacent fixture or approved probe hook before claiming host proof; recording does not authorize a fix. |
 | U-017 | M14 pond-recovery and eye-continuity host proof | verification | open | M14 closure | `src/app.js` `rescuePondBear`, `writeEyeInstance`; F1 seeded probe | F1 proved pond entry and continuous deformed surfaces/eyes by inspection, but did not prove return-to-shore recovery within the 2.5 s probe window and did not numerically pin eye placement continuity. Lattice math is separately fixture- and random-checked. | Add a longer/targeted host probe before claiming those M14 gates; no production hook or fix is authorized by this record. |
 | U-018 | M16 visual pond/terrain host split | deferred | open | Environment ownership | `src/field.js` pond/water/terrain composition | F2 extracted only the pure pond query and water spots. The inventory records shared sand/grass materials, wind/sun uniforms, path mask, shoreline phases/wobble, reflector camera/target/cadence and pond nav/colliders that block a visual split. | Requires a separate approved design covering material/uniform/shoreline/collider/camera ownership; this record does not authorize extraction. |
+| U-019 | `fieldInfo()` throws when the active map has no `bounds` | defect | open | Debug API usability | `src/app.js` `fieldInfo()`; Studio/map without `bounds` | `fieldInfo()` dereferences `getActiveMap().bounds.shape` after checking only `field`; the ROADMAP Phase 3a audit records that calling it while Studio is active throws instead of returning a field-only/`null` result. Source-inspected at `4bf44d0`; no repair attempted. | Return a field-only result or `null` for maps without `bounds`, with a focused test; fix needs its own approval. |
+| U-020 | Family/lineage panel indexes only active-map actors | defect | open | Roster/lineage display | `src/app.js` lineage/relationship UI; `src/family.js`; `src/relationshipview.js` | The older family/lineage panel indexes only active-map actors, so a parent or sibling on the inactive map can disappear and change the computed generation; the relationship view does not have this gap. Recorded in `ROADMAP.md` at line 3426; not repaired by G/H. | Decide whether lineage/generation uses game-wide actor state and add host coverage for an inactive-map relative. |
+| U-021 | Duplicate-UID save recovery policy | decision | needs-decision | Save recovery | `src/saveformat.js` duplicate-actor rejection; existing user saves | Duplicate UIDs are rejected at load with no automatic renumbering. Any pre-existing duplicate save therefore needs a recovery policy; changing rejection/renumbering semantics is a user decision, not an audit fix. | Choose reject-only guidance, manual repair, or an approved migration before touching the loader. |
+| U-022 | Glass obstacle-interface grab coverage | verification | open | Glass interaction evidence | `src/glass.js` grab/obstacle path; Studio/browser harness | The A/B Glass grab work is implemented and the full lifecycle/Studio regression pass, but the ROADMAP record at line 1660 still marks obstacle-interface coverage as outstanding. G/H changed tests/docs only and do not prove that path. | Add a targeted obstacle-interface browser probe or explicit unsupported disposition. |
+
+### I3 active-entry reconciliation (2026-10-23)
+
+Reviewed U-001–U-018 against the `4bf44d0` tree and the G/H records. No
+disposition changes were made without new evidence.
+
+- U-001 and U-015 remain `resolved`; their named probes/contracts still own the
+  closure evidence and no later commit invalidated them.
+- U-002, U-013 and U-014 remain open flakes. G/H host runs and extension proofs do
+  not establish their causes, and no threshold/assertion was changed here.
+- U-003, U-005, U-009, U-010, U-011, U-016 and U-017 remain open verification or
+  unsupported items. H1/H2 inventory and fixture-level seam proofs do not supply
+  the missing browser/host evidence.
+- U-004, U-006, U-008 and U-012 remain open decisions (U-012 is a deferred
+  category item with a `needs-decision` status); no G/H evidence selects a
+  policy.
+- U-007 and U-018 remain deferred/open; U-018's ownership inventory is unchanged
+  and no extraction was performed.
+- U-016 (landing refusal) and U-017 (pond recovery/eye continuity) were not
+  resolved by G/H; those runs did not exercise the required browser paths, so
+  both stay open. U-018 likewise stays deferred/open.
+- No duplicate or conflicting alias was found among U-001–U-018. The C2 section
+  maps to three distinct conditions (U-004 pair lifetime, U-005 residual timers,
+  U-006 direct Glass removal), not three aliases for one defect.
 
 ### Batch E/F boundary reconciliation (2026-10-23)
 
@@ -76,13 +104,117 @@ split, deferred/open). Existing U-003, U-006, U-011 and deferred M7–M10 gaps a
 unchanged. No duplicate aliases were introduced and no entry is treated as fixed
 by this boundary. Batch G/H remain unstarted; no push was made.
 
-## Pending audit
+### G/H boundary note (2026-10-23)
 
-`ROADMAP.md` contains older Known follow-ups for authoring, assets, UI, published
-runs and retired routes. They are not silently closed by this register. Batch I3
-will audit each current-route entry, link or migrate it here, and mark historical
-or already-resolved items without rewriting the original record. Until that
-audit, `ROADMAP.md` remains authoritative for those entries.
+G1/M18b, G2/M18c, G3/M18d and H1/M22a, H2/M22b closed with independent parent
+review and atomic commits through `4bf44d0`. H2 added narrow tests only; it did
+not change runtime behavior. The final long parity/browser boundary is
+parent-run **after** this I3 audit. This note does not claim final counts or a
+review of this audit.
+
+## I3 backlog audit (2026-10-23)
+
+Every `**Known follow-ups` heading in `ROADMAP.md` at `4bf44d0` is listed once
+below. `ROADMAP.md` was not edited. Disposition convention:
+
+- **Existing ID** — the heading maps to a current register entry (linked, not
+  rewritten).
+- **Historical/out-of-scope** — authoring/assets/prototype/published-run record;
+  retained in `ROADMAP.md`, not part of the active game register.
+- **Already fixed/resolved** — the record itself says fixed/optimized, with no
+  active register condition left by that heading.
+- **Retained in ROADMAP (planned/deferred)** — active game work recorded as
+  deferred design or planned follow-up, which the register rules keep in the
+  roadmap rather than duplicating here. This is not a claim that the follow-up is
+  done.
+- **New ID** — a concrete active game/host defect, decision or verification gap
+  that was genuinely absent from the register.
+
+| ROADMAP line | Heading (abbreviated) | Route / classification | Disposition | Evidence / link |
+| --- | --- | --- | --- | --- |
+| 323 | Known follow-ups — unified pipeline (prototype, not accepted) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:323`; asset-pipeline prototype/diagnostic record. |
+| 504 | Known follow-ups — inherited trackpad degeneracy (needs decision) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:504`; authoring health gate/source geometry. |
+| 517 | Known follow-ups — UV guides and sticker processing (partly fixed) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:517`; authoring UV/sticker scripts. |
+| 531 | Known follow-ups — can capture snapshot collision (fixed; reusable helper tracked) | Historical authoring/assets | Already fixed/resolved | `ROADMAP.md:531`; tracked capture helper and its fixtures are recorded there; path is not duplicated here. |
+| 540 | Known follow-ups — authoring workflow and diagnostics (Phase 4 core repairs fixture-tested) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:540`; construction-gate/diagnostic fixtures. |
+| 629 | Known follow-ups — deformation evidence (deferred; code inspection only) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:629`; `check_evidence.py`/`asset_fingerprint.py` tooling. |
+| 643 | Known follow-ups — shape-preservation and UV diagnostics (deferred tooling) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:643`; UV/material preservation tooling. |
+| 655 | Known follow-ups — assisted beanbag underside UV (unresolved, not accepted delivery) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:655`; beanbag source/UV review. |
+| 667 | Known follow-ups — beanbag reference orientation (side mapping fixed; source unchanged) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:667`; beanbag reference overlay. |
+| 677 | Known follow-ups — beanbag sphere dent (blocked, not accepted) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:677`; beanbag deformation experiments. |
+| 698 | Known follow-ups — StableMaterials loader (needs diagnosis) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:698`; ComfyUI/StableMaterials server record. |
+| 704 | Known follow-ups — reusable ComfyUI runners (needs decision) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:704`; ComfyUI runner scripts. |
+| 711 | Known follow-ups — laptop stickers (accepted tooling test, limits) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:711`; laptop decal tooling/evidence. |
+| 723 | Known follow-ups — UV verification (fixed/untested) | Historical authoring/assets | Already fixed/resolved | `ROADMAP.md:723`; painting-guide export validation. |
+| 933 | Known follow-ups — UV guide delivery (fixed) | Historical authoring/assets | Already fixed/resolved | `ROADMAP.md:933`; corrected checkpoint-166 UV guides. |
+| 941 | Known follow-ups — semantic UV tooling (prototype/deferred) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:941`; atlas/UV semantic tooling. |
+| 1083 | Known follow-ups — texture inventory (deferred) | Historical authoring/assets | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:1083`; `texture_inventory.py` warnings. |
+| 1089 | Known follow-ups after the culling/LOD pass | Active game/performance | Retained in ROADMAP (planned/deferred) | `ROADMAP.md:1089`; `PERFORMANCE.md`; fixed LOD band and sector trade-offs, no defect selected. |
+| 1104 | Known follow-ups after 8b | Active game/commands | Retained in ROADMAP (planned/deferred) | `ROADMAP.md:1104`; queue/throw/resume behavior decisions. |
+| 1528 | Known follow-ups after 8c | Active game/possession | Retained in ROADMAP (planned/deferred) | `ROADMAP.md:1528`; possession/save/follow-camera backlog. |
+| 1660 | Known follow-ups from A/B | Active game/Glass | New U-022; other bullets already implemented | `ROADMAP.md:1660`; Glass grab checks passed, obstacle-interface coverage outstanding. |
+| 1880 | Known follow-ups — M4 species admission/restore mismatch (fixed) | Active game/actors | Already fixed/resolved | `ROADMAP.md:1880`; admission/restore rejection implemented and parent-verified. |
+| 1893 | Known follow-ups — B3 browser collision recurrence (unresolved) | Active game/flake | Existing U-002 | `ROADMAP.md:1893`; U-002 records the Studio separation recurrence. |
+| 1901 | Known follow-ups — C2 pond/social and direct Glass removal (needs decision) | Active game/interactions | Existing U-004, U-005, U-006 | `ROADMAP.md:1901`; `docs/interaction-ownership.md`; three distinct C2 conditions. |
+| 2008 | Known follow-ups — stargaze timer is decremented twice (deferred) | Active game/behavior timing | Existing U-012 | `ROADMAP.md:2008`; U-012 owns the timing/parity decision. |
+| 2016 | Known follow-ups — historical interruption flag must not gate new learning (fixed in batch 2) | Active game/learning | Already fixed/resolved | `ROADMAP.md:2016`; per-session token regression. |
+| 2022 | Known follow-ups — module setter accepts unknown IDs (fixed in B2) | Active game/modularity | Already fixed/resolved | `ROADMAP.md:2022`; B2 reject-unknown policy. |
+| 2029 | Known follow-ups — hosted Settings mobile boot timeout (fixed in harness) | Active host/CI | Already fixed/resolved | `ROADMAP.md:2029`; Settings viewport emulation on booted page. |
+| 2078 | Known follow-ups — opaque rendering pilot (local only, 2026-10-22) | Historical published-run/diagnostic | Historical/out-of-scope; retained in ROADMAP | `ROADMAP.md:2078`; local pilot samples, not visual acceptance. |
+| 2154 | Known follow-ups — opaque required-CI rollout (published 2026-10-22; first run failed, second passed) | Active host/CI | Existing U-014 for the pair failure; rollout itself published | `ROADMAP.md:2154`; U-014 owns the unresolved cuddle/pair fixture condition. |
+| 2220 | Known follow-ups — intermittent cuddle completion failure (unresolved; code not at fault and no repair selected) | Active game/flake | Existing U-014 | `ROADMAP.md:2220`; U-014 records trigger, diagnostics and disposition. |
+| 2243 | Known follow-ups — hosted boot stalls under software rendering (mitigated, mechanism unresolved) | Active host/CI flake | Existing U-013 | `ROADMAP.md:2243`; U-013 records the unresolved boot-stall mechanism. |
+| 2524 | Known follow-ups — browser test latency (2026-10-21, partial) | Active host/tooling | Existing U-013 for remaining stalls; latency work completed | `ROADMAP.md:2524`; harness timeouts/diagnostics improved, intermittent stalls unresolved. |
+| 2556 | Known follow-ups — parity test tiers (2026-10-21, fixed) | Active host/parity | Already fixed/resolved | `ROADMAP.md:2556`; fresh/development/long labels and scheduling. |
+| 2570 | Known follow-ups — parity runtime (2026-10-21, optimized) | Active host/parity | Already fixed/resolved | `ROADMAP.md:2570`; profiling/optimization record; no behavioral change. |
+| 2616 | Known follow-ups from this slice | Active game/assets | Already fixed/resolved for named items; later visual/risk note retained | `ROADMAP.md:2616`; shared asset lifetime, manifest validation, partial setup fixed. |
+| 2679 | Known follow-ups after the Phase 3a motion pass | Active game/behavior | New U-019 for the `fieldInfo()` throw; other behavior items retained in ROADMAP (planned/deferred) | `ROADMAP.md:2679`; `src/app.js` `fieldInfo()` dereferences missing Studio `bounds`; facing/timer items are deferred tuning. |
+| 2721 | Known follow-ups after Phase 3b | Active game/home/sleep | Retained in ROADMAP (planned/deferred) | `ROADMAP.md:2721`; sleeping-body and home-capacity design follow-ups. |
+| 2768 | Known follow-ups after Phase 4 | Active game/social/home | Retained in ROADMAP (planned/deferred) | `ROADMAP.md:2768`; interiors, roster bonds and stale bond-key cleanup. |
+| 2792 | Known follow-ups after Phase 5 | Active game/life/home | Retained in ROADMAP (planned/deferred) | `ROADMAP.md:2792`; capacity, nursery and life-timing decisions. |
+| 2819 | Known follow-ups after the effects pass | Active game/rendering | Retained in ROADMAP (planned/deferred) | `ROADMAP.md:2819`; god-ray reimplementation and foliage performance notes. |
+| 3426 | Known follow-ups from this audit | Active game/UI/save | New U-020 and U-021; guardian capacity fixed | `ROADMAP.md:3426`; inactive-map lineage panel defect and duplicate-UID recovery decision; guardian capacity already implemented. |
+
+### Alias and duplicate check
+
+- No ROADMAP heading duplicates an existing U-ID; the audit links rather than
+  copying or deleting history.
+- `ROADMAP.md:1901` maps to three separate conditions (U-004, U-005, U-006), not
+  aliases. `ROADMAP.md:2154` and `:2220` both point to U-014 because they describe
+  the same pair/cuddle fixture failure; `:2243` and `:2524` both point to U-013
+  because both retain the unresolved hosted-stall condition.
+- The two new defect IDs (U-019, U-020) and the decision ID (U-021), plus U-022,
+  were checked against U-001–U-018 and are not duplicates.
+
+### I3 counts
+
+- `**Known follow-ups` headings audited: **42** (verified unique by line).
+- Active register entries: **22** (U-001–U-022).
+- Existing IDs linked from ROADMAP headings: **7 distinct** (U-002, U-004,
+  U-005, U-006, U-012, U-013, U-014) across 7 headings.
+- Historical/out-of-scope headings: **15**.
+- Already fixed/resolved headings: **10**.
+- Active planned/deferred headings retained in ROADMAP without a register ID:
+  **7** (plus non-`fieldInfo` bullets in line 2679).
+- New IDs: **4** — U-019, U-020, U-021, U-022.
+- Dispositions total: 15 historical + 10 fixed + 7 existing-ID headings + 7
+  retained-planned + 3 new-ID headings (line 3426 carries two new IDs) = **42**.
+- Current unresolved statuses across U-001–U-022: **15 open**, **5
+  needs-decision**, **0 blocked**, **2 resolved**; by category: **2 defect**, **8
+  verification** (7 unresolved), **5 decision** (4 unresolved), **1 unsupported**,
+  **3 flake**, **3 deferred**. Open flakes: U-002, U-013, U-014. Open/deferred:
+  U-007, U-012, U-018.
+
+## Pending audit (superseded by I3)
+
+Superseded 2026-10-23 by the [I3 backlog audit](#i3-backlog-audit-2026-10-23)
+above. The historical paragraph is retained for context only:
+
+> `ROADMAP.md` contains older Known follow-ups for authoring, assets, UI, published
+> runs and retired routes. They are not silently closed by this register. Batch I3
+> will audit each current-route entry, link or migrate it here, and mark historical
+> or already-resolved items without rewriting the original record. Until that
+> audit, `ROADMAP.md` remains authoritative for those entries.
 
 ## Batch I operation
 
