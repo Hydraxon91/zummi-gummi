@@ -84,9 +84,19 @@ export function createBearAI({
           ai.moving = false;
           ai.hopState = null;
           shared.api.releaseFood(b);
+          // Pond entry is an interaction interruption: close the pair/task on
+          // both sides through the shared primitive instead of letting it
+          // resume and reward after exit. Grab entry already ran this cleanup
+          // (and set interrupted), so this branch is the once-per-entry guard.
+          if (b.inPond) shared.api.cancelPair(b);
         }
         shared.tick(b, dt, { ready: false });
         continue;
+      }
+      // A grounded actor may not complete a pair while its partner is frozen in
+      // the pond; cancel symmetrically before decisions and module ticks run.
+      if (grounded && ai.partner && ai.partner.inPond) {
+        shared.api.cancelPair(b);
       }
       if (!grounded && ai.interrupted) {
         shared.tick(b, dt, { ready: false });

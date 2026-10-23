@@ -378,84 +378,202 @@ test('fixed-RNG: detach one and both participants leaves no stale pair, visit, t
   assert.equal(source.claim, null);
 });
 
-test('fixed-RNG: pond entry does not cancel the pair; exit closes a targetless visit', () => {
-  const f = setup(RACES[0], { rng: () => .5 });
-  const adapter = createBearAI({
+function ground(actor) {
+  actor.contacts = 1;
+  actor.airborne = false;
+  actor.rMat = [0, 0, 0, 0, 1];
+}
+
+function makeAdapter(f) {
+  return createBearAI({
     field: f.world, getBears: () => f.roster, behavior: f.engine, rng: () => .5,
   });
-  assert.equal(f.engine.forceVisit(f.a, f.b).ok, true);
-  const source = f.world.food.allRipe()[0];
-  f.a.ai.source = source;
-  f.world.food.claim(source, f.a);
-  assert.equal(f.a.ai.visitHome, f.world.homes[0].name);
+}
+
+function countApiCancels(f) {
+  const counter = { calls: 0 };
+  const original = f.engine.api.cancelPair;
+  f.engine.api.cancelPair = (actor) => {
+    counter.calls++;
+    return original(actor);
+  };
+  return counter;
+}
+
+function assertPairClosed(item, label) {
+  assert.equal(item.ai.partner, null, `${label}: no stale partner`);
+  assert.equal(item.ai.state, 'wander', `${label}: state reset`);
+  assert.equal(item.ai.visitHome, null, `${label}: no stale visitHome`);
+  assert.equal(item.ai.visitRole, null, `${label}: no stale visitRole`);
+  assert.equal(item.ai.visitPhase, null, `${label}: no stale visitPhase`);
+  assert.equal(item.ai.visitArrived, false, `${label}: no stale arrival`);
+  assert.equal(item.ai.familyTask, null, `${label}: no stale task`);
+}
+
+test('fixed-RNG: pond entry cancels social and visit pairs without reward or repeated cleanup', () => {
+  for (const stage of ['social', 'visit']) {
+    const f = setup(RACES[0], { rng: () => .5 });
+    const adapter = makeAdapter(f);
+    const cancels = countApiCancels(f);
+    if (stage === 'social') assert.equal(f.engine.forceSocial(f.a, f.b).ok, true);
+    else assert.equal(f.engine.forceVisit(f.a, f.b).ok, true);
+
+    const source = f.world.food.allRipe()[0];
+    f.a.ai.source = source;
+    f.world.food.claim(source, f.a);
+    if (stage === 'visit') assert.equal(f.a.ai.visitHome, f.world.homes[0].name);
+
+    const beforeBond = bondOf(f.a, f.b);
+    const beforeCounts = historyCounts(f);
+
+    f.a.inPond = true;
+    adapter.update(DT);
+    assert.equal(cancels.calls, 1, `${stage}: pond entry cancels exactly once`);
+    assert.equal(f.a.ai.interrupted, true);
+    assertPairClosed(f.a, `${stage}/a`);
+    assertPairClosed(f.b, `${stage}/b`);
+    assert.equal(f.a.ai.source, null, `${stage}: pond entry releases the food source`);
+    assert.equal(source.claim, null);
+    assert.ok(Math.abs(bondOf(f.a, f.b) - beforeBond) < 1e-12,
+      `${stage}: cancellation grants no bond`);
+    assert.deepEqual(historyCounts(f), beforeCounts, `${stage}: cancellation writes no history`);
+
+    // Repeated pond ticks must not repeat the cancellation cleanup.
+    for (let index = 0; index < 5; index++) adapter.update(DT);
+    assert.equal(cancels.calls, 1, `${stage}: repeated pond ticks do not re-cancel`);
+    assertPairClosed(f.a, `${stage}/a repeated`);
+    assertPairClosed(f.b, `${stage}/b repeated`);
+    assert.deepEqual(historyCounts(f), beforeCounts, `${stage}: repeated ticks write no history`);
+
+    // Exit resumes normally but must not credit the cancelled pair.
+    const beforeExit = {
+      aSocial: f.a.social, bSocial: f.b.social,
+      aAffection: f.a.affection, bAffection: f.b.affection,
+      bond: bondOf(f.a, f.b),
+    };
+    const p = f.config.forActor(f.a);
+    const pB = f.config.forActor(f.b);
+    f.a.inPond = false;
+    ground(f.a);
+    adapter.update(DT);
+    assert.equal(f.a.ai.interrupted, false);
+    assert.ok(Math.abs(bondOf(f.a, f.b) - beforeExit.bond) < 1e-12,
+      `${stage}: pond exit grants no completion bond`);
+    assert.deepEqual(historyCounts(f), beforeCounts, `${stage}: pond exit writes no completion history`);
+    assert.equal((historyCounts(f).a.hosted || 0) + (historyCounts(f).a.visit || 0), 0);
+    assert.ok(Math.abs(f.a.social - Math.min(1, beforeExit.aSocial + p.needs.socialRate * DT)) < 1e-12,
+      `${stage}: pond exit grants no initiator relief`);
+    assert.ok(Math.abs(f.b.social - Math.min(1, beforeExit.bSocial + pB.needs.socialRate * DT)) < 1e-12,
+      `${stage}: pond exit grants no partner relief`);
+    assert.ok(Math.abs(f.a.affection - Math.min(1, beforeExit.aAffection + p.needs.affectionRate * DT)) < 1e-12);
+    assert.ok(Math.abs(f.b.affection - Math.min(1, beforeExit.bAffection + pB.needs.affectionRate * DT)) < 1e-12);
+  }
+});
+
+test('fixed-RNG: pond entry cancels an active mate pair without pregnancy, bond or history', () => {
+  const f = setup(RACES[0], { rng: () => .5 });
+  f.config.setModuleEnabled('mate', true);
+  const adapter = makeAdapter(f);
+  assert.equal(f.engine.forceMate(f.a, f.b).ok, true);
+  assert.equal(f.a.ai.state, 'mate');
+  assert.equal(f.b.ai.state, 'mate');
+  const beforeCounts = historyCounts(f);
 
   f.a.inPond = true;
   adapter.update(DT);
-  assert.equal(f.a.ai.interrupted, true);
-  assert.equal(f.a.ai.state, 'visit', 'pond entry does not cancel the visit');
-  assert.equal(f.a.ai.partner, f.b);
-  assert.equal(f.b.ai.partner, f.a);
-  assert.equal(f.a.ai.visitHome, f.world.homes[0].name, 'visit home survives');
-  assert.equal(f.b.ai.visitHome, f.world.homes[0].name);
-  assert.equal(f.a.ai.visitPhase, 'travel');
-  assert.equal(f.a.ai.source, null, 'pond entry releases the food source');
-  assert.equal(source.claim, null);
+  assertPairClosed(f.a, 'mate/a');
+  assertPairClosed(f.b, 'mate/b');
+  assert.ok(!f.a.pregnant && !f.b.pregnant, 'cancelled mate grants no pregnancy');
+  assert.equal(bondOf(f.a, f.b), 0, 'cancelled mate grants no bond');
+  assert.deepEqual(historyCounts(f), beforeCounts, 'cancelled mate writes no history');
 
-  // Exit: resumeTask clears the target; the next visit tick treats the now
-  // targetless travel as an interrupted visit and closes it through
-  // finishVisitPair(false). Interruption cleanup must not reward either actor.
-  const beforeExitBond = bondOf(f.a, f.b);
-  const beforeExit = {
-    aSocial: f.a.social, bSocial: f.b.social,
-    aAffection: f.a.affection, bAffection: f.b.affection,
-  };
-  const p = f.config.forActor(f.a);
-  const pB = f.config.forActor(f.b);
+  // Exit and further ticks cannot resurrect the cancelled courtship.
   f.a.inPond = false;
-  f.a.contacts = 1;
-  f.a.airborne = false;
-  f.a.rMat = [0, 0, 0, 0, 1];
-  adapter.update(DT);
-  assert.equal(f.a.ai.interrupted, false);
-  assert.equal(f.a.ai.state, 'wander', 'pond exit closes the targetless travel visit');
-  assert.equal(f.a.ai.partner, null);
-  assert.equal(f.b.ai.partner, null);
-  assert.equal(f.a.ai.target, null, 'resumeTask cleared the locomotion target');
-  assert.equal(f.a.ai.visitHome, null);
-  assert.equal(f.b.ai.visitHome, null);
-  assert.ok(Math.abs(bondOf(f.a, f.b) - beforeExitBond) < 1e-12,
-    'interrupted visit close grants no bond');
-  assert.equal(historyCounts(f).a.hosted || 0, 0, 'pond-exit visit close writes no completion history');
-  assert.equal(historyCounts(f).a.visit || 0, 0);
-  assert.equal(historyCounts(f).b.hosted || 0, 0);
-  assert.equal(historyCounts(f).b.visit || 0, 0);
-  assert.ok(Math.abs(f.a.social - Math.min(1, beforeExit.aSocial + p.needs.socialRate * DT)) < 1e-12,
-    'interrupted visit close grants no initiator relief');
-  assert.ok(Math.abs(f.b.social - Math.min(1, beforeExit.bSocial + pB.needs.socialRate * DT)) < 1e-12,
-    'interrupted visit close grants no partner relief');
-  assert.ok(Math.abs(f.a.affection - Math.min(1, beforeExit.aAffection + p.needs.affectionRate * DT)) < 1e-12);
-  assert.ok(Math.abs(f.b.affection - Math.min(1, beforeExit.bAffection + pB.needs.affectionRate * DT)) < 1e-12);
+  ground(f.a);
+  for (let index = 0; index < 5; index++) adapter.update(DT);
+  assert.ok(!f.a.pregnant && !f.b.pregnant, 'pond exit does not complete the cancelled mate');
+  assert.equal(bondOf(f.a, f.b), 0);
+  assert.deepEqual(historyCounts(f), beforeCounts);
+});
 
-  // Repeated ticks after the close must not repeat the cleanup or reward path.
-  adapter.update(DT);
-  assert.equal(f.a.ai.partner, null);
-  assert.equal(f.b.ai.partner, null);
-  assert.ok(Math.abs(bondOf(f.a, f.b) - beforeExitBond) < 1e-12,
-    'repeated pond ticks do not add interruption bond');
-  assert.equal(historyCounts(f).a.hosted || 0, 0);
-  assert.equal(historyCounts(f).a.visit || 0, 0);
+test('fixed-RNG: pond entry with a carried gift drops it and clears the offer without reward', () => {
+  const f = setup(RACES[0], { rng: () => .5 });
+  f.config.setFeature('gifting', true);
+  f.b.hunger = .5;
+  const adapter = makeAdapter(f);
+  const gift = f.engine.forceGift(f.a, f.b);
+  assert.equal(gift.ok, true, 'gift offer starts');
+  // Deterministic carry state: the offer's collect phase has already completed.
+  f.a.carriedFood = { id: 901, kind: 'berry', satiation: .2 };
+  f.a.ai.giftPhase = 'deliver';
+  f.a.ai.giftOrigin = null;
+  const beforeCounts = historyCounts(f);
 
-  // Social pairs show the same current pond behavior.
-  const s = setup(RACES[0], { rng: () => .5 });
-  const socialAdapter = createBearAI({
-    field: s.world, getBears: () => s.roster, behavior: s.engine, rng: () => .5,
-  });
-  assert.equal(s.engine.forceSocial(s.a, s.b).ok, true);
-  s.a.inPond = true;
-  socialAdapter.update(DT);
-  assert.equal(s.a.ai.state, 'social');
-  assert.equal(s.a.ai.partner, s.b);
-  assert.equal(s.b.ai.partner, s.a);
+  f.a.inPond = true;
+  adapter.update(DT);
+  assertPairClosed(f.a, 'gift/a');
+  assertPairClosed(f.b, 'gift/b');
+  assert.equal(f.a.carriedFood, null, 'pond entry drops the carried gift');
+  assert.equal(f.world.portions.all().length, 1, 'the carried gift is recoverable as a portion');
+  assert.equal(f.a.ai.giftRole, null);
+  assert.equal(f.a.ai.giftPhase, null);
+  assert.equal(f.a.ai.source, null, 'the gift origin claim is released');
+  assert.equal(bondOf(f.a, f.b), 0, 'interrupted gift grants no bond');
+  assert.deepEqual(historyCounts(f), beforeCounts, 'interrupted gift writes no history');
+  assert.ok(!f.b.history.some(event => event.kind === 'receivedGift'));
+});
+
+test('fixed-RNG: a group leader entering the pond dissolves the group instead of freezing it', () => {
+  const f = setup(RACES[0], { rng: () => .5, extraActors: 1 });
+  f.config.setFeature('groupActivities', true);
+  const adapter = makeAdapter(f);
+  const group = f.engine.forceGroup(f.a, [f.b, f.roster[2]]);
+  assert.equal(group.ok, true, 'group starts');
+  const members = [f.a, f.b, f.roster[2]];
+  for (const member of members) {
+    assert.equal(member.ai.state, 'group');
+    assert.ok(member.ai.group);
+  }
+  const beforeCounts = historyCounts(f);
+
+  f.a.inPond = true;
+  adapter.update(DT);
+  for (const member of members) {
+    assert.equal(member.ai.group, null, 'group dissolved for every member');
+    assert.equal(member.ai.state, 'wander');
+    assert.equal(member.ai.groupSlot, null);
+  }
+  assert.equal(f.a.ai.interrupted, true, 'leader stays frozen as an individual');
+  assert.equal(bondOf(f.a, f.b), 0, 'dissolved group grants no bond');
+  assert.deepEqual(historyCounts(f), beforeCounts, 'dissolved group writes no history');
+});
+
+test('fixed-RNG: a grounded actor cancels its pair when the partner is in the pond', () => {
+  for (const stage of ['social', 'mate']) {
+    const f = setup(RACES[0], { rng: () => .5 });
+    if (stage === 'mate') {
+      f.config.setModuleEnabled('mate', true);
+      assert.equal(f.engine.forceMate(f.a, f.b).ok, true);
+    } else {
+      assert.equal(f.engine.forceSocial(f.a, f.b).ok, true);
+    }
+    const adapter = makeAdapter(f);
+    const beforeCounts = historyCounts(f);
+    const beforeBond = bondOf(f.a, f.b);
+
+    ground(f.a);
+    f.b.inPond = true;
+    adapter.update(DT);
+    assertPairClosed(f.a, `${stage}: grounded actor`);
+    assertPairClosed(f.b, `${stage}: pond partner`);
+    assert.equal(f.a.ai.interrupted, false, `${stage}: grounded actor is not frozen`);
+    assert.equal(f.b.ai.interrupted, true, `${stage}: pond partner is frozen`);
+    assert.ok(Math.abs(bondOf(f.a, f.b) - beforeBond) < 1e-12,
+      `${stage}: partner-in-pond cancellation grants no bond`);
+    assert.deepEqual(historyCounts(f), beforeCounts,
+      `${stage}: partner-in-pond cancellation writes no history`);
+    assert.ok(!f.a.pregnant && !f.b.pregnant, `${stage}: no accidental completion`);
+  }
 });
 
 test('saved actor records omit live pair and visit state at every stage', () => {
