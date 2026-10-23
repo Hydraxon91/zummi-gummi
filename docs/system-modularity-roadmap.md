@@ -257,6 +257,15 @@ DOM/WebGL/physics boot; no production exports were added. M6 extraction remains.
 
 ### M7 — Spatial queries, layout and placement boundary (M; M0)
 
+**B4 boundary complete:** `fieldlayout.js` exposes the existing numeric layout
+validator without scene construction; the live field wrapper preserves authored
+pond geometry, query binding, messages and ordering. Parent full Node passed
+464/464 and browser layout/door/path checks passed. See
+[the spatial contract](spatial-layout-contract.md). Real split-grid fixtures prove
+`findPath` refuses disconnected routes, but `nav.validate`/layout validation is
+not a connectivity admission gate. Full edit-time disconnection rejection and
+coordinated rebuild remain unsupported, not delivered as an editor feature.
+
 - Retain numeric nav/avoidance/bounds modules. Separate authored obstacle/layout
   descriptions from debug/render objects where needed by a concrete consumer.
 - Define placement validation and edit-time nav rebuild ownership before Phase 9.
