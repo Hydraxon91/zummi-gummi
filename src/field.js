@@ -23,6 +23,7 @@ import { BUSH_SPECIES, ROCK_SPECIES, getTreeSpecies } from './floratypes.js';
 import { MAP_CONTENT } from './mapcontent.js';
 import { FIELD_BOUNDS, FIELD_RADIUS, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { validateFieldLayout } from './fieldlayout.js';
+import { buildWaterSpots, createPondQuery } from './wateraccess.js';
 
 export { FIELD_BOUNDS };
 export const POND = { x: -17, z: 2, rx: 6.6, rz: 4.3, waterY: 0.022 };
@@ -1155,23 +1156,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   group.userData.bushes = bushes.count;
 
   // ---------------------------------------------------------------- pond
-  const pond = {
-    ...POND,
-    hole: POND_HOLE,
-    contains(x, z) {
-      const dx = (x - POND.x) / POND.rx, dz = (z - POND.z) / POND.rz;
-      return dx * dx + dz * dz < 1;
-    },
-    nearestShore(x, z) {
-      const dx = x - POND.x, dz = z - POND.z;
-      const d = Math.hypot(dx, dz) || 1;
-      const a = Math.atan2(dz, dx);
-      return {
-        x: POND.x + Math.cos(a) * POND.rx * 1.12,
-        z: POND.z + Math.sin(a) * POND.rz * 1.12,
-      };
-    },
-  };
+  const pond = createPondQuery(POND, POND_HOLE);
 
   const pondGroup = new THREE.Group();
   pondGroup.name = 'meadowPond';
@@ -2311,26 +2296,11 @@ export function buildField({ scene, camera, renderer, sky }) {
 
   // Safe, walkable drinking approaches around the pond. The water itself is
   // infinite; these are shore positions, not consumable sources.
-  const waterSpots = [];
-  {
-    for (let i = 0; i < 16; i++) {
-      const a = i / 16 * Math.PI * 2;
-      const rawX = POND.x + Math.cos(a) * POND.rx * 1.22;
-      const rawZ = POND.z + Math.sin(a) * POND.rz * 1.22;
-      if (!fieldInside(rawX, rawZ, .8)) continue;
-      const p = nav.nearestWalkable(rawX, rawZ);
-      if (!p) continue;
-      if (Math.hypot(p.x - rawX, p.z - rawZ) > 2.2) continue;
-      if (pond.contains(p.x, p.z)) continue;
-      if (waterSpots.some(w => Math.hypot(w.x - p.x, w.z - p.z) < 1.4)) continue;
-      waterSpots.push({
-        x: p.x, z: p.z,
-        waterX: POND.x + Math.cos(a) * POND.rx * .94,
-        waterZ: POND.z + Math.sin(a) * POND.rz * .94,
-        y: POND.waterY,
-      });
-    }
-  }
+  const waterSpots = buildWaterSpots({
+    pond,
+    fieldInside,
+    nearestWalkable: (x, z) => nav.nearestWalkable(x, z),
+  });
 
   function validateLayout() {
     // Resolve the current live inputs on every call; the pure checker keeps no

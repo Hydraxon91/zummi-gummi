@@ -493,6 +493,18 @@ proof or recreation mechanism was added.
 
 ### M16 — Field/environment composition by responsibility (L; M1, M7–M9)
 
+**F2/M16 water-access boundary complete:** `src/wateraccess.js` owns the pure
+pond query (`contains`/`nearestShore`) and the walkable water-spot derivation;
+`field.js` keeps authored constants, nav/collider wiring, pond visuals, the water
+shader/reflector, terrain, grass/scenery and composition order. The
+[field/environment inventory](field-environment-inventory.md) records the
+composition order, shared materials/uniforms/shoreline/camera dependencies and
+why a visual pond/terrain split is deferred (U-018). Parent full Node passed
+677/677, contracts covered 17 modules, fresh development parity passed 9/9,
+smoke passed 68/68, and the browser probe kept 16 water spots, valid layout,
+hives/wind/grass, visible reflected water and a reached `drink` state with zero
+page errors; pond captures were inspected. No performance claim is made.
+
 - Separate simulation resource/query access from scene composition, preserving
   existing tree/bush/home/wind modules. Start with one consumer boundary.
 - Consider pond/water/reflection or terrain as cohesive modules only after their
