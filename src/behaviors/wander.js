@@ -11,16 +11,17 @@ import { defineBehaviorModule } from './module.js';
 
 function wanderCandidate(ctx, minR, maxR, maxShift, requireDistance) {
   const { actor, p, api, field, rng } = ctx;
-  if (!field || !field.nav) return null;
+  const nav = api.navigation();
+  if (!nav) return null;
   for (let i = 0; i < 12; i++) {
     const angle = rng() * Math.PI * 2;
     const r = minR + rng() * (maxR - minR);
     const x = actor.cx + Math.cos(angle) * r;
     const z = actor.cz + Math.sin(angle) * r;
-    const near = field.nav.nearestWalkable(x, z);
+    const near = nav.nearestWalkable(x, z);
     if (!near) continue;
     if (Math.hypot(near.x - x, near.z - z) > maxShift) continue;
-    if (field.pond && field.pond.contains && field.pond.contains(near.x, near.z)) continue;
+    if (field && field.pond && field.pond.contains && field.pond.contains(near.x, near.z)) continue;
     if (Math.hypot(near.x - actor.cx, near.z - actor.cz) < requireDistance) continue;
     const path = api.pathTo(actor, near.x, near.z);
     if (!path) continue;
@@ -31,7 +32,7 @@ function wanderCandidate(ctx, minR, maxR, maxShift, requireDistance) {
 
 function pickWanderTarget(ctx) {
   const { actor, ai, p, api, field, rng } = ctx;
-  if (!field || !field.nav) return null;
+  if (!api.navigation()) return null;
   const w = p.wander;
   let target = null;
   if (w.longChance > 0 && rng() < w.longChance) {

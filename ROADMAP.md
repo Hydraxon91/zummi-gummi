@@ -1848,6 +1848,11 @@ translation fixtures and a separately approved target-engine pilot. None of thes
 chunks is implemented or approved by this listing. Recommended first step: M0
 ownership/extension contracts, then one M1 behavior-world capability pilot.
 
+M0 documentation is complete: [system ownership contracts](docs/system-ownership-contracts.md).
+M1 path, navigation, homes, food and water query providers are complete and
+reviewed; portions/gifting carried state and broader M1–M23 work remain separately
+gated. These statuses do not authorize engine migration.
+
 ## Personality and modular-AI extension track
 
 This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved and

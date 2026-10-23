@@ -29,21 +29,22 @@ function canRaid(ctx) {
 }
 
 function acquire(ctx) {
-  const { actor, ai, api, field } = ctx;
+  const { actor, ai, api } = ctx;
   const hive = ctx.p.hive;
-  if (!hive || !field || !field.food || !ai || !canRaid(ctx)) return null;
+  const food = api.food();
+  if (!hive || !food || !ai || !canRaid(ctx)) return null;
   const exclude = new Set();
   for (let tries = 0; tries < 3; tries++) {
-    const source = field.food.nearestRipe(actor.cx, actor.cz, {
+    const source = food.nearestRipe(actor.cx, actor.cz, {
       maxDistance: 52, bear: actor, exclude, kinds: ['hive'],
     });
     if (!source) break;
     exclude.add(source.id);
     if (source.id === ai.avoidSourceId && ai.avoidSourceT > 0) continue;
-    if (!field.food.claim(source, actor)) continue;
+    if (!food.claim(source, actor)) continue;
     const path = api.pathTo(actor, source.approachX, source.approachZ);
     if (!path && Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz) > 1.25) {
-      field.food.release(source, actor);
+      food.release(source, actor);
       continue;
     }
     ai.source = source;
@@ -71,6 +72,7 @@ function finish(ctx) {
   const { actor, ai, api, field, rng } = ctx;
   const hive = ctx.p.hive;
   if (!hive || !ai) return;
+  const food = api.food();
   const source = ai.source;
   if (!source) {
     ai.state = 'wander';
@@ -89,7 +91,7 @@ function finish(ctx) {
     api.startFlee(actor, source);
     return;
   }
-  if (field.food.consume(source, actor)) {
+  if (food && food.consume(source, actor)) {
     actor.hunger = Math.max(0, actor.hunger - source.satiation);
     api.starsRescue?.(actor, 'food');
   }

@@ -27,6 +27,7 @@ function actors() {
 }
 
 function context(a, b, rng, outcomes, apiExtra = {}) {
+  const food = { sources: [], release: () => {}, claim: () => true };
   return {
     actor: a, ai: a.ai, p,
     rng,
@@ -38,10 +39,11 @@ function context(a, b, rng, outcomes, apiExtra = {}) {
       stop: () => {},
       emit: () => {},
       releaseFood: () => {},
-      field: { food: { release: () => {}, claim: () => true } },
+      food: () => food,
+      field: { food },
       ...apiExtra,
     },
-    field: { food: { release: () => {}, claim: () => true } },
+    field: { food },
   };
 }
 
@@ -75,10 +77,12 @@ test('health-floor targets findContest claimant check, not reserved conflict.hea
     x: 1, z: 0, approachX: 1, approachZ: 0,
   };
   b.health = 10; // below profile(other).thresholds.healthWoozy
+  const fair = { sources: [source], release: () => {}, claim: () => true };
   const ctx = context(a, b, () => .5, outcomes, {
-    field: { food: { sources: [source], release: () => {}, claim: () => true } },
+    food: () => fair,
+    field: { food: fair },
   });
-  ctx.field = { food: { sources: [source], release: () => {}, claim: () => true } };
+  ctx.field = { food: fair };
   assert.equal(conflictModule.findContest(ctx), null);
   assert.equal(outcomes.healthFloor, 1);
 });

@@ -7,20 +7,21 @@ import { forageEatScale } from '../family.js';
 import { defineBehaviorModule } from './module.js';
 
 function acquire(ctx) {
-  const { actor, ai, p, api, field } = ctx;
-  if (!field || !field.food || !actor || !ai) return null;
+  const { actor, ai, p, api } = ctx;
+  const food = api.food();
+  if (!food || !actor || !ai) return null;
   const exclude = new Set();
   for (let tries = 0; tries < 5; tries++) {
-    const source = field.food.nearestRipe(actor.cx, actor.cz, {
+    const source = food.nearestRipe(actor.cx, actor.cz, {
       maxDistance: p.food.searchRadius, bear: actor, exclude, safe: true,
     });
     if (!source) break;
     exclude.add(source.id);
     if (source.id === ai.avoidSourceId && ai.avoidSourceT > 0) continue;
-    if (!field.food.claim(source, actor)) continue;
+    if (!food.claim(source, actor)) continue;
     const path = api.pathTo(actor, source.approachX, source.approachZ);
     if (!path && Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz) > 1.25) {
-      field.food.release(source, actor);
+      food.release(source, actor);
       continue;
     }
     ai.source = source;
@@ -45,7 +46,7 @@ function startEat(ctx) {
 }
 
 function finish(ctx) {
-  const { actor, ai, p, api, field } = ctx;
+  const { actor, ai, p, api } = ctx;
   if (!actor || !ai) return;
   if (!ai.source) {
     ai.state = 'wander';
@@ -54,7 +55,8 @@ function finish(ctx) {
     return;
   }
   const source = ai.source;
-  if (field.food.consume(source, actor)) {
+  const food = api.food();
+  if (food && food.consume(source, actor)) {
     actor.hunger = Math.max(0, actor.hunger - source.satiation * forageEatScale(actor));
     api.starsRescue?.(actor, 'food');
   }
@@ -68,7 +70,7 @@ function finish(ctx) {
 }
 
 function think(ctx) {
-  const { actor, ai, p, api, field } = ctx;
+  const { actor, ai, p, api } = ctx;
   if (!actor || !ai) return;
   if (actor.hunger <= p.thresholds.stopHunger) {
     api.releaseFood(actor);
@@ -93,7 +95,8 @@ function think(ctx) {
   if (d <= p.food.eatDist) { startEat(ctx); return; }
   if (api.needsReplan(ai)) {
     if (!api.setDestination(actor, source.approachX, source.approachZ)) {
-      field.food.release(source, actor);
+      const food = api.food();
+      if (food) food.release(source, actor);
       ai.source = null;
       ai.state = 'wander';
       ai.idleT = .7;
@@ -102,11 +105,12 @@ function think(ctx) {
 }
 
 function resume(ctx) {
-  const { actor, ai, p, api, field } = ctx;
+  const { actor, ai, p, api } = ctx;
   if (!actor || !ai) return false;
   if (ai.state === 'eat') {
     const source = ai.source;
-    if (source && source.ripe && field.food.claim(source, actor)) {
+    const food = source && source.ripe ? api.food() : null;
+    if (food && food.claim(source, actor)) {
       ai.target = { x: source.approachX, z: source.approachZ };
       const d = Math.hypot(source.approachX - actor.cx, source.approachZ - actor.cz);
       if (d <= p.food.eatDist) {
@@ -127,7 +131,8 @@ function resume(ctx) {
   }
   if (ai.state === 'seekFood') {
     const source = ai.source;
-    if (source && source.ripe && field.food.claim(source, actor)) {
+    const food = source && source.ripe ? api.food() : null;
+    if (food && food.claim(source, actor)) {
       ai.target = { x: source.approachX, z: source.approachZ };
       api.setDestination(actor, source.approachX, source.approachZ);
     } else {

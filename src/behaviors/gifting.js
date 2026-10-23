@@ -73,11 +73,12 @@ function dropCarried(actor, field, ctx) {
   return dropped || null;
 }
 
-function releaseOrigin(actor, field) {
+function releaseOrigin(actor, field, api) {
   if (!actor || !actor.ai) return;
   const ai = actor.ai;
   if (ai.source) {
-    if (field && field.food) field.food.release(ai.source, actor);
+    const food = api.food();
+    if (food) food.release(ai.source, actor);
     ai.source = null;
   }
   if (ai.giftOrigin?.portion) {
@@ -104,7 +105,7 @@ function cancelGift(ctx) {
   const partner = ai.partner;
   const giver = ai.giftRole === 'giver' ? actor : partner;
   if (giver && giver.ai) {
-    releaseOrigin(giver, field);
+    releaseOrigin(giver, field, api);
     dropCarried(giver, field, ctx);
     giver.ai.giftRetryT = p.retryT;
   }
@@ -119,7 +120,7 @@ function cancelGift(ctx) {
 }
 
 function originFor(ctx) {
-  const { actor, field } = ctx;
+  const { actor, api, field } = ctx;
   const p = params(ctx);
   if (!field) return null;
   // Recover a dropped portion before looking for a fresh source.
@@ -131,10 +132,11 @@ function originFor(ctx) {
       return { type: 'portion', portion, x: portion.x, z: portion.z };
     }
   }
-  const source = field.food ? field.food.nearestRipe(actor.cx, actor.cz, {
+  const food = api.food();
+  const source = food ? food.nearestRipe(actor.cx, actor.cz, {
     maxDistance: p.searchRadius, bear: actor, safe: true,
   }) : null;
-  if (!source || !field.food.claim(source, actor)) return null;
+  if (!source || !food.claim(source, actor)) return null;
   return { type: 'source', source, x: source.approachX, z: source.approachZ };
 }
 
@@ -165,8 +167,10 @@ function beginGift(ctx, forced = null) {
 
   if (!beginPair(actor, recipient, 'seekGift', { stop: api.stop, face: api.face })) {
     if (origin) {
-      if (origin.type === 'source') field.food.release(origin.source, actor);
-      else if (origin.type === 'portion') field.portions.release(origin.portion, actor);
+      if (origin.type === 'source') {
+        const food = api.food();
+        if (food) food.release(origin.source, actor);
+      } else if (origin.type === 'portion') field.portions.release(origin.portion, actor);
     }
     return miss(actor, p);
   }
@@ -192,12 +196,13 @@ function beginGift(ctx, forced = null) {
 }
 
 function collect(ctx) {
-  const { actor, ai, field } = ctx;
+  const { actor, ai, api, field } = ctx;
   const origin = ai.giftOrigin;
   if (!origin || !field) return false;
   if (origin.type === 'source') {
     if (!origin.source || !origin.source.ripe || origin.source.claim !== actor) return false;
-    if (!field.food.consume(origin.source, actor)) return false;
+    const food = api.food();
+    if (!food || !food.consume(origin.source, actor)) return false;
     actor.carriedFood = {
       id: field.portions ? field.portions.nextId() : `gift-${actor.uid}-${Math.floor(actor.ai.clock || 0)}`,
       kind: origin.source.kind,

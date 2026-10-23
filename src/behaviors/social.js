@@ -321,14 +321,16 @@ function startVisit(ctx, partner) {
   if (!actor || !partner || !ai || !partner.ai || actor === partner) return false;
   if (!api.isDayFor(actor)) return false;
   const home = api.homeFor(actor);
-  if (!home || !field || !field.nav) return false;
+  if (!home) return false;
+  const nav = api.navigation();
+  if (!nav) return false;
   const dx = home.door.x - home.x;
   const dz = home.door.z - home.z;
   const len = Math.hypot(dx, dz) || 1;
   let gx = home.door.x - dz / len * .72;
   let gz = home.door.z + dx / len * .72;
-  const near = field.nav.nearestWalkable(gx, gz);
-  if (near && !(field.pond && field.pond.contains(near.x, near.z))) {
+  const near = nav.nearestWalkable(gx, gz);
+  if (near && !(field && field.pond && field.pond.contains(near.x, near.z))) {
     gx = near.x; gz = near.z;
   } else {
     gx = home.door.x; gz = home.door.z;
@@ -414,7 +416,7 @@ function finishVisitPair(ctx, completed = false) {
 }
 
 function tickVisit(ctx, dt) {
-  const { actor, ai, api, field } = ctx;
+  const { actor, ai, api } = ctx;
   if (!actor || !ai || ai.state !== 'visit') return;
   const partner = ai.partner;
   if (!partner || !partner.ai || partner.ai.partner !== actor || partner.ai.state !== 'visit' || !api.isDayFor(actor)) {
@@ -424,7 +426,8 @@ function tickVisit(ctx, dt) {
   if (ai.visitPhase === 'hangout') return;
   ai.visitT = (ai.visitT || 0) + dt;
   if (ai.visitT > 12) { finishVisitPair(ctx); return; }
-  const home = field.homes.find(h => h.name === ai.visitHome);
+  const homes = api.homes();
+  const home = homes ? homes.find(h => h.name === ai.visitHome) : null;
   if (!home || !ai.target) { finishVisitPair(ctx); return; }
   const target = ai.target;
   const d = Math.hypot(target.x - actor.cx, target.z - actor.cz);

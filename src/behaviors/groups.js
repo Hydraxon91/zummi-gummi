@@ -95,7 +95,9 @@ function slotsFor(ctx, members) {
     }
     const x = center.x + Math.cos(angle) * p.spacing;
     const z = center.z + Math.sin(angle) * p.spacing;
-    const near = ctx.field?.nav?.nearestWalkable ? ctx.field.nav.nearestWalkable(x, z) : { x, z };
+    const nav = ctx.api.navigation();
+    const near = nav && typeof nav.nearestWalkable === 'function'
+      ? nav.nearestWalkable(x, z) : { x, z };
     return { x: near ? near.x : x, z: near ? near.z : z };
   });
 }

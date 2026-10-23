@@ -6946,6 +6946,10 @@ async function bootGame(){
       if (field && typeof field.emote === 'function') return field.emote(x, y, z, kind);
       return false;
     },
+    getNavigation: () => (field && field.nav ? field.nav : null),
+    getHomes: () => (field && field.homes ? field.homes : null),
+    getFood: () => (field && field.food ? field.food : null),
+    getWaterSpots: () => (field && field.waterSpots ? field.waterSpots : null),
     daySeconds: DAY_SECONDS,
     onFarewell: (actor, info) => startFarewell(actor, info),
     // Read Math.random at call time so __gummy.seed() also drives the engine.

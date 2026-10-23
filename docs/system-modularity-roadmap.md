@@ -118,6 +118,12 @@ a gameplay addition is separately approved.
 
 ### M0 — Publish ownership and extension contracts (S; first)
 
+**Complete — documentation only.** [Current ownership and extension contracts](system-ownership-contracts.md)
+cover the 24 inventory families, current operations/callers, state/lifecycle
+ownership, extension touch points and evidence gaps. Parent source review closed
+the surface-budget, fallback-warning ownership and internal/public API findings.
+Documentation checks passed; no runtime tests were rerun for M0.
+
 - Create a compact maintained table of state/resource owners, public operations,
   lifecycle guarantees, supported extension types and forbidden dependencies.
 - Cover live actor identity versus saved UIDs; distinguish app-lifetime objects
@@ -126,6 +132,29 @@ a gameplay addition is separately approved.
   subsequent chunk maps requirements to checks. No generic plugin framework.
 
 ### M1 — Narrow behavior world/presentation inputs (M; M0)
+
+**M1a–M1d complete and reviewed:** the modules engine accepts optional
+`findPath`, `getNavigation`, `getHomes`, `getFood` and `getWaterSpots` host
+callbacks. The corresponding `api.*` queries resolve providers on every call,
+preserve backing identities and treat provider `null`/`undefined`/empty as
+authoritative. Omitted providers retain the existing `field` fallback. Wander,
+flee, social visit, group slots and destination routing use navigation; home
+assignment/follow/visit/playdate/meal paths use homes; forage, hive, conflict,
+gifting food handling, family meal search and engine food helpers use food; water
+uses water spots. Existing guards, claim/release/consume identity, order, RNG and
+exceptions are preserved, including null-provider cleanup.
+
+Evidence: the parent independently reran focused navigation/path/emote/social
+tests and resource tests (28/28), the full Node suite (405/405), HTTP smoke 68/68,
+real-host legacy/modules browser trace parity (202/202 transitions), and the
+groups scenario 2/2 after the final null-provider corrections. The coder reported
+short parity 9/9 and fresh long parity 15/15 on the main implementation before
+the null-only guards; those retained artifacts are under `.dev-shots/m1cd/`.
+Scratch evidence is not committed.
+
+**Still open:** portions/gifting carried state and other broad field dependencies
+(pond, splash, emote, UI, app orchestration). This is not a complete
+field-independent behavior host or an engine-neutral architecture claim.
 
 - Continue the P3 callback pilot by exposing only the actual homes/navigation/
   resource references used by behavior, preserving backing object identity.

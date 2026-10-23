@@ -6,11 +6,12 @@
 import { defineBehaviorModule } from './module.js';
 
 function acquire(ctx) {
-  const { actor, ai, api, field } = ctx;
-  if (!field || !Array.isArray(field.waterSpots) || !field.waterSpots.length || !ai) return null;
+  const { actor, ai, api } = ctx;
+  const spots = api.waterSpots();
+  if (!Array.isArray(spots) || !spots.length || !ai) return null;
   let best = null;
   let bestD = Infinity;
-  for (const spot of field.waterSpots) {
+  for (const spot of spots) {
     const d = Math.hypot(spot.x - actor.cx, spot.z - actor.cz);
     if (d < bestD) { bestD = d; best = spot; }
   }

@@ -20,15 +20,16 @@ function unit(value) {
 }
 
 function findContest(ctx) {
-  const { actor, ai, p, api, field } = ctx;
+  const { actor, ai, p, api } = ctx;
   const conflict = p.conflict;
-  if (!conflict || !actor || !ai || !field || !field.food || !field.food.sources) return null;
+  const food = api.food();
+  if (!conflict || !actor || !ai || !food || !food.sources) return null;
   if (actor.hunger < p.thresholds.seekHunger ||
       actor.health < p.thresholds.healthWoozy ||
       ai.conflictCooldown > 0) return null;
   let best = null;
   let bestScore = -Infinity;
-  for (const source of field.food.sources) {
+  for (const source of food.sources) {
     if (!source.ripe || !source.claim || source.claim === actor) continue;
     if (!isSafeFood(source)) continue;
     const other = source.claim;
@@ -155,12 +156,18 @@ function finishConflict(ctx) {
   other.ai.conflictT = 0;
 
   if (claimOk && winner !== claimant) {
-    api.field.food.release(source, claimant);
-    api.field.food.claim(source, winner);
+    const food = api.food();
+    if (food) {
+      food.release(source, claimant);
+      food.claim(source, winner);
+    }
   }
 
   const loserWasClaimant = loser === claimant;
-  if (loserWasClaimant && source) api.field.food.release(source, loser);
+  if (loserWasClaimant && source) {
+    const food = api.food();
+    if (food) food.release(source, loser);
+  }
   api.releaseFood(loser);
   loser.ai.source = null;
   loser.ai.state = 'wander';

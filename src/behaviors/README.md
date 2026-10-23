@@ -36,6 +36,47 @@ in parity by the harness.
 `modules.<id>.{ enabled, params }`; a derived flat view keeps the legacy engine
 working. Other balance blocks (`wander`, `needs`, `social`, …) stay flat.
 
+## Host path and navigation queries
+
+`createBehaviorModules` accepts an optional
+`getNavigation()` callback. `api.navigation()` calls it on every query and
+returns the underlying navigator by identity; `null` means unavailable and is
+authoritative, so it never falls back to `field.nav`. Omitting the callback or
+passing `null` keeps the existing current `field.nav` fallback. A non-function,
+non-null provider is rejected at construction, and provider exceptions propagate.
+The app supplies `() => (field && field.nav ? field.nav : null)`.
+
+`setDestination`, wander, flee, social visit and group slots resolve navigation
+through `api.navigation()`. They preserve their prior guards: groups fall back to
+the requested coordinates when `nearestWalkable` is absent, while other consumers
+invoke the navigator method and let a missing method fail.
+
+`createBehaviorModules` also accepts the optional
+`findPath(fromX, fromZ, toX, toZ)` callback. When supplied it keeps precedence in
+`api.pathTo(actor, x, z)` and returns its result unchanged, including `null`, an
+empty path or the same array instance. Otherwise `api.pathTo` uses the resolved
+navigation and calls `findPath` with the navigator as receiver. A non-function,
+non-null callback is rejected at construction, and callback exceptions propagate.
+
+## World resource queries
+
+`createBehaviorModules` accepts optional `getHomes()`, `getFood()` and
+`getWaterSpots()` callbacks. `api.homes()`, `api.food()` and `api.waterSpots()`
+call them on every query and return the backing array or registry by identity.
+A provider result is authoritative: `null`, `undefined` and an empty array are
+returned unchanged and never fall back to the field. Omitting a callback or
+passing `null` keeps the current `field.homes`, `field.food` or
+`field.waterSpots` fallback. Non-function, non-null providers are rejected at
+construction, and provider exceptions propagate.
+
+The app supplies the live field references. Home consumers (`homeFor`,
+`assignHome`, follow, family playdate anchor and social visit hangout), food
+consumers (engine release/safe-food/force helpers, forage, hive, conflict,
+gifting and family meals) and water consumers (engine force helper and water)
+resolve through these APIs. A `null` provider blocks the associated behavior
+even when the field still holds the resource; a missing provider preserves the
+previous field-backed behavior and its existing absence/method guards.
+
 ## Add a behavior
 
 1. Define a module with `defineBehaviorModule`:

@@ -46,6 +46,7 @@ function context(race, actorValue, partner, p, apiExtra = {}) {
       profile: (who) => (who === partner ? p : p),
       homeFor: () => field().homes[0],
       isDayFor: () => true,
+      navigation: () => field().nav,
       pathTo: () => [{ x: 9.2, z: 7.4 }],
       setPath: () => true,
       setDestination: () => true,

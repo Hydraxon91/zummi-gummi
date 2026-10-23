@@ -16,12 +16,13 @@ import {
 import { defineBehaviorModule } from './module.js';
 
 function playdateAnchor(ctx, partner) {
-  const { actor, field } = ctx;
-  if (!field || !Array.isArray(field.homes)) {
+  const { actor, api } = ctx;
+  const homes = api.homes();
+  if (!Array.isArray(homes)) {
     return { x: (actor.cx + partner.cx) * .5, z: (actor.cz + partner.cz) * .5 };
   }
   const names = [actor.home, partner.home].filter(Boolean);
-  const home = field.homes.find(candidate => names.includes(candidate.name));
+  const home = homes.find(candidate => names.includes(candidate.name));
   if (home) return { x: home.door.x, z: home.door.z, home: home.name };
   return { x: (actor.cx + partner.cx) * .5, z: (actor.cz + partner.cz) * .5 };
 }
@@ -88,13 +89,14 @@ function findDuePlaydate(ctx) {
 }
 
 function mealAnchor(ctx) {
-  const { actor, api, field } = ctx;
+  const { actor, api } = ctx;
   const home = api.homeFor(actor);
   if (!home) return null;
   let best = null;
   let bestD = 9;
-  if (field && field.food && typeof field.food.allRipe === 'function') {
-    for (const source of field.food.allRipe({ safe: true })) {
+  const food = api.food();
+  if (food && typeof food.allRipe === 'function') {
+    for (const source of food.allRipe({ safe: true })) {
       const d = Math.hypot(source.x - home.door.x, source.z - home.door.z);
       if (d < bestD) { bestD = d; best = source; }
     }

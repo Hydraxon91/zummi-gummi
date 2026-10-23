@@ -7,11 +7,12 @@
 import { defineBehaviorModule } from './module.js';
 
 function parentTarget(ctx, parent) {
-  const { api, field } = ctx;
+  const { api } = ctx;
   if (!parent) return null;
   if (parent.inside || parent.sleeping) {
-    const home = field && Array.isArray(field.homes)
-      ? field.homes.find(h => h.name === parent.home) : null;
+    const homes = api.homes();
+    const home = Array.isArray(homes)
+      ? homes.find(h => h.name === parent.home) : null;
     if (home) return { x: home.door.x, z: home.door.z };
   }
   return { x: parent.cx, z: parent.cz };

@@ -6,7 +6,7 @@
 import { defineBehaviorModule } from './module.js';
 
 function startFlee(ctx, source) {
-  const { actor, ai, p, api, field } = ctx;
+  const { actor, ai, p, api } = ctx;
   if (!actor || !ai) return;
   const hive = p.hive;
   api.cancelPair(actor);
@@ -18,11 +18,12 @@ function startFlee(ctx, source) {
   ai.fleeT = hive ? hive.fleeTime : 1.4;
   ai.fleeFrom = source ? { x: source.x, z: source.z } : null;
   api.coverFlee('start');
-  if (!field || !field.nav) return;
+  const nav = api.navigation();
+  if (!nav) return;
   const dx = actor.cx - (source ? source.x : actor.cx);
   const dz = actor.cz - (source ? source.z : actor.cz);
   const len = Math.hypot(dx, dz) || 1;
-  const p2 = field.nav.nearestWalkable(actor.cx + dx / len * 4.5, actor.cz + dz / len * 4.5);
+  const p2 = nav.nearestWalkable(actor.cx + dx / len * 4.5, actor.cz + dz / len * 4.5);
   if (!p2) return;
   ai.target = { x: p2.x, z: p2.z };
   api.face(actor, p2.x, p2.z);

@@ -78,12 +78,32 @@ export function createBehaviorModules({
   getKnownActorUids = null,
   getMapId = null,
   emitEmote = null,
+  findPath = null,
+  getNavigation = null,
+  getHomes = null,
+  getFood = null,
+  getWaterSpots = null,
   rng = Math.random,
   daySeconds = 600,
   onFarewell = null,
   onStarsBlocked = null,
   config: givenConfig = null,
 } = {}) {
+  if (findPath !== null && typeof findPath !== 'function') {
+    throw new TypeError('behavior findPath callback must be a function');
+  }
+  if (getNavigation !== null && typeof getNavigation !== 'function') {
+    throw new TypeError('behavior navigation provider must be a function');
+  }
+  if (getHomes !== null && typeof getHomes !== 'function') {
+    throw new TypeError('behavior homes provider must be a function');
+  }
+  if (getFood !== null && typeof getFood !== 'function') {
+    throw new TypeError('behavior food provider must be a function');
+  }
+  if (getWaterSpots !== null && typeof getWaterSpots !== 'function') {
+    throw new TypeError('behavior water provider must be a function');
+  }
   const config = givenConfig || createBehaviorConfig();
   const features = config.features;
   const stars = createStars({
@@ -650,15 +670,29 @@ export function createBehaviorModules({
     };
   }
 
+  function homes() {
+    return typeof getHomes === 'function' ? getHomes() : (field ? field.homes : null);
+  }
+
+  function food() {
+    return typeof getFood === 'function' ? getFood() : (field ? field.food : null);
+  }
+
+  function waterSpots() {
+    return typeof getWaterSpots === 'function' ? getWaterSpots() : (field ? field.waterSpots : null);
+  }
+
   function assignHome(actor) {
-    if (!actor || !field || !Array.isArray(field.homes) || !field.homes.length) return null;
+    if (!actor) return null;
+    const list = homes();
+    if (!Array.isArray(list) || !list.length) return null;
     if (actor.home) {
-      const existing = field.homes.find(h => h.name === actor.home);
+      const existing = list.find(h => h.name === actor.home);
       if (existing && homeResidents(actor.home) < HOME_CAPACITY) return existing;
     }
     const parent = parentFor(actor);
     if (parent && parent.home) {
-      const preferred = field.homes.find(h => h.name === parent.home);
+      const preferred = list.find(h => h.name === parent.home);
       if (preferred && homeResidents(preferred.name) < HOME_CAPACITY) {
         actor.home = preferred.name;
         return preferred;
@@ -666,7 +700,7 @@ export function createBehaviorModules({
     }
     let best = null;
     let bestCount = Infinity;
-    for (const home of field.homes) {
+    for (const home of list) {
       const n = homeResidents(home.name);
       if (n < bestCount) { best = home; bestCount = n; }
     }
@@ -676,15 +710,24 @@ export function createBehaviorModules({
   }
 
   function homeFor(actor) {
-    if (!actor || !field || !Array.isArray(field.homes) || !field.homes.length) return null;
-    return field.homes.find(h => h.name === actor.home) || assignHome(actor);
+    if (!actor) return null;
+    const list = homes();
+    if (!Array.isArray(list) || !list.length) return null;
+    return list.find(h => h.name === actor.home) || assignHome(actor);
   }
 
   /* --------------------------------------------------------------- movement */
 
+  function navigation() {
+    if (typeof getNavigation === 'function') return getNavigation();
+    return field && field.nav ? field.nav : null;
+  }
+
   function pathTo(actor, x, z) {
-    if (!field || !field.nav) return null;
-    return field.nav.findPath(actor.cx, actor.cz, x, z);
+    if (typeof findPath === 'function') return findPath(actor.cx, actor.cz, x, z);
+    const nav = navigation();
+    if (!nav) return null;
+    return nav.findPath(actor.cx, actor.cz, x, z);
   }
 
   function setPath(actor, path) {
@@ -715,7 +758,8 @@ export function createBehaviorModules({
 
   function setDestination(actor, x, z) {
     if (!actor || !actor.ai) return false;
-    const near = field && field.nav ? field.nav.nearestWalkable(x, z) : { x, z };
+    const nav = navigation();
+    const near = nav ? nav.nearestWalkable(x, z) : { x, z };
     const tx = near ? near.x : x;
     const tz = near ? near.z : z;
     actor.ai.target = { x: tx, z: tz };
@@ -752,7 +796,10 @@ export function createBehaviorModules({
 
   function releaseFood(actor) {
     if (!actor || !actor.ai) return;
-    if (field && field.food && actor.ai.source) field.food.release(actor.ai.source, actor);
+    if (actor.ai.source) {
+      const registry = food();
+      if (registry) registry.release(actor.ai.source, actor);
+    }
     actor.ai.source = null;
   }
 
@@ -784,8 +831,9 @@ export function createBehaviorModules({
   /* ------------------------------------------------------------- utilities */
 
   function safeFoodCount() {
-    return field && field.food && field.food.allRipe
-      ? field.food.allRipe({ safe: true }).length : 0;
+    const registry = food();
+    return registry && registry.allRipe
+      ? registry.allRipe({ safe: true }).length : 0;
   }
 
   function acquireFood(actor) {
@@ -1559,10 +1607,15 @@ export function createBehaviorModules({
       return { ok: !!source, state: ai.state, note: source ? 'looking for a hive' : 'no hive target' };
     }
     if (next === 'eat') {
-      const source = field.food.nearestRipe(actor.cx, actor.cz, {
+      const registry = food();
+      if (!registry) {
+        ai.state = 'seekFood';
+        return { ok: false, state: 'seekFood', note: 'no food target; seeking' };
+      }
+      const source = registry.nearestRipe(actor.cx, actor.cz, {
         maxDistance: 999, bear: actor, safe: true,
       });
-      if (!source || !field.food.claim(source, actor)) {
+      if (!source || !registry.claim(source, actor)) {
         ai.state = 'seekFood';
         return { ok: false, state: 'seekFood', note: 'no food target; seeking' };
       }
@@ -1579,7 +1632,7 @@ export function createBehaviorModules({
     }
     let spot = null;
     let bestD = Infinity;
-    for (const candidate of field.waterSpots || []) {
+    for (const candidate of waterSpots() || []) {
       const d = Math.hypot(candidate.x - actor.cx, candidate.z - actor.cz);
       if (d < bestD) { bestD = d; spot = candidate; }
     }
@@ -1862,7 +1915,8 @@ export function createBehaviorModules({
 
   const api = {
     field, profile, actors, hoursNow, dayNow, mapId: mapIdNow, rng,
-    pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
+    homes, food, waterSpots,
+    navigation, pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
     homeFor, assignHome, parentFor, followTargetFor, adoption: adoptionInfo,
     reconcileAdoption, adoptionActive: () => !!features.adoption,
     safeFoodCount, needsReplan, populationCap,
