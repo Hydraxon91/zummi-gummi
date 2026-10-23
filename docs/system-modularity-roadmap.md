@@ -300,6 +300,14 @@ coordinated rebuild remain unsupported, not delivered as an editor feature.
 
 ### M8 — Resource extensions and visual mirrors (M; M0, M2 for interactions)
 
+**C4/M8 complete:** [resource extension contract](resource-extension-contract.md)
+and `tests/resource-extension.test.mjs` prove an existing-visual fixture food,
+claim/consume/visibility timing, portion identity/ownership, carry/drop, save shape
+and field/studio isolation. Parent full Node passed 517/517. App map/restore
+orchestration and dropped/carried mesh timing remain source-inspected or reuse
+B1/C2 browser evidence; no new visual, risk action, registry or renderer
+dependency was added.
+
 - Preserve food/portion registries and stable portion identities. Document the
   boundary between a definition using an existing renderer and a new risk/action.
 - Narrow presentation callbacks rather than importing renderer objects into
