@@ -68,7 +68,8 @@ export const stargazeModule = defineBehaviorModule({
   tick(ctx) {
     const { actor, ai, dt, api } = ctx;
     if (!ai || ai.state !== 'stargaze') return false;
-    ai.idleT = Math.max(0, ai.idleT - dt);
+    // `ai.idleT` is advanced once by the engine's generic idle timer before
+    // module ticks. Decrementing it here as well halved every sampled session.
     if (ai.idleT <= 0 || actor.hunger > .85 || actor.thirst > .88) {
       if (ctx.features.habits && ai.stargazeLearning &&
           ai.idleT <= 0 && actor.hunger <= .85 && actor.thirst <= .88) {

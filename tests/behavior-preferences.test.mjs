@@ -13,13 +13,13 @@ import { migrateActorRecord, validateActorWorld } from '../src/actorsave.js';
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-10, `${a} != ${b}`);
 const flags = { preferences: true, habits: true };
 
-function fixture({ race = 'glass', preference = .5, habit = 0, features = flags, random = () => .12 } = {}) {
+function fixture({ race = 'glass', preference = .5, habit = 0, features = flags, random = () => .12, engine: engineKind = 'modules' } = {}) {
   const actor = createRoster(race)[0];
   const roster = [actor];
   let hours = 20, draws = 0;
   const config = createBehaviorConfig({ features });
   const engine = createBehavior({
-    engine: 'modules', config, field: createWorld(), getActors: () => roster,
+    engine: engineKind, config, field: createWorld(), getActors: () => roster,
     getHours: () => hours, getDay: () => 1, getPopulationCap: () => 40,
     daySeconds: 600, rng: () => { draws++; return random(); },
   });
@@ -182,6 +182,20 @@ test('need exits, critical needs, grab, detach and disable never reward an inter
     f.engine.tick(f.actor, 10);
     assert.equal(f.actor.habits, undefined);
     assert.equal(f.actor.ai.stargazeLearning, undefined);
+  }
+});
+
+test('stargaze samples its full duration with one timer owner in both engines', () => {
+  for (const engineKind of ['modules', 'legacy']) {
+    const f = fixture({ engine: engineKind });
+    f.actor.ai.state = 'stargaze';
+    f.actor.ai.idleT = 3.6;
+    f.engine.tick(f.actor, 2);
+    assert.equal(f.actor.ai.state, 'stargaze', `${engineKind}: 2 s must not end a 3.6 s session`);
+    near(f.actor.ai.idleT, 1.6);
+    f.engine.tick(f.actor, 1.61);
+    assert.equal(f.actor.ai.state, 'wander', `${engineKind}: session exits when its timer reaches zero`);
+    assert.equal(f.actor.ai.idleT, 0);
   }
 });
 

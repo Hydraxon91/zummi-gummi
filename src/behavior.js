@@ -2201,7 +2201,7 @@ export function createBehavior({
       return;
     }
     if (ai.state === 'stargaze') {
-      ai.idleT = Math.max(0, ai.idleT - dt);
+      // The generic idle decrement above is the sole owner of `ai.idleT`.
       if (ai.idleT <= 0 || actor.hunger > .85 || actor.thirst > .88) {
         ai.state = 'wander';
         ai.idleT = 0;
