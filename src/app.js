@@ -139,7 +139,7 @@ function actorName(a){
   return a ? (a.name || (a.kind === 'glass' ? 'Glass' : a.species === 'msn' ? 'Gummy' : 'Bear')) : '';
 }
 function familyFor(a) {
-  return sharedFamilyFor(a, actorView.all());
+  return sharedFamilyFor(a, gameActorList());
 }
 function familyNames(list) {
   return (list || []).map(actorName).filter(Boolean).join(', ');
@@ -6462,6 +6462,12 @@ function gameActorUids(){
   return new Set(gameActorIndex().keys());
 }
 
+// Family/lineage reads need the whole current game so an inactive-map relative
+// stays visible. Household remains active-map scoped (see lineage()).
+function gameActorList(){
+  return [...gameActorIndex().values()].map(entry => entry.actor);
+}
+
 function worldSaveState(id) {
   const w = worlds[id];
   const l = w.launcher;
@@ -7345,11 +7351,11 @@ window.__gummy = {
     };
   },
   lineage(uid){
+    const all = gameActorList();
     const actor = uid === undefined || uid === null
       ? selectedBear
-      : actorView.all().find(item => String(item.uid) === String(uid));
+      : all.find(item => String(item.uid) === String(uid));
     if (!actor) return null;
-    const all = actorView.all();
     const byUid = new Map(all.map(item => [item.uid, item]));
     const family = familyFor(actor);
     const node = (item) => item ? { uid: item.uid, name: actorName(item), generation: familyFor(item).generation } : null;
@@ -7360,7 +7366,7 @@ window.__gummy = {
       siblings: family.siblings.map(node),
       children: family.children.map(node),
       grandchildren: family.grandchildren.map(node),
-      household: all.filter(item => item.active && item.home && item.home === actor.home)
+      household: actorView.all().filter(item => item.active && item.home && item.home === actor.home)
         .map(item => ({ uid: item.uid, name: actorName(item), species: item.species })),
       history: historyFor(actor).map(event => ({
         ...event,
