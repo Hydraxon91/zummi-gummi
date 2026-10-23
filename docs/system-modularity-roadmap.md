@@ -541,6 +541,18 @@ Physical touch hardware and real OS focus loss remain unverified.
 
 ### M20 — UI read models and panel controllers (L; M17 where settings overlap)
 
+**E3/M20a roster read model complete:** `src/rosterview.js` owns pure
+`buildRosterRows`/`rosterSignature` for active roster identities and the exact
+refresh fields; app keeps keyed DOM rows, formatting, health styling,
+click/selection, directive-panel and map-clearing behavior. The
+[roster panel contract](roster-panel-contract.md) records the row/signature API,
+duplicate/missing UID caller behavior and the excluded display fields. Parent
+full Node passed 618/618, contracts covered 17 modules, fresh development parity
+passed 9/9, smoke passed 68/68, and the independent browser rerun passed 24/24
+(click selection, keyed reuse, single-row removal, map switch, save/load and
+430 px layout) with no page errors; captures were inspected. No new unresolved
+finding. E4/M20b menu/save/settings panels remain pending.
+
 - Extend the relationship-view precedent: simulation supplies data and command
   operations; panels own DOM, keyed rows, focus and listener cleanup.
 - Pilot the selected-actor/roster boundary, then menu/save/settings separately.
