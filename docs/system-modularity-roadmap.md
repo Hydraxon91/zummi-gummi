@@ -185,8 +185,17 @@ narrow own-side `linkPartner` primitive while preserving the existing state,
 timer, target, path, face, emote and family-task write order. Parent full Node
 passed 490/490; development short parity passed 9/9; the browser entry trace
 passed 5/5 and the existing social pair scenario passed 2/2. This pilot does not
-move visit cancellation, rewards or the other direct writers. M2c–M2d remain
-pending.
+move visit cancellation, rewards or the other direct writers.
+
+**C2/M2c cancellation conformance complete for the named pilot paths:** real
+invite/social/visit transitions cover completion, refusal, grab, critical needs,
+AI disable, detach and host save/load/map/New Game. Interrupted visit close now
+clears pair/visit/task state without bond, relief or completion history;
+completion keeps its existing reward and history. Parent full Node passed 500/500;
+development parity passed 9/9. Browser evidence covers the public lifecycle
+paths. Remaining findings are pond/social survival (C2-F2), residual timers
+(C2-F3) and direct Glass-removal cleanup (C2-F4); they are recorded, not claimed
+fixed. M2d remains pending.
 
 - Inventory writers of partner/task/group/reservation state before choosing any
   centralization. Specify completion, refusal, interruption and removal reasons.

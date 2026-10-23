@@ -1883,6 +1883,16 @@ but the cause is not established. Preserve the existing collision disposition;
 no threshold, solver or fixture change is authorized here. Asset refs 4–5 matched
 one Studio lease plus the live Meadow Glass count and are not evidence of a leak.
 
+**Known follow-ups — C2 pond/social and direct Glass removal (needs decision):**
+Trigger: a social pair enters the pond, or a future caller invokes direct Glass
+removal outside the stars farewell path. A social pair currently survives pond
+entry and resumes after exit; direct `removeGlassActor` does not detach behavior,
+though the only current caller (stars) commits a farewell first. Affected state:
+`src/ai.js` pond interruption, `src/behaviors/social.js` pair lifetime, and
+`src/app.js` Glass removal. Disposition: recorded C2-F2/F4; no pond cancellation
+or Glass cleanup policy was invented. Interrupted visits no longer grant rewards
+(C2-F1 fixed in the C2 follow-up). C2-F3 residual timers have no reproducer.
+
 ## Personality and modular-AI extension track
 
 This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved and

@@ -385,31 +385,33 @@ function finishVisitPair(ctx, completed = false) {
   const { actor, ai, api, features } = ctx;
   if (!actor || !ai || ai.state !== 'visit') return;
   const partner = ai.partner;
-  const beforeActor = bondOf(actor, partner);
-  const beforePartner = bondOf(partner, actor);
-  addBond(actor, partner, .08);
-  if (completed && partner && partner.ai && features && features.interactionHistory) {
-    const { day, hour } = historyTime(api);
-    const actorRole = ai.visitRole === 'host' ? 'host' : 'guest';
-    const delta = {
-      bondBefore: beforeActor, bondAfter: bondOf(actor, partner),
-    };
-    const partnerDelta = {
-      bondBefore: beforePartner, bondAfter: bondOf(partner, actor),
-    };
-    if (actorRole === 'host') {
-      pushHistory(actor, { kind: 'hosted', uid: partner.uid, day, hour, ...delta });
-      pushHistory(partner, { kind: 'visit', uid: actor.uid, day, hour, ...partnerDelta });
-    } else {
-      pushHistory(actor, { kind: 'visit', uid: partner.uid, day, hour, ...delta });
-      pushHistory(partner, { kind: 'hosted', uid: actor.uid, day, hour, ...partnerDelta });
+  if (completed) {
+    const beforeActor = bondOf(actor, partner);
+    const beforePartner = bondOf(partner, actor);
+    addBond(actor, partner, .08);
+    if (partner && partner.ai && features && features.interactionHistory) {
+      const { day, hour } = historyTime(api);
+      const actorRole = ai.visitRole === 'host' ? 'host' : 'guest';
+      const delta = {
+        bondBefore: beforeActor, bondAfter: bondOf(actor, partner),
+      };
+      const partnerDelta = {
+        bondBefore: beforePartner, bondAfter: bondOf(partner, actor),
+      };
+      if (actorRole === 'host') {
+        pushHistory(actor, { kind: 'hosted', uid: partner.uid, day, hour, ...delta });
+        pushHistory(partner, { kind: 'visit', uid: actor.uid, day, hour, ...partnerDelta });
+      } else {
+        pushHistory(actor, { kind: 'visit', uid: partner.uid, day, hour, ...delta });
+        pushHistory(partner, { kind: 'hosted', uid: actor.uid, day, hour, ...partnerDelta });
+      }
     }
+    actor.social = Math.max(0, actor.social - .22);
+    actor.affection = Math.max(0, actor.affection - .16);
   }
-  actor.social = Math.max(0, actor.social - .22);
-  actor.affection = Math.max(0, actor.affection - .16);
   ai.socialCooldown = 8;
   endPair(actor, { stop: api.stop, next: 'wander', idleT: .6, taskCooldown: 1.2, socialCooldown: 8 });
-  if (partner && partner.ai) {
+  if (completed && partner && partner.ai) {
     partner.social = Math.max(0, partner.social - .22);
     partner.affection = Math.max(0, partner.affection - .16);
   }

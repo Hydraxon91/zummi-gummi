@@ -92,16 +92,78 @@ test('quirk 26: visit completion keeps the hardcoded bond/relief values, per rac
     const a = actor(1, race, 'Home A');
     const b = actor(2, race, 'Home B');
     a.social = .8; a.affection = .8;
+    b.social = .8; b.affection = .8;
     a.bonds['2'] = .2; b.bonds['1'] = .2;
     a.ai.state = 'visit'; b.ai.state = 'visit';
     a.ai.partner = b; b.ai.partner = a;
+    a.ai.visitRole = 'host'; b.ai.visitRole = 'guest';
     const ctx = context(race, a, b, config.forActor(a));
+    ctx.features = { interactionHistory: true };
+    socialModule.finishVisit(ctx, true);
+    assert.ok(Math.abs(a.social - .58) < 1e-9, `${race.id}: initiator social relief .22`);
+    assert.ok(Math.abs(a.affection - .64) < 1e-9, `${race.id}: initiator affection relief .16`);
+    assert.ok(Math.abs(b.social - .58) < 1e-9, `${race.id}: partner social relief .22`);
+    assert.ok(Math.abs(b.affection - .64) < 1e-9, `${race.id}: partner affection relief .16`);
+    assert.equal(a.ai.socialCooldown, 8, `${race.id}: initiator cooldown 8`);
+    assert.equal(b.ai.socialCooldown, 8, `${race.id}: partner cooldown 8`);
+    assert.ok(Math.abs(a.bonds['2'] - .28) < 1e-9, `${race.id}: initiator bond +.08`);
+    assert.ok(Math.abs(b.bonds['1'] - .28) < 1e-9, `${race.id}: partner bond +.08`);
+    assert.equal(a.ai.partner, null, `${race.id}: initiator pair cleared`);
+    assert.equal(b.ai.partner, null, `${race.id}: partner pair cleared`);
+    assert.deepEqual(a.history.map(event => event.kind), ['hosted'], `${race.id}: host history`);
+    assert.deepEqual(b.history.map(event => event.kind), ['visit'], `${race.id}: guest history`);
+    assert.equal(a.history[0].bondBefore, .2);
+    assert.equal(a.history[0].bondAfter, .28);
+    assert.equal(b.history[0].bondBefore, .2);
+    assert.equal(b.history[0].bondAfter, .28);
+  }
+});
+
+test('interrupted visit close grants no bond, relief or completion history, per race', () => {
+  const config = createBehaviorConfig();
+  for (const race of RACES) {
+    const a = actor(1, race, 'Home A');
+    const b = actor(2, race, 'Home B');
+    a.social = .8; a.affection = .8;
+    b.social = .8; b.affection = .8;
+    a.bonds['2'] = .2; b.bonds['1'] = .2;
+    a.ai.state = 'visit'; b.ai.state = 'visit';
+    a.ai.partner = b; b.ai.partner = a;
+    a.ai.visitHome = 'Home A'; b.ai.visitHome = 'Home A';
+    a.ai.visitRole = 'host'; b.ai.visitRole = 'guest';
+    a.ai.visitPhase = 'travel'; b.ai.visitPhase = 'travel';
+    const ctx = context(race, a, b, config.forActor(a));
+    ctx.features = { interactionHistory: true };
+
     socialModule.finishVisit(ctx);
-    assert.ok(Math.abs(a.social - .58) < 1e-9, `${race.id}: social relief .22`);
-    assert.ok(Math.abs(a.affection - .64) < 1e-9, `${race.id}: affection relief .16`);
-    assert.equal(a.ai.socialCooldown, 8, `${race.id}: cooldown 8`);
-    assert.ok(Math.abs(a.bonds['2'] - .28) < 1e-9, `${race.id}: bond +.08`);
-    assert.equal(a.ai.partner, null, `${race.id}: pair cleared`);
+    assert.equal(a.bonds['2'], .2, `${race.id}: interruption keeps the initiator bond`);
+    assert.equal(b.bonds['1'], .2, `${race.id}: interruption keeps the partner bond`);
+    assert.equal(a.social, .8, `${race.id}: interruption grants no initiator social relief`);
+    assert.equal(b.social, .8, `${race.id}: interruption grants no partner social relief`);
+    assert.equal(a.affection, .8, `${race.id}: interruption grants no initiator affection relief`);
+    assert.equal(b.affection, .8, `${race.id}: interruption grants no partner affection relief`);
+    assert.deepEqual(a.history, [], `${race.id}: interruption writes no initiator history`);
+    assert.deepEqual(b.history, [], `${race.id}: interruption writes no partner history`);
+    assert.equal(a.ai.partner, null);
+    assert.equal(b.ai.partner, null);
+    assert.equal(a.ai.state, 'wander');
+    assert.equal(b.ai.state, 'wander');
+    assert.equal(a.ai.visitHome, null);
+    assert.equal(b.ai.visitHome, null);
+    assert.equal(a.ai.visitRole, null);
+    assert.equal(b.ai.visitRole, null);
+    assert.equal(a.ai.visitPhase, null);
+    assert.equal(b.ai.visitPhase, null);
+    assert.equal(a.ai.socialCooldown, 8);
+    assert.equal(b.ai.socialCooldown, 8);
+
+    socialModule.finishVisit(ctx);
+    assert.equal(a.bonds['2'], .2, `${race.id}: repeated cleanup is inert`);
+    assert.equal(b.bonds['1'], .2);
+    assert.equal(a.social, .8);
+    assert.equal(b.social, .8);
+    assert.deepEqual(a.history, []);
+    assert.deepEqual(b.history, []);
   }
 });
 

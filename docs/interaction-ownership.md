@@ -272,6 +272,78 @@ C1 also ran the focused and full Node suites, the development short parity
 matrix and a browser entry trace; these are development evidence, not long
 acceptance.
 
+## M2c C2 pilot: cancellation conformance
+
+Baseline HEAD `e647754`, clean working tree. C2 initially added characterization
+only: `tests/social-cancellation.test.mjs`, a scratch browser probe under
+`.dev-shots/c2/` and this section. Correction R1 then made one approved
+production change in `src/behaviors/social.js`: an interrupted visit close no
+longer grants its completion reward.
+
+`tests/social-cancellation.test.mjs` drives the real modules engine for Bear,
+Gummy and Glass. Entry is the natural `social.company` opportunity, then invite,
+social and (with a passing visit roll) visit. Forced entry is used only where no
+natural route exists or where the transition is the subject (`forceMeal`,
+`forceVisit` in the pond case). Every case uses an isolated two/three-actor field
+with the mate module disabled so mate admission cannot pre-empt the social
+opportunity.
+
+Verified current behavior:
+
+| Outcome | Result |
+| --- | --- |
+| Social completion | One bond draw, one relief per actor, one `social` history entry per actor; repeated ticks add nothing. Fixed-RNG and seeded traces agree. |
+| Visit completion | Exact `+.08` bond and `.22` social / `.16` affection relief per actor, one `hosted`/`visit` history entry per actor; pair and visit fields clear with cooldown 8. |
+| Interrupted/stall/targetless visit close | Both reciprocal partner links and visit fields clear, states return to `wander`, cooldown 8 remains; no bond, relief or completion history on either side. A repeated close is inert. |
+| Decline | `decline`/`declined` history exactly once per actor; no bond, no relief; cooldowns remain positive; no duplicate history. |
+| Grab (`invite`/`social`/`visit`) | Both reciprocal partner links, visit home/role/phase/arrival and task fields clear; states return to `wander`; no bond, relief or completion history; a second grab is inert. |
+| Critical thirst/hunger (`invite`/`social`/`visit`) | Same pair cleanup, no reward or completion history, then `seekWater`/`drink` or `seekFood`/`eat`. |
+| `setEnabled(false)` | Every actor loses partner, visit fields, task and `ai.source`; owned food claims release; a repeated disable is inert. |
+| `detach` | Detaching one participant clears the reciprocal partner, visit/task state and both claims; detaching both leaves `ai = null`; a detached solo task holder loses its task and claim. |
+| Save record | `snapshotActor` carries no `ai`, live `partner`, visit fields or `familyTask`; a social pair creates no `partnerUid`. |
+
+Browser probe (seeded, public `window.__gummy` boundaries): fictional pair ->
+grab; critical thirst and hunger; `setAI(false)`; save/load; field -> Studio ->
+field; population-ceiling removal; New Game. The probe observed the pair cleanup
+on grab/need/disable, no restored pair or visit fields after load/map return, no
+stale food claim after load/map/removal/New Game, and a fresh history-less roster
+after New Game. Map/save/load/New Game restore or reseed actors and the engine
+can naturally start *new* pairs/tasks within the probe's observation window;
+that is live activity, not restored runtime state, so the probe asserts the old
+pair/visit fields and histories rather than requiring an empty global partner
+set.
+
+Discovered behavior and open questions:
+
+- **Finding C2-F1 (pond + interrupted visit reward) — resolved in R1.** Pond
+  entry in `ai.js` still does not call `cancelPair`, so a visit pair and its
+  visit fields survive entry. On exit, `resumeTask` clears `ai.target`; the next
+  `tickVisit` treats the targetless travel as interrupted and calls
+  `finishVisitPair(false)`. That path now clears the pair, visit fields and task
+  state with the existing cooldown, but grants no bond, no relief and no
+  `hosted`/`visit` history. Visit completion (`completed=true`) keeps the exact
+  `+.08` bond, `.22`/`.16` relief and history behavior.
+- **Finding C2-F2 (pond + social).** A social pair survives pond entry and
+  resumes counting down after exit; no pond-specific social cleanup exists.
+- **Finding C2-F3 (timers).** Generic `breakPair` clears pair/visit/state but
+  not `visitT`, `inviteT`, `socialT`, `declineT` or `visitRetryT`. Entry paths
+  overwrite the relevant timers, so no stale link or read was observed; this is
+  a residual timer observation, not a reproducer.
+- **Finding C2-F4 (Glass removal).** `removeGlassActor` still does not call
+  `detach`/`cancelPair`. The stars path commits a farewell first. There is no
+  public single-Glass-removal hook, so this probe exercised only map switch and
+  New Game colony clearing; direct Glass removal remains source-inspected.
+- **Finding C2-F5 (browser variability).** Load/map return/New Game allow
+  immediate natural pair or family-task selection. Browser assertions must
+  inspect histories, visit fields, claims and removed identities rather than
+  assuming a globally empty partner/family-task set after an arbitrary wait.
+
+C2 evidence is development characterization, not long acceptance. The initial
+focused suite, full Node suite, behavior contracts, short all-race parity, smoke
+check and probe result, plus the R1 focused/full/contracts/parity reruns, are
+recorded in `.dev-shots/c2/results.md` (scratch).
+
+
 ## Lifecycle outcomes
 
 | Outcome | Partner / familyTask / group / claims | Evidence |
