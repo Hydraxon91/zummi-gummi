@@ -557,6 +557,16 @@ differential found zero differences. Full Node passed 677/677 and contracts
 covered 17 modules. G3/M18d remains pending; the port does not claim whole-game
 or native-engine parity.
 
+**G3/M18d bounded adapter port complete:** `tools/translation-pilot-py/adapter.py`
+independently implements the fixture-scoped snapshot subset, duplicate-UID and
+reciprocal partner/rival validation, UID/gift apply with live-handle
+preservation, and game-wide prune behavior. `run.py adapter` verifies the pinned
+hash and all expected outcomes, and rejects all five negatives (non-reciprocal
+partner, missing actor, duplicate UID across maps, saved live-handle adoption,
+inactive-map partner prune). Parent rerun passed; full Node passed 677/677 and
+contracts covered 17 modules. The subset does not claim the whole save format or
+whole-game portability. Batch G is complete; Batch H/M22 remains.
+
 - Inventory existing literal fixtures and supplement observable missing rules:
   numbers/Float32, null versus missing, unsigned hashes/RNG, ordering/ties, live
   identity versus wire UIDs and save migrations. Reuse existing tests first.

@@ -1,9 +1,9 @@
 # Translation target decision (M18b)
 
-**Status: selected for M18b; G1 harness and G2 pure-rule port complete.** This
-document records the target language and runtime for the executable translation
-pilot. It does not claim that the bounded adapter port exists or that the pilot
-proves whole-game portability.
+**Status: selected for M18b; G1 harness, G2 pure-rule port and G3 bounded
+adapter port complete.** This document records the target language and runtime
+for the executable translation pilot. It does not claim that the pilot proves
+whole-game portability.
 
 Baseline: `HEAD 80ebd3f`, clean working tree before the G1 change. Fixture date
 `2026-10-23`.
@@ -104,8 +104,9 @@ The target project is `tools/translation-pilot-py/`:
 
 - `fixtures/genome_inheritance.json` — pure-rule pilot data and negatives.
 - `fixtures/wire_uid.json` — bounded adapter pilot data and negatives.
-- `run.py` — schema/provenance/hash validator, self-test and G2 `genome` command.
+- `run.py` — schema/provenance/hash validator, self-test and G2/G3 commands.
 - `genome.py` — G2 bear/msn `combineGenomes` port with constant and LCG RNGs.
+- `adapter.py` — G3 bounded snapshot/validation/apply/prune adapter subset.
 - `README.md` — target decision summary, usage, evidence rules and non-goals.
 
 Scratch tamper copies and future captures belong in `.dev-shots/g1/` (ignored
@@ -156,6 +157,32 @@ manifest negatives (draw 9, draw 11, a numeric gene off by `1e-6`, wrong hybrid
 target, mutated parent, wrong phenotype) are rejected by the comparator. The
 parents are unchanged and no JavaScript, game runtime or third-party package is
 imported. Evidence is scratch-only under `.dev-shots/g2/`.
+
+## 8b. G3 result (M18d)
+
+Baseline `HEAD d32f00d`, clean working tree. `adapter.py` implements only the
+subset exercised by `wire_uid.json`: the relational/positional `snapshotActor`
+fields, required collection shape plus duplicate-UID checks, reciprocal
+partnership/rivalry validation, `applyCommonActorState`'s UID/rivals/gift
+application with live-handle preservation, and `pruneActorRefs` with a
+game-wide UID set.
+
+`python3 tools/translation-pilot-py/run.py adapter` exits `0`, verifies the
+pinned manifest hash `33d50315…a23ddc0`, snapshots A/B/C with the expected key
+presence and three-decimal `x`/`z`, and validates the fixture world with no
+errors. Poisoned saved `ai`/`mesh`/`body`/`partner` overrides are not adopted and
+the live handles are preserved by identity. Pruning with all game-wide UIDs keeps
+UID 1's partner and rival; pruning to `{1}` removes `partnerUid`, `bonds.2` and
+`rivals.3`. All five manifest negatives are rejected, including the duplicate UID
+across field/studio and an active-map-only prune that drops the inactive-map
+partner. Evidence is scratch-only under `.dev-shots/g3/`; no browser, renderer,
+physics body, save file, JavaScript or game module is involved.
+
+Limits of the G3 subset: optional relation keys are emitted only when present,
+matching the pinned `wire_uid.json` expectation rather than the full JS record
+shape (which also carries unrelated fields and empty `bonds`); the three-decimal
+`x`/`z` formatting is fixture-shaped and is not a general `Number.toFixed`
+implementation. These limits do not affect the fixture comparisons.
 
 ## 9. Stop conditions
 

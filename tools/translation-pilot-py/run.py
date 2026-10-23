@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import adapter as adapter_rules  # noqa: E402  (same-directory stdlib-only port)
 import genome as genome_rules  # noqa: E402  (same-directory stdlib-only port)
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -722,6 +723,307 @@ def command_genome(fixture_dir: Path) -> int:
     return 0 if summary["ok"] else 1
 
 
+def _expected_snapshot_fields(snapshot: dict) -> set:
+    return {key for key in snapshot if key != "forbiddenKeys"}
+
+
+def compare_wire_snapshot(result: dict, expected: dict, source: dict) -> list[str]:
+    """Compare the manifest's snapshot subset and its exact key presence."""
+
+    errors: list[str] = []
+    result = result if isinstance(result, dict) else {}
+    expected_fields = _expected_snapshot_fields(expected)
+    for field in sorted(expected_fields):
+        if result.get(field) != expected.get(field):
+            errors.append(
+                f"snapshot.{field} mismatch: actual {result.get(field)!r}, "
+                f"expected {expected.get(field)!r}"
+            )
+    for key in expected.get("forbiddenKeys") or []:
+        if key in result:
+            errors.append(f"snapshot must not contain live key {key}")
+    for key in ("actorVersion", "uid", "x", "z"):
+        if key not in result:
+            errors.append(f"snapshot missing required key {key}")
+    for key in ("bonds", "lastGiftDay", "partnerUid", "rivals", "carriedFood"):
+        if key in expected_fields and key not in result:
+            errors.append(f"snapshot missing expected key {key}")
+        if key not in expected_fields and key in result:
+            errors.append(f"snapshot unexpectedly contains {key}")
+    for field, source_key in (("x", "cx"), ("z", "cz")):
+        if field in result:
+            wanted = adapter_rules._round_fixed(source.get(source_key), 3)
+            if result[field] != wanted:
+                errors.append(
+                    f"snapshot.{field} rounding mismatch: actual {result[field]!r}, "
+                    f"expected {wanted!r}"
+                )
+    return errors
+
+
+def resolve_wire_worlds(template: dict, snapshots: dict) -> dict:
+    """Replace fixture record keys in world collections with their snapshots."""
+
+    worlds = {}
+    for world_id, world in (template or {}).items():
+        if not isinstance(world, dict):
+            worlds[world_id] = world
+            continue
+        resolved = {}
+        for key, value in world.items():
+            if isinstance(value, list):
+                resolved[key] = [
+                    snapshots[item]
+                    if isinstance(item, str) and item in snapshots
+                    else copy.deepcopy(item)
+                    for item in value
+                ]
+            else:
+                resolved[key] = copy.deepcopy(value)
+        worlds[world_id] = resolved
+    return worlds
+
+
+def _find_world_actor(worlds: dict, uid: int):
+    for world_id in ("field", "studio"):
+        world = worlds.get(world_id)
+        if not isinstance(world, dict):
+            continue
+        for collection_key in ("bears", "glass"):
+            collection = world.get(collection_key)
+            if not isinstance(collection, list):
+                continue
+            for actor in collection:
+                if isinstance(actor, dict) and actor.get("uid") == uid:
+                    return actor
+    return None
+
+
+def compare_wire_apply(target: dict, expected: dict, poison: dict,
+                       live: dict) -> list[str]:
+    """Check apply sets/deletes, live-handle preservation and non-adoption."""
+
+    errors: list[str] = []
+    for key, value in (expected.get("sets") or {}).items():
+        if target.get(key) != value:
+            errors.append(
+                f"apply.{key} mismatch: actual {target.get(key)!r}, expected {value!r}"
+            )
+    for key in expected.get("deletes") or []:
+        if key in target:
+            errors.append(f"apply did not delete {key}")
+    for key in expected.get("preservesLive") or []:
+        if key not in target:
+            errors.append(f"apply dropped live handle {key}")
+        elif target.get(key) is not live.get(key):
+            errors.append(f"apply replaced live handle {key}")
+    adopt_keys = list(expected.get("doesNotAdopt") or [])
+    for key in ("ai", "mesh", "body", "partner"):
+        if key not in adopt_keys:
+            adopt_keys.append(key)
+    for key in adopt_keys:
+        if key in target and key in poison and poison.get(key) is not None and (
+            target.get(key) is poison.get(key) or target.get(key) == poison.get(key)
+        ):
+            errors.append(f"apply adopted saved {key}")
+    return errors
+
+
+def compare_wire_prune(record: dict, expected: dict, changed: bool) -> list[str]:
+    """Check prune change flag, retained values and required deletions."""
+
+    errors: list[str] = []
+    if changed != expected.get("expectedChanged"):
+        errors.append(
+            f"prune changed {changed!r}, expected {expected.get('expectedChanged')!r}"
+        )
+    for key, value in (expected.get("expected") or {}).items():
+        if record.get(key) != value:
+            errors.append(
+                f"prune.{key} mismatch: actual {record.get(key)!r}, expected {value!r}"
+            )
+    for deletion in expected.get("deletes") or []:
+        if "." in deletion:
+            head, child = deletion.split(".", 1)
+            parent = record.get(head)
+            if isinstance(parent, dict) and child in parent:
+                errors.append(f"prune did not delete {deletion}")
+        elif deletion in record:
+            errors.append(f"prune did not delete {deletion}")
+    return errors
+
+
+def _wire_negative_probe(negative: dict, snapshots: dict, worlds: dict,
+                         expected_apply: dict, poison: dict, live: dict,
+                         keep_case: dict) -> dict:
+    category = negative.get("category")
+    errors: list[str] = []
+
+    if category == "non-reciprocal-partner":
+        probe_worlds = copy.deepcopy(worlds)
+        actor_b = _find_world_actor(probe_worlds, 2)
+        if actor_b is None:
+            errors.append("fixture actor 2 missing from probe world")
+        else:
+            actor_b["partnerUid"] = 3
+            errors = adapter_rules.validate_game_relationships(probe_worlds)
+    elif category == "missing-actor":
+        probe_worlds = copy.deepcopy(worlds)
+        actor_a = _find_world_actor(probe_worlds, 1)
+        if actor_a is None:
+            errors.append("fixture actor 1 missing from probe world")
+        else:
+            actor_a["partnerUid"] = 99
+            errors = adapter_rules.validate_game_relationships(probe_worlds)
+    elif category == "duplicate-uid":
+        probe_worlds = copy.deepcopy(worlds)
+        probe_worlds["studio"] = {"bears": [copy.deepcopy(snapshots["B"])]}
+        errors = adapter_rules.validate_game_relationships(probe_worlds)
+    elif category == "saved-live-adoption":
+        bad_target = {
+            "uid": 1,
+            "ai": live["ai"],
+            "mesh": live["mesh"],
+            "body": live["body"],
+            "carriedFood": {"id": "live", "kind": "flower", "satiation": 0.1},
+        }
+        bad_target.update(copy.deepcopy(poison))
+        errors = compare_wire_apply(bad_target, expected_apply, poison, live)
+    elif category == "inactive-map-partner-prune":
+        probe = copy.deepcopy(snapshots["A"])
+        changed = adapter_rules.prune_actor_refs(probe, [1, 3])
+        errors = compare_wire_prune(probe, keep_case, changed)
+    else:
+        errors = [f"unknown negative category {category!r}"]
+
+    return {
+        "id": negative.get("id"),
+        "category": category,
+        "rejected": bool(errors),
+        "errors": errors,
+    }
+
+
+def command_adapter(fixture_dir: Path) -> int:
+    filename = "wire_uid.json"
+    path = fixture_dir / filename
+    if not path.is_file():
+        print(json.dumps({
+            "command": "adapter", "fixture": filename, "ok": False,
+            "errors": [f"missing fixture file {path}"],
+        }, indent=2))
+        return 1
+    try:
+        manifest = load_manifest(path)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(json.dumps({
+            "command": "adapter", "fixture": filename, "ok": False,
+            "errors": [f"cannot read {path}: {exc}"],
+        }, indent=2))
+        return 1
+
+    validation_errors = validate_manifest(manifest, filename)
+    hash_verified = manifest_hash(manifest) == manifest.get("manifestHash")
+    if validation_errors:
+        print(json.dumps({
+            "command": "adapter", "fixture": filename,
+            "fixtureHashVerified": hash_verified,
+            "ok": False, "errors": validation_errors,
+        }, indent=2))
+        return 1
+
+    records = {
+        key: copy.deepcopy(record)
+        for key, record in manifest["records"].items()
+    }
+    snapshots = {
+        key: adapter_rules.snapshot_actor(record)
+        for key, record in records.items()
+    }
+
+    snapshot_results = []
+    for key in ("A", "B", "C"):
+        expected = manifest["expected"]["snapshot"][key]
+        errors = compare_wire_snapshot(snapshots[key], expected, records[key])
+        snapshot_results.append({"id": key, "ok": not errors, "errors": errors})
+
+    worlds = resolve_wire_worlds(manifest["world"], snapshots)
+    field_world = worlds.get("field", {})
+    world_errors = adapter_rules.validate_actor_world(field_world, "field")
+    relationship_errors = adapter_rules.validate_game_relationships(worlds)
+
+    live = {
+        "ai": {"state": "live"},
+        "mesh": {"isMesh": True, "live": True},
+        "body": {"handle": 7, "live": True},
+    }
+    target = {
+        "uid": 1,
+        "ai": live["ai"],
+        "mesh": live["mesh"],
+        "body": live["body"],
+        "health": 100,
+        "carriedFood": {"id": "live-gift", "kind": "berry", "satiation": 0.3},
+    }
+    expected_apply = manifest["expected"]["apply"]
+    poison = copy.deepcopy(records[expected_apply["sourceRecord"]])
+    poison.update(copy.deepcopy(expected_apply.get("recordOverrides") or {}))
+    adapter_rules.apply_common_actor_state(target, poison)
+    apply_errors = compare_wire_apply(target, expected_apply, poison, live)
+
+    prune_results = []
+    for case in manifest["expected"]["prune"]:
+        probe = copy.deepcopy(snapshots["A"])
+        changed = adapter_rules.prune_actor_refs(probe, case["validUids"])
+        errors = compare_wire_prune(probe, case, changed)
+        prune_results.append({
+            "id": case.get("id"), "changed": changed,
+            "ok": not errors, "errors": errors,
+        })
+
+    keep_case = manifest["expected"]["prune"][0]
+    negative_results = [
+        _wire_negative_probe(
+            negative, snapshots, worlds, expected_apply, poison, live, keep_case
+        )
+        for negative in manifest["negatives"]
+    ]
+    negative_categories = {item["category"] for item in negative_results}
+    missing_categories = EXPECTED_WIRE_NEGATIVES - negative_categories
+
+    failures = 0
+    for result in snapshot_results:
+        failures += len(result["errors"])
+    failures += len(world_errors)
+    failures += len(relationship_errors)
+    failures += len(apply_errors)
+    for result in prune_results:
+        failures += len(result["errors"])
+    failures += sum(0 if item["rejected"] else 1 for item in negative_results)
+    failures += len(missing_categories)
+
+    summary = {
+        "command": "adapter",
+        "fixture": filename,
+        "fixtureHash": manifest.get("manifestHash"),
+        "fixtureHashVerified": hash_verified,
+        "snapshots": snapshot_results,
+        "validation": {
+            "validateActorWorld": {"ok": not world_errors, "errors": world_errors},
+            "validateGameRelationships": {
+                "ok": not relationship_errors, "errors": relationship_errors,
+            },
+        },
+        "apply": {"ok": not apply_errors, "errors": apply_errors},
+        "prune": prune_results,
+        "negatives": negative_results,
+        "ok": failures == 0 and hash_verified,
+        "failureCount": failures,
+    }
+    print(json.dumps(summary, indent=2))
+    return 0 if summary["ok"] else 1
+
+
 def mutate_case(manifest: dict, filename: str) -> None:
     if filename == "genome_inheritance.json":
         manifest["cases"][0]["fixedExpected"]["drawCount"] = 9
@@ -798,10 +1100,13 @@ def command_self_test(fixture_dir: Path) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Validate G1 fixtures and execute the G2 pure genome port (stdlib only)."
+        description=(
+            "Validate G1 fixtures and execute the G2 genome / G3 adapter pilots "
+            "(stdlib only)."
+        )
     )
     parser.add_argument("command", nargs="?", default="validate",
-                        choices=["validate", "genome"])
+                        choices=["validate", "genome", "adapter"])
     parser.add_argument("--self-test", action="store_true",
                         help="prove validation rejects in-memory mutations without writing fixtures")
     parser.add_argument("--fixture-dir", type=Path, default=FIXTURE_DIR,
@@ -811,6 +1116,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_self_test(args.fixture_dir)
     if args.command == "genome":
         return command_genome(args.fixture_dir)
+    if args.command == "adapter":
+        return command_adapter(args.fixture_dir)
     return command_validate(args.fixture_dir)
 
 

@@ -4,7 +4,8 @@ This directory is the independent G1/M18b target project for the two pilot
 fixtures specified in [`docs/translation-fixtures.md`](../../docs/translation-fixtures.md)
 §4. G1 is fixture data plus a validator. G2/M18c adds an independent Python port
 of the pure `combineGenomes` bear/msn rule exercised against the pinned genome
-fixture. The wire/UID adapter remains G3 scope.
+fixture. G3/M18d adds the bounded live-object ↔ saved-UID adapter subset
+exercised against the pinned wire/UID fixture.
 
 ## Target decision
 
@@ -26,12 +27,13 @@ No pip package, game runtime dependency, JavaScript import or CI job is involved
 | --- | --- |
 | `fixtures/genome_inheritance.json` | Pure `combineGenomes` pilot: parents, constant-RNG `.5` expected values, seeded-LCG seed `11` expected values, draw counts, exact/tolerance policy and deliberate failure negatives. |
 | `fixtures/wire_uid.json` | Bounded live-object ↔ saved-UID adapter pilot for records A(1), B(2), C(3): snapshot, validation, apply and prune expectations plus failure negatives. |
-| `run.py` | Standard-library CLI that validates schema, provenance, coverage and canonical hashes, self-tests that rejection is real, and runs the G2 genome command. |
+| `run.py` | Standard-library CLI that validates schema, provenance, coverage and canonical hashes, self-tests that rejection is real, and runs the G2 genome and G3 adapter commands. |
 | `genome.py` | G2 pure `combineGenomes` port for bear/msn only: normalization, colour blending, gene inheritance, hybrid target and the constant/LCG RNG interfaces. |
+| `adapter.py` | G3 bounded adapter subset: `snapshot_actor`, `validate_actor_world`, `validate_game_relationships`, `apply_common_actor_state` and `prune_actor_refs`. |
 
-G2 (pure-rule port) is **complete**. G3 (bounded adapter port) is **not
-started**; the wire/UID adapter function bodies remain a separate decision and
-approval gate.
+G2 (pure-rule port) and G3 (bounded adapter port) are **complete** for the
+pinned fixtures. G3 does not port the whole save format and does not run the
+game, a browser, physics or any JavaScript.
 
 ## Usage
 
@@ -41,6 +43,7 @@ Run from the repository root:
 python3 tools/translation-pilot-py/run.py validate
 python3 tools/translation-pilot-py/run.py --self-test
 python3 tools/translation-pilot-py/run.py genome
+python3 tools/translation-pilot-py/run.py adapter
 ```
 
 `validate` exits `0` only when both manifests load, match their declared schema
@@ -59,6 +62,16 @@ field under the manifest exact/`1e-12` policy, checks ten draws and parent
 non-mutation, and proves every manifest negative is rejected by the comparator.
 It exits `0` only when all comparisons and negatives pass. It imports no
 JavaScript, game module, browser API or third-party package.
+
+`adapter` verifies the pinned wire/UID manifest hash through the same validator,
+snapshots records A/B/C and compares the expected relational/positional subset
+and forbidden live keys, validates the fixture world and its reciprocal
+partnership/rivalry records, applies the poisoned saved record to a target with
+live `ai`/`mesh`/`body` handles, and runs both prune cases. It then proves the
+comparators reject a non-reciprocal partner, a missing actor, a duplicate UID
+across maps, saved live-handle adoption and an inactive-map partner prune. It
+exits `0` only when every comparison and negative passes. It imports no
+JavaScript, game module, browser API, renderer, physics body or save file.
 
 `--fixture-dir DIR` is a tamper-check aid. It reads both manifest filenames from
 `DIR`; it is not a second fixture source of truth.
@@ -95,16 +108,17 @@ A future G2/G3 result is acceptable only when it records all of the following:
   If any pinned input changes, the target result is stale.
 - **No JS-vs-JS substitution** — `tests/behavior-parity.test.mjs` and the seeded
   JS traces share one number model and are not cross-language proof.
-- **Scratch evidence in `.dev-shots/g1/`** (never committed), inspected rather
-  than merely summarized.
+- **Scratch evidence in `.dev-shots/g1/`–`.dev-shots/g3/`** (never committed),
+  inspected rather than merely summarized.
 
 ## Non-goals
 
 - No game runtime dependency, bundler, package metadata, third-party package or
   CI workflow.
 - No JavaScript import/execution. G1 exercises no game rule; G2 ports only the
-  bear/msn `combineGenomes` subset, not the whole of `src/dna.js`. The
-  `src/actorrecord.js`, `src/family.js` and `src/actorsave.js` ports remain G3.
+  bear/msn `combineGenomes` subset, not the whole of `src/dna.js`. G3 ports only
+  the adapter subset exercised by `wire_uid.json`, not the whole of
+  `src/actorrecord.js`, `src/family.js` or `src/actorsave.js`.
 - No source-authoring changes (AssetWorkshop owns that scope).
 - No native physics, Box3D/WASM, metaball, Three.js/rendering, whole-game
   determinism or frame-rate claims.
