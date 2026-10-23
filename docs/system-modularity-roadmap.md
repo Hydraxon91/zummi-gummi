@@ -577,6 +577,20 @@ app teardown remain app-owned/unverified as recorded. E5/M21 remains pending.
 
 ### M21 — Cannon/fireworks/toy interaction boundaries (M; M19)
 
+**E5/M21 cannon boundary complete:** `src/cannonaim.js` owns frozen cannon
+constants, bounds/placement checks, the aim solution, 44-dot arc, cooldown
+predicate and muzzle/landing shot eligibility; `src/launcher.js` keeps the
+factory, meshes/UI, pointer priority, live cooldown/spawn/velocity application
+and the flavor RNG draw timing. Fireworks, rockets, pooled particles and
+cross-representation blast impulses stay app-owned; no universal toy engine was
+added. The [toy boundary contract](toy-boundary-contract.md) records the split
+and unsupported paths. Parent full Node passed 651/651, contracts covered 17
+modules, fresh development parity passed 9/9, smoke passed 68/68, and the
+browser probe covered placement, aim/fire, cooldown RNG, muzzle refusal, real
+pointer priority, map state and Bear/Glass blast with zero page errors; captures
+were inspected. Landing-refusal host proof remains unforced and is recorded as
+U-016. F1/M14 remains pending.
+
 - Retain launcher factory; separate placement/fire eligibility and blast effects
   from pointer picking and pooled particle presentation where useful.
 - Use explicit existing actor impulse capabilities for Bear/Gummy/Glass; do not

@@ -25,7 +25,8 @@ labelled **host-run**.
 | Glass picking/drag | `src/glass.js` `pick`, `beginDrag`, `drag`, `endDrag`, `cancelDrag`; app routes pointer modes `glassGrab` | app pointer handlers and map cleanup |
 | Studio MSN picking/drag | `src/msn.js` `hitTest`, `beginDrag`, `drag`, `endDrag`, selection/activation; app routes mode `msn` | app pointer handlers, `dblclick` focus |
 | Portal selection | `src/app.js` `pickPortal`; map switch intent stays `requestMapSwitch` | primary pointer down |
-| Launcher aim/move gestures | `src/launcher.js` returned `pointerDown`/`pointerMove`/`pointerHover`/`pointerUp`, its own `Escape` listener and UI buttons | app routes mode `launcher`; app `keydown` `L` toggles aiming |
+| Launcher aim/move gestures | `src/launcher.js` returned `pointerDown`/`pointerMove`/`pointerHover`/`pointerUp`, its own `Escape` listener and UI buttons; live aim/move state stays in the factory | app routes mode `launcher`; app `keydown` `L` toggles aiming |
+| Pure cannon placement/aim math | `src/cannonaim.js` bounds/placement/aim/arc/cooldown/shot-eligibility functions with plain objects | `src/launcher.js` only |
 | Keyboard gameplay bindings | `src/app.js` first `keydown` listener and `keyup`; held-key `keys` Set | frame loop `updateCameraKeys`, possession locomotion, fireworks, debug toggles |
 | Keyboard modal/system bindings | `src/app.js` Escape listener, relative-tab arrow-key handler, perf panel `P` listener | menus, help/settings, possession exit, tab focus |
 | Possession input | `src/app.js` possession HUD/stick pointer listeners, `possessInput`, `updatePossessionLocomotion`, `updatePossessionCamera`; AI possession flag in `ai.js` | possession entry/exit, frame loop |
@@ -122,8 +123,9 @@ behavior and gesture priority are unchanged.
   app; Glass and MSN drag remain in their factories.
 - Live camera state, possession clamping/camera, shake, look-at, reset/focus and
   per-map camera save/restore remain in app.
-- Launcher aim/move state and UI remain in `launcher.js`; app still owns the
-  pointer routing that invokes it.
+- Launcher aim/move state and UI remain in `launcher.js`, with its pure placement,
+  aim, arc, cooldown and shot-eligibility math in `src/cannonaim.js`; app still
+  owns the pointer routing that invokes the launcher.
 - All keyboard bindings, wheel handling and UI-panel listeners remain in app
   (with launcher's own Escape listener).
 - No unified input abstraction, renderer-neutral intent API or listener
@@ -160,5 +162,12 @@ behavior and gesture priority are unchanged.
   real CDP `touchCancel`, which delivered `pointercancel` (type `touch`) and
   left the camera static. Page errors: none. The inspected capture is
   `.dev-shots/e2/e2_field_reset.png`.
+- `tests/cannon.test.mjs` (host-run) covers the extracted pure cannon math. The
+  E5 browser probe (host-run; `.dev-shots/e5/launcher-probe.mjs`/`.json`) used a
+  disposable profile and real CDP pointer input: cannon drag won without an
+  actor grab or camera orbit, a projected bear grabbed without a launcher move,
+  empty drag orbited, and map switch preserved a finite launcher state and
+  cleared aiming. Landing refusal could not be forced with existing hooks and
+  remains unit-tested only (U-016).
 - Physical touch hardware, stylus and real focus loss (as opposed to the
   synthetic `window` blur event) remain unverified.

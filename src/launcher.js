@@ -4,18 +4,12 @@
 // Move mode / direct drag: reposition the cannon with footprint validation.
 
 import * as THREE from 'three';
+import {
+  CANNON, clampToCannonBounds, cannonPlacementProblem, cannonAimSolution,
+  cannonAimArc, cannonCooldownBlock, cannonShotPlacement,
+} from './cannonaim.js';
 
-const PIVOT_Y = 0.43;
-const MUZZLE_Z = 0.44;
-const ANGLE = 0.56;      // ~32 degrees
-const LAND_Y = 0.60;     // COM height of a resting bear
-const G = 12;            // matches world gravity
-const MIN_V = 5.0;
-const MAX_V = 22.0;
 const DEFAULT_NOTE = 'Drag to stretch · release to throw';
-const BASE_MARGIN = 0.45;
-
-const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
 
 export function createLauncher(ctx) {
   const {
@@ -38,12 +32,11 @@ export function createLauncher(ctx) {
   let aimPointer = null, dragPointer = null;
   let moveMode = false, dragging = false, savedPos = null, previewValid = true;
   let current = null;
+  let solution = null;
 
   const target = new THREE.Vector3();
   const landPoint = new THREE.Vector3();
   const muzzle = new THREE.Vector3();
-  const dir = new THREE.Vector3(0, 0, 1);
-  const vel = new THREE.Vector3();
   const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion();
   const _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3();
   const _rc = new THREE.Raycaster(), _ndc = new THREE.Vector2();
@@ -77,27 +70,13 @@ export function createLauncher(ctx) {
   }
 
   function clampXZ(x, z) {
-    if (clampBounds) return clampBounds(x, z, BASE_MARGIN);
-    const t = table();
-    return {
-      x: clamp(x, -t.hx + BASE_MARGIN, t.hx - BASE_MARGIN),
-      z: clamp(z, -t.hz + BASE_MARGIN, t.hz - BASE_MARGIN),
-    };
+    return clampToCannonBounds(x, z, { table: table(), clampBounds });
   }
 
   function placementValid(x, z) {
-    const t = table();
-    if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
-    if (insideBounds) {
-      if (!insideBounds(x, z, BASE_MARGIN)) return false;
-    } else if (Math.abs(x) > t.hx - BASE_MARGIN || Math.abs(z) > t.hz - BASE_MARGIN) return false;
-    for (const b of bears()) {
-      if (!b.active) continue;
-      const clearance = 0.62 + 0.18 * (b.scale || 1);
-      if (Math.hypot(x - b.cx, z - b.cz) < clearance) return false;
-    }
-    if (placementExtra && !placementExtra(x, z)) return false;
-    return true;
+    return cannonPlacementProblem(x, z, {
+      table: table(), bears: bears(), insideBounds, placementExtra,
+    }) == null;
   }
 
   function pointToTable(clientX, clientY) {
@@ -181,7 +160,7 @@ export function createLauncher(ctx) {
       new THREE.RingGeometry(0.075, 0.125, 36),
       new THREE.MeshBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false })
     );
-    flashRing.position.z = MUZZLE_Z + 0.006;
+    flashRing.position.z = CANNON.muzzleZ + 0.006;
     flashRing.visible = false;
     pitch.add(flashRing);
 
@@ -340,77 +319,40 @@ export function createLauncher(ctx) {
   // --------------------------------------------------------------------- aim
   function aimAtWorld(tx, tz) {
     if (!group) return false;
-    const t = table();
-    const margin = 0.16;
-    if (clampBounds) {
-      const c = clampBounds(Number(tx) || 0, Number(tz) || 0, margin);
-      tx = c.x; tz = c.z;
-    } else {
-      tx = clamp(Number(tx) || 0, -t.hx + margin, t.hx - margin);
-      tz = clamp(Number(tz) || 0, -t.hz + margin, t.hz - margin);
-    }
-    const bx = group.position.x, bz = group.position.z;
-    let dx = tx - bx, dz = tz - bz;
-    let d = Math.hypot(dx, dz);
-    if (d < 0.8) {
-      const k = 0.8 / (d || 1);
-      dx *= k; dz *= k; d = 0.8;
-      tx = bx + dx; tz = bz + dz;
-    }
-
-    const yw = Math.atan2(dx, dz);
-    const cp = Math.cos(ANGLE), sp = Math.sin(ANGLE);
-    yaw.rotation.y = yw;
-    pitch.rotation.x = -ANGLE;
-    muzzle.set(
-      bx + Math.sin(yw) * cp * MUZZLE_Z,
-      PIVOT_Y + sp * MUZZLE_Z,
-      bz + Math.cos(yw) * cp * MUZZLE_Z
+    const sol = cannonAimSolution(
+      { x: group.position.x, z: group.position.z },
+      { x: tx, z: tz },
+      { table: table(), clampBounds }
     );
-
-    const mdx = tx - muzzle.x, mdz = tz - muzzle.z;
-    const md = Math.max(0.35, Math.hypot(mdx, mdz));
-    const dy = LAND_Y - muzzle.y;
-    const denom = 2 * cp * cp * (md * sp / cp - dy);
-    let v = denom > 1e-4 ? Math.sqrt(G * md * md / denom) : MIN_V;
-    v = clamp(v, MIN_V, MAX_V);
-    speed = v;
-    dir.set(Math.sin(yw) * cp, sp, Math.cos(yw) * cp);
-    vel.copy(dir).multiplyScalar(v);
-    target.set(tx, 0.018, tz);
+    solution = sol;
+    yaw.rotation.y = sol.yaw;
+    pitch.rotation.x = sol.pitch;
+    muzzle.set(sol.muzzle.x, sol.muzzle.y, sol.muzzle.z);
+    speed = sol.speed;
+    target.set(sol.target.x, 0.018, sol.target.z);
     hasAim = true;
-    updateAimArc();
+    updateAimArc(sol);
     return true;
   }
 
-  function updateAimArc() {
-    if (!aimDots) return;
+  function updateAimArc(sol = solution) {
+    if (!aimDots || !sol) return;
     const on = aiming && hasAim;
     aimDots.visible = on;
     aimRing.visible = on;
     if (!on) return;
-    const n = aimDots.count, step = 0.035;
+    const n = aimDots.count;
+    const arc = cannonAimArc(sol, { count: n });
     let used = 0;
-    let landX = target.x, landZ = target.z;
-    for (let i = 0; i < n; i++) {
-      const t = (i + 1) * step;
-      const x = muzzle.x + vel.x * t;
-      const y = muzzle.y + vel.y * t - 0.5 * G * t * t;
-      const z = muzzle.z + vel.z * t;
-      if (i > 2 && y <= LAND_Y) { landX = x; landZ = z; break; }
-      _m.makeTranslation(x, y, z);
-      aimDots.setMatrixAt(used++, _m);
-    }
-    for (let k = 1; k <= 3 && used < n; k++) {
-      const y = LAND_Y - (LAND_Y - 0.05) * k / 3.15;
-      _m.makeTranslation(landX, y, landZ);
+    for (const dot of arc.dots) {
+      _m.makeTranslation(dot.x, dot.y, dot.z);
       aimDots.setMatrixAt(used++, _m);
     }
     _m.makeScale(0, 0, 0);
     for (let i = used; i < n; i++) aimDots.setMatrixAt(i, _m);
     aimDots.instanceMatrix.needsUpdate = true;
-    aimRing.position.set(landX, 0.018, landZ);
-    landPoint.set(landX, LAND_Y, landZ);
+    aimRing.position.set(arc.land.x, 0.018, arc.land.z);
+    landPoint.set(arc.land.x, CANNON.landY, arc.land.z);
   }
 
   function updateAimFromScreen(clientX, clientY) {
@@ -425,29 +367,16 @@ export function createLauncher(ctx) {
     // Rapid clicks used to spawn several bears into the same muzzle point and
     // weld them together. One shot per cooldown keeps them separated.
     const now = performance.now();
-    if (now - lastFireAt < FIRE_COOLDOWN_MS) return false;
+    if (cannonCooldownBlock(now, lastFireAt, FIRE_COOLDOWN_MS)) return false;
     const f = Math.floor(Math.random() * flavors.length);
-    let ox = muzzle.x + dir.x * 0.36;
-    let oy = muzzle.y + dir.y * 0.36;
-    let oz = muzzle.z + dir.z * 0.36;
-    if (canSpawnAt && !canSpawnAt(ox, oz, 0.40, true)) {
-      // Try one short step along the shot line before refusing the shot.
-      const nx = ox + dir.x * 0.60;
-      const ny = oy + dir.y * 0.60;
-      const nz = oz + dir.z * 0.60;
-      if (!canSpawnAt(nx, nz, 0.40, true)) { lastBlock = 'muzzle'; return false; }
-      ox = nx; oy = ny; oz = nz;
-    }
-    // Refuse a shot whose landing point is inside a house, tree, bush or rock:
-    // landing there left the bear embedded in the obstacle. Other bears are
-    // allowed, so firing into a group still works.
-    if (canSpawnAt && !canSpawnAt(landPoint.x, landPoint.z, 0.45, false)) {
-      lastBlock = 'landing';
-      return false;
-    }
+    // Refuse a muzzle or landing point inside an obstacle. Other bears are
+    // allowed at the landing point, so firing into a group still works.
+    const shot = cannonShotPlacement(solution, landPoint, canSpawnAt);
+    if (!shot.ok) { lastBlock = shot.block; return false; }
     lastBlock = null;
+    const { origin } = shot;
 
-    _y.copy(dir).normalize();
+    _y.set(solution.dir.x, solution.dir.y, solution.dir.z).normalize();
     _z.set(0, 1, 0).addScaledVector(_y, -_y.y);
     if (_z.lengthSq() < 0.02) _z.set(0, 0, 1).addScaledVector(_y, -_y.z);
     _z.normalize();
@@ -455,13 +384,13 @@ export function createLauncher(ctx) {
     _m4.makeBasis(_x, _y, _z);
     _q.setFromRotationMatrix(_m4);
 
-    const b = spawnBear(ox, oz, oy - restDY, f, { quat: _q, lift: 0 });
+    const b = spawnBear(origin.x, origin.z, origin.y - restDY, f, { quat: _q, lift: 0 });
     if (!b) return false;
     lastFireAt = now;
     for (let i = 0; i < np; i++) {
-      b.vx[i] = vel.x;
-      b.vy[i] = vel.y;
-      b.vz[i] = vel.z;
+      b.vx[i] = solution.velocity.x;
+      b.vy[i] = solution.velocity.y;
+      b.vz[i] = solution.velocity.z;
     }
     uploadVelocities(b);
     b.airborne = true;
@@ -470,8 +399,8 @@ export function createLauncher(ctx) {
     recoil = 1;
     flash = 1;
     lastShot = {
-      flavor: f, speed: +speed.toFixed(2),
-      x: +ox.toFixed(2), y: +oy.toFixed(2), z: +oz.toFixed(2),
+      flavor: f, speed: +solution.speed.toFixed(2),
+      x: +origin.x.toFixed(2), y: +origin.y.toFixed(2), z: +origin.z.toFixed(2),
     };
     return true;
   }
