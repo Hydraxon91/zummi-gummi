@@ -23,6 +23,12 @@ const MAX_ACTORS = 8;
 const HOVER = .18;
 const HOVER_BOB = .035;
 const MOVE_SPEED = 1.35;
+// Released Glass may re-hover at an xz that is still inside a static collider.
+// Keep the rigid proxy dynamic until it separates; if it has not after this
+// bounded window, project it radially out of every overlapping static circle.
+const SETTLE_TIME = .9;
+const SETTLE_CLEAR_TOLERANCE = .03;
+const SETTLE_PROJECT_MARGIN = .06;
 const DAY_START = 8;
 const DAY_END = 18;
 const STAGE_ORDER = ['baby', 'teen', 'adult'];
@@ -135,6 +141,87 @@ export function createGlassColony({
     return Array.isArray(list) ? list : [];
   };
   const fieldNow = () => (typeof getField === 'function' ? getField() : null);
+
+  // Static circles owned by the field. Trees additionally own a flared base
+  // sphere; include it so a low proxy cannot settle inside the visible trunk.
+  function staticCircles() {
+    const field = fieldNow();
+    if (!field || !Array.isArray(field.colliders)) return [];
+    const out = [];
+    for (const c of field.colliders) {
+      if (!c || !Number.isFinite(c.x) || !Number.isFinite(c.z) || !Number.isFinite(c.r)) continue;
+      out.push({ x: c.x, z: c.z, r: c.r, y: Number.isFinite(c.y) ? c.y : null });
+      if (Number.isFinite(c.baseR) && c.baseR > c.r) {
+        out.push({ x: c.x, z: c.z, r: c.baseR, y: Number.isFinite(c.baseY) ? c.baseY : c.baseR });
+      }
+    }
+    return out;
+  }
+
+  function proxyRadius(a) {
+    return Math.max(.12, a.bodyRadius || .33 * a.scale);
+  }
+
+  // Conservative horizontal+vertical gate: the horizontal circle intersection
+  // alone would flag a proxy passing under a canopy, so require the proxy centre
+  // to also fall inside the collider's vertical span (centre ± radius).
+  function staticConflict(a, x = a.cx, z = a.cz, y = a.cy) {
+    const radius = proxyRadius(a);
+    for (const c of staticCircles()) {
+      if (Math.hypot(x - c.x, z - c.z) >= c.r + radius - SETTLE_CLEAR_TOLERANCE) continue;
+      if (c.y !== null && Math.abs(y - c.y) >= c.r + radius) continue;
+      return c;
+    }
+    return null;
+  }
+
+  // Move an overlapping xz just outside every static circle. A few passes keep
+  // the result clear when one projection pushes into a neighbouring collider.
+  function projectClearXZ(a, x, z) {
+    const radius = proxyRadius(a) + SETTLE_PROJECT_MARGIN;
+    const circles = staticCircles();
+    let px = x;
+    let pz = z;
+    for (let pass = 0; pass < 4; pass++) {
+      let moved = false;
+      for (const c of circles) {
+        const need = c.r + radius;
+        const dx = px - c.x;
+        const dz = pz - c.z;
+        const d = Math.hypot(dx, dz);
+        if (d >= need) continue;
+        const ux = d > 1e-6 ? dx / d : 1;
+        const uz = d > 1e-6 ? dz / d : 0;
+        px = c.x + ux * need;
+        pz = c.z + uz * need;
+        moved = true;
+      }
+      if (!moved) break;
+    }
+    return { x: px, z: pz };
+  }
+
+  function beginSettle(a) {
+    a.freeBody = true;
+    a.coasting = false;
+    a.settling = true;
+    a.settleT = SETTLE_TIME;
+    ensureBody(a);
+    if (a.bodyHandle < 0) {
+      const clear = projectClearXZ(a, a.cx, a.cz);
+      a.cx = clear.x;
+      a.cz = clear.z;
+      a.freeBody = false;
+      a.settling = false;
+      a.settleT = 0;
+    }
+  }
+
+  function finishSettle(a) {
+    a.settling = false;
+    a.settleT = 0;
+    endFreeBody(a);
+  }
 
   const glassAdapter = shared ? {
     onStop(a) {
@@ -325,6 +412,8 @@ export function createGlassColony({
     a.ai.shelter = false;
     clearPath(a);
     a.shelteredToday = true;
+    a.settling = false;
+    a.settleT = 0;
     destroyBody(a);
     if (home && field && field.emote) field.emote(home.door.x, .85, home.door.z, 'sparkle');
   }
@@ -484,6 +573,8 @@ export function createGlassColony({
     a.freeT = 0;
     a.coasting = false;
     a.throwT = 0;
+    a.settling = false;
+    a.settleT = 0;
     a.grabVx = 0;
     a.grabVz = 0;
     a.grabVy = 0;
@@ -526,6 +617,11 @@ export function createGlassColony({
     }
     const delta = a.grabTarget.clone().sub(new THREE.Vector3(a.cx, a.cy, a.cz));
     if (delta.length() > 6) a.grabTarget.set(a.cx, a.cy, a.cz).add(delta.setLength(6));
+    // Never let the grab spring pull the proxy into a static collider. The
+    // target keeps the existing depth/offset and lift; only its xz is clamped.
+    const clearTarget = projectClearXZ(a, a.grabTarget.x, a.grabTarget.z);
+    a.grabTarget.x = clearTarget.x;
+    a.grabTarget.z = clearTarget.z;
     const k = 1 - Math.exp(-12 * dt);
     a.grabVx += ((a.grabTarget.x - prevX) / dt - a.grabVx) * k;
     a.grabVz += ((a.grabTarget.z - prevZ) / dt - a.grabVz) * k;
@@ -544,6 +640,7 @@ export function createGlassColony({
     a.ai.nextThink = 0;
     a.ai.faceYaw = null;
     if (shared) shared.onRelease(a);
+    let settle = false;
     if (throwIt && physics) {
       ensureBody(a);
       if (a.bodyHandle >= 0) {
@@ -558,12 +655,17 @@ export function createGlassColony({
         a.spinX = clamp(-vz * .7, -7, 7);
         a.spinZ = clamp(vx * .7, -7, 7);
         physics.setVelocities([a.bodyHandle], [vx, vy, vz], 1);
+        settle = !!staticConflict(a);
       }
     } else {
       a.freeBody = false;
       a.coasting = false;
       a.throwT = 0;
+      settle = !!staticConflict(a);
     }
+    // A release/hover sync inside a static collider would pin the proxy there,
+    // so stay dynamic and let the solver separate before restoring hover.
+    if (settle) beginSettle(a);
     updateVisual(a);
     if (!a.freeBody) syncBody(a);
     return true;
@@ -595,6 +697,8 @@ export function createGlassColony({
       a.freeBody = true;
       a.freeT = 2.2;
       a.coasting = false;
+      a.settling = false;
+      a.settleT = 0;
       a.spinX = clamp(-dvz * .7, -7, 7);
       a.spinZ = clamp(dvx * .7, -7, 7);
       a.tumbleX = 0;
@@ -781,6 +885,8 @@ export function createGlassColony({
       grabbing: false,
       freeBody: false,
       freeT: 0,
+      settling: false,
+      settleT: 0,
       grabY: 0,
       grabDepth: 6,
       grabStartY: 0,
@@ -1119,6 +1225,8 @@ export function createGlassColony({
     if (!a || !a.freeBody) return;
     a.freeBody = false;
     a.freeT = 0;
+    a.settling = false;
+    a.settleT = 0;
     a.spinX = 0;
     a.spinZ = 0;
     a.ai.state = 'wander';
@@ -1150,6 +1258,22 @@ export function createGlassColony({
         updateVisual(a);
         continue;
       }
+      if (a.settling) {
+        a.settleT = Math.max(0, (a.settleT || 0) - dt);
+        if (staticConflict(a)) {
+          if (a.settleT > 0) {
+            updateVisual(a);
+            continue;
+          }
+          // Bounded settle expired: leave the collider deterministically rather
+          // than restoring hover inside it.
+          const clear = projectClearXZ(a, a.cx, a.cz);
+          a.cx = clear.x;
+          a.cz = clear.z;
+        }
+        finishSettle(a);
+        continue;
+      }
       a.freeT = Math.max(0, (a.freeT || 0) - dt);
       updateVisual(a);
       if (a.freeT <= 0 || (speed < .3 && a.cy < .75)) endFreeBody(a);
@@ -1163,6 +1287,8 @@ export function createGlassColony({
       if (!meadow) {
         a.freeBody = false;
         a.freeT = 0;
+        a.settling = false;
+        a.settleT = 0;
         destroyBody(a);
       }
       if (a.root) a.root.visible = meadow && !a.inside;
@@ -1189,6 +1315,8 @@ export function createGlassColony({
     if (!a) return;
     a.disposed = true;
     a.active = false;
+    a.settling = false;
+    a.settleT = 0;
     destroyBody(a);
     if (a.mixer) a.mixer.stopAllAction();
     if (a.model) disposeInstanceSkeletons(a.model);
@@ -1321,6 +1449,8 @@ export function createGlassColony({
     a.grabs = 0;
     a.freeBody = false;
     a.freeT = 0;
+    a.settling = false;
+    a.settleT = 0;
     a.coasting = false;
     a.throwT = 0;
     a.doorFade = 1;
