@@ -318,6 +318,13 @@ dependency was added.
 
 ### M9 — Home simulation versus building presentation (M; M7)
 
+**C5/M9 complete:** [home boundary contract](homes-boundary-contract.md) and
+`src/homesim.js` separate active resident counting and birth-home choice from
+villa meshes, occupancy effects and field descriptors. Parent full Node passed
+528/528; the browser birth probe confirmed mother-home retention under capacity
+and first least-populated overflow selection. Door/route and occupancy-glow
+visuals remain with their existing owners; no capacity or interior policy changed.
+
 - Specify resident/capacity/ownership queries and door/activity anchors apart
   from villa meshes and occupancy effects. Preserve overflow and family rules.
 - **Probe/gate:** alternate existing home style reuses the same capacity/door

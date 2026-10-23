@@ -21,6 +21,7 @@ import { createGlassColony } from './glass.js';
 import { createGiftVisuals } from './giftvisuals.js';
 import { assetStore } from './assetstore.js';
 import { createActorView, isGlassActor } from './npc.js';
+import { chooseBirthHome as chooseBirthHomeRule, countHomeResidents } from './homesim.js';
 import { getSpecies, speciesForRig, listSpecies, requireSpeciesRuntime } from './species.js';
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
@@ -949,19 +950,16 @@ function updateFarewells(dt){
 }
 
 function homeResidents(name) {
-  return actorView.homeResidents(name);
+  return countHomeResidents(actorView.all(), name);
 }
 
 function chooseBirthHome(mother) {
-  if (mother && mother.home && homeResidents(mother.home) < HOME_CAPACITY) return mother.home;
-  if (!field || !field.homes) return mother ? mother.home || '' : '';
-  let best = null;
-  let bestCount = Infinity;
-  for (const home of field.homes) {
-    const n = homeResidents(home.name);
-    if (n < bestCount) { best = home; bestCount = n; }
-  }
-  return best ? best.name : (mother ? mother.home || '' : '');
+  return chooseBirthHomeRule({
+    mother,
+    homes: field && field.homes,
+    residents: actorView.all(),
+    capacity: HOME_CAPACITY,
+  });
 }
 
 // Rebuild every representation of a bear together: physics radii/joints, the
