@@ -521,6 +521,15 @@ project was selected; M18b–M18d remain pending.
 
 ### M19 — Input routing, camera and possession (L; M0, M5)
 
+**E2/M19 camera-owner slice complete:** `src/camera.js` owns the pure map/aspect
+home descriptor and spherical position math; app keeps live camera state,
+possession clamps, shake, look-at, all gesture priority and input handlers. The
+[input/camera contract](input-camera-contract.md) records pointer/keyboard/touch
+ownership and remaining unsliced owners. Parent full Node passed 609/609; a real
+CDP probe covered grab/throw without orbit, orbit, wheel zoom, held keys, blur
+release, life/Studio wide/narrow homes and touch cancel with no page errors.
+Physical touch hardware and real OS focus loss remain unverified.
+
 - Inventory pointer/keyboard/touch ownership and priority: UI, launcher, portal,
   actor grab/select, possession, orbit/pan. Extract one owner at a time; reuse
   existing paths rather than add a second input stack.

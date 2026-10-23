@@ -13,6 +13,7 @@ import {
   DEFAULT_NATURE, SETTINGS_PROFILE_IDS, normalizeNature, createSettingsProfiles,
   resolveSettingsProfile,
 } from './settings.js';
+import { cameraHomeFor, cameraPositionFor } from './camera.js';
 import {
   HOME_CAPACITY, MATE_COOLDOWN, GESTATION_TIME, STAGE_ORDER,
   advanceAge, advanceGestation, ageForStage, scaleForStage, stageForAge,
@@ -2733,20 +2734,14 @@ function dofFocusStrengthFor(distance) {
 }
 function cameraHome(){
   const map = getActiveMap();
-  if (map.kind === 'life') {
-    const c = map.camera;
-    const narrow = camera.aspect < 0.95;
-    return {
-      target: new THREE.Vector3(c.target[0], c.target[1], c.target[2]),
-      yaw: c.yaw, pitch: c.pitch, dist: c.dist + (narrow ? 8 : 0),
-      minDist: c.minDist, maxDist: c.maxDist,
-    };
-  }
-  return {
-    target: new THREE.Vector3(CAM_TARGET.x, CAM_TARGET.y - (camera.aspect < 0.95 ? 0.30 : 0), CAM_TARGET.z),
-    yaw: CAM_HOME.yaw, pitch: CAM_HOME.pitch, dist: CAM_HOME.dist,
-    minDist: 4.2, maxDist: 18,
-  };
+  const h = cameraHomeFor({
+    mapKind: map.kind,
+    mapCamera: map.camera,
+    camTarget: CAM_TARGET,
+    camHome: CAM_HOME,
+    aspect: camera.aspect,
+  });
+  return { ...h, target: new THREE.Vector3(h.target[0], h.target[1], h.target[2]) };
 }
 function camHomeTarget(out){ return out.copy(cameraHome().target); }
 function camZoomLimits(){
@@ -2757,12 +2752,10 @@ function applyCamera(dt){
   if (cam.frozen) return;
   if (dt > 0) cam.target.lerp(cam.goal, 1 - Math.exp(-14*dt));
   else cam.target.copy(cam.goal);
-  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-  camera.position.set(
-    cam.target.x + Math.sin(cam.yaw)*cp*cam.dist,
-    cam.target.y + sp*cam.dist,
-    cam.target.z + Math.cos(cam.yaw)*cp*cam.dist
-  );
+  const p = cameraPositionFor({
+    target: cam.target, yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist,
+  });
+  camera.position.set(p.x, p.y, p.z);
   // Third-person possession keeps the camera above the ground and inside the
   // arena, so orbiting cannot clip through the meadow floor or boundary.
   if (possessedBear){
