@@ -422,11 +422,11 @@ design change.
 | U-003 | App-internal pool/spawn/removal and partial cleanup have no importable host seam | Verification open; do not claim a general actor-lifecycle extension API. |
 | U-006 | Direct Glass removal lacks detach/cancel | Decision open; do not copy a removal pattern into a new representation. |
 | U-007 | Interaction-family coverage beyond the social pilot | Deferred; new activities still need their own cancellation evidence. |
-| U-008 | Editor-time connectivity/rebuild policy | Decision open; authored-layout validation is not an editor contract. |
-| U-011 | Real Glass late completion and effects teardown | Unsupported/open; no safe effects re-creation or second skinned adapter. |
+| U-008 | Editor-time connectivity/rebuild policy | Accepted C14 exclusion/won't-fix; no runtime editor connectivity or rebuild contract. Authored-layout validation is not an editor contract. |
+| U-011 | Real Glass late completion and effects teardown | Resolved for late completion. Effects are app-lifetime with no public `dispose`/recreation; no effects teardown or second skinned adapter is supported. |
 | U-016 | Cannon landing-refusal host proof | Verification open; pure cannon fixtures do not prove host refusal. |
 | U-017 | Pond recovery and eye-placement continuity host proof | Verification open; not a general surface API. |
-| U-018 | Visual pond/terrain host split | Deferred/open; requires separate material/uniform/shoreline/collider/camera design. |
+| U-018 | Visual pond/terrain host split | Accepted C14 exclusion/won't-fix; no visual split is implemented. Reopen only with a separate material/uniform/shoreline/collider/camera design. |
 
 See [the unresolved-items register](unresolved-register.md) for the complete
 entries and evidence. An entry's presence is not repair authorization.

@@ -7,6 +7,7 @@ import {
   validateSave as validateFormatSave, normalizeSave as normalizeFormatSave,
 } from '../src/saveformat.js';
 import { maxActorUid } from '../src/actorsave.js';
+import { applySavePayloadPhases } from '../src/savecoordination.js';
 
 function basePayload() {
   const bear = {
@@ -136,6 +137,33 @@ test('a duplicate actor uid anywhere in the game is rejected', () => {
   const glassCheck = validateSave(glassPayload);
   assert.equal(glassCheck.ok, false);
   assert.match(glassCheck.errors.join('; '), /duplicate actor uid 1/);
+});
+
+test('a duplicate actor uid is rejected before any apply phase runs', () => {
+  const payload = basePayload();
+  payload.worlds.studio.bears = [{ ...payload.worlds.field.bears[0], uid: 1 }];
+  const check = validateSave(payload);
+  assert.equal(check.ok, false);
+  assert.match(check.errors.join('; '), /duplicate actor uid 1/);
+
+  let phases = 0;
+  const phase = () => { phases += 1; };
+  assert.throws(() => {
+    normalizeSave(payload);
+    applySavePayloadPhases(payload, {
+      onReserveUids: phase,
+      onInstallWorlds: phase,
+      onPrune: phase,
+      onPortions: phase,
+      onActivate: phase,
+      onRestoreCarried: phase,
+      onRestoreFood: phase,
+      onRestoreSky: phase,
+      onRestoreLauncher: phase,
+      onFinish: phase,
+    });
+  }, /duplicate actor uid 1/);
+  assert.equal(phases, 0);
 });
 
 test('normalization strips unknown top-level keys and preserves the map payload', () => {

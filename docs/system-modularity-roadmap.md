@@ -432,12 +432,13 @@ schema bump and no transaction claim; U-003/U-006/U-011 remain open.
 
 ### M13 — Clock and RNG ownership decision (S investigation; L redesign)
 
-**M13 investigation complete:** [clock/RNG decision memo](clock-rng-decision.md)
-recommends retaining current ownership and closing M13 without redesign. No
-concrete consumer was found for a narrower clock query; existing host callbacks
-and diagnostics already cover reads. The P5 source-order suite passes 5/5. This is
-a recommendation only: no clock split, RNG isolation, cadence change or runtime
-change is approved. A future redesign remains a separate decision.
+**M13 closed without redesign (C14, 2026-10-24):** [clock/RNG decision memo](clock-rng-decision.md)
+recommended option A, retaining current ownership. That recommendation was
+accepted in C14 and M13 is closed without redesign: no clock split, RNG isolation,
+cadence change or runtime change was made. No concrete consumer was found for a
+narrower clock query; existing host callbacks and diagnostics already cover reads.
+The P5 source-order suite passed 5/5 at investigation time. A future redesign
+remains a separate decision.
 
 - Use the P5 contract as baseline. Evaluate a narrow clock-read interface without
   moving time advancement or splitting the global stream.
@@ -809,6 +810,14 @@ register and added U-019–U-022. The final boundary passed full Node 694/694,
 contracts 17 modules, short parity 9/9, fresh long parity 15/15
 (`acceptance:true`), smoke 68/68 and the four Python target commands. No push is
 implied.
+
+**C14 accepted exclusions (2026-10-24):** M13 retains current clock/RNG ownership
+with no redesign; U-008 runtime editor connectivity/rebuild is excluded; U-018
+visual pond/terrain split is excluded/deferred; effects are app-lifetime with no
+public `dispose`/recreation; U-021 duplicate UIDs use reject-and-preserve. These
+are exclusions/unsupported paths, not implemented features. C14 is docs/test-only
+and added no runtime change; the duplicate-UID negative proof in
+`tests/save.test.mjs` confirms rejection before any apply-phase callback runs.
 
 The M3 policy is settled: reject unknown module IDs without mutation/version
 changes, and reject an entire actor-config patch containing any unknown ID.

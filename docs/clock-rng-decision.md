@@ -1,9 +1,11 @@
 # Clock and RNG ownership decision (M13a)
 
-Status: M13a investigation and decision memo only. This document records the
-current ownership, the P5 baseline, evaluated options and a recommendation. **No
-redesign is approved by this memo**, and no production runtime, test, config,
-generated-file, roadmap or package metadata changed in this step.
+Status: M13a investigation and decision memo. C14 (2026-10-24) accepted the
+option A recommendation and closed M13 without redesign; no runtime change was
+made. The memo itself records the current ownership, the P5 baseline, evaluated
+options and that recommendation. **This memo did not approve a redesign on its
+own**, and no production runtime, test, config, generated-file, roadmap or
+package metadata changed in the M13a step.
 
 Scope: the browser scheduler, the Meadow sky/life clock, the global RNG stream and
 the save-time fields that carry clock state. Source authoring, physics internals
