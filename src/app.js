@@ -10,9 +10,9 @@ import { createDepartureHook } from './departures.js';
 import { createEffects } from './effects.js';
 import { GRAPHICS_GROUPS, GRAPHICS_DEFAULTS, normalizeGraphics, readGraphics, createGraphicsPanel } from './graphics.js';
 import {
-  HOME_CAPACITY, MATE_COOLDOWN, GESTATION_TIME, MATE_FOOD_MIN, STAGE_ORDER,
+  HOME_CAPACITY, MATE_COOLDOWN, GESTATION_TIME, STAGE_ORDER,
   advanceAge, advanceGestation, ageForStage, scaleForStage, stageForAge,
-  blendPace, blendTraits, inheritedFlavor,
+  blendTraits,
 } from './life.js';
 import { ensureTraits } from './behaviors/traits.js';
 import { createStudioReturnPortal } from './studiohouse.js';
@@ -25,6 +25,7 @@ import { chooseBirthHome as chooseBirthHomeRule, countHomeResidents } from './ho
 import { getSpecies, speciesForRig, listSpecies, requireSpeciesRuntime } from './species.js';
 import { combineGenomes, defaultGenome, expressGenome, normalizeGenome } from './dna.js';
 import { applyStageGrowth } from './actorlife.js';
+import { planBirth } from './actorbirth.js';
 import { FIELD_RADIUS, fieldClamp, fieldInside, fieldRadiusAt } from './fieldshape.js';
 import { activeWorld, getActiveMap, saveLauncherPos, worlds, setActiveMap, persistWorld, MAPS, hydrateWorld } from './world.js';
 import { SAVE_FORMAT, SAVE_VERSION, AUTOSAVE_ID, normalizeSave, listSaves, readSave, writeSave, removeSave } from './save.js';
@@ -1004,19 +1005,6 @@ function applyBearStage(b, nextStage) {
   });
 }
 
-function birthSpecies(mother, father) {
-  const defs = [mother, father]
-    .filter(Boolean)
-    .map(speciesOf)
-    .filter(def => def && def.canReproduce);
-  if (!defs.length) return speciesOf(mother);
-  const unique = [...new Map(defs.map(def => [def.id, def])).values()];
-  if (unique.length === 1) return unique[0];
-  // Cross-species offspring use one of the parents' existing forms. Glass has
-  // no metaball rig, but its meadow adapter can create a child directly.
-  return unique[(Math.random() * unique.length) | 0];
-}
-
 function isHexColor(value) {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 }
@@ -1088,30 +1076,24 @@ function personalityEnabled() {
 }
 
 function birthChild(mother, father = null) {
-  if (!mother || !mother.active || !mother.pregnant) return false;
-  if (mother.grabs > 0 || mother.inPond || mother.airborne || mother.freeBody) return false;
-  const safeFood = field && field.food ? field.food.allRipe({ safe: true }).length : 0;
-  if (safeFood < MATE_FOOD_MIN) return false;
-  father = father || actorView.byUid(mother.fatherUid) || null;
-  const childSpecies = birthSpecies(mother, father) || speciesOf(mother);
-  if (!childSpecies) return false;
-  if (childSpecies.id !== 'glass' && bears.length >= bearCeiling) return false;
-  const flavor = inheritedFlavor(Number.isFinite(mother.flavor) ? mother.flavor : 3, FLAVORS.length, Math.random);
-  const pace = blendPace(mother, father || mother, Math.random);
-  const home = chooseBirthHome(mother);
-  let x = mother.cx;
-  let z = mother.cz;
-  if ((mother.sleeping || mother.inside) && home) {
-    const h = field && field.homes ? field.homes.find(item => item.name === home) : null;
-    if (h) { x = h.door.x; z = h.door.z; }
-  }
-  const p = field && field.nav ? field.nav.nearestWalkable(x, z) : null;
-  if (p) { x = p.x; z = p.z; }
-  const genome = childGenomeFor(mother, father, childSpecies);
-  const sex = Math.random() < 0.5 ? 'F' : 'M';
-  const parentUids = [mother.uid, father ? father.uid : 0].filter(Boolean);
+  const plan = planBirth(mother, father, {
+    speciesOf,
+    fatherByUid: (uid) => actorView.byUid(uid),
+    safeFood: () => (field && field.food ? field.food.allRipe({ safe: true }).length : 0),
+    softCount: () => bears.length,
+    softCapacity: () => bearCeiling,
+    chooseHome: chooseBirthHome,
+    homeDoor: (home) => (field && field.homes
+      ? field.homes.find(item => item.name === home) || null
+      : null),
+    nearestWalkable: (x, z) => (field && field.nav ? field.nav.nearestWalkable(x, z) : null),
+    childGenome: childGenomeFor,
+  });
+  if (!plan.ok) return false;
+  father = plan.father;
+  const { childSpecies, isGlass, flavor, pace, home, x, z, genome, sex, parentUids } = plan;
   let baby = null;
-  if (childSpecies.id === 'glass') {
+  if (isGlass) {
     baby = glassColony ? glassColony.spawnChild({
       x, z, genome, home,
       stage: 'baby', age: 0, sex,

@@ -1,16 +1,18 @@
 # Actor and session identity/lifecycle contract
 
 Status: current-contract inventory for the M5 lifecycle, updated for the D1/M6a
-soft-body growth-orchestration slice. The M5 inventory described existing
-orchestration without changing production runtime; D1 extracts only stage growth
-and its focused tests/docs.
+soft-body growth-orchestration and D2/M6b birth-planning slices. The M5 inventory
+described existing orchestration without changing production runtime; D1 extracts
+stage growth, D2 extracts birth planning, and their focused tests/docs.
 
 Baseline: historical M5 inventory at `HEAD 4856ce6` (`docs: inventory interaction
 ownership for M2a`), clean working tree. D1 starts from `HEAD 10331f7`, clean
-working tree. M5 evidence was source inspection plus the focused Node tests named
-in §8; its browser save/load, map-switch and New Game flows were not executed.
-D1 adds focused Node coverage and a seeded Bear growth host probe; Glass growth
-was rerun through the existing `glass-test` growth scenario.
+working tree. D2 starts from `HEAD 6c66613`, clean working tree. M5 evidence was
+source inspection plus the focused Node tests named in §8; its browser save/load,
+map-switch and New Game flows were not executed. D1 adds focused Node coverage and
+a seeded Bear growth host probe; Glass growth was rerun through the existing
+`glass-test` growth scenario. D2 adds focused plan tests, a seeded Bear birth and
+save-restore host probe, and a Glass lifecycle rerun.
 
 Evidence labels used throughout:
 
@@ -36,6 +38,7 @@ allocator, pool and removal ordering; no module boundary was introduced.
 | Pooled soft-body slot | `src/app.js` | `getFreeBear()` (`src/app.js:561`), `pool`, `BEAR_HARD_MAX = 256` (`src/app.js:201`), shared scratch field/cell buffers (`src/app.js:214-215`) and instanced eye rows (`src/app.js:484`). |
 | Behavior runtime | `src/behavior.js`, `src/behaviors/engine.js` | `attach()` / `detach()` own `actor.ai`; `src/app.js:752` detaches on soft-body removal. |
 | Soft-body stage growth | `src/actorlife.js` + `src/app.js` | `applyStageGrowth()` owns eligibility, deferred stage, COM scaling and leaving-baby cleanup. The app `applyBearStage()` wrapper supplies life-species admission, physics/surface rebuild, stage sparks, stats and history. |
+| Birth planning | `src/actorbirth.js` + `src/app.js` | `planBirth()` owns eligibility, safe-food/father/species/cap gates, flavor/pace, home/door/nearest-walkable placement, genome, sex and parent UIDs. The host supplies read-only callbacks; the app `birthChild()` keeps spawn/finalization, traits, bonds, history, mother-state changes, stats and emotes. |
 | Session/world snapshots | `src/world.js` + `src/app.js` | `worlds.field` / `worlds.studio` hold saved arrays for the inactive map; the active map is captured by `saveCurrentWorld()` (`src/app.js:6194`). |
 
 `actorView` is a query surface, not an owner. `all()` returns `[...soft(), ...glass()]`
@@ -189,14 +192,26 @@ UID when inactive, and resolves the reused object only under its new UID).
 
 ### Birth
 
-`birthChild()` (`src/app.js:1101-1181`) checks the mother is active, pregnant and
-not grabbed/in water/airborne/free-body, checks safe food and species, chooses home
-and a walkable position, then spawns a soft-body child or calls
-`glassColony.spawnChild()`. A generated child gets a fresh UID through `spawn()`
-or the injected Glass allocator. After successful creation it applies family bonds,
-history, clears pregnancy/gestation/retry and sets the mother's cooldown. If child
-creation returns `null`, `birthChild()` returns `false` before mutating the mother
-(Inspected).
+`birthChild()` (`src/app.js`) still owns the live birth sequence. D2 moved only
+the decision half to `planBirth(mother, father, host)` (`src/actorbirth.js`).
+The plan checks the mother is active, pregnant and not grabbed/in water/airborne/
+free-body, checks safe food, resolves the father, chooses the child species,
+applies the non-Glass soft cap, inherits flavor/pace, chooses home and a walkable
+position, then builds the genome, sex and parent UIDs. The host supplies
+`speciesOf`, `fatherByUid`, `safeFood`, `softCount`, `softCapacity`,
+`chooseHome`, `homeDoor`, `nearestWalkable`, `childGenome` and `random`
+(defaulting to the current global `Math.random`); it performs no app/THREE/DOM
+work itself. `birthSpecies()` moved unchanged in behavior to the same module,
+including the cross-species draw and `speciesOf(mother)` fallback.
+
+A failed plan returns `{ ok: false, reason }` without mutating the mother or
+father and without drawing RNG for checks that had no draw before. On success the
+app spawns the soft-body child or calls `glassColony.spawnChild()`, applies trait
+inheritance after all existing birth/spawn draws, assigns genome/phenotype,
+family/sibling bonds and history, clears pregnancy/gestation/retry, sets the
+mother's cooldown, increments `lifeStats.births` and emits the heart/sparkle
+emotes in the existing order. If child creation returns `null`, `birthChild()`
+returns `false` before mutating the mother (Inspected; `tests/actor-birth.test.mjs`).
 
 ### Growth
 
@@ -297,7 +312,10 @@ What is proven / Inspected:
 - Save validation and normalization happen before mutation; an invalid payload
   throws from `normalizeSave()` before install/spawn (`src/app.js:6516-6520`).
 - `birthChild()` returns `false` without changing the mother's pregnancy when the
-  child cannot be created.
+  plan or child creation cannot complete. D2's plan path is covered by
+  `tests/actor-birth.test.mjs`, including no-RNG early failures and no mutation on
+  success; a seeded host probe proved a live soft-body birth and save export/
+  import restore of the child's species, rig and stage.
 - `spawnFromState()` returns `null` before spawning when the saved species is
   unknown/rigless or when MSN is disabled.
 - `glassColony.restore()` skips entries that are not Glass-shaped and caps the
@@ -365,6 +383,11 @@ Not supported / Unverified:
   `represent`/`onStageUp` in that order. It has no app, THREE, DOM or physics
   import; the app wrapper remains authoritative for bodies, surfaces, sparks,
   stats and history.
+- **C14. Birth decisions are host-independent; spawn/finalization stays
+  app-owned.** `planBirth()` performs no mutation or RNG for rejected checks that
+  had none, resolves the current RNG at call time, and returns the decision record
+  only. `birthChild()` remains authoritative for spawning, representation, traits,
+  bonds, history, mother state, stats and emotes.
 
 ## 8. Test coverage map
 
@@ -397,6 +420,34 @@ dropped a new Bear, confirmed natural airborne deferral, and let it land and app
 the pending stage. Source inspection still covers the exact 12-spark draw order;
 the probe did not count individual spark RNG draws.
 
+D2 focused birth test: `tests/actor-birth.test.mjs` (11 cases, all pass). It
+imports the real `src/actorbirth.js` with fake actors/hosts and does not boot the
+app.
+
+| D2 case | Covers |
+| --- | --- |
+| birthSpecies keeps the existing cross-species draw and fallback order | same-species no draw, one cross draw, first/second selection, mother fallback, non-breeding fallback |
+| inactive or non-pregnant mothers reject before later hosts and without mutation | eligibility ordering, no host/RNG calls, input preservation |
+| grabbed, pond, airborne and free-body mothers reject before safe food and RNG | busy-state ordering and no mutation |
+| safe-food threshold gates father resolution and emits no RNG below it | `MATE_FOOD_MIN`, father lookup after food |
+| missing child species rejects after father resolution and before placement/genome/RNG | missing-species ordering |
+| non-Glass soft cap blocks while Glass bypasses it | soft cap, Glass bypass, MSN cap |
+| father resolution prefers the explicit father and falls back to mother.fatherUid | explicit/fallback/missing father, parent UID order |
+| cross-species plan draws once, then flavor, pace, genome and sex in that order | draw count/order, flavor/pace, placement before genome, sex last |
+| sleeping or inside mothers use the home door; otherwise the mother position is kept | door only for sleeping/inside with a home, no-home fallback |
+| nearestWalkable overrides placement and its null fallback keeps the original point | placement override and absent-nav fallback |
+| successful planning does not mutate the mother, father or host inputs | plan immutability on success |
+
+D2-hosted evidence: a seeded scratch browser probe
+(`.dev-shots/d2/bear-birth-probe.mjs`, report/log in the same directory) drove a
+real Bear mother through `setPregnant` + `sim`, verified a new baby Bear with a
+24-body rig and Float32 arrays, then exported/imported the save and verified the
+same UID kept species `bear`, stage `baby`, rig NP 24, parent UIDs and genome
+material. `node scripts/glass-test.mjs SCENARIO=lifecycle` (unchanged, `SHOTS=0`)
+also passed Glass birth, cross-species birth, family state and Glass save/load
+restore with no page errors. The probe uses existing `__gummy` hooks; no
+production hook was added.
+
 Existing cases reused rather than duplicated:
 
 - `tests/actor.test.mjs` — predicates, active filtering, `byUid`, fixed-array view.
@@ -415,11 +466,14 @@ Gaps:
 - `nextBearUid`, `reserveUid`, `reserveWorldUids`, `reserveGameUids`, `spawn`,
   `getFreeBear`, `spawnFromState`, `removeBear`, `removeGlassActor`, `despawnAll`,
   `applySavePayload` and `resetNewGame` remain app-internal and are not importable
-  in Node without a DOM/WebGL/physics boot. D1 added only the `actorlife.js` growth
-  seam; it did not export pool, spawn or removal orchestration.
+  in Node without a DOM/WebGL/physics boot. D1 added the `actorlife.js` growth
+  seam and D2 added the `actorbirth.js` planning seam; neither exports pool, spawn
+  or removal orchestration.
 - No executed browser evidence in M5 for map switch, save/load, stars departure or
   New Game ordering. Those sequences are **Inspected/Unverified**, not host-run.
-  D1's host probe covers normal and deferred Bear growth only.
+  D1's host probe covers normal and deferred Bear growth only. D2 host evidence
+  covers a live soft-body birth and a same-session save export/import restore; it
+  does not cover map switch, New Game or stars departure.
 - The exact per-draw spark RNG sequence is source-inspected, not individually
   counted by a committed test. The D1 module adds no RNG draws; the wrapper keeps
   the existing 12 `spawnSpark()` calls in place.

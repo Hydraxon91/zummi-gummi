@@ -278,8 +278,15 @@ eligibility, deferred-stage state, COM-relative scaling and leaving-baby
 guardian/follow cleanup. The app `applyBearStage()` wrapper keeps Box3D/surface
 rebuild, sparks, stats and history, preserving callback/RNG order. Parent full
 Node passed 536/536; Glass growth, seeded Bear normal/deferred growth, HTTP smoke
-and short parity passed. U-001/U-003/U-011 remain open; birth, removal/async and
-M6 completion are not claimed.
+and short parity passed.
+
+**D2/M6b birth-planning slice complete:** `src/actorbirth.js` owns portable
+eligibility, safe-food/father/species/cap gates, flavor/pace, home/door/walkable
+placement, genome, sex and parent UIDs; `birthChild()` still owns spawning,
+traits, bonds, history, mother reset, stats and emotes. Parent full Node passed
+547/547; seeded live Bear birth and save export/import restore passed, as did
+Glass lifecycle, HTTP smoke and short parity. U-001 is resolved; U-003/U-011
+remain open. Removal/async and M6 completion are not claimed.
 
 - Move birth/growth/removal orchestration out of app in bounded slices, with
   explicit representation callbacks. Keep Bear/Gummy and Glass implementations
