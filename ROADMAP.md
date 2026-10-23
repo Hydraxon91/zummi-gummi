@@ -1856,7 +1856,8 @@ gated. These statuses do not authorize engine migration.
 The approved execution batches A–H are recorded in the
 [system modularity roadmap](docs/system-modularity-roadmap.md#approved-execution-batches).
 They cover every remaining chunk, while preserving one reviewed coder step at a
-time and the explicit M3/M12/M18 design decisions.
+time and the explicit M3/M12/M18 design decisions. Batch A (M2a, M5, M23, M13
+investigation and M18a) is complete; Batch B remains separately gated.
 
 ## Personality and modular-AI extension track
 

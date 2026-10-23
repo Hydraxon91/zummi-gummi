@@ -340,6 +340,12 @@ change is approved. A future redesign remains a separate decision.
 
 ### M18 — Executable translation specification and target pilot (M; M0)
 
+**M18a complete:** the [translation fixture inventory](translation-fixtures.md)
+maps existing literal fixtures to rules, separates JS-vs-JS parity from
+cross-language evidence, lists gaps C1–C25 and specifies one pure-rule
+(`combineGenomes`) plus one wire-UID adapter pilot. No target engine/language or
+project was selected; M18b–M18d remain pending.
+
 - Inventory existing literal fixtures and supplement observable missing rules:
   numbers/Float32, null versus missing, unsigned hashes/RNG, ordering/ties, live
   identity versus wire UIDs and save migrations. Reuse existing tests first.
@@ -455,6 +461,10 @@ Execution order and internal slices:
 - **Conditional:** M13 redesign only if its memo recommends one and it receives
   separate approval. Box3D/WASM changes and native target physics/rendering are
   outside these batches.
+
+**Batch A is complete:** M2a, M5, M23, the M13 investigation and M18a are
+committed. No production runtime changed. Batch B remains a separately approved
+execution wave; its M3 unknown-ID policy is still a decision gate.
 
 ## Verification, rollback and release gates
 
