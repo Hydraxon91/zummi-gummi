@@ -165,6 +165,12 @@ field-independent behavior host or an engine-neutral architecture claim.
 
 ### M2 — Interaction ownership and cancellation conformance (L; M0)
 
+**M2a complete:** the [interaction ownership inventory](interaction-ownership.md)
+records pair/task/group/claim writers, protocol boundaries, lifecycle outcomes,
+an explicit outcome/reason vocabulary, existing test coverage and gaps. It is a
+source inventory only; no centralization, runtime change or M2b family was
+chosen. M2b–M2d remain pending.
+
 - Inventory writers of partner/task/group/reservation state before choosing any
   centralization. Specify completion, refusal, interruption and removal reasons.
 - Move only agreed writes through existing protocols, one activity family per
