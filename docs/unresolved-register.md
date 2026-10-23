@@ -107,10 +107,12 @@ by this boundary. Batch G/H remain unstarted; no push was made.
 ### G/H boundary note (2026-10-23)
 
 G1/M18b, G2/M18c, G3/M18d and H1/M22a, H2/M22b closed with independent parent
-review and atomic commits through `4bf44d0`. H2 added narrow tests only; it did
-not change runtime behavior. The final long parity/browser boundary is
-parent-run **after** this I3 audit. This note does not claim final counts or a
-review of this audit.
+review and atomic commits through `4bf44d0`; I3 reconciled the register at
+`0cec344`. H2 added narrow tests only; G/H did not change runtime behavior after
+the E/F browser probes. The final parent-run boundary at the G/H code HEAD
+passed full Node 694/694, contracts 17 modules, short parity 9/9, fresh long
+parity 15/15 (`acceptance:true`), smoke 68/68, and all four Python target
+commands (`validate`, `--self-test`, `genome`, `adapter`). No push was made.
 
 ## I3 backlog audit (2026-10-23)
 

@@ -1873,9 +1873,15 @@ cannon math, M14 surface-lattice fixture and M16 water-access boundary passed
 independent review and atomic commits. The E/F boundary passed full Node 677/677,
 contracts, short parity 9/9, smoke 68/68, the affected browser probes and a fresh
 long parity 15/15 (`acceptance:true`). U-016/U-017 remain open verification gaps
-and U-018 records the deferred visual pond/terrain split; Batch G/H have not
-started. Recording an item in the register does not authorize its repair. No push
-was made.
+and U-018 records the deferred visual pond/terrain split. Batch G and H are also
+complete through `0cec344`: CPython 3.14.6 stdlib fixture harness plus the pure
+genome rule and bounded wire-UID adapter; the 223-hook extension inventory and
+recipes; fixed pure-boundary checks and a fixture-only cannon extension proof;
+and the I3 audit of all 42 older follow-up headings with U-019–U-022 added. The
+G/H code boundary passed full Node 694/694, contracts, short parity 9/9, fresh
+long parity 15/15 (`acceptance:true`), smoke 68/68 and the Python target commands.
+Recording an item in the register does not authorize its repair. No push was
+made.
 
 **Known follow-ups — M4 species admission/restore mismatch (fixed):**
 Trigger: restoring a registered soft-body species without a rig, or a registered

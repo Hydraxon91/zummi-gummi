@@ -676,7 +676,11 @@ existing placement/aim/arc/cooldown contracts and an injected sink, without app
 globals or a universal toy engine. Parent full Node passed 694/694, the focused
 extension/proof suite passed 106/106, and contracts covered 17 modules. Other seam
 proofs remain the existing tests mapped in the extension inventory; unsupported
-and deferred items are unchanged. H3/I3 reconciliation remains.
+and deferred items are unchanged. H3/I3 reconciliation is complete: all 42
+`ROADMAP.md` follow-up headings were audited once, the register now has 22
+entries (U-019–U-022 added for `fieldInfo()` on a bounds-less map, active-map-only
+lineage indexing, duplicate-UID save recovery, and Glass obstacle-interface
+coverage), and the old Pending audit is superseded without rewriting history.
 
 - Publish supported debug/extension API inventory and copyable recipes with
   exact owners, lifecycle and tests. Keep production hooks stable.
@@ -790,6 +794,19 @@ these bounded slices; visual pond/terrain extraction, settings-body ownership,
 pond recovery, numeric eye continuity and landing-refusal host proof remain
 recorded as U-018/U-017/U-016 or existing gaps. Batch G (translation pilot) and
 H (final audit) have not started. No push is implied.
+
+**Batch G execution is complete:** G1/M18b selected CPython 3.14.6 (stdlib only)
+and pinned the fixture manifests/hashes; G2/M18c ported the pure
+`combineGenomes` bear/msn rule with independent fixture and negative runs plus a
+120-case JS/Python differential; G3/M18d ported the bounded wire-UID adapter with
+snapshot/validation/apply/prune and all five negatives. Batch H is complete:
+H1/M22a published the 223-hook debug inventory and recipes; H2/M22b added the
+fixed 12-module pure-boundary guard and a fixture-only cannon/toy extension
+proof; H3/I3 audited all 42 `ROADMAP.md` follow-up headings, reconciled the
+register and added U-019–U-022. The final boundary passed full Node 694/694,
+contracts 17 modules, short parity 9/9, fresh long parity 15/15
+(`acceptance:true`), smoke 68/68 and the four Python target commands. No push is
+implied.
 
 The M3 policy is settled: reject unknown module IDs without mutation/version
 changes, and reject an entire actor-config patch containing any unknown ID.
