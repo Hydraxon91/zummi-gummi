@@ -247,7 +247,8 @@ Currently unsupported or decision-gated (do not infer from a module's existence)
 - Render modules may depend on three.js, shader uniforms and shared scene objects.
   Consumers clone skinned assets and must not dispose shared source resources.
 - Persistence dependencies point one way: `save.js` → `saveformat.js` →
-  `actorsave.js` → shared rule modules; app composes capture/apply. Do not create a
+  `actorsave.js` → shared rule modules; app composes capture/apply and supplies the
+  callbacks to the portable `savecoordination.js` phase order. Do not create a
   second save store or a second world store.
 - `world.js` no longer reads browser `localStorage` at import. Pure/headless code
   can import it and use `createWorldState` with an injected storage getter; the app
@@ -268,7 +269,7 @@ performance run was performed for this document.
 | Traits/mood/preferences/proposals | `tests/behavior-traits.test.mjs`, `behavior-traits-save.test.mjs`, `behavior-mood.test.mjs`, `behavior-preferences.test.mjs`, `behavior-chooser.test.mjs`, `personality-presets.test.mjs` |
 | Social/family/relationships | `tests/behavior-social.test.mjs`, `behavior-family.test.mjs`, `behavior-conflict.test.mjs`, `relationship-features.test.mjs`, `relationship-save.test.mjs`, `family.test.mjs`, `interaction-history.test.mjs` |
 | Species/genetics | `tests/species.test.mjs`, `dna.test.mjs`, `behavior-profile-completeness.test.mjs` |
-| Actor identity/save | `tests/actor.test.mjs`, `actorrecord.test.mjs`, `actorsave.test.mjs`, `adoption-save.test.mjs`, `save.test.mjs` |
+| Actor identity/save | `tests/actor.test.mjs`, `actorrecord.test.mjs`, `actorsave.test.mjs`, `adoption-save.test.mjs`, `save.test.mjs`, `save-coordination.test.mjs` |
 | Navigation/layout/content | `tests/field-layout.test.mjs`, `avoidance.test.mjs`, `fieldshape.test.mjs`, `nav-debug.test.mjs`, `content.test.mjs`, `behavior-navigation.test.mjs` |
 | Food/gifts/portions | `tests/food.test.mjs`, `gifting.test.mjs`, `behavior-portions-query.test.mjs`, `resource-extension.test.mjs`; save tests cover carried/dropped portion records |
 | Assets | `tests/asset.test.mjs`, `asset-loader.test.mjs`, `asset-store.test.mjs`, `async-lifetime.test.mjs`; `scripts/glb-inventory.mjs` |
@@ -288,8 +289,10 @@ Known evidence gaps for this contract:
   surface/scheduler claims rely on sampled source and historical browser checks.
 - Behavior toggle cleanup is proven for selected policies (notably mate), not for
   every declared `legacy-unverified` or `feature-only` module.
-- Every activity's interruption/removal path, partial async actor loading and
-  concurrent save/map/autosave behavior remain inspection gaps (M2/M5/M12).
+- Every activity's interruption/removal path and partial async actor loading remain
+  inspection gaps (M2/M5). Save/load/map/New Game overlap is now covered by the
+  session-gate and save-coordination tests plus the D7/D8 busy-overlap browser
+  probe; M12 records the evidence and still does not claim transactions.
 - `tests/async-lifetime.test.mjs` covers coalesced cancellation, late release by
   a simulated consumer, failure/retry and preload at store level. Actual
   Glass/Studio late completion after WebGL instance creation, rapid map/save

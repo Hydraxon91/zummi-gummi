@@ -1,18 +1,20 @@
 # Save/map overlap contract
 
-Status: **D6/M12 policy decision and D7/M12a reject-gate implementation.** The
-chosen policy is **reject-and-preserve**: while one session-mutating operation is
-active, another is rejected before mutation; there is no queue, cancellation,
-rollback or transaction. D7 adds the single-flight gate and busy UI. Capture/apply
-phase extraction, queueing and the rest of M12 remain pending; this note does not
-claim M12 complete or transactional behavior.
+Status: **D6/M12 policy decision, D7/M12a reject gate and D8/M12b capture/apply
+phase extraction.** The chosen policy is **reject-and-preserve**: while one
+session-mutating operation is active, another is rejected before mutation; there
+is no queue, cancellation, rollback or transaction. D7 adds the single-flight gate
+and busy UI. D8 moves only the capture/apply phase order into the callback-only
+`src/savecoordination.js`; validation, world/UID/portion/sky/launcher/persist logic
+and the gate wrappers stay in app. The M12 evidence gate is closed in §7; this note
+does not claim transactional behavior or independent review.
 
 Baseline: `HEAD b3b42be` with a clean working tree for the D6/M11 audit; D7 ran
 from `HEAD cca2ce2` and preserved one pre-existing parent edit to the autosave
-rule in this file. Evidence labels:
+rule in this file. D8 ran from clean `HEAD 1418950`. Evidence labels:
 
 - **Inspected** — the named source and callers were read.
-- **Host-run** — the D7 checks and browser probe were executed in this checkout;
+- **Host-run** — the D7/D8 checks and browser probe were executed in this checkout;
   prior D4/D5 map evidence is retained only where named.
 - **Unverified** — no executed check exists for that failure path here.
 
@@ -91,9 +93,9 @@ cancellation/failure policy; the current app has no such policy.
 | Concern | Owner after M12 |
 | --- | --- |
 | Single-flight gate | A small portable `src/sessiongate.js` (new in D7); app composes it. |
-| Payload capture | App `buildSavePayload()` remains the capture caller; no second save cache. |
+| Capture ordering | `src/savecoordination.js` owns only the "capture active world, then build payload" order (new in D8); app supplies both callbacks and keeps `Date.now()`/normalization. |
 | Format/normalization/storage | `saveformat.js`, `save.js`, `actorsave.js` remain unchanged. |
-| Apply ordering | App `applySavePayload()` remains the concrete apply owner; M12 may extract ordering only with callbacks, not a new transaction. |
+| Apply ordering | `src/savecoordination.js` owns only the callback phase order (new in D8); app `applySavePayloadCore()` supplies the concrete UID/world/prune/portion/activation/food/sky/launcher/persist steps. No transaction or rollback is implied. |
 | Map switch scheduling/guard | App `requestMapSwitch()` remains async; the gate wraps it, `mapSwitching` remains the visual/guard flag. |
 | UI state | App disables controls; no new UI framework. |
 
@@ -213,5 +215,60 @@ U-011 remain open in the unresolved register.
 
 D7 satisfies the overlap-specific bullets above (busy rejection, release after
 success/storage failure, autosave skip, no queue, map-switch no-op, affected
-browser evidence). The invalid-input/cross-map/version/storage-failure matrix and
-capture/apply phase extraction remain for the rest of M12.
+browser evidence). D8 adds the extraction and maps the remaining invalid
+input/version/cross-map/portion/slot evidence in §7.
+
+## 7. D8 implementation and M12 evidence
+
+D8 adds `src/savecoordination.js` (new) with two exports:
+
+- `captureSavePayload({ captureActive, build })` calls `captureActive` once and then
+  returns `build()`; a missing callback is a no-op and a throw propagates without
+  calling later work.
+- `applySavePayloadPhases(payload, callbacks)` calls the supplied phases once in the
+  fixed order reserve UIDs → install worlds → prune references → replace portions →
+  activate map → restore carried food → restore field food → restore sky → restore
+  launcher → finish. It returns the finish value. Missing callbacks are no-ops; a
+  throw stops later phases and no rollback or latch is added.
+
+The module has no imports, RNG draws, async work, queue, transaction or schema
+change. `src/app.js` imports it only: `buildSavePayload()` supplies
+`captureActive: () => saveCurrentWorld()` and the existing `normalizeSave({...})`
+builder, preserving the single `Date.now()` call and `savedAt`.
+`applySavePayloadCore(raw)` still calls `normalizeSave(raw)` before any phase, keeps
+the existing `loadingSave` `try/finally`, and supplies the current blocks unchanged
+in their prior order: reserve game UIDs, install both map snapshots, build/prune
+game-wide UIDs, replace portions, activate the saved map, restore carried food and
+field food, restore sky, restore launcher, then persist the field, sync the aero UI
+and return `{ ok, map, bears, savedAt }`. `applySavePayload`/slot/Continue/autosave
+wrappers, gates, map activation order, UID/portion semantics and failure
+non-atomicity are unchanged.
+
+Evidence run from clean `HEAD 1418950` in this checkout:
+
+| Check | Result |
+| --- | --- |
+| `node --test tests/save-coordination.test.mjs tests/save.test.mjs tests/actorsave.test.mjs tests/session-gate.test.mjs` | 36 pass, 0 fail |
+| `node --test tests` | 589 pass, 0 fail |
+| `node scripts/check-behavior-contracts.mjs` | ok, 17 modules |
+| `node scripts/behavior-parity.mjs --days 2 --seeds 1,2,3` | `PARITY PASS` |
+| `node scripts/smoke.mjs http://localhost:8000` | 68 checks passed |
+| D7 busy-overlap browser probe rerun | 31/31 checks, 0 page errors |
+
+The M12 matrix is covered by existing checks plus this rerun:
+
+| Criterion | Exact evidence |
+| --- | --- |
+| Invalid input before mutation | `tests/save-coordination.test.mjs` :: validation stays the app pre-phase step (invalid payload throws before any phase); `tests/save.test.mjs` :: future top-level/genome version rejection before normalization. |
+| Sparse versions | `tests/save.test.mjs` :: v1 save without genomes validates and round-trips; `tests/actorsave.test.mjs` :: legacy actor versions validate/migrate and future actor versions are rejected. |
+| Cross-map UIDs | `tests/save.test.mjs` :: duplicate UID anywhere is rejected, max UID spans both maps/Glass; `tests/relationship-save.test.mjs` :: game-wide pruning preserves a partner on the inactive map. |
+| Carried portions | `tests/relationship-save.test.mjs` :: v8 persists a carried portion; `tests/resource-extension.test.mjs` :: carried identity normalization/interrupted drop; `tests/save.test.mjs` :: gift/carried duplicate ids rejected. |
+| Unrelated slots | D7/D8 busy-overlap probe: a rejected save wrote no `slot4`; slot1/slot2 writes and `listSaves()` stayed isolated; no queue or second cache. |
+| Storage failure | D7/D8 busy-overlap probe: forced IndexedDB `put` failure surfaced, released the gate in `finally`, and a later save succeeded. |
+| Overlap rejection (normal + reject) | D7/D8 busy-overlap probe: live map switch rejects save/load/import/New Game as `Session busy: map-switch`; same-map no-op; switch/load/save succeed after release. |
+
+These are host-run Node/browser results from this checkout, not independent review.
+Source repairs in D8 were 0; no probe assertion needed correction. The probe is
+scratch under `.dev-shots/d8/` and `.dev-shots/d7/` (latest report), with the command
+log retained in the D8 ledger. U-003, U-006 and U-011 remain open; U-015 records the
+completed M12 evidence.

@@ -293,8 +293,10 @@ portable soft/Glass removal order and `preserveRefs`/colony-result gates; the ap
 wrappers keep food/portion claims, behavior detach, bodies, references, grabs,
 mesh/eye work and Glass disposal. Parent full Node passed 559/559; `departure-test`
 (8/8) and `stars-test` removal paths passed with no page errors. D4's repeated
-map-switch probe covers map teardown separately. U-003/U-006/U-011 remain open;
-async completion and M6 completion are not claimed.
+map-switch probe covers map teardown separately. M6 extraction is complete for
+growth, birth and removal with the map-teardown evidence; real Glass late
+completion/effects teardown remains the separate U-011/M15 gap, and U-003/U-006
+remain open. The M6 host gate is therefore not claimed fully green.
 
 - Move birth/growth/removal orchestration out of app in bounded slices, with
   explicit representation callbacks. Keep Bear/Gummy and Glass implementations
@@ -410,8 +412,15 @@ rollback or transaction.
 save/export/load/import/map-switch/New Game/autosave and Menu Continue's autosave
 read+apply. Parent full Node passed 579/579; the busy-overlap probe passed 31/31,
 the Menu Continue probe 12/12, and the D5 map probe 27/27 with no page errors.
-Capture/apply phase extraction and the invalid-input/version/cross-map matrix
-remain before M12 completion. See [the save/map overlap contract](save-overlap-contract.md).
+
+**D8/M12b capture/apply phases complete:** `src/savecoordination.js` owns only the
+capture and apply phase order; the app keeps validation, UID/world/prune/portion/
+activation/food/sky/launcher/persist logic and the session gate. Parent full Node
+passed 589/589; focused save/coordination/session tests 36/36, short parity,
+HTTP smoke and the busy-overlap probe 31/31 passed. The M12 invalid-input/version/
+cross-map/portion/slot/storage matrix is mapped in
+[the save/map overlap contract](save-overlap-contract.md). M12 is complete with no
+schema bump and no transaction claim; U-003/U-006/U-011 remain open.
 
 - Retain the P2 format/storage boundary. Extract capture/apply sequencing only
   after tracing load, autosave, switch and New Game overlap.

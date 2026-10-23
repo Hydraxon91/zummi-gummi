@@ -37,6 +37,7 @@ import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindow
 import { MAP_CONTENT } from './mapcontent.js';
 import { enterMapSession, leaveCurrentMap } from './mapsession.js';
 import { createSessionGate } from './sessiongate.js';
+import { captureSavePayload, applySavePayloadPhases } from './savecoordination.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 
 // Explicit, early composition: hydrate world preferences before any
@@ -6514,14 +6515,16 @@ function worldSaveState(id) {
 function buildSavePayload() {
   // Capture the live active map first; the inactive map keeps the snapshot it
   // had when it was last left.
-  saveCurrentWorld();
-  return normalizeSave({
-    format: SAVE_FORMAT,
-    version: SAVE_VERSION,
-    savedAt: Date.now(),
-    mapId: activeWorld.mapId,
-    sky: savedSkyState(),
-    worlds: { field: worldSaveState('field'), studio: worldSaveState('studio') },
+  return captureSavePayload({
+    captureActive: () => saveCurrentWorld(),
+    build: () => normalizeSave({
+      format: SAVE_FORMAT,
+      version: SAVE_VERSION,
+      savedAt: Date.now(),
+      mapId: activeWorld.mapId,
+      sky: savedSkyState(),
+      worlds: { field: worldSaveState('field'), studio: worldSaveState('studio') },
+    }),
   });
 }
 
@@ -6551,83 +6554,99 @@ function restoreSavedCarriedFood(payload){
 function applySavePayloadCore(raw) {
   // Validate everything before touching the live session.
   const payload = normalizeSave(raw);
-  // Reserve every loaded identity before any restored actor can spawn, including
-  // actors on the inactive map and Glass actors.
-  reserveGameUids(payload.worlds);
   loadingSave = true;
   try {
-    for (const id of ['field', 'studio']) {
-      const src = payload.worlds[id];
-      const all = [...(Array.isArray(src.bears) ? src.bears : []), ...(Array.isArray(src.glass) ? src.glass : [])];
-      const w = worlds[id];
-      w.bears = src.initialized || src.bears.length ? src.bears : null;
-      w.glass = Array.isArray(src.glass) ? src.glass : null;
-      w.camera = src.camera;
-      w.gifts = Array.isArray(src.gifts) ? src.gifts : [];
-      if (src.launcher) w.launcher = { ...src.launcher };
-      if (id === 'field') {
-        w.time = Number.isFinite(src.time) ? src.time : 7.0;
-        w.auto = !!src.auto;
-        w.speed = Number.isFinite(src.speed) && src.speed > 0 ? src.speed : 1;
-      }
-      w.initialized = !!(src.initialized || src.bears.length);
-    }
-    // References are game-wide, not per map: a partner or rival on the inactive
-    // map must survive pruning while the active map loads.
-    const gameUids = new Set();
-    for (const id of ['field', 'studio']) {
-      const src = payload.worlds[id];
-      for (const actor of [...(src.bears || []), ...(src.glass || [])]) {
-        if (actor && Number.isFinite(actor.uid)) gameUids.add(actor.uid);
-      }
-    }
-    for (const id of ['field', 'studio']) {
-      const src = payload.worlds[id];
-      for (const actor of [...(src.bears || []), ...(src.glass || [])]) {
-        pruneActorRefs(actor, gameUids);
-      }
-    }
-    // Replace portions from the previous session before map activation merges
-    // the target map's saved list.
-    if (field && field.portions) {
-      field.portions.restore([
-        ...(payload.worlds.field.gifts || []),
-        ...(payload.worlds.studio.gifts || []),
-      ]);
-    }
-    activateMap(payload.mapId);
-    restoreSavedCarriedFood(payload);
-    if (payload.mapId === 'field' && field && field.food && Array.isArray(payload.worlds.field.food)) {
-      field.food.restore(payload.worlds.field.food);
-    }
-    if (payload.mapId === 'field' && sky && payload.sky) {
-      if (payload.sky.look) {
-        try { localStorage.setItem(SKY_LOOK_KEY, payload.sky.look); } catch (err) {}
-        if (sky.setLook(payload.sky.look)) {
-          worlds.field.time = sky.hours;
-          worlds.field.auto = false;
+    return applySavePayloadPhases(payload, {
+      // Reserve every loaded identity before any restored actor can spawn,
+      // including actors on the inactive map and Glass actors.
+      onReserveUids: () => reserveGameUids(payload.worlds),
+      onInstallWorlds: () => {
+        for (const id of ['field', 'studio']) {
+          const src = payload.worlds[id];
+          const all = [...(Array.isArray(src.bears) ? src.bears : []), ...(Array.isArray(src.glass) ? src.glass : [])];
+          const w = worlds[id];
+          w.bears = src.initialized || src.bears.length ? src.bears : null;
+          w.glass = Array.isArray(src.glass) ? src.glass : null;
+          w.camera = src.camera;
+          w.gifts = Array.isArray(src.gifts) ? src.gifts : [];
+          if (src.launcher) w.launcher = { ...src.launcher };
+          if (id === 'field') {
+            w.time = Number.isFinite(src.time) ? src.time : 7.0;
+            w.auto = !!src.auto;
+            w.speed = Number.isFinite(src.speed) && src.speed > 0 ? src.speed : 1;
+          }
+          w.initialized = !!(src.initialized || src.bears.length);
         }
-      } else {
-        try { localStorage.removeItem(SKY_LOOK_KEY); } catch (err) {}
-        sky.setTime(payload.sky.hours);
-        sky.setAuto(!!payload.sky.auto);
-        sky.setSpeed(payload.sky.speed);
-        worlds.field.time = sky.hours;
-        worlds.field.auto = sky.auto;
-        worlds.field.speed = sky.speed;
-        renderer.toneMappingExposure = sky.exposure;
-      }
-      if (Number.isFinite(payload.sky.day)) sky.setDay(payload.sky.day);
-    }
-    const l = payload.worlds[payload.mapId].launcher;
-    if (launcher && l) {
-      launcher.setMapState(l);
-      syncCannonCollider();
-      saveLauncherPos(l.x, l.z);
-    }
-    persistWorld('field');
-    syncAeroUI(true);
-    return { ok: true, map: payload.mapId, bears: bears.length, savedAt: payload.savedAt };
+      },
+      onPrune: () => {
+        // References are game-wide, not per map: a partner or rival on the
+        // inactive map must survive pruning while the active map loads.
+        const gameUids = new Set();
+        for (const id of ['field', 'studio']) {
+          const src = payload.worlds[id];
+          for (const actor of [...(src.bears || []), ...(src.glass || [])]) {
+            if (actor && Number.isFinite(actor.uid)) gameUids.add(actor.uid);
+          }
+        }
+        for (const id of ['field', 'studio']) {
+          const src = payload.worlds[id];
+          for (const actor of [...(src.bears || []), ...(src.glass || [])]) {
+            pruneActorRefs(actor, gameUids);
+          }
+        }
+      },
+      onPortions: () => {
+        // Replace portions from the previous session before map activation
+        // merges the target map's saved list.
+        if (field && field.portions) {
+          field.portions.restore([
+            ...(payload.worlds.field.gifts || []),
+            ...(payload.worlds.studio.gifts || []),
+          ]);
+        }
+      },
+      onActivate: () => activateMap(payload.mapId),
+      onRestoreCarried: () => restoreSavedCarriedFood(payload),
+      onRestoreFood: () => {
+        if (payload.mapId === 'field' && field && field.food && Array.isArray(payload.worlds.field.food)) {
+          field.food.restore(payload.worlds.field.food);
+        }
+      },
+      onRestoreSky: () => {
+        if (payload.mapId === 'field' && sky && payload.sky) {
+          if (payload.sky.look) {
+            try { localStorage.setItem(SKY_LOOK_KEY, payload.sky.look); } catch (err) {}
+            if (sky.setLook(payload.sky.look)) {
+              worlds.field.time = sky.hours;
+              worlds.field.auto = false;
+            }
+          } else {
+            try { localStorage.removeItem(SKY_LOOK_KEY); } catch (err) {}
+            sky.setTime(payload.sky.hours);
+            sky.setAuto(!!payload.sky.auto);
+            sky.setSpeed(payload.sky.speed);
+            worlds.field.time = sky.hours;
+            worlds.field.auto = sky.auto;
+            worlds.field.speed = sky.speed;
+            renderer.toneMappingExposure = sky.exposure;
+          }
+          if (Number.isFinite(payload.sky.day)) sky.setDay(payload.sky.day);
+        }
+      },
+      onRestoreLauncher: () => {
+        const l = payload.worlds[payload.mapId].launcher;
+        if (launcher && l) {
+          launcher.setMapState(l);
+          syncCannonCollider();
+          saveLauncherPos(l.x, l.z);
+        }
+      },
+      onFinish: () => {
+        persistWorld('field');
+        syncAeroUI(true);
+        return { ok: true, map: payload.mapId, bears: bears.length, savedAt: payload.savedAt };
+      },
+    });
   } finally {
     loadingSave = false;
   }
