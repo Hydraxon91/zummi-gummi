@@ -387,6 +387,144 @@ Explicit unverified / not applicable in C3:
 C3 commands and results are recorded in `.dev-shots/c3/results.md` (scratch).
 
 
+## M2 closeout C11: pond lifetime, residual timers and remaining families
+
+Baseline HEAD `4c17b58`, clean working tree. This pass is investigation and
+documentation only: no `src/`, `tests/`, `scripts/` or runtime behavior changed.
+It uses the existing modules engine and the Bear adapter (`createBearAI`) in
+scratch Node probes under `.dev-shots/c11/`. Forced fixtures (`forceSocial`,
+`forceVisit`, `forceMate`, `forceGift`, `forceGroup`, `forcePlaydate`,
+`forceMeal`, `forceConflict`) are labelled because natural eligibility would
+require long simulated travel; the probes drive the real state machines, not a
+test-only cleanup path.
+
+### Pond entry/exit matrix
+
+`ai.js` sets `ai.interrupted`, stops hop/movement and calls `releaseFood(b)` on
+entry, then calls `shared.tick(b, dt, { ready: false })`. Because the engine's
+`tick` returns before module state ticks when `ready` is false, every pair/task
+state machine is **frozen**, not cancelled, while `inPond` is true. On exit the
+adapter calls `resumeTask(b)`, which clears `ai.target` and lets module ticks
+resume. Observed behavior:
+
+| Family (fixture) | Entry | While in pond | Exit | Completion reward/history after interruption |
+| --- | --- | --- | --- | --- |
+| social (`forceSocial`) | no cleanup; partner/`socialT` survive | frozen | resumes; `socialT` counts down | **Yes**: +bond and one `social` history entry per actor after exit. |
+| visit (`forceVisit`) | no cleanup; visit fields/partner survive | frozen | next `tickVisit` sees the cleared target and calls `finishVisitPair(false)` | **No**: pair/visit fields clear, state `wander`, no bond/relief/history. `visitT` is left at the last increment (`.2`) because `endPair` does not clear timers. |
+| mate (`forceMate`) | no cleanup; `mateT` survives | frozen | resumes; `mateT` counts down | **Yes**: pregnancy kickoff, +.12 bond and one `mated` history entry per actor after exit. |
+| gifting, collect phase (`forceGift`, recipient hunger raised) | `releaseFood` drops `ai.source` claim but leaves `giftOrigin`, `giftRole`/`giftPhase` and the receiver role set | frozen | `thinkGift` sees the origin source is no longer claimed and calls `cancelGift` | **No**: both gift roles, origin/claim and state clear; no bond/history. |
+| gifting, carried delivery (`giftPhase: 'deliver'`) | no cleanup; `carriedFood`, both gift roles and partner survive | frozen | adjacent recipient: `thinkGift` moves straight to `gift`; otherwise travel resumes | **Yes** in the adjacent fixture: handover after exit granted +.04 bond and `gift`/`receivedGift` history; the carried portion was consumed (no dropped portion). This is a real reward-after-interruption path even though the collect phase cancels. |
+| group (`forceGroup`, three actors) | no cleanup; shared group/slots survive | leader frozen; other members tick | resumes travel | Completion after a forced `act` phase granted .01 bond and group history per pair. **Leader in pond:** the leader's tick is frozen, so `group.t` never decrements; the whole group stayed in `travel` with `done:false` after 8 s (indefinite hold). **Non-leader in pond:** the leader ticks, arrival cannot succeed, and the join timeout dissolves the group at 5 s; all members return to `wander` with no bond/history. |
+| family playdate (`forcePlaydate`) | no cleanup; `familyTask`/partner/playdate mirrors survive | frozen | resumes | forced `act` completion after exit granted .18 bond, playdate relief and `playdate` history per actor. |
+| family meal (`forceMeal`) | no cleanup; solo task survives | frozen | resumes | completion after exit granted `-.28` hunger, meal history and the companion `.05` bond. |
+| conflict (`forceConflict`) | no cleanup; partner/`conflictSource`/`conflictT` survive | frozen | resumes; `conflictT` counts down | **Yes**: conflict completion after exit wrote one `conflict` history entry per actor (bond clamped at 0 with the null source). |
+| directives | applying a directive first calls `cancelPair` when the actor is paired/tasked, so it is not a pond writer | directive TTL still decreases because `preTick` runs before the `ready` gate | normal directive check | Not a pair/claim lifetime; no pond-specific directive cleanup was added. |
+| Glass | Glass has no `inPond` branch in the shared adapter; its cleanup remains `stopGrabTasks`/`resetActor` | n/a | n/a | Not applicable to the Bear pond path. |
+
+Save-record probe: after pond entry during a visit, `snapshotActor` still omits
+`ai`, `partner`, visit fields and `familyTask`; pond state is runtime-only.
+
+**Partner-in-pond asymmetry.** `inPond` freezes only that actor's own tick; the
+other pair member keeps ticking. With the *partner* in the pond and the
+initiator grounded, social, mate and conflict all completed normally after the
+initiator's timer elapsed, granting bond/relief/history (and pregnancy for mate)
+to **both** actors, including the pond actor. Group is the exception where the
+leader's own freeze blocks the shared timer. So a pond interruption can be
+one-sided: the actor in the water can still be credited with a completion it did
+not act in.
+
+### U-005 residual timers
+
+`breakPair` clears partner, state (for the reciprocal side), visit flags and
+`familyTask`, but not `visitT`, `visitRetryT`, `inviteT`, `socialT`, `declineT`,
+`mateT`, `conflictT` or `giftT`. `engine.cancelPair` additionally resets the
+acting state to `wander` for pair states and resets its timer fields only through
+the module `interrupt` hooks (gift/chat/cuddle/reconcile/partner/group); social,
+visit, mate and conflict have no interrupt and therefore keep their timers.
+`ai.js` grab/disable paths clear several of these timers directly, but generic
+`cancelPair` alone does not.
+
+Probe result: a visit with `visitT = 7` survived `engine.cancelPair` as
+`state: wander`, `partner: null`, `visitHome/visitPhase: null`, `visitT: 7`. A
+fresh `forceVisit` reset `visitT` to `0`. Twenty adapter ticks in the reset state
+did not re-enter any social/visit/mate/conflict state. Every read found in
+`src/behaviors/social.js`, `mate.js`, `conflict.js`, `gifting.js` and
+`engine.js` is guarded by the matching state (`inviteT` only in `invite`,
+`socialT` only in `social`, `declineT` only in `decline`, `visitT` only in
+`visit`, etc.), and `visitRetryT` has no reader at all. **No stale timer read was
+reproduced.** The residue is inert and overwritten by the next entry to the same
+family. No timer-cleanup change is recommended.
+
+### U-007 remaining interaction families
+
+Direct pair/task/claim writers beyond the social pilot, with their cleanup path
+and the C11 evidence:
+
+| Family / writer | Owner | Cleanup path | Evidence |
+| --- | --- | --- | --- |
+| social invite/visit entry and visit tick | `behaviors/social.js` | `endPair` on completion/decline; `finishVisitPair(false)` on interruption; `breakPair` on generic cancel | C2 tests + C11 matrix |
+| mate seek/pair | `behaviors/mate.js` | `beginPair` entry; `endPair` on completion; own-side nulls in `thinkSeekMate`/missing-partner branch | C11 matrix; existing mate tests |
+| conflict seek/pair/claim | `behaviors/conflict.js` | `beginPair` entry; `finishConflict` direct both-side clear and claim transfer; generic cancel leaves `conflictSource`/`contestSource`/`contestBear`/`conflictT` | C11 matrix; source inspection |
+| gifting reserve/carry/handover | `behaviors/gifting.js` | `beginPair`; `cancelGift` release/drop and both roles; `finishGift` clears both roles; module `interrupt` | C11 matrix; existing gifting tests |
+| group admission/lifecycle | `behaviors/groups.js` | `startGroup` clears partner/task on all members; `cancelGroup`/`dissolve`/`completeGroup` clear member fields; module `interrupt` | C11 matrix; existing group tests |
+| family meal/lesson/playdate | `behaviors/family.js` + `interactions.js` | `startTask`/`cancelTask`/`endPair`; playdate mirrors cleared only on the finishing actor | C11 matrix; existing family tests |
+| directives | `behaviors/directives.js` | `applyDirective` calls `cancelPair` before replacing an existing pair/task; `cancel`/`releaseToNormal` clear own directive state | Source inspection |
+| Glass grab/reset/debug pair | `glass.js` | `stopGrabTasks` own+reciprocal subset; `resetActor` own side; `forceMateWithBear` debug only | Source inspection |
+| possession/removal/disable | `ai.js`, `app.js`, engine | `setPossessed`/`detach`/`setEnabled` call `cancelPair` + `releaseFood` | Source inspection; existing removal tests |
+
+**Next bounded candidate (not selected here): family pair-task cancellation
+symmetry.** `cancelTask` is deliberately own-side, but a surviving pair partner
+keeps `ai.familyTask` and `ai.partner` pointing at the cancelled actor. A scratch
+probe cancelled one side of a forced playdate, then let the survivor finish: the
+survivor's `finish` granted `.18` bond, relief and `playdate` history to **both**
+actors, including the cancelled side, and `endPair` cleared only the survivor.
+Reachable triggers include `family.js` tick path failure and the engine stall
+recovery path. This is a concrete lifecycle gap distinct from the pond policy and
+would be the next bounded family; it requires a separate decision/brief and is not
+implemented here. No broad central registry is proposed: each family can keep its
+existing cleanup primitive.
+
+### U-004 recommendation
+
+Current behavior is inconsistent: grab, critical need, disable and detach cancel
+a pair, while pond entry freezes only the pond actor's tick and exit resumes it.
+The C11 matrix shows the resumed path can grant **completion rewards and history
+after a pond interruption** for social, mate, carried gifting, family
+meal/playdate, group and conflict, while the collect-phase gift and visit paths
+close without reward. If the *partner* is in the pond, the grounded initiator can
+complete social/mate/conflict and credit the pond actor anyway; a group whose
+leader is in the pond can stay frozen indefinitely. A pond stay can be long (the
+U-017 recovery probe observed tens of seconds), and the pair is not actionable
+while frozen.
+
+**Recommended policy: pond entry is an interaction interruption.** On entry,
+close the pair/task through the existing cancellation path (for example
+`cancelPair`, which already clears pair/task/visit fields, releases both food
+claims and runs gift/group module interrupts) and do not grant completion
+rewards/history. The visit `finishVisitPair(false)` no-reward close is the
+reference behavior. Tradeoff: resumption is less punitive for a short drink and
+preserves the pair's intent, but it lets frozen actors complete social/mate/
+family/group/conflict outcomes and rewards they did not perform after the
+interruption; cancellation is consistent with every other interruption but costs
+the pair and may feel abrupt for a brief swim. If the user prefers "pond is a
+pause", the code should stay as-is and the reward-after-pond outcomes above
+should be accepted explicitly and covered by tests.
+
+Behavior changes and tests a cancellation policy would require (not implemented):
+
+- `src/ai.js` pond-entry branch: call the engine cancellation primitive before
+  `releaseFood`, or equivalent local cleanup, keeping `ai.interrupted` and the
+  `ready:false` freeze.
+- Preserve exactly-once cleanup and the existing no-reward visit close; ensure
+  gift carried food is dropped/released once and group membership is removed or
+  the group dissolved.
+- Update `tests/social-cancellation.test.mjs` "pond entry does not cancel the
+  pair; exit closes a targetless visit" to assert cancellation on entry for
+  social and visit, and add focused cases for mate, gifting, conflict, group,
+  playdate and meal asserting no bond/relief/history after exit.
+- No save schema change is needed; runtime state is already excluded from
+  `snapshotActor`.
+
 ## Lifecycle outcomes
 
 | Outcome | Partner / familyTask / group / claims | Evidence |
@@ -395,7 +533,7 @@ C3 commands and results are recorded in `.dev-shots/c3/results.md` (scratch).
 | Refusal / decline | Social decline uses `startDeclinePair` (`beginPair` + `declineT`) then `endPair`; bonds are unchanged. Gifting refuses by cancelling and dropping/releasing the reservation. Conflict rejects an unhealthy claimant in `findContest` with `coverConflictOutcome('healthFloor')`. There is no generic refusal primitive. | Inspected; tested for social decline, gift refusal, conflict health floor. |
 | Grab | App `makeGrab` calls `ai.onGrab`; Glass `beginDrag` calls `shared.onGrab` and then `stopGrabTasks`. Engine `cancelPair` runs module interrupts (gift/chat/cuddle/reconcile/partner/group), releases food, breaks reciprocal links and resets pair states. `ai.onGrab` also clears social timers. | Inspected; tested for a shared social pair (legacy and modules chooser), gifting, group detach. |
 | Throw | Same grab-time cancellation as grab; `endGrab` changes physics only and does not re-pair. A thrown actor resumes normal decisions after grounding. | Inspected for grab path; throw-specific pair cleanup is unverified. |
-| Pond entry | `ai.js` marks `interrupted`, releases food and ticks needs only while `inPond`; it does **not** call `cancelPair`. Partner-side checks such as `social.thinkSeekCompany` may cancel later, but gifting/conflict/mate do not receive a pond-specific cancellation. New pairs are blocked because `actorAvailable` rejects `inPond`. | Inspected; no test found for pair state during pond entry. |
+| Pond entry | `ai.js` marks `interrupted`, releases food, sets `ready:false` (freezing module ticks) and does **not** call `cancelPair`. A visiting pair closes without reward on exit through the targetless `finishVisitPair(false)` path; social, mate, family task, group and conflict resume and can grant completion rewards/history after exit; gifting cancels on exit. See the C11 matrix above. New pairs are blocked because `actorAvailable` rejects `inPond`. | Inspected and probed (`.dev-shots/c11/`); `tests/social-cancellation.test.mjs` covers social/visit. U-004 needs decision. |
 | AI disable | `engine.setEnabled(false)` calls `cancelPair` and `releaseFood` for every actor, then stops locomotion. `ai.js` additionally clears invite/social/decline/conflict/mate timers and shove for bears. Module cancellable states are interrupted; conflict pointers and playdate mirrors are not specifically cleared. | Inspected; disable is used in a preferences interruption test, but pair/claim cleanup is not asserted there. |
 | Actor removal (Bear) | `app.removeBear` drops carried food, releases portion/food claims, calls `ai.detach` (which runs `cancelPair`), nulls `ai`, then clears persistent refs unless `preserveRefs`. Group membership is cancelled through the engine interrupt. | Inspected; group detach and gifting detach are tested with `engine.detach`. |
 | Actor removal (Glass) | `app.removeGlassActor` drops carried food, releases claims, removes the colony actor, then calls `ai.detach` (which releases food and runs `cancelPair`) and clears persistent UID refs. Detach runs only when `glassColony.removeActor` returns true, so a refused removal leaves behavior and pair state untouched. The stars path commits a farewell first. | Tested by `tests/actor-remove.test.mjs`; `stars-test.mjs` covers the live farewell removal. |
@@ -457,7 +595,7 @@ has no reason record.
 | Group completion/removal | `tests/relationship-features.test.mjs` group completion, exact-once effects, critical-thirst member removal, detach/map-switch proxy; `tests/behavior-navigation.test.mjs` group slot paths | Modules engine |
 | Partnership and save reciprocity | `tests/relationship-features.test.mjs` partnership and farewell separation; `tests/relationship-save.test.mjs` v8 records, reciprocity and cross-map pruning | Modules/save |
 | Interaction history | `tests/interaction-history.test.mjs` completion/decline/conflict/visit recording and interruption omission | Modules engine |
-| Pond pair state | No dedicated case found | Gap |
+| Pond pair state | C11 scratch matrix (`.dev-shots/c11/pond-matrix.mjs`, `pond-completion.mjs`); `tests/social-cancellation.test.mjs` covers social/visit | Node fixtures; no production test change |
 | Map switch and New Game live cleanup | No dedicated case found | Gap |
 | Save/load live pair/task cleanup | No case; saved records are covered, runtime `ai` is excluded | Gap |
 | Actor removal via Glass `removeGlassActor` | `tests/actor-remove.test.mjs` covers successful detach/reference order, refusal/no-remover with no detach, and unchanged departure/farewell/drop/portion/food order; `stars-test.mjs` covers live Glass farewell removal | App wrapper and portable ordering |
