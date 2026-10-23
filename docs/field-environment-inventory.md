@@ -81,6 +81,7 @@ clock imports):
 | Export | Responsibility |
 | --- | --- |
 | `createPondQuery(pond, hole)` | Returns `{ ...pond, hole, contains, nearestShore }`; `contains` is the normalized ellipse `< 1`; `nearestShore` uses the exact `atan2` angle and `1.12` radius factors. It never mutates its arguments. |
+| `pondEscapeDue({ timer, dt, inPond, inside, grabs, speed, threshold = 1.5, speedLimit = .16 })` | Pure bounded no-progress timer: resets on leaving the pond or ellipse, a grab, or speed at/above the splash limit; otherwise accumulates `dt` and reports `due` at the threshold. `src/app.js` uses it to call `rescuePondBear(b, false)` for a bear stranded at the rectangular physics cut-out. |
 | `buildWaterSpots({ pond, count = 16, fieldInside, nearestWalkable, ... })` | Returns the historical shore spots in `i / count * 2π` order with the raw point at `1.22` radii, rejection order `fieldInside → nearestWalkable → snap > 2.2 → contains → spacing < 1.4`, and water point at `.94` radii. |
 
 Why this boundary is cohesive: both are simulation/layout queries over authored
@@ -94,7 +95,8 @@ module does not need the scene, renderer, camera, shader or collider graph.
 - **Field surface:** `field.pond` keeps the same shape and members;
   `field.waterSpots` keeps the same values/order.
 - **Consumers:** `src/app.js` uses `pond.contains`/`nearestShore` for pond entry,
-  rescue and debug; `src/behaviors/engine.js`/`water.js` consume
+  rescue and debug and `pondEscapeDue` for the bounded stranded-pond escape;
+  `src/behaviors/engine.js`/`water.js` consume
   `api.waterSpots()` (falling back to `field.waterSpots`); `social.js`/`wander.js`
   use `pond.contains`; `fieldlayout.js` receives `pondGeometry`, `pondContains`
   and `waterSpots` through the field wrapper.

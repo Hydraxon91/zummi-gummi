@@ -28,6 +28,27 @@ export function createPondQuery(pond, hole = pond?.hole) {
   };
 }
 
+// Bounded no-progress escape for a bear stranded against the rectangular
+// physics cut-out while still inside the water ellipse. Paddling above the
+// splash speed limit, being grabbed, or not being in the pond all clear it.
+export function pondEscapeDue({
+  timer = 0,
+  dt = 0,
+  inPond = false,
+  inside = false,
+  grabs = 0,
+  speed = 0,
+  threshold = 1.5,
+  speedLimit = .16,
+} = {}) {
+  if (!inPond || !inside || grabs > 0 || !(speed < speedLimit)) {
+    return { timer: 0, due: false };
+  }
+  const accrued = (Number.isFinite(timer) ? Math.max(0, timer) : 0)
+    + (Number.isFinite(dt) && dt > 0 ? dt : 0);
+  return { timer: Math.min(accrued, threshold), due: accrued >= threshold };
+}
+
 export function buildWaterSpots({
   pond,
   count = 16,

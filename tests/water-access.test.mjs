@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createPondQuery, buildWaterSpots } from '../src/wateraccess.js';
+import { createPondQuery, buildWaterSpots, pondEscapeDue } from '../src/wateraccess.js';
 
 const approx = (actual, expected, epsilon = 1e-12) => {
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
@@ -227,6 +227,76 @@ test('buildWaterSpots is deterministic and does not mutate its inputs', () => {
     x: pond.x, z: pond.z, rx: pond.rx, rz: pond.rz,
     waterY: pond.waterY, hole: pond.hole,
   }, pondBefore);
+});
+
+test('pondEscapeDue accumulates only while a free bear is stalled in the pond', () => {
+  let state = { timer: 0, due: false };
+  for (let i = 0; i < 3; i++) {
+    state = pondEscapeDue({
+      timer: state.timer, dt: .5, inPond: true, inside: true,
+      grabs: 0, speed: .1,
+    });
+  }
+  approx(state.timer, 1.5);
+  assert.equal(state.due, true);
+});
+
+test('pondEscapeDue resets on each non-progress condition', () => {
+  const base = {
+    timer: 1.4, dt: .5, inPond: true, inside: true, grabs: 0, speed: .1,
+  };
+  for (const override of [
+    { inPond: false },
+    { inside: false },
+    { grabs: 1 },
+    { speed: .16 },
+    { speed: .5 },
+  ]) {
+    assert.deepEqual(pondEscapeDue({ ...base, ...override }), { timer: 0, due: false });
+  }
+});
+
+test('pondEscapeDue triggers exactly at the threshold', () => {
+  let out = pondEscapeDue({
+    timer: 1, dt: .499, inPond: true, inside: true, grabs: 0, speed: .1,
+  });
+  approx(out.timer, 1.499);
+  assert.equal(out.due, false);
+
+  out = pondEscapeDue({
+    timer: 1, dt: .5, inPond: true, inside: true, grabs: 0, speed: .1,
+  });
+  approx(out.timer, 1.5);
+  assert.equal(out.due, true);
+
+  out = pondEscapeDue({ timer: 0, dt: 2, inPond: true, inside: true, grabs: 0, speed: .1 });
+  approx(out.timer, 1.5);
+  assert.equal(out.due, true);
+});
+
+test('pondEscapeDue does not mutate its input and has stable defaults', () => {
+  const input = Object.freeze({
+    timer: .75, dt: .25, inPond: true, inside: true, grabs: 0, speed: .1,
+  });
+  const out = pondEscapeDue(input);
+  assert.deepEqual(input, {
+    timer: .75, dt: .25, inPond: true, inside: true, grabs: 0, speed: .1,
+  });
+  assert.notEqual(out, input);
+  assert.deepEqual(pondEscapeDue(), { timer: 0, due: false });
+});
+
+test('pondEscapeDue draws no RNG and touches no DOM', () => {
+  const originalRandom = Math.random;
+  Math.random = () => { throw new Error('pondEscapeDue drew RNG'); };
+  try {
+    const out = pondEscapeDue({
+      timer: 1.4, dt: .5, inPond: true, inside: true, grabs: 0, speed: .1,
+    });
+    assert.equal(out.due, true);
+  } finally {
+    Math.random = originalRandom;
+  }
 });
 
 test('wateraccess has no three.js, host, storage, RNG or clock access or import cycle', async () => {

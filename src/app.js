@@ -48,6 +48,7 @@ import { createSessionGate } from './sessiongate.js';
 import { captureSavePayload, applySavePayloadPhases } from './savecoordination.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 import { SURFACE_LATTICE_LIMITS, surfaceBounds, chooseSurfaceLattice } from './surfacelattice.js';
+import { pondEscapeDue } from './wateraccess.js';
 
 // Explicit, early composition: hydrate world preferences before any
 // activeWorld/map state is read. Storage denial stays inside world.js's
@@ -543,7 +544,7 @@ class Bear{
     this.pregnant=false; this.gestation=0; this.mateCooldown=0; this.birthRetryT=0;
     this.parentUids=[]; this.fatherUid=0; this.pendingStage=null;
     this.bedtime=20; this.wakeTime=5;
-    this.name=''; this.home=''; this.inPond=false;
+    this.name=''; this.home=''; this.inPond=false; this.pondEscapeT=0;
     this.ai=null;
     this.gummyIdleT = 3 + Math.random() * 6;
     this.gummyPose = null;
@@ -706,7 +707,7 @@ function spawn(x, z, y, flavor, opts={}){
   delete b.rivals;
   b.bedtime=Number.isFinite(opts.bedtime) ? opts.bedtime : 20+Math.random()*2.5;
   b.wakeTime=Number.isFinite(opts.wakeTime) ? opts.wakeTime : 5+Math.random()*2;
-  b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false;
+  b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false; b.pondEscapeT=0;
   b.ai=null;
   b.gummyIdleT = 3 + Math.random() * 6;
   b.gummyPose = null;
@@ -1785,6 +1786,20 @@ function physicsStep(dt){
         }
       } else {
         b.wakeCd = 0;
+      }
+      // A bear can reach the rectangular cut-out edge while still inside the
+      // water ellipse and float there indefinitely above the 0.10 rescue depth.
+      // After a short no-progress window at paddling speed, move it to the
+      // nearest walkable shore instead of leaving it stalled.
+      const escape = pondEscapeDue({
+        timer: b.pondEscapeT || 0,
+        dt, inPond: b.inPond, inside, grabs: b.grabs,
+        speed: Math.hypot(b.vcx, b.vcz),
+      });
+      b.pondEscapeT = escape.timer;
+      if (escape.due && b.grabs === 0) {
+        rescuePondBear(b, false);
+        b.pondEscapeT = 0;
       }
       // The rectangular physics cutout is deliberately larger than the water
       // mesh at its corners. If a bear ends up below the lawn or basin, recover
