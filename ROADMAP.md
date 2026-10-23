@@ -1853,6 +1853,11 @@ M1 path, navigation, homes, food and water query providers are complete and
 reviewed; portions/gifting carried state and broader M1–M23 work remain separately
 gated. These statuses do not authorize engine migration.
 
+The approved execution batches A–H are recorded in the
+[system modularity roadmap](docs/system-modularity-roadmap.md#approved-execution-batches).
+They cover every remaining chunk, while preserving one reviewed coder step at a
+time and the explicit M3/M12/M18 design decisions.
+
 ## Personality and modular-AI extension track
 
 This is an additive foundation, not a replacement engine. Chunks 1 and 2 are approved and

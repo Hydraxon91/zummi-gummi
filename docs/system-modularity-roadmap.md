@@ -381,6 +381,54 @@ one representative feature before designing a reusable registry for the family.
 These remain the separate gameplay tracks in ROADMAP; this roadmap does not
 approve equipment, shops/currency, goals/planners, audio or authored interiors.
 
+## Approved execution batches
+
+The user approved the batch map below. A batch is an execution wave, not one
+coder assignment. Each numbered step or accepted sub-slice still runs in its own
+coder session and is independently reviewed by the parent. Inside an approved
+batch, a passing review advances to the next step; a failed review returns to the
+same coder for correction. This removes the routine per-chunk approval prompt but
+does not waive explicit design decisions or separate gates.
+
+| Batch | Steps | Depends on | Primary gate |
+| --- | --- | --- | --- |
+| A — Contracts/inventory | M2a, M5, M23, M13 investigation, M18a | M0/M1 | Docs, source inventory and focused characterization; no runtime extraction |
+| B — Behavior/world foundations | M1 portions closeout, M3, M4, M7, M10 | A | Focused behavior/world checks, full Node suite and affected host checks |
+| C — Interactions/resources | M2b–M2d, M8, M9, M15 | A, B (M2a/M7) | Interaction cancellation, resource identity, homes and lifetime evidence |
+| D — Actors/maps/saves | M6, M11, M12 | A–C (M4/M5/M10) | Actor lifecycle, map switching and save-overlap evidence |
+| E — Input/UI/cannon host | M17, M19, M20, M21 | A–D | Real browser input, captures, mobile/focus and UI cleanup |
+| F — Physics/environment host | M14, M16 | A–D (M7–M9) | Numeric surface fixtures, visual continuity and measured affected costs |
+| G — Translation pilot | M18b–M18d | A plus target-engine decision | Independently executed target-runtime results and failure negatives |
+| H — Final audit | M22 | All completed seams | Extension recipes, owner-boundary checks and honest unsupported list |
+
+Execution order and internal slices:
+
+- **Batch A:** M2a interaction inventory; M5 lifecycle contract and
+  characterization tests; M23 admission checklist; M13 decision memo; M18a
+  fixture inventory. No production runtime changes.
+- **Batch B:** close M1 with portions/gifting; M3 audit and the approved
+  unknown-ID policy; M4 fixture species using an existing representation; M7
+  spatial/layout boundary; M10 hydration/storage boundary. The unknown-ID policy
+  remains an explicit decision before M3 code.
+- **Batch C:** M2b one agreed interaction family, then M2c cancellation/removal/
+  load cleanup; M8 resource/presentation boundary; M9 home simulation versus
+  presentation; M15 asynchronous lifetime. M8 follows the M2 work.
+- **Batch D:** M6 birth/growth then removal/async slices; M11 activation/leave
+  then map-assumption slices; M12 overlap-policy decision then capture/apply
+  extraction. Concurrent save/map policy remains an explicit decision.
+- **Batch E:** M17 settings; M19 input inventory then one owner/camera slice;
+  M20 roster then menu/save/settings panels; M21 cannon/fireworks/toy boundary.
+- **Batch F:** M14 numeric inventory/fixture then host extraction; M16 simulation/
+  query boundary then one concrete environment consumer.
+- **Batch G:** choose target engine/version/language and success criteria, port one
+  pure rule, then one bounded actor/world adapter. The target choice remains an
+  explicit decision; JS-vs-JS parity is not cross-language proof.
+- **Batch H:** M22 supported extension/debug inventory, recipes and narrow
+  owner-boundary checks. CI changes remain separately gated.
+- **Conditional:** M13 redesign only if its memo recommends one and it receives
+  separate approval. Box3D/WASM changes and native target physics/rendering are
+  outside these batches.
+
 ## Verification, rollback and release gates
 
 For each approved extraction:
