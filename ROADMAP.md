@@ -1853,16 +1853,17 @@ M1 path, navigation, homes, food and water query providers are complete and
 reviewed; portions/gifting carried state and broader M1–M23 work remain separately
 gated. These statuses do not authorize engine migration.
 
-The approved execution batches A–H are recorded in the
+The approved execution batches A–I are recorded in the
 [system modularity roadmap](docs/system-modularity-roadmap.md#approved-execution-batches).
 They cover every remaining chunk, while preserving one reviewed coder step at a
 time and the explicit M3/M12/M18 design decisions. Batch A (M2a, M5, M23, M13
 investigation and M18a) is complete. B+C execution is complete with independent
 review and atomic commits for every step; the fresh long parity matrix passed
 15/15. M3 rejects unknown module IDs and whole mixed actor-config patches without
-mutation. Remaining findings (M4 host proof, M5 app lifecycle, C2 pond/direct
-Glass removal, M7 editor policy, M15 host late completion) and Batch D are not
-claimed complete.
+mutation. Batch I is a cross-cutting [unresolved-items register](docs/unresolved-register.md):
+I1 records the active known items, I2 requires every D–H step to update it, and I3
+audits the older backlog after H. Remaining findings and Batch D are not claimed
+complete; recording an item in the register does not authorize its repair.
 
 **Known follow-ups — M4 species admission/restore mismatch (fixed):**
 Trigger: restoring a registered soft-body species without a rig, or a registered
@@ -2006,14 +2007,12 @@ that host flag to decide whether a later stargazing session completed would supp
 learning indefinitely. Completion now uses only the per-session token cleared by
 cancellation, and a grab/release/new-session regression proves learning resumes.
 
-**Known follow-ups — module setter accepts unknown IDs (needs decision):**
-`setModuleEnabled('notAModule', true)` and `setModuleParams(...)` return `true`
-while no such module resolves (`src/behaviors/config.js`). The new inventory check
-catches undeclared config during tests, but the runtime setter still reports false
-success. Rejecting unknown IDs would tighten a debug/UI API contract and could turn
-a silent no-op into an error for existing callers; choosing between rejecting,
-warning and leaving it permissive is a design decision, so it is deferred rather
-than changed here. Trigger: any caller toggling a misspelled or unwired module ID.
+**Known follow-ups — module setter accepts unknown IDs (fixed in B2):**
+`setModuleEnabled('notAModule', true)` and `setModuleParams(...)` previously
+returned `true` while no such module resolved (`src/behaviors/config.js`). The
+approved B2 policy now rejects unknown IDs without mutating configuration and
+rejects a whole actor-config patch containing any unknown ID. Trigger remains:
+any caller toggling a misspelled or unwired module ID; it now receives `false`.
 
 **Known follow-ups — hosted Settings mobile boot timeout (fixed in harness):** run
 39785806336 for `d86d09a` failed only `Browser (settings)`; the mobile page's

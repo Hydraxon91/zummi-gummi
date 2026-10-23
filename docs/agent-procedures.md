@@ -482,8 +482,14 @@ and driving it.
   scope and commit.
 - **Living docs (keep current):** `README.md`, `ROADMAP.md`, `PERFORMANCE.md`,
   `screenshots/README.md`, `AGENTS.md`, `assets/README.md`, `docs/species-template.md`,
-  `docs/comfyui-materials.md`, `docs/3d-authoring-notes.md`, and the project skills under
+  `docs/comfyui-materials.md`, `docs/3d-authoring-notes.md`,
+  `docs/unresolved-register.md`, and the project skills under
   `.opencode/skills/*/SKILL.md` when a command, harness or verification procedure changes.
+- **Unresolved findings have a stable register entry.** Every discovered defect,
+  verification gap, deferred decision, unsupported path or flake gets or updates an ID in
+  `docs/unresolved-register.md` before the step closes. Keep the evidence in the owning
+  topic document and link it from the register. Recording is not fix approval; retain
+  resolved entries with their deciding evidence and never delete the trigger.
 - **`ROADMAP.md` status is updated at phase boundaries,** not per intermediate step. Keep
   phase tables, the "Status" list and "Tuning defaults" consistent with reality.
 - **Historical records are immutable:** `snapshots/*.zip`, dated screenshot sets and

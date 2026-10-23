@@ -508,9 +508,10 @@ approve equipment, shops/currency, goals/planners, audio or authored interiors.
 
 ## Approved execution batches
 
-The user approved the batch map below. A batch is an execution wave, not one
-coder assignment. Each numbered step or accepted sub-slice still runs in its own
-coder session and is independently reviewed by the parent. Inside an approved
+The user approved the batch map below, with Batch I added as a cross-cutting
+unresolved-items register after the original A–H map. A batch is an execution
+wave, not one coder assignment. Each numbered step or accepted sub-slice still
+runs in its own coder session and is independently reviewed by the parent. Inside an approved
 batch, a passing review advances to the next step; a failed review returns to the
 same coder for correction. This removes the routine per-chunk approval prompt but
 does not waive explicit design decisions or separate gates.
@@ -525,6 +526,7 @@ does not waive explicit design decisions or separate gates.
 | F — Physics/environment host | M14, M16 | A–D (M7–M9) | Numeric surface fixtures, visual continuity and measured affected costs |
 | G — Translation pilot | M18b–M18d | A plus target-engine decision | Independently executed target-runtime results and failure negatives |
 | H — Final audit | M22 | All completed seams | Extension recipes, owner-boundary checks and honest unsupported list |
+| I — Unresolved register | I1 setup/migration, I2 ongoing capture, I3 final audit | A (I1); D–H (I2); H (I3) | Every known active unresolved item has a stable ID, owner, evidence and disposition; future step findings are captured before review |
 
 Execution order and internal slices:
 
@@ -550,6 +552,13 @@ Execution order and internal slices:
   explicit decision; JS-vs-JS parity is not cross-language proof.
 - **Batch H:** M22 supported extension/debug inventory, recipes and narrow
   owner-boundary checks. CI changes remain separately gated.
+- **Batch I (cross-cutting unresolved register):** I1 creates
+  [`docs/unresolved-register.md`](unresolved-register.md), assigns stable IDs and
+  migrates the active known items before Batch D; I2 requires every D–H coder step
+  to add/update entries before parent review; I3 audits the older `ROADMAP.md`
+  backlog and reconciles every known open item after H. This batch records
+  unresolved items and evidence links only. It does not repair them, waive a
+  required gate or authorize a fix.
 - **Conditional:** M13 redesign only if its memo recommends one and it receives
   separate approval. Box3D/WASM changes and native target physics/rendering are
   outside these batches.
@@ -561,9 +570,13 @@ committed. No production runtime changed in A.
 M2b social entry, C2 M2c cancellation conformance, C3 M2d test-only extension,
 C4 M8, C5 M9 and C6 M15 all passed independent review and atomic commits. The
 final fresh long parity matrix passed 15/15 (`acceptance:true`). Batch D is not
-started. Known follow-ups remain explicit: M4 live birth/late Glass host proof,
-M5 app-lifecycle internals, C2-F2 pond/social survival, C2-F4 direct Glass removal,
-M7 editor/connectivity policy, and M15 host late-completion. No push is implied.
+started. Batch I1 now provides the [unresolved-items register](unresolved-register.md);
+I2 runs during D–H and I3 reconciles the older backlog after H. Known follow-ups
+remain explicit there: M4 live birth/late Glass host proof, M5 app-lifecycle
+internals, C2-F2 pond/social survival, C2-F3 residual timers, C2-F4 direct Glass
+removal, M7 editor/connectivity policy, M8 visual timing, M9 occupancy/door
+reachability, M15 host late-completion, stargaze timing, and the hosted boot/cuddle
+flakes. No push is implied.
 The M3 policy is settled: reject unknown module IDs without mutation/version
 changes, and reject an entire actor-config patch containing any unknown ID.
 Supported admission must remain explicit; species warning/fallback is unchanged.

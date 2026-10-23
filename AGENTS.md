@@ -24,8 +24,11 @@ unless the user names one.
   Validate contradictory diagnostics before repairing their subject. Do not hide
   errors with empty catches, arbitrary fallbacks or fabricated success claims.
 - Known-broken required features block delivery. Report failed and unverified
-  criteria honestly; checks do not confer user approval. Record discovered bugs
-  in `ROADMAP.md` Known follow-ups with trigger, affected state and disposition.
+  criteria honestly; checks do not confer user approval. Record every discovered
+  bug, verification gap, deferred decision, unsupported path or flake in
+  `docs/unresolved-register.md` with a stable ID, trigger, affected state and
+  disposition; link evidence in the owning topic doc. Recording does not
+  authorise a fix. Keep phase-level history in `ROADMAP.md`.
 - Keep scope and source intact; do not rebuild or discard unrelated assets.
 - Use file-edit tools for repository changes, not shell scripts or Blender Python.
   This game repository does not control live Blender.
