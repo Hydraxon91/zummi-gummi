@@ -659,6 +659,15 @@ U-016. F1/M14 remains pending.
 
 ### M22 — Discoverability and final extensibility audit (M; per completed seam)
 
+**H1/M22a extension inventory complete:** [supported debug and extension API
+inventory](extension-api.md) indexes all 223 top-level `window.__gummy` hooks and
+19 nested `msn` hooks, groups them by owner/mode/gate/consumers, publishes seven
+supported recipes, maps completed seam families to existing extension proofs or
+explicit unsupported dispositions, and proposes the narrow H2 boundary list.
+Parent verification found every inventoried hook name present in source, cited
+paths valid, full Node 677/677 and contracts 17 modules. H2 narrow checks and the
+representative-extension audit remain pending. No runtime code or test changed.
+
 - Publish supported debug/extension API inventory and copyable recipes with
   exact owners, lifecycle and tests. Keep production hooks stable.
 - Add narrow architecture checks only for agreed boundaries (for example pure
