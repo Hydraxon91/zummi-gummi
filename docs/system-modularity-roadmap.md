@@ -404,8 +404,14 @@ two-map session contract is complete; a new map remains a separate decision.
 **D6/M12 policy decided: reject-and-preserve.** One session operation may be
 active at a time. Save, export, load, import, map switch and New Game are rejected
 before mutation while another is active; autosave skips; there is no queue,
-rollback or transaction. The gate and capture/apply extraction remain to be
-implemented in D7. See [the save/map overlap contract](save-overlap-contract.md).
+rollback or transaction.
+
+**D7/M12a reject gate complete:** `src/sessiongate.js` plus app wrappers cover
+save/export/load/import/map-switch/New Game/autosave and Menu Continue's autosave
+read+apply. Parent full Node passed 579/579; the busy-overlap probe passed 31/31,
+the Menu Continue probe 12/12, and the D5 map probe 27/27 with no page errors.
+Capture/apply phase extraction and the invalid-input/version/cross-map matrix
+remain before M12 completion. See [the save/map overlap contract](save-overlap-contract.md).
 
 - Retain the P2 format/storage boundary. Extract capture/apply sequencing only
   after tracing load, autosave, switch and New Game overlap.

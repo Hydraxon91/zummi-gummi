@@ -36,6 +36,7 @@ import { buildRelationshipView } from './relationshipview.js';
 import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
 import { enterMapSession, leaveCurrentMap } from './mapsession.js';
+import { createSessionGate } from './sessiongate.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 
 // Explicit, early composition: hydrate world preferences before any
@@ -6436,6 +6437,26 @@ function activateMap(id, opts = {}){
 
 let loadingSave = false;
 
+// One session-mutating operation at a time. A second request is rejected before
+// it reads or mutates game state; there is no queue and no rollback claim.
+const sessionGate = createSessionGate({ onChange: syncSessionBusyUI });
+
+function sessionBusyError(kind) {
+  return new Error(`Session busy: ${sessionGate.current() || kind}`);
+}
+
+function syncSessionBusyUI(kind = sessionGate.current()) {
+  const busy = !!kind;
+  for (const id of ['saveExport', 'saveImportFile', 'newGame', 'mapMeadow', 'mapStudio']) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = busy;
+  }
+  for (const btn of document.querySelectorAll('#savesList button')) btn.disabled = busy;
+  document.body.classList.toggle('session-busy', busy);
+  if (busy) document.body.dataset.sessionBusy = kind;
+  else delete document.body.dataset.sessionBusy;
+}
+
 function savedSkyState() {
   let look = null;
   try { look = localStorage.getItem(SKY_LOOK_KEY); } catch (err) {}
@@ -6527,7 +6548,7 @@ function restoreSavedCarriedFood(payload){
   return restored;
 }
 
-function applySavePayload(raw) {
+function applySavePayloadCore(raw) {
   // Validate everything before touching the live session.
   const payload = normalizeSave(raw);
   // Reserve every loaded identity before any restored actor can spawn, including
@@ -6612,66 +6633,109 @@ function applySavePayload(raw) {
   }
 }
 
+// Public/debug apply entry points share the session gate. Slot loads call the
+// core directly while already holding `load` to avoid a nested acquisition.
+function applySavePayload(raw, operation = 'import') {
+  if (!sessionGate.begin(operation)) throw sessionBusyError(operation);
+  try {
+    return applySavePayloadCore(raw);
+  } finally {
+    sessionGate.end(operation);
+  }
+}
+
 function resetNewGame() {
   if (!window.__gummy || !window.__gummy.booted) throw new Error('Game is still loading');
-  despawnAll();
-  if (glassColony) glassColony.clear();
-  if (field && field.food) field.food.reset();
-  if (field && field.portions) field.portions.reset();
-  for (const id of ['field', 'studio']) {
-    const w = worlds[id];
-    w.bears = null;
-    w.glass = null;
-    w.camera = null;
-    w.gifts = [];
-    w.initialized = false;
+  if (!sessionGate.begin('new-game')) throw sessionBusyError('new-game');
+  try {
+    despawnAll();
+    if (glassColony) glassColony.clear();
+    if (field && field.food) field.food.reset();
+    if (field && field.portions) field.portions.reset();
+    for (const id of ['field', 'studio']) {
+      const w = worlds[id];
+      w.bears = null;
+      w.glass = null;
+      w.camera = null;
+      w.gifts = [];
+      w.initialized = false;
+    }
+    // A new game starts its own identity space; never continue a loaded game's
+    // allocator.
+    nextBearUid = 1;
+    worlds.field.time = 7.0;
+    worlds.field.auto = true;
+    worlds.field.speed = 1;
+    try {
+      worlds.field.launcher = MAPS.field.launcherHome(TABLE, false);
+      worlds.studio.launcher = MAPS.studio.launcherHome(TABLE, false);
+    } catch (err) {}
+    try {
+      localStorage.removeItem(SKY_LOOK_KEY);
+      localStorage.removeItem('gummy.worlds.v2');
+    } catch (err) {}
+    setActiveMap('field');
+    if (sky) { sky.setTime(7.0); sky.setAuto(true); sky.setSpeed(1); }
+    activateMap('field');
+    resetCamera();
+    persistWorld('field');
+    persistWorld('studio');
+    return { ok: true, bears: bears.length };
+  } finally {
+    sessionGate.end('new-game');
   }
-  // A new game starts its own identity space; never continue a loaded game's
-  // allocator.
-  nextBearUid = 1;
-  worlds.field.time = 7.0;
-  worlds.field.auto = true;
-  worlds.field.speed = 1;
-  try {
-    worlds.field.launcher = MAPS.field.launcherHome(TABLE, false);
-    worlds.studio.launcher = MAPS.studio.launcherHome(TABLE, false);
-  } catch (err) {}
-  try {
-    localStorage.removeItem(SKY_LOOK_KEY);
-    localStorage.removeItem('gummy.worlds.v2');
-  } catch (err) {}
-  setActiveMap('field');
-  if (sky) { sky.setTime(7.0); sky.setAuto(true); sky.setSpeed(1); }
-  activateMap('field');
-  resetCamera();
-  persistWorld('field');
-  persistWorld('studio');
-  return { ok: true, bears: bears.length };
 }
 
 async function saveToSlot(slot, name = '') {
   if (!window.__gummy || !window.__gummy.booted) throw new Error('Game is still loading');
-  const payload = buildSavePayload();
-  await writeSave(slot, payload, name);
-  return { ok: true, slot, savedAt: payload.savedAt, saves: await listSaves() };
+  if (!sessionGate.begin('save')) throw sessionBusyError('save');
+  try {
+    const payload = buildSavePayload();
+    await writeSave(slot, payload, name);
+    return { ok: true, slot, savedAt: payload.savedAt, saves: await listSaves() };
+  } finally {
+    sessionGate.end('save');
+  }
 }
 
 async function loadFromSlot(slot) {
+  if (!sessionGate.begin('load')) throw sessionBusyError('load');
   loadingSave = true;
   try {
     const record = await readSave(slot);
     if (!record) throw new Error('Save slot is empty');
-    return applySavePayload(record.payload);
+    return applySavePayloadCore(record.payload);
   } finally {
     loadingSave = false;
+    sessionGate.end('load');
+  }
+}
+
+// Menu Continue reads and applies the autosave under one `load` lease, so the
+// read cannot overlap another session operation. A missing record releases before
+// the caller falls back to a guarded New Game.
+async function continueFromAutosave() {
+  if (!sessionGate.begin('load')) throw sessionBusyError('load');
+  try {
+    const record = await readSave(AUTOSAVE_ID);
+    if (!record) return false;
+    applySavePayloadCore(record.payload);
+    return true;
+  } finally {
+    sessionGate.end('load');
   }
 }
 
 async function autosaveNow() {
   if (loadingSave || mapSwitching || !window.__gummy || !window.__gummy.booted) return null;
-  const payload = buildSavePayload();
-  await writeSave(AUTOSAVE_ID, payload, 'Autosave');
-  return payload.savedAt;
+  if (!sessionGate.begin('autosave')) return null;
+  try {
+    const payload = buildSavePayload();
+    await writeSave(AUTOSAVE_ID, payload, 'Autosave');
+    return payload.savedAt;
+  } finally {
+    sessionGate.end('autosave');
+  }
 }
 
 let autosaveTick = 0;
@@ -6704,7 +6768,7 @@ function saveButton(label, action, primary = false) {
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try { await action(); } catch (err) { setSaveNote(String(err && err.message || err)); }
-    finally { btn.disabled = false; }
+    finally { btn.disabled = sessionGate.isBusy(); }
   });
   return btn;
 }
@@ -6766,10 +6830,17 @@ async function refreshSavesUI() {
     }
     list.append(row);
   }
+  syncSessionBusyUI();
+}
+
+function captureExportPayload() {
+  if (!sessionGate.begin('export')) throw sessionBusyError('export');
+  try { return buildSavePayload(); }
+  finally { sessionGate.end('export'); }
 }
 
 async function exportSaveFile() {
-  const payload = buildSavePayload();
+  const payload = captureExportPayload();
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -6816,7 +6887,8 @@ initSavesUI();
 
 let mapSwitching = false;
 function requestMapSwitch(id){
-  if (!field || mapSwitching || id === activeWorld.mapId) return;
+  if (!field || mapSwitching || id === activeWorld.mapId) return false;
+  if (!sessionGate.begin('map-switch')) return false;
   mapSwitching = true;
   const wipe = document.getElementById('mapWipe');
   if (wipe) wipe.classList.add('on');
@@ -6828,10 +6900,15 @@ function requestMapSwitch(id){
       console.error('map switch failed', err);
     }
     setTimeout(()=>{
-      if (wipe) wipe.classList.remove('on');
-      mapSwitching = false;
+      try {
+        if (wipe) wipe.classList.remove('on');
+      } finally {
+        mapSwitching = false;
+        sessionGate.end('map-switch');
+      }
     }, 260);
   }, 220);
+  return true;
 }
 
 function ensureCannonColliderInitial(){
@@ -7220,9 +7297,7 @@ async function startFromMenu(action, slot) {
     }
     await startGame();
     if (action === 'continue') {
-      const rec = await readSave(AUTOSAVE_ID);
-      if (rec) {
-        applySavePayload(rec.payload);
+      if (await continueFromAutosave()) {
         if (note) note.textContent = 'Resumed autosave.';
       } else {
         resetNewGame();

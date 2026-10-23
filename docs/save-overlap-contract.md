@@ -1,19 +1,25 @@
 # Save/map overlap contract
 
-Status: **D6/M12 policy decision and M11 two-map/failure audit.** The chosen
-policy is **reject-and-preserve**: while one session-mutating operation is active,
-another is rejected before mutation; there is no queue, cancellation, rollback or
-transaction. Implementation is the next M12 slice. This note records the current
-behavior and the approved target behavior; it does not claim M12 extraction
-complete.
+Status: **D6/M12 policy decision and D7/M12a reject-gate implementation.** The
+chosen policy is **reject-and-preserve**: while one session-mutating operation is
+active, another is rejected before mutation; there is no queue, cancellation,
+rollback or transaction. D7 adds the single-flight gate and busy UI. Capture/apply
+phase extraction, queueing and the rest of M12 remain pending; this note does not
+claim M12 complete or transactional behavior.
 
-Baseline: `HEAD b3b42be` with a clean working tree. Evidence labels:
+Baseline: `HEAD b3b42be` with a clean working tree for the D6/M11 audit; D7 ran
+from `HEAD cca2ce2` and preserved one pre-existing parent edit to the autosave
+rule in this file. Evidence labels:
 
 - **Inspected** — the named source and callers were read.
-- **Host-run** — a prior D4/D5 probe exercised the public map path.
+- **Host-run** — the D7 checks and browser probe were executed in this checkout;
+  prior D4/D5 map evidence is retained only where named.
 - **Unverified** — no executed check exists for that failure path here.
 
-## 1. Current overlap facts
+## 1. Pre-D7 overlap facts
+
+These facts describe the source before the D7 gate and are retained as the
+motivation for the policy, not as the current behavior.
 
 | Operation | Current behavior |
 | --- | --- |
@@ -52,8 +58,9 @@ Operation kinds:
 
 Rules:
 
-1. `autosave` does not acquire the gate. It skips when the gate is busy, as it
-   already does for `loadingSave`/`mapSwitching`.
+1. `autosave` attempts to acquire the gate like any other operation. If the gate
+   is busy it skips rather than waiting; it is never queued and never replaces an
+   active operation.
 2. Manual Save, Export, Load, Import, New Game and Map switch acquire the gate
    first. `requestMapSwitch()` becomes a no-op (returns false) when busy; the UI
    exposes the busy reason.
@@ -83,7 +90,7 @@ cancellation/failure policy; the current app has no such policy.
 
 | Concern | Owner after M12 |
 | --- | --- |
-| Single-flight gate | A small portable `src/sessiongate.js` (new in the implementation slice); app composes it. |
+| Single-flight gate | A small portable `src/sessiongate.js` (new in D7); app composes it. |
 | Payload capture | App `buildSavePayload()` remains the capture caller; no second save cache. |
 | Format/normalization/storage | `saveformat.js`, `save.js`, `actorsave.js` remain unchanged. |
 | Apply ordering | App `applySavePayload()` remains the concrete apply owner; M12 may extract ordering only with callbacks, not a new transaction. |
@@ -111,7 +118,83 @@ activation failure is caught by `requestMapSwitch`, the wipe guard is released,
 but there is no rollback of already-captured/saved state. The reject gate prevents
 overlap; it does not claim failure atomicity.
 
-## 5. M12 implementation gate
+## 5. D7 implementation evidence
+
+D7 adds the reject gate without changing save format, UID reservation, apply
+ordering, map activation order, autosave cadence, slot semantics or failure
+non-atomicity.
+
+- `src/sessiongate.js` exports `createSessionGate({ onChange })` and the frozen
+  kind list (`save`, `export`, `load`, `import`, `map-switch`, `new-game`,
+  `autosave`). One kind is active at a time; `begin` returns false when busy or
+  invalid; `end` clears only the matching kind; `onChange` fires once per
+  transition. The module has no imports, RNG draws, async work or queue.
+- `src/app.js` composes one gate. `saveToSlot` boots, acquires `save`, captures and
+  writes, and releases in `finally`. `exportSaveFile` acquires `export` around the
+  synchronous payload capture and releases before the download starts.
+  `loadFromSlot` acquires `load` before `readSave`, keeps `loadingSave`, applies
+  the core, and releases in `finally`.
+- `applySavePayloadCore` is the unchanged validation/apply body. The public
+  `applySavePayload(raw, operation = 'import')` wrapper covers file Import and
+  `__gummy.importSave`; `loadFromSlot` calls the core while holding `load` and
+  does not nest acquisitions.
+- Menu Continue uses `continueFromAutosave()`: it acquires one `load` lease before
+  `readSave(AUTOSAVE_ID)`, applies the core while holding it, releases in
+  `finally`, and returns whether a record was applied. A missing record returns
+  false after release, and `startFromMenu` then calls the guarded `resetNewGame()`.
+  The autosave read is not outside the gate and there is no nested acquisition.
+- `resetNewGame` acquires `new-game` before despawn/reset and releases in
+  `finally`. `startFromMenu` reaches the same guarded apply/reset paths.
+- `requestMapSwitch` returns false without wipe/save/activation when there is no
+  field, it is the same map, `mapSwitching` is set or the gate is busy. Otherwise
+  it acquires `map-switch`, keeps the existing 220 ms save/activate and 260 ms wipe
+  sequence, and releases `mapSwitching` and the gate in the inner completion,
+  including a caught activation failure. `__gummy.setMap` still returns the active
+  map.
+- `autosaveNow` keeps its legacy `loadingSave`/`mapSwitching`/boot checks, then
+  attempts `autosave`; when busy it returns null and never queues. Release is in
+  `finally`, so a storage failure does not leave the session busy.
+- `syncSessionBusyUI` disables `#saveExport`, `#saveImportFile`, `#newGame`,
+  `#mapMeadow`, `#mapStudio` and the buttons inside `#savesList`, and exposes the
+  reason through `body.session-busy`/`data-session-busy`. It runs on every gate
+  transition and after `refreshSavesUI` rebuilds slot buttons.
+
+Evidence run from `HEAD cca2ce2` in this checkout:
+
+| Check | Result |
+| --- | --- |
+| `node --test tests/session-gate.test.mjs` | 8 pass, 0 fail (fixture) |
+| `node --test tests` | 579 pass, 0 fail |
+| `node scripts/check-behavior-contracts.mjs` | ok, 17 modules |
+| `node scripts/behavior-parity.mjs --days 2 --seeds 1,2,3` | `PARITY PASS` |
+| `node scripts/smoke.mjs http://localhost:8000` | 68 checks passed |
+| D7 busy-overlap browser probe | 31/31 checks, 0 page errors, busy screenshot inspected |
+| R1 menu Continue browser probe | 12/12 checks, 0 page errors |
+| D5 map-session browser probe rerun | 27/27 checks, 0 page errors |
+
+The browser probe started a real field→Studio switch, then synchronously attempted
+save, load, New Game and import: each rejected with `Session busy: map-switch`, the
+map/roster/UIDs were unchanged, and all session controls were disabled. After the
+switch completed the gate released, controls re-enabled, save and New Game
+succeeded, and same-map stayed a no-op. A load racing another switch rejected and
+then succeeded after release. A forced IndexedDB `put` failure surfaced the error
+but released the gate; the next save succeeded. These are **host-run browser
+probe** results using public hooks plus a scratch method monkeypatch, not
+independent review.
+
+One probe-only assertion was corrected during the run (the settings sheet had not
+opened, so no slot buttons existed yet); source repairs were 0.
+
+R1 closes the menu Continue read gap: the targeted browser probe created a Studio
+autosave, reloaded the un-booted menu, clicked Continue, and observed the same
+Studio map and UIDs with the gate released; deleting the autosave then exercised
+the false return and guarded New Game fallback. The fallback click force-enabled
+the normally disabled button in scratch only; no production hook was added.
+
+Remaining M12 work: capture/apply phase extraction, any queue/rollback decision
+(not approved) and final completion review. U-003, U-006 and U-011 remain open.
+
+## 6. M12 implementation gate
 
 The implementation slice must prove:
 
@@ -127,3 +210,8 @@ The implementation slice must prove:
 
 Until that slice passes, M11/M12 and Batch D remain incomplete. U-003, U-006 and
 U-011 remain open in the unresolved register.
+
+D7 satisfies the overlap-specific bullets above (busy rejection, release after
+success/storage failure, autosave skip, no queue, map-switch no-op, affected
+browser evidence). The invalid-input/cross-map/version/storage-failure matrix and
+capture/apply phase extraction remain for the rest of M12.
