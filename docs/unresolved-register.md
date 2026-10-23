@@ -102,7 +102,8 @@ final HEAD. New entries: U-016 (landing-refusal host proof, open), U-017
 (pond-recovery/eye-continuity host proof, open) and U-018 (visual pond/terrain
 split, deferred/open). Existing U-003, U-006, U-011 and deferred M7–M10 gaps are
 unchanged. No duplicate aliases were introduced and no entry is treated as fixed
-by this boundary. Batch G/H remain unstarted; no push was made.
+by this boundary. At this E/F boundary, Batch G/H had not started; no push was
+made.
 
 ### G/H boundary note (2026-10-23)
 

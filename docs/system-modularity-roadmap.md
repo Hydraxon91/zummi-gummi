@@ -462,8 +462,8 @@ A 2,000-case randomized comparison of the old inline lattice math against the
 new module found zero differences. Forced bench measurements are neutral within
 run-to-run noise (parent after: field 0.154, nets 0.468, surface 5.06, total
 5.46 ms; baseline 0.145/0.456/4.90/5.25 ms), not a speedup claim. Return-to-shore
-pond recovery and numeric eye continuity remain unproven (U-017). F2/M16 remains
-pending.
+pond recovery and numeric eye continuity remain unproven (U-017). F2/M16 is
+complete (see below).
 
 - First inventory numeric kernels versus three.js upload and Box3D state. Pilot
   one numeric surface fixture before moving buffers or scheduler ownership.
@@ -544,9 +544,9 @@ standard library only**, recorded in the
 pinned genome-inheritance and wire-UID manifests, canonical hashes, exact/tolerance
 policy and failure negatives, plus a stdlib validator and self-test. Parent checks
 passed `validate` and `--self-test`, a tamper copy was rejected, full Node passed
-677/677, contracts covered 17 modules and `git diff --check` was clean. This is
-fixture data plus validation only; G2/M18c (pure rule) and G3/M18d (adapter) remain
-pending. No JS-vs-JS result is treated as cross-language proof.
+677/677, contracts covered 17 modules and `git diff --check` was clean. This was
+fixture data plus validation only at this step; G2/M18c and G3/M18d followed
+(see below). No JS-vs-JS result is treated as cross-language proof.
 
 **G2/M18c pure-rule port complete:** `tools/translation-pilot-py/genome.py`
 independently implements the bear/msn `combineGenomes` subset, and
@@ -554,8 +554,8 @@ independently implements the bear/msn `combineGenomes` subset, and
 and LCG seed-`11` modes, the ten-draw order, parent non-mutation and all six
 failure negatives. Parent rerun passed, and a 120-case randomized JS-vs-Python
 differential found zero differences. Full Node passed 677/677 and contracts
-covered 17 modules. G3/M18d remains pending; the port does not claim whole-game
-or native-engine parity.
+covered 17 modules. G3/M18d followed (see below); the port does not claim
+whole-game or native-engine parity.
 
 **G3/M18d bounded adapter port complete:** `tools/translation-pilot-py/adapter.py`
 independently implements the fixture-scoped snapshot subset, duplicate-UID and
@@ -565,7 +565,7 @@ hash and all expected outcomes, and rejects all five negatives (non-reciprocal
 partner, missing actor, duplicate UID across maps, saved live-handle adoption,
 inactive-map partner prune). Parent rerun passed; full Node passed 677/677 and
 contracts covered 17 modules. The subset does not claim the whole save format or
-whole-game portability. Batch G is complete; Batch H/M22 remains.
+whole-game portability. Batch G is complete; H/M22 followed (see below).
 
 - Inventory existing literal fixtures and supplement observable missing rules:
   numbers/Float32, null versus missing, unsigned hashes/RNG, ordering/ties, live
@@ -623,7 +623,8 @@ ownership split. Parent full Node passed 629/629, contracts covered 17 modules,
 fresh development parity passed 9/9, smoke passed 68/68, and the independent
 browser rerun passed 33/33 with inspected day/night and 900×600/430 px captures
 and zero page errors. No new unresolved finding; settings-body controls and full
-app teardown remain app-owned/unverified as recorded. E5/M21 remains pending.
+app teardown remain app-owned/unverified as recorded. E5/M21 is complete (see
+below).
 
 - Extend the relationship-view precedent: simulation supplies data and command
   operations; panels own DOM, keyed rows, focus and listener cleanup.
@@ -647,7 +648,7 @@ modules, fresh development parity passed 9/9, smoke passed 68/68, and the
 browser probe covered placement, aim/fire, cooldown RNG, muzzle refusal, real
 pointer priority, map state and Bear/Glass blast with zero page errors; captures
 were inspected. Landing-refusal host proof remains unforced and is recorded as
-U-016. F1/M14 remains pending.
+U-016. F1/M14 is complete (see above).
 
 - Retain launcher factory; separate placement/fire eligibility and blast effects
   from pointer picking and pooled particle presentation where useful.
@@ -666,7 +667,8 @@ supported recipes, maps completed seam families to existing extension proofs or
 explicit unsupported dispositions, and proposes the narrow H2 boundary list.
 Parent verification found every inventoried hook name present in source, cited
 paths valid, full Node 677/677 and contracts 17 modules. H2 narrow checks and the
-representative-extension audit remain pending. No runtime code or test changed.
+representative-extension audit followed (see below). No runtime code or test
+changed.
 
 **H2/M22b narrow checks complete:** `tests/pure-boundaries.test.mjs` guards the
 explicit 12-module pure list against imports and ambient DOM/storage/three.js/
@@ -779,8 +781,8 @@ atomic commits. The D-boundary fresh long parity passed 15/15 (`acceptance:true`
 and full Node passed 589/589. M11 is complete for the current two maps; M12 is
 complete with reject-and-preserve and no schema/transaction change. M6 extraction
 is complete but real Glass late-completion/effects teardown remains U-011/M15;
-U-003 (M5 app lifecycle) and U-006 (direct Glass detach) also remain open. Batch E
-has not started. Batch I2 captured the D evidence in the
+U-003 (M5 app lifecycle) and U-006 (direct Glass detach) also remain open. At
+this D boundary, Batch E had not started. Batch I2 captured the D evidence in the
 [unresolved-items register](unresolved-register.md); I3 still owns the older
 backlog. No push is implied.
 
@@ -792,8 +794,8 @@ water-access boundary passed independent review and atomic commits through
 E3/E4/E5/F1/F2 browser probes at the final HEAD. M20/M21/M14/M16 are complete for
 these bounded slices; visual pond/terrain extraction, settings-body ownership,
 pond recovery, numeric eye continuity and landing-refusal host proof remain
-recorded as U-018/U-017/U-016 or existing gaps. Batch G (translation pilot) and
-H (final audit) have not started. No push is implied.
+recorded as U-018/U-017/U-016 or existing gaps. At this E/F boundary, Batch G
+(translation pilot) and H (final audit) had not started. No push is implied.
 
 **Batch G execution is complete:** G1/M18b selected CPython 3.14.6 (stdlib only)
 and pinned the fixture manifests/hashes; G2/M18c ported the pure
@@ -836,9 +838,11 @@ For each approved extraction:
 
 ## Deferred decisions and explicit non-goals
 
-The following remain decisions, not automatic fixes: unknown module setter
-behavior, centralized pair writes, concurrent save/map policy, all-system speed,
-RNG stream separation, target-engine language and solver integration. Existing
+The following remain decisions, not automatic fixes: centralized pair writes,
+all-system speed, RNG stream separation and native target-engine/solver
+integration. The unknown module setter behavior and concurrent save/map policy
+were settled by B2 and D7 respectively; they are retained as history in the
+batch records and register. Existing
 documented bugs (including stargaze timing), hosted stalls and intermittent
 fixtures retain their dispositions in ROADMAP; modularization does not repair or
 waive them. Newly discovered defects must be recorded there before any repair.
