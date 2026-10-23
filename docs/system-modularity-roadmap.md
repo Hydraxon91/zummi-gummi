@@ -292,8 +292,9 @@ remain open.
 portable soft/Glass removal order and `preserveRefs`/colony-result gates; the app
 wrappers keep food/portion claims, behavior detach, bodies, references, grabs,
 mesh/eye work and Glass disposal. Parent full Node passed 559/559; `departure-test`
-(8/8) and `stars-test` removal paths passed with no page errors. U-003/U-006/U-011
-remain open; async completion, map teardown and M6 completion are not claimed.
+(8/8) and `stars-test` removal paths passed with no page errors. D4's repeated
+map-switch probe covers map teardown separately. U-003/U-006/U-011 remain open;
+async completion and M6 completion are not claimed.
 
 - Move birth/growth/removal orchestration out of app in bounded slices, with
   explicit representation callbacks. Keep Bear/Gummy and Glass implementations
@@ -369,6 +370,14 @@ probe passed 18/18. See [world/storage contract](world-storage-contract.md).
   existing saved preferences and fresh-game reset retain current behavior.
 
 ### M11 — Map/session lifecycle coordinator (L; M5, M10)
+
+**D4/M11a leave slice complete:** [map session contract](map-session-contract.md)
+and `src/mapsession.js` own the non-initial leave order (possession exit, grabs,
+pointers, drop queue, actor despawn, Glass clear) with app callbacks. Parent full
+Node passed 565/565; repeated field/Studio/field switching, same-map no-op, guarded
+reentry, stable UIDs and a Studio save/load round trip passed 27/27 with no page
+errors. Activation, switch scheduling and the save-overlap policy remain in app
+and are not claimed.
 
 - Extract activate/leave sequencing with explicit save, input-release, actor,
   scene and clock collaborators. Preserve pause and asynchronous switch semantics.

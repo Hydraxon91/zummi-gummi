@@ -35,6 +35,7 @@ import { maxActorUid } from './actorsave.js';
 import { buildRelationshipView } from './relationshipview.js';
 import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
+import { leaveCurrentMap } from './mapsession.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 
 // Explicit, early composition: hydrate world preferences before any
@@ -6342,15 +6343,17 @@ function syncCannonCollider(){
 }
 
 function activateMap(id, opts = {}){
-  if (!opts.initial && possessedBear) exitPossession();
+  leaveCurrentMap({
+    initial: !!opts.initial,
+    possessed: !!possessedBear,
+    onExitPossession: exitPossession,
+    onReleaseGrabs: releaseAllGrabs,
+    onClearPointers: () => pointers.clear(),
+    onClearDropQueue: () => { dropQueue.length = 0; },
+    onDespawnActors: despawnAll,
+    onClearGlass: () => { if (glassColony) glassColony.clear(); },
+  });
   const target = MAPS[id] || getActiveMap();
-  if (!opts.initial){
-    releaseAllGrabs();
-    pointers.clear();
-    dropQueue.length = 0;
-    despawnAll();
-    if (glassColony) glassColony.clear();
-  }
   setActiveMap(id);
   const map = getActiveMap();
   applyMapVisuals(id);
