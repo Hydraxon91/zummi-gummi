@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { createNavMesh } from './navmesh.js';
+import { buildNavDebugObject } from './navdebug.js';
 import { REFLECT_LAYER } from './sky.js';
 import { createWind, WIND_GLSL } from './wind.js';
 import { createSunState, updateSunState } from './sunlight.js';
@@ -2101,7 +2102,7 @@ export function buildField({ scene, camera, renderer, sky }) {
   // ---------------------------------------------------------------- nav & layout validation
   nav.setDynamic('cannon', { x: CANNON_HOME.x, z: CANNON_HOME.z, r: 0.38 });
   nav.bake();
-  const navDebug = nav.buildDebugObject(THREE);
+  const navDebug = buildNavDebugObject(THREE, nav);
   group.add(navDebug);
 
   // ---------------------------------------------------------------- AI plan overlay

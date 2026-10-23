@@ -49,6 +49,32 @@ test('portable definitions, strict input validation and sparse normalization', (
   assert.deepEqual(reinforceHabit({}, 'unknown'), {});
 });
 
+test('translation fixtures: sparse records, saturation and fractional-day decay', () => {
+  const sparse = [
+    { input: null, expected: {} },
+    { input: { stargaze: .5 }, expected: {} },
+    { input: { stargaze: .75, unknown: 1 }, expected: { stargaze: .75 } },
+    { input: { stargaze: 0 }, expected: { stargaze: 0 } },
+    { input: { stargaze: 2 }, expected: { stargaze: 1 } },
+  ];
+  for (const { input, expected } of sparse) {
+    assert.deepEqual(normalizePreferences(input), expected);
+  }
+  const habitSource = { stargaze: .92 };
+  assert.deepEqual(reinforceHabit(habitSource, 'stargaze'), { stargaze: 1 });
+  assert.deepEqual(reinforceHabit({ stargaze: 1 }, 'stargaze'), { stargaze: 1 });
+  assert.deepEqual(habitSource, { stargaze: .92 }, 'reinforcement must not mutate its input');
+  const decaySource = { stargaze: .43 };
+  const decayed = decayHabits(decaySource, 3);
+  near(decayed.stargaze, .28);
+  assert.deepEqual(decaySource, { stargaze: .43 }, 'decay must not mutate its input');
+  const fractionalSource = { stargaze: .43 };
+  const fractional = decayHabits(fractionalSource, 1.5);
+  near(fractional.stargaze, .355);
+  assert.deepEqual(fractionalSource, { stargaze: .43 },
+    'fractional decay must not mutate its input');
+});
+
 test('approved translation fixtures: liking and habit effects stack after traits/mood', () => {
   for (const [preference, habit, chance] of [[0, 0, .06], [.5, 0, .10], [1, 0, .14], [1, 1, .16]]) {
     const f = fixture({ preference, habit });

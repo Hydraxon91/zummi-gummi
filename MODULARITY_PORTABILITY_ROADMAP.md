@@ -1,6 +1,6 @@
 # Modularity and portability roadmap
 
-**Status: Planned—read-only audit; implementation requires separate approval.**
+**Status: P0 audit, P1 translation fixtures, P2 save-format extraction, P3 emote host boundary and P4 navigation-debug isolation complete; P5a–P5d scheduler/RNG characterization and contract closeout complete.**
 
 This is a separate track from the [personality/modular-AI track](ROADMAP.md#personality-and-modular-ai-extension-track),
 including AI chunk 4. Approval to write this roadmap authorizes documentation
@@ -82,9 +82,102 @@ this is not exhaustive implementation or branch coverage.
 | Debug/testing/verification | Inspected representative Node assertions and browser-parity setup; other harnesses inventoried/sampled | A fixtures/contracts; D browser tooling |
 
 Important open inspection areas: surface generation, solver internals, every
-activity's cancellation path, complete map activation, async actor-loading
-lifecycle and all UI listeners. Reinspect affected current source, callers and
-tests before approving a corresponding implementation chunk.
+activity's cancellation path, async actor-loading failure/retry behavior and
+all UI listeners. Reinspect affected current source, callers and tests before
+approving a corresponding implementation chunk.
+
+### P0 evidence update (2026-10-22)
+
+P0 read the lifecycle, map, save and representative interaction paths listed
+below. This remains source inspection only; the named Node tests and browser
+harnesses were inspected as protection, not executed.
+
+**Map ownership and switch order**
+
+- `requestMapSwitch()` guards re-entry with `mapSwitching`, then calls
+  `saveCurrentWorld({ dropCarried: true })` before `activateMap(id)`. Saving
+  snapshots the active map, launcher/camera/clock and field portions; carried
+  food is dropped into the current map first.
+- `activateMap()` releases grabs, clears pointers/drop queue, despawns live
+  actors, clears Glass, sets the active map, applies map visuals, restores
+  launcher/camera and portions, respawns actors, and restores or seeds Glass.
+  Only the active map runs `stepMeadowAI()`.
+- `despawnAll()` uses `preserveRefs: true`, so map switching does not rewrite
+  cross-map partner/guardian records. A real `removeBear()` clears those live
+  references after detaching behavior, releasing claims and dropping carried
+  food. The distinction is load-bearing, not incidental.
+- `activateMap()` calls `reserveWorldUids()` for the target world; save
+  application first calls `reserveGameUids()` across both maps. New Game resets
+  the allocator only after clearing both world snapshots and live state.
+- The initial boot calls `activateMap(activeWorld.mapId, { initial: true })`,
+  which deliberately skips despawn/clear because no live roster exists yet.
+
+**Save ownership and restoration order**
+
+- `applySavePayload()` validates and normalizes before mutation, reserves
+  game-wide UIDs, installs both world snapshots, prunes references against all
+  loaded UIDs, replaces portions, activates the saved map, converts saved
+  carried food into dropped portions, restores field food, applies sky/launcher,
+  then persists the field state.
+- `snapshotBear()` adds Bear-only directives, schedule, pace and yaw to the
+  shared `snapshotActor()` record. Runtime `ai` fields and live references are
+  intentionally not saved.
+- Glass restoration creates live actors through `makeActor()` and then applies
+  the shared record. Model loading is asynchronous; completion checks
+  `a.active`/`a.disposed`, releases the lease if the actor is gone, and failure
+  disposes instance resources and exposes an error. `clear()`/`removeActor()`
+  set `disposed` before releasing source leases.
+
+**Representative interaction cleanup**
+
+- `engine.cancelPair()` releases food for both actors, invokes the owning
+  module's `interrupt()` hook when declared, breaks the reciprocal pair, and
+  resets cancellable seek/pair states. `detach()` also clears movement/path state.
+- `removeBear()` drops carried food, releases portion and food claims, detaches
+  behavior, destroys bodies, removes grabs and then optionally clears persistent
+  references. Disabling behavior iterates actors through the same cancellation,
+  claim and path cleanup.
+- Group cancellation removes the actor, dissolves when fewer than three members
+  remain, and reassigns a leader if needed. Gifting cancellation releases the
+  origin claim and drops any carried portion. Affection/relationship cancellation
+  ends both sides of the pair and clears role/timer runtime state.
+- `commitFarewell()` ends a partnership and cancels pairs/claims before the
+  irreversible visual begins. Map despawn cancels farewell visuals and clears
+  per-actor farewell runtime fields; disabling the farewell feature uses
+  `cancelFarewells()`/`stars.cancelAll()`. These are separate cleanup surfaces.
+
+**Still open before extraction:** concurrent save-load/map-switch or autosave
+interactions, async model failure/retry during rapid map changes, every module's
+interruption hook, and the uninspected rendering/physics internals above. No new
+defect is asserted; these are evidence gaps. Existing protections include
+`tests/save.test.mjs` (UID reservation/duplicate rejection), relationship-save
+pruning, `tests/behavior.test.mjs` (grab cancels both sides),
+`tests/relationship-features.test.mjs` (group detach cleanup) and
+`tests/gifting.test.mjs` (claim/carried-food cleanup).
+
+### P1 fixture evidence (2026-10-22)
+
+P1 added inline translation fixtures only; no runtime, gameplay configuration,
+save format or dependency changed.
+
+- `tests/behavior-preferences.test.mjs` records sparse preference normalization,
+  habit saturation, three-day and fractional 1.5-day decay, and input non-mutation.
+- `tests/behavior-chooser.test.mjs` records literal higher-score, exact-tie,
+  ineligible-candidate and empty rankings, including no mutation of candidates.
+- `tests/dna.test.mjs` records constant-RNG midpoint/count fixtures plus seeded
+  same-species and mixed-species outputs with distinct draws, the exact 10-draw
+  order (color 3, five genes 1 each, hopPace 2), the deferred `bear-msn` hybrid
+  target and parent non-mutation.
+- `tests/family.test.mjs` records asymmetric directional bonds averaging to a
+  pair bond, symmetric updates, clamping and an untouched unrelated actor.
+- `tests/fieldshape.test.mjs` is new and records the authored radius wobble,
+  origin/asymmetric inside/outside points, padding and clamping with an explicit
+  `1e-9` numeric tolerance.
+
+Verification: the five affected files pass 52 tests (44 before P1); the complete
+`node --test tests` run passes 338 tests. No browser or visual run was performed,
+and no separate long parity suite was run; the complete Node suite includes the
+existing parity tests.
 
 ### Current dependency map
 
@@ -106,7 +199,7 @@ index.html
       navmesh/food/foodportions
       three.js scenery/water/vegetation/effects
     world.js — mutable per-map snapshots and localStorage
-    save.js -> actorsave.js -> shared record/rule modules
+    save.js -> saveformat.js -> actorsave.js -> shared record/rule modules
     assetstore.js -> assets.js -> GLTFLoader
 ```
 
@@ -167,8 +260,8 @@ Source locations are navigation aids and must be refreshed before edits.
   `worldSaveState()` and `normalizeSave()`. `applySavePayload()` validates,
   reserves identities, populates worlds, prunes references, restores portions,
   activates the map and restores carried portions in an explicit sequence.
-  See `actorrecord.js` `snapshotActor()`/`applyCommonActorState()` and `save.js`
-  `normalizeSave()`/`cloneWorld()`.
+  See `actorrecord.js` `snapshotActor()`/`applyCommonActorState()` and
+  `saveformat.js` `normalizeSave()`/`cloneWorld()`.
 - **Contracts:** active live actors differ from inactive snapshots; carried food
   becomes dropped food on restore; actor versions are sparse. `snapshotActor()`
   includes the genome reference, while full normalization later JSON-clones the
@@ -290,21 +383,23 @@ finding. Optional chunks may be declined if their benefit does not justify churn
 
 | Chunk | Status | Dependencies | Outcome |
 | --- | --- | --- | --- |
-| P0 | Planned; read-only | None | Close evidence gaps and specify boundary contracts |
-| P1 | Proposed; approval required | Relevant P0 contracts | Translation fixtures, no runtime changes |
-| P2 | Optional; approval required | P0 save/aliasing contracts | Separate save normalization from browser storage |
-| P3 | Optional; approval required | Relevant P0/P1 contracts | One explicit behavior-host boundary pilot |
-| P4 | Optional; approval required | Path/tie fixtures | Isolate navigation debug rendering |
-| P5 | Proposed; approval required | P0 | Characterize scheduler/RNG; no runtime redesign |
+| P0 | Complete—source audit, docs only | None | Evidence gaps and boundary contracts recorded above |
+| P1 | Complete—tests only | Relevant P0 contracts | Translation fixtures, no runtime changes |
+| P2 | Complete—narrow extraction | P0 save/aliasing contracts | Separate save normalization from browser storage |
+| P3 | Complete—emote host boundary | Relevant P0/P1 contracts | One explicit behavior-host boundary pilot |
+| P4 | Complete—nav debug isolated | Path/tie fixtures | Isolate navigation debug rendering |
+| P5 | Complete—characterization/docs only | P0 | Scheduler/RNG contract recorded through P5a–P5d; no runtime redesign |
 
 This numbering is not a requirement to perform every extraction. P5 may precede
 an optional extraction if it is needed to establish its ordering baseline.
 
-### P0 — Close evidence gaps and publish contracts
+### P0 — Close evidence gaps and publish contracts ✅
 
 - **Affected:** remaining lifecycle/map paths, representative activities and
   this audit's evidence/contract documentation.
 - **Preserved behavior:** all runtime behavior; source remains unchanged.
+- **Result:** lifecycle, map, save and representative interaction cleanup paths
+  inspected and recorded under “P0 evidence update”. Open gaps remain explicit.
 - **Approval decisions:** bounded inspection scope and documentation updates;
   no exhaustive-coverage claim from samples.
 - **Dependencies:** none.
@@ -313,61 +408,103 @@ an optional extraction if it is needed to establish its ordering baseline.
   areas and separate source conclusions from executed evidence.
 - **Rollback:** reverse only approved new documentation changes.
 
-### P1 — Add translation fixtures without changing runtime
+### P1 — Add translation fixtures without changing runtime ✅
 
-- **Affected:** existing preference/proposal/genetics/relationship/geometry tests;
-  agree a small representative fixture set before editing.
+- **Affected:** existing preference/proposal/genetics/relationship tests plus a
+  separate field-geometry test; the fixture set is recorded under “P1 fixture
+  evidence”.
 - **Preserved behavior:** rule outputs, ties, rounding, RNG draws and save output;
-  do not change runtime merely to simplify fixtures.
-- **Approval decisions:** exact fixture set and inline versus separate storage.
+  runtime was not changed to simplify fixtures.
+- **Approval decisions:** five inline fixture areas; one new geometry test file;
+  no browser or separate long parity suite.
 - **Dependencies:** relevant P0 contracts.
+- **Result:** 44 baseline affected tests became 52; all 338 Node tests pass.
 - **Acceptance:** affected Node tests exercise real functions and representative
-  ties, sparse state and seeded inheritance; document expected outputs for later
-  translation. No browser run is required for test-only pure fixtures unless
-  assertions affect browser acceptance.
+  ties, sparse state, fixed inheritance outputs/draw counts, asymmetric bonds and
+  toleranced geometry. Expected outputs are literal for later translation.
 - **Rollback:** reverse scoped test/fixture additions; runtime stays unchanged.
 
-### P2 — Separate save normalization from IndexedDB implementation
+### P2 — Separate save normalization from IndexedDB implementation ✅
 
-- **Affected:** `src/save.js`, one narrowly scoped module if approved, direct
-  callers and existing save tests.
+- **Affected:** new `src/saveformat.js`, `src/save.js`, direct callers, existing
+  save tests, and save-ownership comments/documentation.
 - **Preserved behavior:** API, errors, cloning, versions, slots, JSON format,
   UID reservation and capture/application order. No persisted migration.
-- **Approval decisions:** whether separation offers sufficient maintenance value;
-  exact module/API ownership and public import compatibility.
+- **Approval decisions:** move envelope validation/normalization only; keep slot
+  constants, IndexedDB operations and storage in `src/save.js`; retain compatible
+  imports through re-exports; preserve the existing input-world migration side
+  effect.
 - **Dependencies:** P0 save/aliasing contracts and current caller inventory.
+- **Result:** `src/saveformat.js` owns `SAVE_FORMAT`, `SAVE_VERSION`,
+  `validateSave()` and `normalizeSave()`; `src/save.js` owns slots/IndexedDB and
+  re-exports the format API. The save format, schema, restoration order and
+  dependencies are unchanged.
 - **Acceptance:** affected Node save/actor tests; HTTP smoke; targeted browser
   save/load, invalid-save rejection without live mutation, both-map round trip
   and New Game. Verify carried portions and inactive-map identities.
+- **Evidence:** 11 save tests and all 340 Node tests pass. HTTP smoke passes all
+  68 checks. A disposable-profile browser harness passes save/load, inactive
+  field/Studio identities, carried-food restoration as dropped portions,
+  future-version rejection with an unchanged live session, and New Game
+  isolation. The committed browser regression passed `BROWSER OK` on rerun; its
+  first run hit the documented Glass/bear collision fixture at 0.178 versus the
+  0.25 threshold, with no save-related failure.
 - **Rollback:** restore scoped implementation/import arrangement; existing saves
   must remain usable because their format is unchanged.
 
-### P3 — Pilot one explicit behavior-host boundary
+### P3 — Pilot one explicit behavior-host boundary ✅
 
-- **Affected:** one agreed field-query or emote boundary in `app.js`/behavior
-  construction/`behaviors/engine.js`, plus its direct tests/callers.
-- **Preserved behavior:** synchronous timing, backing actor/resource identities,
-  call order, priorities and RNG. Do not generalize all modules in this chunk.
-- **Approval decisions:** exact pilot, useful API shape and excluded callers.
+- **Affected:** `src/behaviors/engine.js`, `src/app.js`, one focused emote test,
+  and the portability docs/status.
+- **Preserved behavior:** module-owned emission intent, synchronous ordering,
+  actor coordinates and the existing nonfinite-height fallback. Omitting the new
+  callback retains the old `field.emote()` route. The legacy engine and all
+  behavior modules are unchanged.
+- **Approval decisions:** pilot only the emote output boundary; do not extract
+  field queries, add a general host/service interface, defer delivery or change
+  rendering.
 - **Dependencies:** relevant P0 contracts and P1 fixtures where applicable.
+- **Result:** `createBehaviorModules({ emitEmote })` forwards emissions to an
+  injected host callback. `src/app.js` wires it to `field.emote()`; the engine's
+  fallback keeps existing callers and tests compatible.
+- **Evidence:** 5 focused emote tests verify ordered emissions, fallback
+  compatibility, default/no-actor contracts and equal enabled social traces/RNG
+  draws; all 345 Node tests pass. HTTP smoke passes 68/68; browser regression
+  passes `BROWSER OK`; legacy/modules browser parity passes 180 steps with 202
+  transitions each; a disposable-profile check passes two-emote declines, map
+  return, save/load, hunger interruption and New Game with no leaked portions.
+  The inspected close-up capture clearly showed the emitted heart and no visual
+  regression.
 - **Acceptance:** affected Node tests, actual host wiring in a targeted browser
   scenario, interruption/pair/claim cleanup, map isolation, disabled legacy parity
   and enabled seeded/RNG checks for affected features. Run boundary-level parity
   under the verification procedure if simulation code changes.
-- **Rollback:** reconnect original field access and reverse only the pilot;
-  no persistent-state changes.
+- **Rollback:** reconnect the original field call and remove only the injected
+  option/test; no persistent-state changes.
 
-### P4 — Optionally isolate navigation debug rendering
+### P4 — Optionally isolate navigation debug rendering ✅
 
-- **Affected:** `src/navmesh.js`, debug builder and its existing caller.
+- **Affected:** `src/navmesh.js`, new `src/navdebug.js`, the field caller and a
+  focused nav-debug/path test.
 - **Preserved behavior:** exact path outputs/ties, obstacle ownership, clearance,
   coordinate conventions and debug appearance; no navigation replacement.
-- **Approval decisions:** whether this separation is worth maintaining and its
-  precise builder/data API.
+- **Approval decisions:** separate only the debug builder, using the existing
+  public grid fields and `isWalkable`; no new navmesh API.
 - **Dependencies:** path/tie fixtures that exercise actual navigation code.
+- **Result:** `buildNavDebugObject(THREE, nav)` now owns the Three.js mesh while
+  `navmesh.js` owns only navigation. `field.js` keeps `navDebug`, scene
+  attachment, toggles, reset behavior and the opacity pulse.
+- **Evidence:** 2 focused tests and all 347 Node tests pass. An old/new baseline
+  comparison produced identical debug positions, material/visibility properties,
+  stats, validation and all 64 asymmetric path combinations. HTTP smoke passes
+  68/68; browser regression passes `BROWSER OK`; legacy/modules parity passes 180
+  steps with 202 transitions each. A targeted browser check passes repeated
+  `navPath`, debug toggling, unchanged nav stats and map return. The inspected
+  capture showed the cyan nav-grid lines.
 - **Acceptance:** Node path fixtures, browser `navPath`/reachability checks and an
   inspected debug capture. Check asymmetric coordinates and unchanged obstacles.
-- **Rollback:** restore the scoped builder/call arrangement, not unrelated nav work.
+- **Rollback:** restore the scoped builder/call arrangement and remove the new
+  module/test; no unrelated nav work or persistent-state changes.
 
 ### P5 — Characterize scheduler and RNG ownership
 
@@ -382,6 +519,164 @@ an optional extraction if it is needed to establish its ordering baseline.
   conditions. State frame-rate/global-RNG limitations rather than claiming
   cross-engine determinism.
 - **Rollback:** reverse characterization additions; runtime remains untouched.
+
+**Proposed decomposition (documentation only):** P5 is split into four bounded
+subchunks. P5a and P5b are independent; P5c extends P5b; P5d publishes the
+evidence. Each subchunk needs separate approval and changes only tests, tooling
+or documentation. None authorizes scheduler, clock, RNG, debug-hook or gameplay
+changes. If characterization exposes a defect, record it and stop rather than
+repairing it inside P5.
+
+| Subchunk | Status | Dependencies | Outcome |
+| --- | --- | --- | --- |
+| P5a | Complete—tests only | P0 | Source-order contract guard |
+| P5b | Complete—tooling only | P0 | Controlled seeded trace and RNG ownership |
+| P5c | Complete—tooling only | P5b | Live pause/freeze/inactive-map clock checks |
+| P5d | Complete—docs only | P5a–P5c | Contract documentation and P5 closeout |
+
+#### P5a — Add source-order contract guard ✅
+
+- **Affected:** new `tests/scheduler-rng-contract.test.mjs`; no runtime source.
+- **Work:** assert the current ordering contract from unique source markers:
+  `animate()` hidden/paused guards before simulation; `frameTick()` before
+  `field.update()`; `field.update()` before the fixed-physics accumulator;
+  `stepMeadowAI()` before `stepGummyBehavior()`; food → Bear AI → life → Glass
+  → locomotion inside `stepMeadowAI()`; `sky.update()` first in `field.update()`;
+  `simulateSeconds()` bypasses field/surface/render work and calls `frameTick()`
+  only on the fourth substep; the behavior engine still resolves `Math.random`
+  dynamically.
+- **Preserved behavior:** runtime is unchanged. The test records existing order
+  and fails with a named contract when that order moves.
+- **Approval decisions:** a narrow source-order guard, not a general architecture
+  linter. This is drift detection, not runtime evidence or a determinism claim.
+- **Result:** `tests/scheduler-rng-contract.test.mjs` records five contracts:
+  animate gates/order, `frameTick`/`stepMeadowAI` order, field sky ordering,
+  `simulateSeconds` bypass, and the dynamic host RNG callback.
+- **Evidence:** the five focused tests pass; all 352 Node tests pass. No browser
+  or smoke run was required for this subchunk alone.
+- **Acceptance:** focused test passes; the full Node suite passes; no browser or
+  smoke run is required for this subchunk alone.
+- **Rollback:** delete only the new test; runtime and other evidence remain.
+
+#### P5b — Add controlled seeded trace and RNG ownership probe ✅
+
+- **Affected:** new `scripts/scheduler-rng-characterization.mjs` in controlled
+  mode; no runtime source.
+- **Work:** boot through the existing disposable-profile browser harness with
+  `requestAnimationFrame` suppressed and a seeded `Math.random` wrapper. After
+  boot, reset the wrapper stream and record draws by stack origin (`src/ai.js`
+  for Bear-host work, `src/glass.js` for Glass-host work, `src/app.js` for
+  app/Gummy work, other as diagnostic). Drive one `g.sim(1/15, 0)` call per
+  frame so each call contains four fixed physics steps and one `frameTick()`.
+  Record per-frame owner sequences and totals.
+- **Checks:** with `sky.auto` enabled, `g.sim(1)` advances behavior ticks but
+  leaves `map().sky.hours` unchanged because `simulateSeconds()` bypasses
+  `field.update()`. In a bounded
+  seeded window, find a frame containing both a Bear-host and a Glass-host draw
+  and assert Bear precedes Glass. If the default roster does not overlap, use the
+  existing `g.spawnGlass({ stage: 'adult' })` hook before the seeded reset and
+  record that fixture setup; do not infer order from separate frames. Require
+  Bear-before-Glass on every overlapping frame. Repeat the same seeded window on
+  a fresh profile/page and require identical per-frame owner sequences and draw
+  counts. Run a non-frozen positive control, then a controlled `g.freeze(true)`
+  window that may retain app/Gummy draws but must remove Bear/Glass draws.
+- **Preserved behavior:** no runtime scheduling, RNG ownership or visual behavior
+  changes. The wrapper and stack labels are harness-only diagnostics.
+- **Approval decisions:** a synthetic `g.sim` cadence is intentional; it is not a
+  model of normal `animate()` scheduling. Freeze/RNG results describe the current
+  host, not a new policy.
+- **Result:** `scripts/scheduler-rng-characterization.mjs` suppresses rAF, seeds
+  and wraps `Math.random`, records owner labels per frame, checks the `g.sim`
+  clock bypass with auto-clock enabled, Bear-before-Glass order on every overlap,
+  a non-frozen positive control, frozen Bear/Glass suppression and repeatability
+  on separate fresh profiles. Live pause/freeze/map checks are covered by P5c.
+- **Evidence:** `node scripts/scheduler-rng-characterization.mjs` passes with
+  seed 1234, 120 frames, four spawned Glass actors and the modules engine:
+  `g.sim` clock `auto=true 7 -> 7`, behavior ticks `0 -> 38`, all 43 overlap
+  frames ordered `bear<glass` (first frame 1), totals
+  `bear 144 / glass 146 / field 48`, identical repeat traces on fresh profiles,
+  and a non-frozen control with 92 draws versus 0 frozen draws and no Bear/Glass
+  labels while frozen. HTTP smoke passes 68/68. No normal-frame-rate or
+  cross-engine determinism is claimed.
+- **Acceptance:** controlled summary passes with the fixture conditions printed;
+  no normal-frame-rate or cross-engine determinism is claimed.
+- **Rollback:** remove the controlled mode and its output; runtime remains
+  untouched.
+
+#### P5c — Add live pause, freeze and inactive-map clock checks ✅
+
+- **Affected:** the same tooling script, extended with a normal-rAF live mode;
+  no runtime source.
+- **Work:** use a disposable-profile page and existing `window.__gummy` hooks.
+  Pause and wait: behavior ticks and sky hours must stay fixed, then advance after
+  unpause. Freeze and wait: behavior ticks must stay fixed while sky hours advance,
+  because `field.update()` still runs. Pause, switch to Studio, unpause and wait:
+  sky hours and behavior ticks must stay fixed, with `sky.auto` and the behavior
+  engine still enabled so the hold is attributable to the inactive map. Return
+  to Meadow: the saved field clock must be restored while paused and then advance
+  again after unpause; the P5a `lastNow` order guard owns the no-catch-up claim.
+  Use generous waits and monotonic/equality assertions, not exact frame rates.
+- **Preserved behavior:** runtime remains untouched; the probe observes pause,
+  freeze, `field.update()`, map switching and clock restoration as implemented.
+- **Approval decisions:** live checks assert direction/presence, not exact
+  timing. A failure is reported as a characterization mismatch, not repaired by
+  changing the scheduler.
+- **Result:** the tooling script now runs a normal-rAF live mode on its own fresh
+  profile after the controlled runs. It checks baseline advancement, pause
+  hold/resume, freeze tick suppression with clock advancement, paused Studio
+  switch, inactive-Studio hold with `sky.auto` and the behavior engine still
+  enabled, returned field-clock restoration with `sky.auto`, and post-return
+  resume. No runtime source changed.
+- **Evidence:** `node scripts/scheduler-rng-characterization.mjs` passes with
+  controlled output unchanged and live conditions `settle=250ms wait=900ms
+  timeout=10000ms`. A representative live run recorded baseline behavior ticks
+  `6 -> 10` and hours `7.0060 -> 7.0133`; pause held ticks at `11` and hours at
+  `7.0140` before resuming to ticks `16`; freeze held ticks at `16` while hours
+  advanced `7.0313 -> 7.0407`; paused Studio held ticks at `21` and hours at
+  `7.0480`; returning to Meadow restored `7.0480 -> 7.0480` with `auto=true`
+  and resumed ticks `21 -> 29`. Studio snapshots also asserted `sky.auto=true`
+  and `behavior.enabled=true`, so the inactive-map hold is not explained by a
+  disabled clock or engine. The script printed `SCHEDULER_RNG_CONTROLLED_OK`,
+  `SCHEDULER_RNG_LIVE_OK` and `SCHEDULER_RNG_OK`. The full Node suite passes 352
+  tests and HTTP smoke passes 68/68. Freeze advancing sky is observed behavior,
+  not a defect claim: pause gates `animate()` before `field.update()`, while
+  freeze only gates Meadow AI. No-catch-up is covered by the P5a source-order
+  guard, not claimed as a live timing measurement.
+- **Acceptance:** live summary passes and the script prints
+  `SCHEDULER_RNG_OK`; no screenshot is required because there is no visual change.
+  Harness conditions and the freeze/clock interpretation are recorded above.
+- **Rollback:** remove the live mode; the P5b controlled harness remains usable.
+
+#### P5d — Publish the scheduler/RNG contract and close P5 ✅
+
+- **Affected:** new `docs/scheduler-rng-contract.md`, the P5/backlog status in
+  this roadmap and the mirror status in `ROADMAP.md`.
+- **Work:** document the frame path, clock domains, pause/hidden/freeze/inactive
+  map gates, map-return clock restoration, `g.sim` bypass, global RNG ownership,
+  `g.seed`/`g.unseed`, Glass defaults and the harness commands. State that
+  seeded traces are conditional on harness cadence and other global-RNG
+  consumers, and that fixed physics does not establish whole-game determinism.
+  Record P5a–P5c evidence, commands and any unverified criteria; update status
+  only after that evidence exists.
+- **Preserved behavior:** documentation/status only; runtime, saves, APIs and
+  dependencies remain unchanged.
+- **Approval decisions:** document observed behavior; do not convert it into
+  authorization for clock extraction or RNG-stream separation. A later extraction
+  needs a new evidence-backed proposal.
+- **Result:** `docs/scheduler-rng-contract.md` records the frame path, clock
+  domains, pause/hidden/freeze behavior, inactive-map and map-return rules,
+  `g.sim` bypass, global RNG ownership, `g.seed`/`g.unseed`, Glass defaults,
+  harness commands and explicit determinism limits. P5 is marked complete as
+  characterization and documentation only; no runtime work is authorized by the
+  closeout.
+- **Evidence:** the P5a source-order tests pass 5/5; the controlled and live
+  scheduler/RNG probe passes and prints `SCHEDULER_RNG_OK`; the full Node suite
+  passes 352 tests; HTTP smoke passes 68/68. The new document matches the
+  inspected source and recorded evidence. No visual capture was required.
+- **Acceptance:** docs match inspected source and executed P5a–P5c evidence; the
+  full Node suite and HTTP smoke pass; the targeted browser probe passes; the diff
+  contains no runtime source changes. No visual capture is required.
+- **Rollback:** remove the new document and revert only the P5/status lines.
 
 ### Deferred decisions — not implied follow-on work
 
@@ -424,6 +719,10 @@ with the approved chunk's results, not as fabricated success in this plan.
 
 ## Approval checkpoint
 
-Only creation of this roadmap and its link from `ROADMAP.md` is approved.
-P0–P5 remain pending separate approval. The next decision is which bounded audit
-or fixture chunk, if any, to authorize; no runtime work follows automatically.
+P0's read-only audit, P1's test-only translation fixtures, P2's save-format
+extraction, P3's emote host boundary and P4's navigation-debug isolation are
+complete. P5's source-order guard, controlled trace, live clock checks and
+contract documentation are complete. P5 closes as characterization and
+documentation only; no runtime work follows automatically. Clock extraction,
+RNG-stream separation or any other scheduler/runtime change requires a new
+evidence-backed proposal.

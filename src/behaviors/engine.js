@@ -77,6 +77,7 @@ export function createBehaviorModules({
   getAdapter,
   getKnownActorUids = null,
   getMapId = null,
+  emitEmote = null,
   rng = Math.random,
   daySeconds = 600,
   onFarewell = null,
@@ -737,8 +738,16 @@ export function createBehaviorModules({
   }
 
   function emit(actor, kind, dy = 1.0) {
-    if (!field || typeof field.emote !== 'function' || !actor) return;
-    field.emote(actor.cx, finite(actor.cy, 0) + dy, actor.cz, kind);
+    if (!actor) return;
+    const x = actor.cx;
+    const y = finite(actor.cy, 0) + dy;
+    const z = actor.cz;
+    if (typeof emitEmote === 'function') {
+      emitEmote(x, y, z, kind);
+      return;
+    }
+    if (typeof field?.emote !== 'function') return;
+    field.emote(x, y, z, kind);
   }
 
   function releaseFood(actor) {

@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DNA_VERSION, defaultGenome } from '../src/dna.js';
-import { SAVE_VERSION, validateSave, normalizeSave } from '../src/save.js';
+import { SAVE_FORMAT, SAVE_VERSION, validateSave, normalizeSave } from '../src/save.js';
+import {
+  SAVE_FORMAT as FORMAT_SAVE_FORMAT, SAVE_VERSION as FORMAT_SAVE_VERSION,
+  validateSave as validateFormatSave, normalizeSave as normalizeFormatSave,
+} from '../src/saveformat.js';
 import { maxActorUid } from '../src/actorsave.js';
 
 function basePayload() {
@@ -142,4 +146,26 @@ test('normalization strips unknown top-level keys and preserves the map payload'
   assert.equal(normalized.extra, undefined);
   assert.equal(normalized.mapId, 'field');
   assert.equal(normalized.worlds.field.bears[0].uid, 1);
+});
+
+test('the save facade re-exports the portable format module', () => {
+  assert.equal(SAVE_FORMAT, FORMAT_SAVE_FORMAT);
+  assert.equal(SAVE_VERSION, FORMAT_SAVE_VERSION);
+  assert.equal(validateSave, validateFormatSave);
+  assert.equal(normalizeSave, normalizeFormatSave);
+});
+
+test('normalization preserves the existing input-world migration side effect', () => {
+  const payload = basePayload();
+  const originalWorld = payload.worlds.field;
+  const originalBears = originalWorld.bears;
+  const originalBear = originalBears[0];
+  assert.equal(originalBear.actorVersion, undefined);
+
+  const normalized = normalizeSave(payload);
+  assert.equal(payload.worlds.field, originalWorld);
+  assert.notEqual(payload.worlds.field.bears, originalBears);
+  assert.notEqual(payload.worlds.field.bears[0], originalBear);
+  assert.equal(payload.worlds.field.bears[0].actorVersion, 2);
+  assert.deepEqual(payload.worlds.field.bears[0], normalized.worlds.field.bears[0]);
 });

@@ -130,6 +130,39 @@ test('enabled choice ranks social pressure against stargazing and executes the w
   assert.equal(liked.engine.chooseActivity(liked.actor), 'stargaze.seek');
 });
 
+test('translation fixtures: literal scores, authored-order ties and eligibility', () => {
+  const cases = [
+    {
+      label: 'higher score wins',
+      items: [['social.company', true, .1], ['stargaze.seek', true, .4]],
+      expected: ['stargaze.seek', 'social.company'],
+    },
+    {
+      label: 'exact tie keeps authored order',
+      items: [['social.company', true, .3], ['stargaze.seek', true, .3]],
+      expected: ['social.company', 'stargaze.seek'],
+    },
+    {
+      label: 'ineligible candidate is excluded regardless of score',
+      items: [['social.company', false, .9], ['stargaze.seek', true, .2]],
+      expected: ['stargaze.seek'],
+    },
+    {
+      label: 'no eligible candidates',
+      items: [['social.company', false, .1], ['stargaze.seek', false, .2]],
+      expected: [],
+    },
+  ];
+  for (const { label, items, expected } of cases) {
+    const candidates = items.map(([id, eligible, score]) => defineProposalCandidate({
+      id, eligible, reason: 'fixture', contributions: { score },
+    }));
+    const before = JSON.stringify(candidates);
+    assert.deepEqual(rankProposals(candidates), expected, label);
+    assert.equal(JSON.stringify(candidates), before, `${label}: ranking must not mutate candidates`);
+  }
+});
+
 test('exact score ties keep the authored order', () => {
   const f = fixture({ features: { activityChooser: true, preferences: true, habits: true }, preference: 1, habit: 1 });
   // .64 stargazing share meets .64 social pressure at need .64 + .64 * .36.

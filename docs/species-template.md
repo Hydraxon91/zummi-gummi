@@ -64,8 +64,9 @@ decision path in `ai.js` or `glass.js`. Family relations, households, skills,
 history and playdate schedules are shared in `src/family.js`; pair/task protocol
 is in `src/interactions.js`.
 
-The save envelope lives in `src/save.js`; per-actor shape and version checks live
-in `src/actorsave.js`. Current collections are soft-body `bears` and skinned
+The save envelope lives in `src/saveformat.js`; IndexedDB storage lives in
+`src/save.js`. Per-actor shape and version checks live in `src/actorsave.js`.
+Current collections are soft-body `bears` and skinned
 `glass`. Every new actor snapshot carries `ACTOR_SAVE_VERSION`; legacy records
 without it remain valid. Unknown or mismatched species are rejected rather than
 falling back to Bear, and a future actor version is rejected. Register a new actor

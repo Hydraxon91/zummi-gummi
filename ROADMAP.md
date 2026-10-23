@@ -79,7 +79,8 @@ src/launcher.js         cannon build/move/aim/fire
 src/ui.js / styles.css  Aero/MSN shell and HUD
 src/studio-room.js      authored Studio lounge/bar/TV interaction surface
 assets/studio/          exported glTF/GLB room kit, collision proxies, credits
-src/save.js             IndexedDB slots, save format/migration, New Game
+src/saveformat.js       save-envelope validation, migration and normalization
+src/save.js             IndexedDB slots/storage; format API compatibility exports
 src/actorsave.js        actor save versions, validation and collection registry
 src/player.js           bear selection, directives, possession camera/input
 src/editor.js           placement editor: ghost preview, validation, undo
@@ -1829,7 +1830,7 @@ can proceed with the current runtime and assets.
 
 ## Engine portability and modularity track
 
-**Status: Planned—read-only audit; implementation requires separate approval.**
+**Status: P0 audit, P1 translation fixtures, P2 save-format extraction, P3 emote host boundary and P4 navigation-debug isolation complete; P5a–P5d scheduler/RNG characterization and contract closeout complete.**
 
 The separate [modularity and portability roadmap](MODULARITY_PORTABILITY_ROADMAP.md)
 records the repository-wide audit, evidence limits, protected contracts and small,
@@ -2532,8 +2533,8 @@ visuals, balance, authored layouts, batching and save compatibility during extra
 5. **Genes + actor persistence contracts (done).** `dna.js` exposes a gene
    definition registry; species opt in through `genetics.loci`. `actorsave.js`
    owns actor validation, actor save versioning and registered collections, while
-   `save.js` keeps the envelope and storage. Unknown species/kind and future actor
-   versions are rejected; legacy records remain valid.
+   `saveformat.js` keeps the envelope and `save.js` keeps storage. Unknown
+   species/kind and future actor versions are rejected; legacy records remain valid.
 6. **AI/directive extension points + UI ownership (later).** Add bounded behavior
    handlers only when new content needs them; preserve shared pair interruption,
    needs priorities and specialized physics. Extract UI by ownership, not a broad

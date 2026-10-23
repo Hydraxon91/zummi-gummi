@@ -242,7 +242,8 @@ existing stack and structure.
   `horizon.js`/`wind.js`/`fieldshape.js` their named systems. The species layer is split:
   `species.js` is the capability/asset registry, `dna.js` is pure genetics,
   `actorsave.js` owns actor save validation/versioning and collection registration while
-  `save.js` owns the save envelope and storage, `actorrecord.js` owns the shared saved-actor
+  `saveformat.js` owns save-envelope validation/normalization, `save.js` owns IndexedDB
+  storage and re-exports the format API, `actorrecord.js` owns the shared saved-actor
   shape, `assets.js`
   validates manifests and loads manifested GLBs, `npc.js` is the read-only soft-body/Glass
   actor view, `glass.js` owns the Glass Meadow adapter, `msn.js` owns the Studio prototype,

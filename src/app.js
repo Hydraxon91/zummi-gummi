@@ -6942,6 +6942,10 @@ async function bootGame(){
     getPopulationCap: () => bearCeiling,
     getKnownActorUids: gameActorUids,
     getMapId: () => activeWorld.mapId,
+    emitEmote: (x, y, z, kind) => {
+      if (field && typeof field.emote === 'function') return field.emote(x, y, z, kind);
+      return false;
+    },
     daySeconds: DAY_SECONDS,
     onFarewell: (actor, info) => startFarewell(actor, info),
     // Read Math.random at call time so __gummy.seed() also drives the engine.

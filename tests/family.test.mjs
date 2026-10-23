@@ -71,6 +71,26 @@ test('bonds stay symmetric and clamped', () => {
   assert.equal(bondOf(c, a), .25);
 });
 
+test('translation fixtures: asymmetric bonds average, then update symmetrically', () => {
+  const a = actor(1, { bonds: { 2: .8 } });
+  const b = actor(2, { bonds: { 1: .2 } });
+  const unrelated = actor(3, { bonds: { 1: .9 } });
+
+  assert.equal(bondOf(a, b), .8);
+  assert.equal(bondOf(b, a), .2);
+  assert.equal(pairBond(a, b), .5);
+  const untouched = structuredClone(unrelated.bonds);
+  assert.equal(addBond(a, b, .1), .6);
+  assert.equal(bondOf(a, b), .6);
+  assert.equal(bondOf(b, a), .6);
+  assert.equal(pairBond(a, b), .6);
+  assert.deepEqual(unrelated.bonds, untouched, 'an unrelated actor is not rewritten');
+  assert.equal(setBond(a, b, 4), 1);
+  assert.equal(pairBond(a, b), 1);
+  assert.equal(setBond(a, b, -2), 0);
+  assert.equal(pairBond(a, b), 0);
+});
+
 test('skills normalize, teach toward the parent and apply modest effects', () => {
   const parent = actor(1);
   const child = actor(2);

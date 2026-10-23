@@ -17,6 +17,22 @@ function seeded(seed = 123456789) {
   return () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32);
 }
 
+function inheritanceFixture() {
+  const firstGenes = {
+    color: '#102030', size: .75, rigidity: .25, softness: .5,
+    stretch: .5, material: 'bearGummy', hopPace: [.5, 1.5],
+  };
+  const secondGenes = {
+    color: '#80c0e0', size: 1.25, rigidity: .5, softness: .75,
+    stretch: 1.5, material: 'msnGummy', hopPace: [.75, 1.25],
+  };
+  return {
+    bearA: defaultGenome('bear', { genes: firstGenes }),
+    bearB: defaultGenome('bear', { genes: { ...secondGenes, material: 'bearGummy' } }),
+    msnB: defaultGenome('msn', { genes: secondGenes }),
+  };
+}
+
 test('default genomes carry the current version and species baseline', () => {
   const bear = defaultGenome('bear');
   const gummy = defaultGenome('msn');
@@ -63,6 +79,86 @@ test('same-species combination stays in species and is deterministic', () => {
   assert.deepEqual(first, second);
   assert.ok(first.species.bear > .99);
   assert.equal(first.hybridTarget, null);
+});
+
+test('translation fixtures: fixed inheritance outputs and RNG draw counts', () => {
+  const { bearA, bearB, msnB } = inheritanceFixture();
+  const inherited = {
+    color: '#487088', size: 1, rigidity: .375, softness: .625,
+    stretch: 1, hopPace: [.625, 1.375],
+  };
+  const cases = [
+    {
+      label: 'same species',
+      other: bearB,
+      species: { bear: 1 },
+      genes: { ...inherited, material: 'bearGummy' },
+      hybridTarget: null,
+    },
+    {
+      label: 'mixed species',
+      other: msnB,
+      species: { bear: .5, msn: .5 },
+      genes: { ...inherited, material: 'msnGummy' },
+      hybridTarget: 'bear-msn',
+    },
+  ];
+  for (const item of cases) {
+    let draws = 0;
+    const result = combineGenomes(bearA, item.other, {
+      mutation: .04,
+      rng: () => { draws += 1; return .5; },
+    });
+    assert.equal(draws, 10, `${item.label}: color 3 + five genes 1 each + hopPace 2`);
+    assert.deepEqual(result.species, item.species, item.label);
+    assert.deepEqual(result.genes, item.genes, item.label);
+    assert.equal(result.hybridTarget, item.hybridTarget, item.label);
+    assert.equal(result.phenotype, 'softbody-bear', item.label);
+  }
+});
+
+test('translation fixtures: seeded inheritance outputs and draw order', () => {
+  const { bearA, bearB, msnB } = inheritanceFixture();
+  const inherited = {
+    color: '#3f6580',
+    size: 0.9972803003057837,
+    rigidity: 0.3770659795805812,
+    softness: 0.6283276194415987,
+    stretch: 0.9940259193077683,
+    hopPace: [0.5932915655896067, 1.3520984780229628],
+  };
+  const cases = [
+    {
+      label: 'same species',
+      other: bearB,
+      species: { bear: 1 },
+      genes: { ...inherited, material: 'bearGummy' },
+      hybridTarget: null,
+    },
+    {
+      label: 'mixed species',
+      other: msnB,
+      species: { bear: .5, msn: .5 },
+      genes: { ...inherited, material: 'msnGummy' },
+      hybridTarget: 'bear-msn',
+    },
+  ];
+  const parentsBefore = JSON.stringify([bearA, bearB, msnB]);
+  for (const item of cases) {
+    let draws = 0;
+    const rng = seeded(11);
+    const result = combineGenomes(bearA, item.other, {
+      mutation: .04,
+      rng: () => { draws += 1; return rng(); },
+    });
+    assert.equal(draws, 10, `${item.label}: color 3 + five genes 1 each + hopPace 2`);
+    assert.deepEqual(result.species, item.species, item.label);
+    assert.deepEqual(result.genes, item.genes, item.label);
+    assert.equal(result.hybridTarget, item.hybridTarget, item.label);
+    assert.equal(result.phenotype, 'softbody-bear', item.label);
+  }
+  assert.equal(JSON.stringify([bearA, bearB, msnB]), parentsBefore,
+    'inheritance must not mutate either parent genome');
 });
 
 test('Bear x Gummy retains both species weights and a deferred hybrid target', () => {

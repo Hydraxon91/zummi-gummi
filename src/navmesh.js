@@ -67,7 +67,6 @@ export function createNavMesh(opts = {}) {
   const doors = [];                      // house approach points (outside walls)
   let baked = false;
   let mainComponent = -1;
-  let debugObject = null;
   const stats = { cells: N, blocked: 0, walkable: 0, components: 0, mainCells: 0, solids: 0, doors: 0 };
 
   function cx(ix) { return minX + (ix + 0.5) * cell; }
@@ -319,35 +318,6 @@ export function createNavMesh(opts = {}) {
     return out;
   }
 
-  // --------------------------------------------------------------- debug view
-  function buildDebugObject(THREE) {
-    if (debugObject) return debugObject;
-    const lines = [];
-    const y = 0.045;
-    for (let iz = 0; iz < rows; iz++) {
-      for (let ix = 0; ix < cols; ix++) {
-        if (walk[idx(ix, iz)]) continue;
-        const x0 = minX + ix * cell, x1 = x0 + cell;
-        const z0 = minZ + iz * cell, z1 = z0 + cell;
-        const check = (ax, az, bx, bz) => {
-          if (isWalkable((ax + bx) / 2, (az + bz) / 2)) lines.push(ax, y, az, bx, y, bz);
-        };
-        check(x0, z0, x1, z0); check(x1, z0, x1, z1);
-        check(x1, z1, x0, z1); check(x0, z1, x0, z0);
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
-    const mat = new THREE.LineBasicMaterial({
-      color: 0x6fe3ff, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false,
-    });
-    debugObject = new THREE.LineSegments(geo, mat);
-    debugObject.visible = false;
-    debugObject.frustumCulled = false;
-    debugObject.renderOrder = 8;
-    return debugObject;
-  }
-
   function validate() {
     const errors = [];
     for (const s of solids) {
@@ -372,12 +342,11 @@ export function createNavMesh(opts = {}) {
     minX, maxX, minZ, maxZ, cell, cols, rows, agentRadius, insideBounds,
     addSolid, clearSolids, setDynamic, removeDynamic,
     bake, isWalkable, nearestWalkable, findPath, lineClear,
-    buildDebugObject, validate,
+    validate,
     get stats() { return { ...stats }; },
     get solids() { return solids; },
     get doors() { return doors; },
     get mainComponent() { return mainComponent; },
     get baked() { return baked; },
-    get debugObject() { return debugObject; },
   };
 }

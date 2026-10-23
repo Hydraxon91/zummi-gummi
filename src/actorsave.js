@@ -1,7 +1,8 @@
 // Per-actor save validation and collection registration.
 //
-// save.js owns the save envelope and storage. This module owns the shape of an
-// actor record, its version and the deliberate handling of unknown content.
+// saveformat.js owns the save envelope; save.js owns storage. This module owns
+// the shape of an actor record, its version and the deliberate handling of
+// unknown content.
 
 import { DNA_VERSION } from './dna.js';
 import { getSpecies } from './species.js';
