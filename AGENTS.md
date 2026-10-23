@@ -62,6 +62,24 @@ Read the named sections when applicable, not that whole document on every task.
 | Save/species/assets contract | Relevant ownership in procedures §7, `assets/README.md`, affected Node tests |
 | Commit/push | Procedures §12; verified atomic units, no push implied; monitor applicable CI after a code push |
 | Documentation/tooling workflow | Procedures §10–11 and affected commands/cross-references |
+| Delegated implementation/review | Procedures §3 delegation contract; `.opencode/agents/coder.md` |
+
+## Coding delegation
+
+The parent/reviewer session owns planning and independent review; the project
+`coder` subagent uses OpenGateway DeepSeek V4.1 Flash Ultrafast at `medium`.
+Approve scope and `coder` ownership before delegation. The coder implements/tests
+assigned files; the parent reviews the actual diff and evidence, not just the
+child's summary. Keep one writer at a time and preserve a pre-delegation
+HEAD/working-tree baseline. Delegation grants no extra approval, Plan-mode
+exception, commit or push permission.
+
+**One step per coder run.** Do not batch adjacent roadmap steps (for example
+M1c + M1d) into one coder brief. Delegate the first step, review it, return any
+corrections to the same coder, and only after it passes start a **new coder
+session** for the next step. Each step has its own baseline, evidence ledger and
+acceptance gate. Full brief, handoff, correction and recovery rules are in
+procedures §3.
 
 ## Non-negotiable project boundaries
 

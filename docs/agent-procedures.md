@@ -98,6 +98,88 @@ working in this repo.
   never overrides the repair limits, explicit continuation approvals or regression stop
    in Approved Work Chunks.
 
+### Coding delegation and independent review
+
+The project-local `coder` is the bounded implementation worker; the parent
+reviewer session owns planning, behavioral decisions and independent review.
+The coder's pinned model is defined in `.opencode/agents/coder.md`. No delegation
+changes global models or permits work excluded by the current mode or approvals.
+
+1. **Approve owner and scope — one step per coder.** Before a step's first edit,
+   propose the bounded outcome, paths, invariants, acceptance checks and
+   implementation owner. One explicit approval can cover the step and `coder`
+   ownership. Approval of this workflow alone does not authorize any M0–M23
+   implementation or repair. Do not combine adjacent roadmap steps in one brief.
+   Delegate one step, review it, return corrections to the same coder, and only
+   after it passes start a **new coder session** for the next step. A batch
+   approval is a sequence of separately gated steps, not one coder assignment.
+2. **Capture starting state.** Record HEAD, status and preserved staged/unstaged
+   diffs plus relevant untracked contents before each delegation/correction.
+   A clean HEAD is sufficient when there are no local changes. Do not stash,
+   reset or overwrite user work to manufacture isolation.
+3. **Supply a structured brief.** Children start fresh. Every brief must contain:
+   - **Objective and approval:** user-approved scope/owner, settled decisions and
+     observable acceptance criteria; missing approval returns to the parent.
+   - **Ownership and targets:** exact working directory, allowed file writes,
+     parent-owned paths and exclusions, including test and doc ownership.
+   - **Starting state:** HEAD/preserved-work baseline, verified facts, prior
+     evidence and unknowns; allowed read-only preflight for those unknowns.
+   - **Procedure and verification:** applicable procedure/skill/reference paths,
+     producer/consumer contracts, focused and downstream checks with timeouts.
+   - **Limits and recovery:** supplied time/call caps if any, existing criterion
+     repair limits, stop conditions, permitted cleanup and artifact paths. Do
+     not invent budgets or reset repair counts by starting another worker.
+   - **Return evidence:** actual path delta, criteria outcomes, commands/results,
+     artifacts, blockers, remaining checks and owned-process cleanup.
+4. **Serialize writers.** The coder owns the assigned implementation, tests and
+   feature docs. While it runs, the parent does not edit or mutate Git, launch
+   competing game/Blender verification or start another writer. Independent
+   read-only research is allowed. Parallel coding requires a separate plan and
+   explicit approval; this workflow defaults to one coder. The coder cannot
+   delegate further or stage/commit/push. Git work waits until the worker stops.
+5. **Inspect the return.** Compare the actual staged/unstaged/untracked delta
+   against the baseline and allowed paths, including additions/deletions/renames.
+   Stop on unexpected changes; preserve them rather than automatically reverting.
+   Then independently read changed code, affected callers/helpers and evidence;
+   run targeted closure checks when authorized. A child's summary or green exit
+   code is not independent review. State evidence gaps explicitly.
+6. **Classify corrections.** Give findings stable IDs, source evidence and
+   expected versus actual behavior. Mechanical repairs may be delegated within
+   an explicitly approved correction loop; otherwise ask for fix approval.
+   Behavioral/API/persistence choices return to the user under §6. Every round
+   gets an updated baseline, exact paths and regression checks. Ownership changes
+   need an explicit handoff; do not silently mix parent and coder edits.
+7. **Close and stop.** Parent consolidates review results and roadmap status by
+   default; explicitly assigned feature docs may be coder-owned. Report completed,
+   failed, blocked and unverified criteria separately. No automatic next chunk,
+   commit or push. Preserve §4/§12 publication gates and all §5 repair limits.
+
+8. **Dependency map and scope expansion.** Before editing, the coder must map
+   every source, test, fixture and doc required by the approved behavior. If a
+   required file is not in the allowed set, stop and request expansion from the
+   parent before touching it. A necessary edit is not retroactive authorization;
+   never describe an unlisted path as authorized. The parent records the approved
+   expansion and updates the baseline before work resumes.
+9. **Evidence ledger and labels.** For runtime/verification chunks, retain a
+   bounded ledger under `.dev-shots/<chunk>/` containing baseline HEAD, hashes,
+   commands, exit codes, concise results and cleanup. Scratch evidence is not
+   committed. Label source-inspected, host-run, independently rerun, fixed-RNG
+   and seeded evidence separately; a constant RNG is not a seeded run.
+10. **Verification tiers.** The coder runs focused tests, affected host checks,
+   the full Node suite and short parity where applicable. The parent reviews the
+   actual diff and runs targeted closure plus the full Node suite; it reruns a
+    browser/host check when that boundary changed. Run a fresh long parity once
+   after runtime settles. Test-only corrections may reuse unchanged runtime
+   evidence; do not rerun heavy suites merely to repeat a green result.
+11. **Review findings are evidence-bound.** The parent verifies a claimed API,
+    caller or failure against source before delegating a correction. Findings use
+    stable IDs, expected versus actual behavior and exact regression checks.
+
+After interruption, establish whether the previous worker stopped and inspect
+its actual state before launching a replacement. Never treat interruption as
+rollback or run competing workers over uncertain writes. Review remains read-only
+in Plan mode; it cannot delegate writes as a workaround.
+
 ## 4. Destructive Actions, Commits and Pushes
 
 Before **any destructive action** (file deletions, large refactors, module restructuring,
