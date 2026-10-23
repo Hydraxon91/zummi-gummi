@@ -618,6 +618,7 @@ function spawn(x, z, y, flavor, opts={}){
     if (!requestedDef) throw new Error(`spawn: species "${marker}" is not registered`);
   }
   requireSpeciesRuntime(requestedDef, rigCfg, { expectedKind: 'softbody', context: 'spawn' });
+  if (!PHYS) throw new Error('spawn: physics is not ready');
   if (bears.length >= bearCeiling) removeBear(bears[0], { departure: 'removed' });
   const b = getFreeBear(rigCfg);
   if (!b) return null;
