@@ -1,11 +1,16 @@
 # Supported debug and extension API inventory
 
-Status: **H1/M22a source-inspected inventory and recipe index.** This document
-inventories the current `window.__gummy` surface and the extension seams that
-already have tests or explicit unsupported dispositions. It does not add a
-runtime API, plugin loader, registry, import-ban framework or new test.
+Status: **H1/M22a source-inspected inventory and recipe index, extended by
+H2/M22b narrow boundary checks.** This document inventories the current
+`window.__gummy` surface and the extension seams that already have tests or
+explicit unsupported dispositions. H2 adds only two test files: a fixed
+pure-module boundary guard (`tests/pure-boundaries.test.mjs`) and a fixture-only
+cannon/toy representative extension (`tests/cannon-extension.test.mjs`). Neither
+adds a runtime API, plugin loader, registry, general import-ban framework or
+production hook.
 
-Baseline: `HEAD f4f7c89`, clean working tree before this documentation change.
+Baselines: H1 `HEAD f4f7c89`; H2 `HEAD c881db5`, clean working tree before the
+H2 test/documentation change.
 Evidence labels:
 
 - **Source-inspected** — the named source, exports and immediate callers were
@@ -309,7 +314,10 @@ loosened tolerance to make a port pass.
 
 This maps completed seam families to existing proof or an explicit
 unsupported/deferred disposition. Test paths are committed files; the H1 run did
-not rerun every one of them.
+not rerun every one of them. H2 adds `tests/cannon-extension.test.mjs` for the
+cannon/toy row and `tests/pure-boundaries.test.mjs` for the narrow pure-module
+list in §5; the remaining row proofs are the existing tests listed below, not
+newly rerun by H2 unless §7 says so.
 
 | Seam family | Existing proof | Disposition / limit |
 | --- | --- | --- |
@@ -320,7 +328,7 @@ not rerun every one of them.
 | Settings/presets | `tests/settings.test.mjs` | Pure settings boundary supported; browser application/reset order remains app-owned and host-checked. |
 | Roster/read model | `tests/rosterview.test.mjs`, `relationshipview.test.mjs` | Pure read-model extension supported; app keeps DOM/selection/formatting. |
 | Panel controllers | `tests/savepanel.test.mjs`, `panel-controller.test.mjs`, `thoughtbubble.test.mjs` | Keyed row/listener cleanup supported at controller scope; normal app teardown is not implemented. |
-| Cannon/toy math | `tests/cannon.test.mjs`; `docs/toy-boundary-contract.md` | Pure placement/aim/cooldown/seam supported. There is no universal toy engine; landing-refusal host proof is U-016. |
+| Cannon/toy math | `tests/cannon.test.mjs`, `tests/cannon-extension.test.mjs`; `docs/toy-boundary-contract.md` | Pure placement/aim/cooldown/seam supported; the extension test proves a fixture-only composition through the existing contracts and an injected sink. There is no universal toy engine; landing-refusal host proof is U-016. |
 | Surface/lattice | `tests/surface-lattice.test.mjs` | Numeric bounds/lattice fixture supported. There is no general surface/buffer API; pond recovery and eye continuity remain U-017. |
 | Water/field access | `tests/water-access.test.mjs` | Pure pond query and water-spot derivation supported. Visual pond/terrain split is deferred (U-018). |
 | Translation pilots | `tools/translation-pilot-py/run.py genome` and `adapter`; G2/G3 results in `docs/translation-target-decision.md` §8a–8b | Bounded cross-language pilots only. They are not whole-game portability, native physics/rendering parity or general save-format support. |
@@ -337,10 +345,17 @@ Explicit unsupported/deferred boundaries:
   representations and effects teardown/recreation require separate decisions.
 - Translation pilots are not whole-game portability.
 
-## 5. Narrow boundary checks proposed for H2
+## 5. Narrow boundary checks implemented in H2
 
-H1 does not implement these checks. H2 may add narrow source checks only if the
-parent approves the exact module list and rules. The following modules were
+H2 implements these narrow source checks in `tests/pure-boundaries.test.mjs`
+against the exact fixed list below. The test strips comments and string literals,
+then rejects `import`/`export ... from`, ambient DOM/storage/three.js/clock/RNG
+words and accesses (`window`, `document`, `localStorage`, `sessionStorage`,
+`performance`, `Date`, `Math.random`, `THREE`, `three`), while allowing ordinary
+numeric math such as `Math.sin`/`Math.hypot`/`Math.round`. The list is
+intentionally fixed and must not be generalized into a repository-wide import
+ban; adding an import or ambient dependency to one of these modules requires an
+explicit boundary review and a list update. The following modules were
 source-inspected for this inventory and currently have no `import` statements and
 no ambient DOM/storage/three.js/RNG/clock use in their own source:
 
@@ -357,13 +372,13 @@ no ambient DOM/storage/three.js/RNG/clock use in their own source:
 - `src/relationships.js`
 - `src/family.js`
 
-A proposed H2 check would assert only that these files do not import
+The implemented check asserts only that these files do not import
 DOM/three.js/storage modules and do not reference ambient `window`, `document`,
 `localStorage`, `sessionStorage`, `performance`, `Date` or `Math.random` at
-module/call scope, with an explicit allow-list for numeric uses such as
-`Math.sin`/`Math.hypot`. It must not become a repository-wide import-ban
-framework, and `relationshipview.js`/`panelcontroller.js`/`savepanel.js` are not
-candidates because they intentionally consume injected DOM/read-model inputs.
+module/call scope, with an explicit numeric-math allowance. It is not a
+repository-wide import-ban framework, and
+`relationshipview.js`/`panelcontroller.js`/`savepanel.js` are not candidates
+because they intentionally consume injected DOM/read-model inputs.
 
 ## 6. Unsupported and deferred list
 
@@ -388,7 +403,13 @@ entries and evidence. An entry's presence is not repair authorization.
 
 H1 is documentation-only. Its required checks are `git diff --check`, existence
 of every cited path/test, `node --test tests` and
-`node scripts/check-behavior-contracts.mjs`. No browser boot, parity run,
-performance measurement or runtime change is part of H1. The H1 run's exact
-commands and counts belong in the return report; this document does not declare
-itself reviewed or accepted.
+`node scripts/check-behavior-contracts.mjs`.
+
+H2 changes only tests and documentation. Its required checks are the two H2
+tests, the focused existing extension/proof tests named in the H2 brief,
+`node --test tests`, `node scripts/check-behavior-contracts.mjs` and
+`git diff --check`. No browser boot, parity run, performance measurement,
+production source change or new production hook is part of H2. The other seam
+proofs in §4 are existing tests and are not re-run by H2 unless the H2
+verification section lists them. The run's exact commands and counts belong in
+the return report; this document does not declare itself reviewed or accepted.

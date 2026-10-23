@@ -668,6 +668,16 @@ Parent verification found every inventoried hook name present in source, cited
 paths valid, full Node 677/677 and contracts 17 modules. H2 narrow checks and the
 representative-extension audit remain pending. No runtime code or test changed.
 
+**H2/M22b narrow checks complete:** `tests/pure-boundaries.test.mjs` guards the
+explicit 12-module pure list against imports and ambient DOM/storage/three.js/
+clock/RNG access without becoming a repository-wide import ban.
+`tests/cannon-extension.test.mjs` proves a fixture-only toy extension through the
+existing placement/aim/arc/cooldown contracts and an injected sink, without app
+globals or a universal toy engine. Parent full Node passed 694/694, the focused
+extension/proof suite passed 106/106, and contracts covered 17 modules. Other seam
+proofs remain the existing tests mapped in the extension inventory; unsupported
+and deferred items are unchanged. H3/I3 reconciliation remains.
+
 - Publish supported debug/extension API inventory and copyable recipes with
   exact owners, lifecycle and tests. Keep production hooks stable.
 - Add narrow architecture checks only for agreed boundaries (for example pure
