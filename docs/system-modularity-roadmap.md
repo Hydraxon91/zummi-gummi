@@ -449,6 +449,22 @@ change is approved. A future redesign remains a separate decision.
 
 ### M14 — Surface, physics and representation host modules (L; M5)
 
+**F1/M14 surface-lattice fixture complete:** `src/surfacelattice.js` owns the
+pure surface bounds plus stable-lattice sizing, 1.13 ladder, 6% hysteresis,
+0.9-cell reuse margins and dimension/cell caps; app keeps field scatter, surface
+nets, geometry upload, eyes/shadows, scheduler and Box3D state. The
+[surface/physics inventory](surface-physics-inventory.md) records owner
+boundaries, load-bearing invariants and deferred slices. Parent full Node passed
+664/664, contracts covered 17 modules, fresh development parity passed 9/9,
+smoke passed 68/68, and the seeded probe covered 24-body asymmetric deformation,
+growth, throw and pond entry with zero NaN/page errors; captures were inspected.
+A 2,000-case randomized comparison of the old inline lattice math against the
+new module found zero differences. Forced bench measurements are neutral within
+run-to-run noise (parent after: field 0.154, nets 0.468, surface 5.06, total
+5.46 ms; baseline 0.145/0.456/4.90/5.25 ms), not a speedup claim. Return-to-shore
+pond recovery and numeric eye continuity remain unproven (U-017). F2/M16 remains
+pending.
+
 - First inventory numeric kernels versus three.js upload and Box3D state. Pilot
   one numeric surface fixture before moving buffers or scheduler ownership.
 - Keep 24-body construction, stable lattice/hysteresis, rebuild priority/budget,

@@ -47,6 +47,7 @@ import { enterMapSession, leaveCurrentMap } from './mapsession.js';
 import { createSessionGate } from './sessiongate.js';
 import { captureSavePayload, applySavePayloadPhases } from './savecoordination.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
+import { SURFACE_LATTICE_LIMITS, surfaceBounds, chooseSurfaceLattice } from './surfacelattice.js';
 
 // Explicit, early composition: hydrate world preferences before any
 // activeWorld/map state is read. Storage denial stays inside world.js's
@@ -225,8 +226,8 @@ const START_BEARS= 6;
 const KSUP       = 1.48;    // field support = 1.40 × part radius (short tails keep parts crisp)
 const THRESH     = Math.pow(1 - 1/(KSUP*KSUP), 3);  // isolated surface lands exactly at nominal radius
 const MIN_R_F     = 0.85;                        // strands never thinner than ~0.85 cell
-const MAXDIM     = 54;                            // cells per grid axis (cap)
-const MAX_CELLS  = MAXDIM*MAXDIM*MAXDIM;
+const MAXDIM     = SURFACE_LATTICE_LIMITS.maxDim; // cells per grid axis (cap)
+const MAX_CELLS  = SURFACE_LATTICE_LIMITS.maxCells;
 const MAX_V      = 16384;                        // vertices per bear mesh (pooled buffers)
 const MAX_IDX    = MAX_V*6;
 // one field + cell buffer shared by every bear (they are only needed during a
@@ -1924,63 +1925,24 @@ function buildBear(b){
   // pour stays interactive instead of stretching the per-frame budget
   const tier = Math.min(quality.grid, crowdGrid(bears.length));
 
-  // ---- grid box ----
-  // Sized from the bear's *surface* extents (points ± their nominal radii) plus a
-  // small field pad, not from the full kernel supports: kernels are cheap to clip
-  // at the box edge, and this buys real resolution where it matters. The surface
-  // always stays well inside the box, so it closes cleanly.
-  let tminx=1e9,tminy=1e9,tminz=1e9,tmaxx=-1e9,tmaxy=-1e9,tmaxz=-1e9,maxR=0.02;
-  for (let i=0;i<b.np;i++){
-    const R = b.rig.RSURF[i] * (b.scale || 1);
-    if (R>maxR) maxR = R;
-    if (b.px[i]-R<tminx) tminx=b.px[i]-R;
-    if (b.py[i]-R<tminy) tminy=b.py[i]-R;
-    if (b.pz[i]-R<tminz) tminz=b.pz[i]-R;
-    if (b.px[i]+R>tmaxx) tmaxx=b.px[i]+R;
-    if (b.py[i]+R>tmaxy) tmaxy=b.py[i]+R;
-    if (b.pz[i]+R>tmaxz) tmaxz=b.pz[i]+R;
-  }
-  const ex=tmaxx-tminx, ey=tmaxy-tminy, ez=tmaxz-tminz;
-  const ext = Math.max(ex,ey,ez);
-
-  // ---- stable, world-aligned field lattice ----
-  // Cell size comes from a quantized ladder with hysteresis, and the origin is
-  // snapped to multiples of the cell. Consecutive builds therefore sample the
-  // same lattice points, which stops the surface from "crawling" as a bear moves.
-  const want = clamp(ext / tier, 0.012, 0.45);
-  let cell;
-  if (b.lat && Math.abs(b.lat.cell / want - 1) < 0.06) cell = b.lat.cell;
-  else cell = clamp(0.01 * Math.pow(1.13, Math.round(Math.log(want/0.01)/Math.log(1.13))), 0.012, 0.5);
-  let slack = Math.max(0.42*maxR, 2.2*cell);
-  const needMinX = tminx - slack, needMaxX = tmaxx + slack;
-  const needMinY = tminy - slack, needMaxY = tmaxy + slack;
-  const needMinZ = tminz - slack, needMaxZ = tmaxz + slack;
-  let ox, oy, oz, nx, ny, nz;
+  // ---- grid box + stable lattice ----
+  // Numeric bounds/lattice math lives in surfacelattice.js so it can be pinned
+  // headlessly. The lattice stays world-aligned with hysteresis, so consecutive
+  // builds sample the same points and the surface does not crawl as a bear moves.
+  const bounds = surfaceBounds(b.px, b.py, b.pz, b.rig.RSURF, b.np, b.scale || 1);
+  if (!bounds) return;
+  const { minX: tminx, minY: tminy, minZ: tminz,
+          maxX: tmaxx, maxY: tmaxy, maxZ: tmaxz } = bounds;
+  const lattice = chooseSurfaceLattice({
+    bounds, tier, previous: b.lat, maxDim: MAXDIM, maxCells: MAX_CELLS,
+  });
+  if (!lattice) return;
+  const { cell, ox, oy, oz, nx, ny, nz, total } = lattice;
   const L = b.lat;
-  const fits = !!L && Math.abs(L.cell - cell) < L.cell*1e-6 &&
-    needMinX >= L.ox + L.cell*0.9 && needMaxX <= L.ox + (L.nx-1)*L.cell - L.cell*0.9 &&
-    needMinY >= L.oy + L.cell*0.9 && needMaxY <= L.oy + (L.ny-1)*L.cell - L.cell*0.9 &&
-    needMinZ >= L.oz + L.cell*0.9 && needMaxZ <= L.oz + (L.nz-1)*L.cell - L.cell*0.9;
-  if (fits){
-    ox=L.ox; oy=L.oy; oz=L.oz; nx=L.nx; ny=L.ny; nz=L.nz; cell=L.cell;
-  } else {
-    let ok = false;
-    for (let pass=0; pass<4; pass++){
-      ox = Math.floor((tminx - slack)/cell)*cell;
-      oy = Math.floor((tminy - slack)/cell)*cell;
-      oz = Math.floor((tminz - slack)/cell)*cell;
-      nx = Math.ceil((tmaxx + slack - ox)/cell) + 1;
-      ny = Math.ceil((tmaxy + slack - oy)/cell) + 1;
-      nz = Math.ceil((tmaxz + slack - oz)/cell) + 1;
-      if (nx<=MAXDIM && ny<=MAXDIM && nz<=MAXDIM){ ok = true; break; }
-      cell *= 1.15;
-      slack = Math.max(0.42*maxR, 2.2*cell);
-    }
-    if (!ok) return;
+  if (!L || L.cell !== cell || L.ox !== ox || L.oy !== oy || L.oz !== oz ||
+      L.nx !== nx || L.ny !== ny || L.nz !== nz) {
     b.lat = { cell, ox, oy, oz, nx, ny, nz };
   }
-  const total = nx*ny*nz;
-  if (total > MAX_CELLS) return;
   b.nx=nx; b.ny=ny; b.nz=nz; b.origin[0]=ox; b.origin[1]=oy; b.origin[2]=oz; b.cell=cell;
   b.fieldReady = true;
   BNX = Math.ceil(nx/BS); BNY = Math.ceil(ny/BS); BNZ = Math.ceil(nz/BS);

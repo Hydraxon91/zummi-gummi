@@ -9,6 +9,40 @@ caps rAF around 20–30 Hz).
 
 ## Unified family/Glass profile — Phase F (Oct 2026)
 
+### F1 surface-lattice extraction — 2026-10-23
+
+Baseline clean tree `e84a9ae`; after working tree with `src/surfacelattice.js`
+consumed by `buildBear`. Same owned dev server and method: headless Chrome
+1440×900, `?autostart=1`, `seed(424242)`, `setAdaptive(false)`,
+`setQuality(2)`, `setEffects('off')`, six simulated seconds, frozen AI/camera,
+one discarded `bench(30, true)` warm-up, then five `bench(60, true)` samples.
+Forced builds request all eight soft bears every frame; Grid/verts are recorded
+in `.dev-shots/f1/bench-*.json`.
+
+| Measure (median, 5×60 forced frames) | Baseline `e84a9ae` | After F1 |
+|---|---:|---:|
+| `fieldMsPerBuild` | 0.145 (0.143–0.153) | 0.139 (0.132–0.142) |
+| `netsMsPerBuild` | 0.456 (0.446–0.465) | 0.439 (0.437–0.440) |
+| `surfaceMsPerFrame` | 4.90 (4.85–5.00) | 4.70 (4.64–4.73) |
+| `totalMsPerFrame` | 5.25 (5.20–5.32) | 5.00 (4.94–5.04) |
+| `buildsPerFrame` | 8 | 8 |
+| Grid / vertices (first bear) | cell 0.0433, 26×36×27, 2353 v | cell 0.0433, 27×35×32, 2366 v |
+
+A separate after run (`5×60`) measured `fieldMsPerBuild` 0.166,
+`surfaceMsPerFrame` 5.59 and 7–8 builds/frame, showing that run-to-run machine
+noise exceeds the delta. The extraction is therefore **neutral within noise**;
+this is not a speedup claim. The first-two-builds budget behavior, draw range
+and instanced-eye pooling are unchanged.
+
+Parent independent rerun of the same after method: `fieldMsPerBuild` 0.154
+(0.146–0.191), `netsMsPerBuild` 0.468 (0.466–0.622), `surfaceMsPerFrame` 5.06
+(5.04–6.06), `totalMsPerFrame` 5.46 (5.41–6.76), 7.1–8 builds/frame, with a
+different actor grid (32×37×24) from the coder samples. This supports the
+neutral-with-noise conclusion; the grid difference is actor-state variation, not
+a lattice difference. A separate 2,000-case randomized comparison of the old
+inline lattice math against `src/surfacelattice.js` found zero bounds or lattice
+differences.
+
 ### Hosted behavior-test rendering comparison — 2026-10-22
 
 Revision `d88631b391548c21fc1be63bd189b57bb49feda0`, manual workflow
