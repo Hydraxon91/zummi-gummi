@@ -343,6 +343,48 @@ focused suite, full Node suite, behavior contracts, short all-race parity, smoke
 check and probe result, plus the R1 focused/full/contracts/parity reruns, are
 recorded in `.dev-shots/c2/results.md` (scratch).
 
+## M2d C3 representative extension proof
+
+Baseline HEAD `c9f8092`, clean working tree. This pass is test-only: it adds no
+production source, activity, module, state, opportunity, dispatcher, registry,
+save field, config flag or UI. The proof is `tests/activity-extension.test.mjs`,
+which registers one disposable pair definition (`c3RepresentativeVisit`, roles
+`host`/`guest`, duration `2`, `arriveDist` `1.2`) through the existing
+`interactions.js` map and drives a file-local activity with only
+`startTask`/`tickTask`/`cancelTask`/`endPair`. Interruption uses the exported
+modules engine's `cancelPair`, `detach` and `setEnabled(false)`; no test-only
+cancellation path was added. This is a fixture id for this test file, not a
+shipped interaction or a general extension API.
+
+Coverage ledger:
+
+| Criterion | New C3 evidence | Existing C2 / earlier evidence |
+| --- | --- | --- |
+| Registration resolves the exact definition; duplicate id is rejected | `fixture registration resolves the exact definition and rejects duplicate ids` asserts the frozen normalized definition, one registry entry and the duplicate error without replacing the original | Shipped definitions were inspected in M2a; no C2 case registered a new id |
+| Two actors enter with host/guest roles, `partnerUid`, anchor and target | `representative activity enters with host/guest roles, partnerUid and anchor target` checks both task records, reciprocal live partners, role strings, `partnerUid`, anchor copy and target | `tests/interaction-entry.test.mjs` covers shipped invite/visit entry; `tests/behavior.test.mjs` covers primitive pair/task state |
+| Travel -> act -> done through `tickTask`, exactly-once completion | `travel -> act -> done runs through tickTask and completes exactly once` drives travel, arrival, act and terminal tick, then repeats the terminal tick with no extra completion | `tests/behavior.test.mjs` primitive tick; C2 social/visit completion tests use real modules |
+| Reciprocal live cleanup through `endPair`, no stale partner/task | The completion case asserts both partners, both tasks, states and `ai.source`; `endPair` is the only cleanup on completion | C2 completion and decline cover shipped `endPair` paths |
+| Interruption via `cancelPair`/`cancelTask`/detach/disable, no stale links/claims | `engine.cancelPair interrupts both sides...`, `cancelTask clears the acting side...` and `engine.detach and setEnabled(false) clear...`; the cancelTask case records its documented own-side behavior and then cleans the guest through the engine | C2 `tests/social-cancellation.test.mjs` covers grab, needs, disable, detach, pond and save records on shipped social/visit pairs |
+| Save record excludes runtime task/pair state | `save records exclude runtime task and pair state` checks the snapshot omits `ai`, task, partner, persistent `partnerUid`, visit/group fields, target/anchor and the runtime fixture id/label | C2 save-record cases cover shipped social/visit runtime state and `partnerUid` exclusion |
+| No unrelated owner writes | Only the new test, this section, the small `src/behaviors/README.md` proof note and `.dev-shots/c3/` scratch evidence changed | C2 source/test delta remains the prior step |
+
+The fixture activity is claim-free and uses no group slots. Claim release and
+group membership cleanup are not re-proven here; they remain covered by the
+existing gifting/group tests and C2 interruption evidence.
+
+Explicit unverified / not applicable in C3:
+
+- Browser host, save/load restore, map switch and New Game are **not rerun**.
+  The proof changes no runtime wiring and the fixture is never shipped or saved,
+  so C2's browser evidence remains the runtime basis. A browser pass of this
+  fixture would require a new runtime hook, which was not approved.
+- The fixture cannot appear in the host roster, on a map transition or after
+  New Game, so those cases are not applicable to the fixture itself. The general
+  host/map/New Game cleanup gaps recorded in the C2 section are unchanged.
+- No long parity or performance claim is made; the source wiring is unchanged.
+
+C3 commands and results are recorded in `.dev-shots/c3/results.md` (scratch).
+
 
 ## Lifecycle outcomes
 

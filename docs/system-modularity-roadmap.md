@@ -195,7 +195,15 @@ completion keeps its existing reward and history. Parent full Node passed 500/50
 development parity passed 9/9. Browser evidence covers the public lifecycle
 paths. Remaining findings are pond/social survival (C2-F2), residual timers
 (C2-F3) and direct Glass-removal cleanup (C2-F4); they are recorded, not claimed
-fixed. M2d remains pending.
+fixed.
+
+**C3/M2d representative extension proof complete:** a disposable pair/task
+definition in `tests/activity-extension.test.mjs` drives host/guest entry,
+travel/act/done, cancellation and save exclusion through existing
+`registerInteraction`/`startTask`/`tickTask`/`cancelTask`/`endPair` and engine
+interruption. Parent full Node passed 507/507. It adds no shipped activity,
+module, dispatcher, registry or runtime hook. The approved M2 pilot scope is
+complete; C2-F2/F4 remain open follow-ups.
 
 - Inventory writers of partner/task/group/reservation state before choosing any
   centralization. Specify completion, refusal, interruption and removal reasons.

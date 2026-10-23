@@ -44,6 +44,15 @@ the helper does not replace state, timer, target, plan, task or reciprocal
 cleanup writes. Social invite and visit entry are the current pilot; other
 direct writers remain in place.
 
+### Extension proof (test-only)
+
+`tests/activity-extension.test.mjs` registers a disposable pair definition and
+drives a file-local activity through the existing `startTask`/`tickTask`/
+`cancelTask`/`endPair` protocol, with interruption through the existing engine
+`cancelPair`/`detach`/`setEnabled`. It shows a representative new test-only
+activity needs no new module, dispatcher or registry. It is not a shipped
+activity or a general extension API, and it adds no runtime hook.
+
 ## Host path and navigation queries
 
 `createBehaviorModules` accepts an optional
