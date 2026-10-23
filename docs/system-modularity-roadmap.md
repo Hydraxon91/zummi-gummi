@@ -551,7 +551,21 @@ full Node passed 618/618, contracts covered 17 modules, fresh development parity
 passed 9/9, smoke passed 68/68, and the independent browser rerun passed 24/24
 (click selection, keyed reuse, single-row removal, map switch, save/load and
 430 px layout) with no page errors; captures were inspected. No new unresolved
-finding. E4/M20b menu/save/settings panels remain pending.
+finding.
+
+**E4/M20b panel controllers complete:** `src/savepanel.js` owns pure save/menu
+row descriptors plus keyed row/button controllers; `src/panelcontroller.js`
+owns menu/pause/slots/help/settings open classes, aria state, body flags,
+backdrop listeners and the pure Escape target order. App keeps save/settings
+commands, notes, busy state, storage/session gating and markup/CSS. Keyed rows
+and buttons retain focus across refreshes, repeated renders add no listeners,
+and controller `destroy` removes their rows/listeners. The
+[panel controller contract](panel-controller-contract.md) records the API and
+ownership split. Parent full Node passed 629/629, contracts covered 17 modules,
+fresh development parity passed 9/9, smoke passed 68/68, and the independent
+browser rerun passed 33/33 with inspected day/night and 900×600/430 px captures
+and zero page errors. No new unresolved finding; settings-body controls and full
+app teardown remain app-owned/unverified as recorded. E5/M21 remains pending.
 
 - Extend the relationship-view precedent: simulation supplies data and command
   operations; panels own DOM, keyed rows, focus and listener cleanup.

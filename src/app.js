@@ -39,6 +39,8 @@ import { snapshotActor, applyCommonActorState } from './actorrecord.js';
 import { maxActorUid } from './actorsave.js';
 import { buildRelationshipView } from './relationshipview.js';
 import { buildRosterRows, rosterSignature } from './rosterview.js';
+import { createSaveSlotsPanel, createMenuSaveList } from './savepanel.js';
+import { createPanelView, escapeTarget } from './panelcontroller.js';
 import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
 import { enterMapSession, leaveCurrentMap } from './mapsession.js';
@@ -3517,38 +3519,53 @@ uprightBtn.addEventListener('click', ()=>setUpright(!uprightAssist, true));
 /* controls sheet + settings */
 let helpOpen = false;
 let settingsOpen = false;
+let menuSlotsOpen = false;
+let pausePanelOpen = false;
 const helpEl = document.getElementById('help');
 const settingsEl = document.getElementById('settings');
+const panelView = createPanelView({
+  documentRef: document,
+  menu: document.getElementById('mainMenu'),
+  pause: document.getElementById('pauseMenu'),
+  slots: document.getElementById('menuSlots'),
+  help: helpEl,
+  settings: settingsEl,
+  body: document.body,
+  onBackdrop(kind) {
+    if (kind === 'help') setHelp(false);
+    else if (kind === 'settings') setSettings(false);
+  },
+});
+function panelState() {
+  return { menu: menuOpen, paused, slots: menuSlotsOpen, help: helpOpen, settings: settingsOpen };
+}
+function panelRenderState() {
+  return { menu: menuOpen, paused: pausePanelOpen, slots: menuSlotsOpen, help: helpOpen, settings: settingsOpen };
+}
 function setHelp(open){
   helpOpen = !!open;
   if (helpOpen) setSettings(false);
-  helpEl.classList.toggle('open', helpOpen);
-  helpEl.setAttribute('aria-hidden', String(!helpOpen));
-  document.body.classList.toggle('modal-open', helpOpen || settingsOpen);
+  panelView.render(panelRenderState());
 }
 function setSettings(open){
   settingsOpen = !!open;
   if (settingsOpen) setHelp(false);
-  settingsEl.classList.toggle('open', settingsOpen);
-  settingsEl.setAttribute('aria-hidden', String(!settingsOpen));
-  document.body.classList.toggle('modal-open', helpOpen || settingsOpen);
+  panelView.render(panelRenderState());
   if (settingsOpen) { syncSettingsUI(); refreshSavesUI(); }
 }
 document.getElementById('helpBtn').addEventListener('click', ()=>setHelp(true));
 document.getElementById('helpClose').addEventListener('click', ()=>setHelp(false));
-helpEl.addEventListener('pointerdown', (e)=>{ if (e.target === helpEl) setHelp(false); });
 document.getElementById('settingsBtn')?.addEventListener('click', ()=>setSettings(true));
 document.getElementById('settingsClose')?.addEventListener('click', ()=>setSettings(false));
 document.getElementById('settingsDone')?.addEventListener('click', ()=>setSettings(false));
-settingsEl?.addEventListener('pointerdown', (e)=>{ if (e.target === settingsEl) setSettings(false); });
 addEventListener('keydown', (e)=>{
   if (e.key === 'Escape'){
     if (possessedBear){ exitPossession(); return; }
     if (directivePick){ directivePick = false; syncDirectivePanel(); return; }
-    const slots = document.getElementById('menuSlots');
-    if (slots && slots.classList.contains('open')) { openMenuSlots(false); return; }
-    if (helpOpen || settingsOpen){ setHelp(false); setSettings(false); return; }
-    if (paused){ setPaused(false); return; }
+    const target = escapeTarget(panelState());
+    if (target === 'slots') { openMenuSlots(false); return; }
+    if (target === 'modal'){ setHelp(false); setSettings(false); return; }
+    if (target === 'pause'){ setPaused(false); return; }
     if (!menuOpen && window.__gummy && window.__gummy.booted) setPaused(true);
     return;
   }
@@ -6768,6 +6785,10 @@ function saveTimeLabel(ts) {
   try { return new Date(ts).toLocaleString(); } catch (err) { return ''; }
 }
 
+function saveSlotMetaText(rec) {
+  return `${rec.mapId === 'studio' ? 'Studio' : 'Meadow'} · ${rec.bears} bears · ${saveTimeLabel(rec.savedAt)}`;
+}
+
 function saveButton(label, action, primary = false) {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -6781,63 +6802,50 @@ function saveButton(label, action, primary = false) {
   return btn;
 }
 
+const saveSlotsPanel = createSaveSlotsPanel({
+  list: document.getElementById('savesList'),
+  labels: SAVE_SLOT_LABELS,
+  autosaveId: AUTOSAVE_ID,
+  metaText: saveSlotMetaText,
+  makeButton: saveButton,
+  confirm: (message) => confirm(message),
+  documentRef: document,
+  actions: {
+    async save(id, rec) {
+      const name = rec ? rec.name : SAVE_SLOT_LABELS[id];
+      await saveToSlot(id, name);
+      await refreshSavesUI();
+      setSaveNote(`Saved to ${name}.`);
+    },
+    async load(id, rec) {
+      await loadFromSlot(id);
+      await refreshSavesUI();
+      setSaveNote(`Loaded ${rec.name}.`);
+    },
+    async delete(id) {
+      await removeSave(id);
+      await refreshSavesUI();
+      setSaveNote('Save deleted.');
+    },
+    async rename(id, rec) {
+      const name = prompt('Save name', rec.name);
+      if (!name) return;
+      const latest = await readSave(id);
+      if (!latest) return;
+      await writeSave(id, latest.payload, name);
+      await refreshSavesUI();
+      setSaveNote('Save renamed.');
+    },
+  },
+});
+
 async function refreshSavesUI() {
   const list = document.getElementById('savesList');
   if (!list) return;
   let records = [];
   try { records = await listSaves(); }
   catch (err) { list.textContent = 'Saves unavailable in this browser.'; return; }
-  const byId = new Map(records.map(r => [r.id, r]));
-  list.textContent = '';
-  for (const id of ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', AUTOSAVE_ID]) {
-    const rec = byId.get(id);
-    const row = document.createElement('div');
-    row.className = 'saveRow';
-    const meta = document.createElement('div');
-    meta.className = 'saveMeta';
-    const title = document.createElement('b');
-    title.textContent = rec ? rec.name : SAVE_SLOT_LABELS[id];
-    const detail = document.createElement('small');
-    detail.textContent = rec
-      ? `${rec.mapId === 'studio' ? 'Studio' : 'Meadow'} · ${rec.bears} bears · ${saveTimeLabel(rec.savedAt)}`
-      : 'Empty';
-    meta.append(title, detail);
-    row.append(meta);
-    if (id !== AUTOSAVE_ID) {
-      row.append(saveButton('Save', async () => {
-        const name = rec ? rec.name : SAVE_SLOT_LABELS[id];
-        await saveToSlot(id, name);
-        await refreshSavesUI();
-        setSaveNote(`Saved to ${name}.`);
-      }, true));
-    }
-    if (rec) {
-      row.append(saveButton('Load', async () => {
-        if (!confirm('Load this save? Current progress will be replaced.')) return;
-        await loadFromSlot(id);
-        await refreshSavesUI();
-        setSaveNote(`Loaded ${rec.name}.`);
-      }));
-      row.append(saveButton('Delete', async () => {
-        if (!confirm('Delete this save?')) return;
-        await removeSave(id);
-        await refreshSavesUI();
-        setSaveNote('Save deleted.');
-      }));
-      if (id !== AUTOSAVE_ID) {
-        row.append(saveButton('Rename', async () => {
-          const name = prompt('Save name', rec.name);
-          if (!name) return;
-          const latest = await readSave(id);
-          if (!latest) return;
-          await writeSave(id, latest.payload, name);
-          await refreshSavesUI();
-          setSaveNote('Save renamed.');
-        }));
-      }
-    }
-    list.append(row);
-  }
+  saveSlotsPanel.render(records);
   syncSessionBusyUI();
 }
 
@@ -7212,33 +7220,22 @@ function setMenuNote(text) {
 
 function setMenu(open) {
   menuOpen = !!open;
-  const el = document.getElementById('mainMenu');
-  if (el) {
-    el.classList.toggle('open', menuOpen);
-    el.setAttribute('aria-hidden', String(!menuOpen));
-  }
-  document.body.classList.toggle('menu-open', menuOpen || paused);
+  panelView.render(panelRenderState());
   if (menuOpen) refreshMenuSaves();
 }
 
 function setPaused(v) {
   paused = !!v;
-  const el = document.getElementById('pauseMenu');
-  if (el) {
-    el.classList.toggle('open', paused);
-    el.setAttribute('aria-hidden', String(!paused));
-  }
-  document.body.classList.toggle('menu-open', menuOpen || paused);
+  pausePanelOpen = paused;
+  panelView.render(panelRenderState());
   if (paused) refreshMenuSaves();
   if (!paused) hideCamHint();
 }
 
 function openMenuSlots(open) {
-  const el = document.getElementById('menuSlots');
-  if (!el) return;
-  el.classList.toggle('open', !!open);
-  el.setAttribute('aria-hidden', String(!open));
-  if (open) refreshMenuSaves();
+  menuSlotsOpen = !!open;
+  panelView.render(panelRenderState());
+  if (menuSlotsOpen) refreshMenuSaves();
 }
 
 function setMenuBusy(busy) {
@@ -7252,6 +7249,19 @@ function saveMetaText(rec) {
   return `${rec.mapId === 'studio' ? 'Studio' : 'Meadow'} · ${rec.bears} bears · ${saveTimeLabel(rec.savedAt)}${rec.id === AUTOSAVE_ID ? ' · autosave' : ''}`;
 }
 
+const menuSaveList = createMenuSaveList({
+  list: document.getElementById('menuSaveList'),
+  makeButton: saveButton,
+  metaText: saveMetaText,
+  documentRef: document,
+  actions: {
+    load(id) {
+      openMenuSlots(false);
+      return startFromMenu('load', id);
+    },
+  },
+});
+
 async function refreshMenuSaves() {
   let records = [];
   try { records = await listSaves(); } catch (err) { records = []; }
@@ -7264,33 +7274,7 @@ async function refreshMenuSaves() {
       ? `Autosave ready · ${saveTimeLabel(auto.savedAt)}`
       : (window.__gummy && window.__gummy.booted ? 'Paused.' : 'No autosave yet — start a new meadow.');
   }
-  const list = document.getElementById('menuSaveList');
-  if (!list) return;
-  list.textContent = '';
-  if (!records.length) {
-    const empty = document.createElement('p');
-    empty.className = 'menuEmpty';
-    empty.textContent = 'No saves yet. Start a new game, then save from Settings.';
-    list.append(empty);
-    return;
-  }
-  for (const rec of records) {
-    const row = document.createElement('div');
-    row.className = 'menuSaveRow';
-    const meta = document.createElement('div');
-    meta.className = 'saveMeta';
-    const title = document.createElement('b');
-    title.textContent = rec.name;
-    const detail = document.createElement('small');
-    detail.textContent = saveMetaText(rec);
-    meta.append(title, detail);
-    row.append(meta);
-    row.append(saveButton('Load', async () => {
-      openMenuSlots(false);
-      await startFromMenu('load', rec.id);
-    }, true));
-    list.append(row);
-  }
+  menuSaveList.render(records);
 }
 
 async function startFromMenu(action, slot) {
