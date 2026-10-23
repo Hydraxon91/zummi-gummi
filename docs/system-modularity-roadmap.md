@@ -283,6 +283,13 @@ DOM/WebGL/physics boot; no production exports were added. M6 extraction remains.
 
 ### M13 — Clock and RNG ownership decision (S investigation; L redesign)
 
+**M13 investigation complete:** [clock/RNG decision memo](clock-rng-decision.md)
+recommends retaining current ownership and closing M13 without redesign. No
+concrete consumer was found for a narrower clock query; existing host callbacks
+and diagnostics already cover reads. The P5 source-order suite passes 5/5. This is
+a recommendation only: no clock split, RNG isolation, cadence change or runtime
+change is approved. A future redesign remains a separate decision.
+
 - Use the P5 contract as baseline. Evaluate a narrow clock-read interface without
   moving time advancement or splitting the global stream.
 - Separately decide sky versus life speed, visual RNG isolation and callback
