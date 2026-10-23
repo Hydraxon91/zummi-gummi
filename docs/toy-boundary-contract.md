@@ -75,8 +75,9 @@ state and pointer priority remain in `launcher.js`.
 - E5 browser evidence in `.dev-shots/e5/` drives the existing launcher hooks and
   real pointer input on a disposable profile. Cross-representation blast
   evidence uses the existing firework path; no hook was added.
-- Landing-refusal host proof remains unforced: table-clamped Meadow shots did not
-  intersect a static collider, and Studio skips field colliders. The branch is
-  unit-tested only; this gap is recorded as U-016 in the
-  [unresolved register](unresolved-register.md). Recording it does not authorize
-  a fixture or hook change.
+- C09 closed the landing-refusal host gap with existing hooks: Meadow aim clamps
+  with `fieldClamp`, not the table clamp, so aiming at the authored rock at
+  `(-3,5)` produced `blocked: 'landing'`, no spawn and exactly one flavor draw;
+  a clear shot then fired and an immediate retry hit cooldown. U-016 is resolved
+  in the [unresolved register](unresolved-register.md). No production hook or
+  ballistics/containment change was added.
