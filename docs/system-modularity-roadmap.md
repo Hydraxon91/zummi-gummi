@@ -152,7 +152,16 @@ short parity 9/9 and fresh long parity 15/15 on the main implementation before
 the null-only guards; those retained artifacts are under `.dev-shots/m1cd/`.
 Scratch evidence is not committed.
 
-**Still open:** portions/gifting carried state and other broad field dependencies
+**B1 portions capability complete:** optional `getPortions()` / `api.portions()`
+now supplies gifting recovery, claim/take, drop and release without a rendered
+field. Parent review removed a missing-method compatibility shim; direct module
+fixtures now explicitly provide the capability. Parent checks passed 427 Node
+tests and the normal browser gifting suite (8 checks, inspected captures).
+Coder short parity passed 9/9 and browser parity matched 202 transitions.
+Unavailable-registry drop behavior and fallback IDs are unchanged. App-side
+save/removal orchestration remains outside this capability slice.
+
+**Still open:** gifting carried-state orchestration and other broad field dependencies
 (pond, splash, emote, UI, app orchestration). This is not a complete
 field-independent behavior host or an engine-neutral architecture claim.
 
@@ -463,8 +472,17 @@ Execution order and internal slices:
   outside these batches.
 
 **Batch A is complete:** M2a, M5, M23, the M13 investigation and M18a are
-committed. No production runtime changed. Batch B remains a separately approved
-execution wave; its M3 unknown-ID policy is still a decision gate.
+committed. No production runtime changed in A.
+
+**B+C execution is approved:** run B1 portions, B2 M3, B3 M4, B4 M7 and B5 M10,
+then C1 M2b social invitation/visit entry, C2 M2c cancellation conformance,
+C3 M2d test-only representative extension, C4 M8, C5 M9 and C6 M15. Each step
+still has a separate coder session, independent review and verified atomic
+commit; passing review advances automatically. B1 is complete. No push is implied.
+The M3 policy is settled: reject unknown module IDs without mutation/version
+changes, and reject an entire actor-config patch containing any unknown ID.
+Supported admission must remain explicit; species warning/fallback is unchanged.
+New behavior decisions and separately gated infrastructure changes still stop.
 
 ## Verification, rollback and release gates
 

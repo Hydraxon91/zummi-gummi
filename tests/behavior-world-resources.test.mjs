@@ -451,6 +451,7 @@ test('gifting starts from a supplied food registry when field.food is absent', (
     api: {
       actors: () => [giver, recipient],
       food: () => food,
+      portions: () => null,
       dayNow: () => 1, hoursNow: () => 12,
       stop: () => {}, face: () => {},
       emit: () => {},
@@ -704,6 +705,7 @@ test('gifting beginGift release is skipped when the food provider becomes null',
         foodReads++;
         return foodReads === 1 ? food : null;
       },
+      portions: () => null,
       dayNow: () => 1, hoursNow: () => 12,
       stop: () => {}, face: () => {}, emit: () => {},
       setDestination: () => true,

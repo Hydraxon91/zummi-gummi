@@ -1857,7 +1857,10 @@ The approved execution batches A–H are recorded in the
 [system modularity roadmap](docs/system-modularity-roadmap.md#approved-execution-batches).
 They cover every remaining chunk, while preserving one reviewed coder step at a
 time and the explicit M3/M12/M18 design decisions. Batch A (M2a, M5, M23, M13
-investigation and M18a) is complete; Batch B remains separately gated.
+investigation and M18a) is complete. B+C execution is approved with independent
+review between steps; B1's portions provider is complete. M3 will reject unknown
+module IDs and whole mixed actor-config patches without mutation. Remaining
+behavior/presentation and host-lifecycle work is not claimed complete.
 
 ## Personality and modular-AI extension track
 

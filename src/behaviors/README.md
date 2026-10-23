@@ -60,22 +60,29 @@ non-null callback is rejected at construction, and callback exceptions propagate
 
 ## World resource queries
 
-`createBehaviorModules` accepts optional `getHomes()`, `getFood()` and
-`getWaterSpots()` callbacks. `api.homes()`, `api.food()` and `api.waterSpots()`
-call them on every query and return the backing array or registry by identity.
-A provider result is authoritative: `null`, `undefined` and an empty array are
-returned unchanged and never fall back to the field. Omitting a callback or
-passing `null` keeps the current `field.homes`, `field.food` or
-`field.waterSpots` fallback. Non-function, non-null providers are rejected at
-construction, and provider exceptions propagate.
+`createBehaviorModules` accepts optional `getHomes()`, `getFood()`,
+`getWaterSpots()` and `getPortions()` callbacks. `api.homes()`, `api.food()`,
+`api.waterSpots()` and `api.portions()` call them on every query and return the
+backing array or registry by identity. A provider result is authoritative:
+`null`, `undefined` and an empty array are returned unchanged and never fall
+back to the field. Omitting a callback or passing `null` keeps the current
+`field.homes`, `field.food`, `field.waterSpots` or `field.portions` fallback.
+Non-function, non-null providers are rejected at construction, and provider
+exceptions propagate.
 
 The app supplies the live field references. Home consumers (`homeFor`,
 `assignHome`, follow, family playdate anchor and social visit hangout), food
 consumers (engine release/safe-food/force helpers, forage, hive, conflict,
-gifting and family meals) and water consumers (engine force helper and water)
-resolve through these APIs. A `null` provider blocks the associated behavior
-even when the field still holds the resource; a missing provider preserves the
-previous field-backed behavior and its existing absence/method guards.
+gifting and family meals), water consumers (engine force helper and water) and
+gifting portion consumers (recovery, claim/take, drop and release) resolve
+through these APIs. A `null` provider blocks the associated behavior even when
+the field still holds the resource; a missing provider preserves the previous
+field-backed behavior and its existing absence/method guards. Gifting does not
+require a rendered field object: a supplied food and portions provider is
+enough. With a `null` portions provider, a carried gift is cleared before the
+drop attempt (the existing unavailable-registry outcome), portion recovery and
+collection are unavailable, and source collection keeps the
+`gift-<uid>-<clock>` fallback ID.
 
 ## Add a behavior
 

@@ -6950,6 +6950,7 @@ async function bootGame(){
     getHomes: () => (field && field.homes ? field.homes : null),
     getFood: () => (field && field.food ? field.food : null),
     getWaterSpots: () => (field && field.waterSpots ? field.waterSpots : null),
+    getPortions: () => (field && field.portions ? field.portions : null),
     daySeconds: DAY_SECONDS,
     onFarewell: (actor, info) => startFarewell(actor, info),
     // Read Math.random at call time so __gummy.seed() also drives the engine.

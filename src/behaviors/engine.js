@@ -83,6 +83,7 @@ export function createBehaviorModules({
   getHomes = null,
   getFood = null,
   getWaterSpots = null,
+  getPortions = null,
   rng = Math.random,
   daySeconds = 600,
   onFarewell = null,
@@ -103,6 +104,9 @@ export function createBehaviorModules({
   }
   if (getWaterSpots !== null && typeof getWaterSpots !== 'function') {
     throw new TypeError('behavior water provider must be a function');
+  }
+  if (getPortions !== null && typeof getPortions !== 'function') {
+    throw new TypeError('behavior portions provider must be a function');
   }
   const config = givenConfig || createBehaviorConfig();
   const features = config.features;
@@ -680,6 +684,10 @@ export function createBehaviorModules({
 
   function waterSpots() {
     return typeof getWaterSpots === 'function' ? getWaterSpots() : (field ? field.waterSpots : null);
+  }
+
+  function portions() {
+    return typeof getPortions === 'function' ? getPortions() : (field ? field.portions : null);
   }
 
   function assignHome(actor) {
@@ -1866,7 +1874,7 @@ export function createBehaviorModules({
         if (actor.ai.state === 'seekGift' || actor.ai.state === 'gift') {
           giftingModule.cancel(contextFor(actor));
         } else if (actor.carriedFood) {
-          giftingModule.dropCarried(actor, field, contextFor(actor));
+          giftingModule.dropCarried(actor, contextFor(actor));
         }
         actor.ai.giftRetryT = 0;
       }
@@ -1915,7 +1923,7 @@ export function createBehaviorModules({
 
   const api = {
     field, profile, actors, hoursNow, dayNow, mapId: mapIdNow, rng,
-    homes, food, waterSpots,
+    homes, food, waterSpots, portions,
     navigation, pathTo, setPath, setDestination, clearPath, stop, face, emit, releaseFood,
     homeFor, assignHome, parentFor, followTargetFor, adoption: adoptionInfo,
     reconcileAdoption, adoptionActive: () => !!features.adoption,
@@ -1974,7 +1982,7 @@ export function createBehaviorModules({
     setNeed, setBond, forceSocial, forceInvite, forceVisit, forceMate, forcePlaydate, forceConflict, forceMeal, forceLesson, forceGift,
     forceChat, forceCuddle, forceReconcile, forcePartnership, forceGroup, separatePartnership, cancelPair,
     dropCarried: (actor) => actor && actor.carriedFood
-      ? giftingModule.dropCarried(actor, field, contextFor(actor)) : null,
+      ? giftingModule.dropCarried(actor, contextFor(actor)) : null,
     startSeekHome, startPlaydate: (actor, partner, kind) => familyTaskModule.startPlaydate(contextFor(actor), partner, kind),
     setModuleEnabled, setModuleParams, setActorConfig, setFeature, interruptActor,
     setPreference: (actor, id, value) => config.setPreference(actor, id, value),
