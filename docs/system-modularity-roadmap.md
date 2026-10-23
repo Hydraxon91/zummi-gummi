@@ -376,8 +376,14 @@ and `src/mapsession.js` own the non-initial leave order (possession exit, grabs,
 pointers, drop queue, actor despawn, Glass clear) with app callbacks. Parent full
 Node passed 565/565; repeated field/Studio/field switching, same-map no-op, guarded
 reentry, stable UIDs and a Studio save/load round trip passed 27/27 with no page
-errors. Activation, switch scheduling and the save-overlap policy remain in app
-and are not claimed.
+errors.
+
+**D5/M11b activation-phase slice complete:** `enterMapSession()` owns the ordered
+entry phases (enter/visuals, configure, camera, UID reserve, portions, spawn,
+Glass, UI/shadow sync); the app keeps every concrete action and the save/switch
+policy. Parent full Node passed 571/571; the D5 map-switch probe repeated the
+D4 lifecycle, guarded reentry, stable UIDs and save/load round trip with 27/27
+and no page errors. M11's two-map/failure audit and save-overlap policy remain.
 
 - Extract activate/leave sequencing with explicit save, input-release, actor,
   scene and clock collaborators. Preserve pause and asynchronous switch semantics.

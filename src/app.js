@@ -35,7 +35,7 @@ import { maxActorUid } from './actorsave.js';
 import { buildRelationshipView } from './relationshipview.js';
 import { pruneActorRefs, familyFor as sharedFamilyFor, historyFor, routineWindowFor, teachSkill, pushHistory } from './family.js';
 import { MAP_CONTENT } from './mapcontent.js';
-import { leaveCurrentMap } from './mapsession.js';
+import { enterMapSession, leaveCurrentMap } from './mapsession.js';
 import { avoidanceYaw as steerAvoidance } from './avoidance.js';
 
 // Explicit, early composition: hydrate world preferences before any
@@ -6354,62 +6354,82 @@ function activateMap(id, opts = {}){
     onClearGlass: () => { if (glassColony) glassColony.clear(); },
   });
   const target = MAPS[id] || getActiveMap();
-  setActiveMap(id);
-  const map = getActiveMap();
-  applyMapVisuals(id);
-  if (map.kind === 'life'){
-    TABLE.hx = map.bounds.hx;
-    TABLE.hz = map.bounds.hz;
-  } else {
-    TABLE.hz = 2.40;
-    TABLE.hx = clamp(1.95*camera.aspect, 1.55, 6.50);
-  }
-  layoutStudioReturnPortal();
-  if (msnPrototype) msnPrototype.layout();
-  setCeilingForMap(map);
-  buildWorldBounds();
-  if (launcher){
-    launcher.setMapState(worlds[id].launcher);
-    syncCannonCollider();
-  }
-  if (!opts.initial && worlds[id].camera) applyCameraState(worlds[id].camera);
-  else resetCamera();
-  const w = worlds[id];
-  reserveWorldUids(w);
-  if (field && field.portions && Array.isArray(w.gifts)) {
-    const others = field.portions.all().filter(portion => portion.mapId !== id);
-    field.portions.restore([...others.map(portion => ({ ...portion })), ...w.gifts]);
-  }
-  if (Array.isArray(w.bears)) {
-    for (const st of w.bears) spawnFromState(st);
-  } else if (map.kind === 'life') {
-    seedMeadowBears();
-  } else {
-    seedStudioBears();
-  }
-  if (glassColony) {
-    if (map.kind === 'life' && RACE_ENABLED) {
-      glassColony.setMeadow(true);
-      if (Array.isArray(w.glass)) glassColony.restore(w.glass);
-      else glassColony.seedMeadow();
-    } else {
-      glassColony.clear();
-      glassColony.setMeadow(false);
-    }
-  }
-  syncStudioCastPhysics();
-  syncRaceControlUI();
-  w.initialized = true;
-  selectedBear = null;
-  directivePick = false;
-  syncDirectivePanel();
-  updateMapButtons();
-  updateAeroVisibility();
-  syncAeroUI(true);
-  drawShadows();
-  if (window.__gummy && window.__gummy.booted){
-    window.__gummy.lastMap = id;
-  }
+  let map;
+  let w;
+  enterMapSession({
+    onEnter(){
+      setActiveMap(id);
+      applyMapVisuals(id);
+      map = getActiveMap();
+    },
+    onConfigure(){
+      if (map.kind === 'life'){
+        TABLE.hx = map.bounds.hx;
+        TABLE.hz = map.bounds.hz;
+      } else {
+        TABLE.hz = 2.40;
+        TABLE.hx = clamp(1.95*camera.aspect, 1.55, 6.50);
+      }
+      layoutStudioReturnPortal();
+      if (msnPrototype) msnPrototype.layout();
+      setCeilingForMap(map);
+      buildWorldBounds();
+      if (launcher){
+        launcher.setMapState(worlds[id].launcher);
+        syncCannonCollider();
+      }
+    },
+    onCamera(){
+      if (!opts.initial && worlds[id].camera) applyCameraState(worlds[id].camera);
+      else resetCamera();
+    },
+    onReserveUids(){
+      w = worlds[id];
+      reserveWorldUids(w);
+    },
+    onRestorePortions(){
+      if (field && field.portions && Array.isArray(w.gifts)) {
+        const others = field.portions.all().filter(portion => portion.mapId !== id);
+        field.portions.restore([...others.map(portion => ({ ...portion })), ...w.gifts]);
+      }
+    },
+    onSpawnActors(){
+      if (Array.isArray(w.bears)) {
+        for (const st of w.bears) spawnFromState(st);
+      } else if (map.kind === 'life') {
+        seedMeadowBears();
+      } else {
+        seedStudioBears();
+      }
+    },
+    onSyncGlass(){
+      if (glassColony) {
+        if (map.kind === 'life' && RACE_ENABLED) {
+          glassColony.setMeadow(true);
+          if (Array.isArray(w.glass)) glassColony.restore(w.glass);
+          else glassColony.seedMeadow();
+        } else {
+          glassColony.clear();
+          glassColony.setMeadow(false);
+        }
+      }
+    },
+    onSyncUi(){
+      syncStudioCastPhysics();
+      syncRaceControlUI();
+      w.initialized = true;
+      selectedBear = null;
+      directivePick = false;
+      syncDirectivePanel();
+      updateMapButtons();
+      updateAeroVisibility();
+      syncAeroUI(true);
+      drawShadows();
+      if (window.__gummy && window.__gummy.booted){
+        window.__gummy.lastMap = id;
+      }
+    },
+  });
 }
 
 /* --------------------------------------------------------------- save/load */
