@@ -633,14 +633,19 @@ committed. No production runtime changed in A.
 **B+C execution is complete:** B1 portions, B2 M3, B3 M4, B4 M7, B5 M10, C1
 M2b social entry, C2 M2c cancellation conformance, C3 M2d test-only extension,
 C4 M8, C5 M9 and C6 M15 all passed independent review and atomic commits. The
-final fresh long parity matrix passed 15/15 (`acceptance:true`). Batch D is not
-started. Batch I1 now provides the [unresolved-items register](unresolved-register.md);
-I2 runs during D–H and I3 reconciles the older backlog after H. Known follow-ups
-remain explicit there: M4 live birth/late Glass host proof, M5 app-lifecycle
-internals, C2-F2 pond/social survival, C2-F3 residual timers, C2-F4 direct Glass
-removal, M7 editor/connectivity policy, M8 visual timing, M9 occupancy/door
-reachability, M15 host late-completion, stargaze timing, and the hosted boot/cuddle
-flakes. No push is implied.
+final fresh long parity matrix passed 15/15 (`acceptance:true`).
+
+**Batch D execution is complete:** D1/M6a growth, D2/M6b birth planning, D3/M6c
+removal, D4/M11a leave, D5/M11b activation, D6/M11c two-map/failure audit,
+D7/M12a reject gate and D8/M12b capture/apply phases passed independent review and
+atomic commits. The D-boundary fresh long parity passed 15/15 (`acceptance:true`)
+and full Node passed 589/589. M11 is complete for the current two maps; M12 is
+complete with reject-and-preserve and no schema/transaction change. M6 extraction
+is complete but real Glass late-completion/effects teardown remains U-011/M15;
+U-003 (M5 app lifecycle) and U-006 (direct Glass detach) also remain open. Batch E
+has not started. Batch I2 captured the D evidence in the
+[unresolved-items register](unresolved-register.md); I3 still owns the older
+backlog. No push is implied.
 The M3 policy is settled: reject unknown module IDs without mutation/version
 changes, and reject an entire actor-config patch containing any unknown ID.
 Supported admission must remain explicit; species warning/fallback is unchanged.

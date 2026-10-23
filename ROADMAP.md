@@ -1859,11 +1859,16 @@ They cover every remaining chunk, while preserving one reviewed coder step at a
 time and the explicit M3/M12/M18 design decisions. Batch A (M2a, M5, M23, M13
 investigation and M18a) is complete. B+C execution is complete with independent
 review and atomic commits for every step; the fresh long parity matrix passed
-15/15. M3 rejects unknown module IDs and whole mixed actor-config patches without
-mutation. Batch I is a cross-cutting [unresolved-items register](docs/unresolved-register.md):
+15/15. Batch D execution is also complete through D1–D8 with a fresh 15/15 long
+parity boundary and 589/589 Node tests: M6 growth/birth/removal, current two-map
+M11 lifecycle, and M12 reject-and-preserve save coordination. U-003 (M5 app
+lifecycle), U-006 (direct Glass detach) and U-011 (real Glass late completion)
+remain open in the register; M6's real async host gate is not claimed green. M3
+rejects unknown module IDs and whole mixed actor-config patches without mutation.
+Batch I is a cross-cutting [unresolved-items register](docs/unresolved-register.md):
 I1 records the active known items, I2 requires every D–H step to update it, and I3
-audits the older backlog after H. Remaining findings and Batch D are not claimed
-complete; recording an item in the register does not authorize its repair.
+audits the older backlog after H. Batch E has not started; recording an item in
+the register does not authorize its repair.
 
 **Known follow-ups — M4 species admission/restore mismatch (fixed):**
 Trigger: restoring a registered soft-body species without a rig, or a registered
