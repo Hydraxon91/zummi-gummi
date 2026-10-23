@@ -7601,7 +7601,7 @@ window.__gummy = {
       layoutErrors: field.layoutErrors,
       layoutCheck: field.validateLayout(),
       nav: field.navStats,
-      bounds: { shape: getActiveMap().bounds.shape || 'rect', radius: getActiveMap().bounds.radius || null },
+      bounds: { shape: field.bounds.shape || 'rect', radius: field.bounds.radius || null },
       homes: field.homes.length,
       doorClearance: field.aeroHomes ? field.aeroHomes.doorClearance : null,
       blades: field.group.userData.grassBlades || 0,
