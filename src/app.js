@@ -625,98 +625,158 @@ function spawn(x, z, y, flavor, opts={}){
   if (!b) return null;
   clearFarewellRuntime(b);
   b.active = true; bears.push(b);
-  b.rig = rigCfg;
-  b.species = rigCfg.species || 'bear';
-  b.speciesDef = speciesForRig(rigCfg);
-  b.np = rigCfg.NP;
-  b.flavor = flavor;
-  b.genome = opts.genome ? normalizeGenome(opts.genome) : defaultGenome(b.species);
-  b.phenotype = expressGenome(b.genome);
-  applyDnaTraits(b);
-  const speciesDef = b.speciesDef;
-  const materialGene = b.phenotype.genes.material;
-  const useMsnMaterial = materialGene === 'msnGummy' || materialGene === 'glass' || speciesDef.material === 'msn';
-  const baseMaterial = useMsnMaterial ? MSN_MAT : FLAVOR_MATS[flavor];
-  let material = useMsnMaterial
-    ? baseMaterial.clone()
-    : (toonEnabled ? (toonMaterialFor(baseMaterial) || baseMaterial) : baseMaterial);
-  const dnaColor = b.phenotype.genes.color;
-  if (typeof dnaColor === 'string' && dnaColor.startsWith('#')) {
-    if (material === baseMaterial) material = material.clone();
-    material.color.set(dnaColor);
+  let ownedMaterial = null;
+  try {
+    b.rig = rigCfg;
+    b.species = rigCfg.species || 'bear';
+    b.speciesDef = speciesForRig(rigCfg);
+    b.np = rigCfg.NP;
+    b.flavor = flavor;
+    b.genome = opts.genome ? normalizeGenome(opts.genome) : defaultGenome(b.species);
+    b.phenotype = expressGenome(b.genome);
+    applyDnaTraits(b);
+    const speciesDef = b.speciesDef;
+    const materialGene = b.phenotype.genes.material;
+    const useMsnMaterial = materialGene === 'msnGummy' || materialGene === 'glass' || speciesDef.material === 'msn';
+    const baseMaterial = useMsnMaterial ? MSN_MAT : FLAVOR_MATS[flavor];
+    let material = useMsnMaterial
+      ? baseMaterial.clone()
+      : (toonEnabled ? (toonMaterialFor(baseMaterial) || baseMaterial) : baseMaterial);
+    if (useMsnMaterial) ownedMaterial = material;
+    const dnaColor = b.phenotype.genes.color;
+    if (typeof dnaColor === 'string' && dnaColor.startsWith('#')) {
+      if (material === baseMaterial) {
+        material = material.clone();
+        ownedMaterial = material;
+      }
+      material.color.set(dnaColor);
+    }
+    if (materialGene === 'glass') {
+      material.roughness = .03;
+      material.clearcoat = 1;
+      material.envMapIntensity = 1.6;
+      material.needsUpdate = true;
+    }
+    b.material = material;
+    b.sprite = FLAVOR_SPRITES[useMsnMaterial ? speciesDef.spriteFlavor : flavor];
+    b.spriteId = useMsnMaterial ? 'msn' : FLAVORS[flavor].id;
+    b.mesh.material = b.material;
+    b.mesh.visible = true;
+    const stage = opts.stage || 'adult';
+    const sc = Number.isFinite(opts.scale)
+      ? clamp(opts.scale, 0.42, 1.2)
+      : scaleForStage(stage);
+    const genomeSize = opts.applyGenomeSize === false ? 1 : b.phenotype.genes.size;
+    b.scale = clamp(sc * genomeSize, .35, 1.8);
+    b.stage = stage;
+    b.pendingStage = null;
+    if (opts.quat){
+      b.q.copy(opts.quat); b.q.normalize();
+    } else {
+      b.q.setFromAxisAngle(_v3.set(0,1,0), Math.random()*Math.PI*2);
+      if (opts.tilt){ const a=(Math.random()-0.5)*opts.tilt; b.q.multiply(_q.setFromAxisAngle(_v3.set(1,0,0), a)); _q.setFromAxisAngle(_v3.set(0,0,1), (Math.random()-0.5)*opts.tilt); b.q.multiply(_q); b.q.normalize(); }
+    }
+    const lift = opts.lift !== undefined ? opts.lift : 0.004;
+    for (let i=0;i<b.np;i++){
+      const xr = rigCfg.REST[i*3] * sc, yr = rigCfg.REST[i*3+1] * sc, zr = rigCfg.REST[i*3+2] * sc;
+      _v3.set(xr,yr,zr).applyQuaternion(b.q);
+      b.px[i] = x + _v3.x; b.py[i] = y + _v3.y + lift + rigCfg.REST_DY * sc; b.pz[i] = z + _v3.z;
+      b.vx[i]=0; b.vy[i]=opts.vy||0; b.vz[i]=0;
+      b.snap[i*3]=b.px[i]; b.snap[i*3+1]=b.py[i]; b.snap[i*3+2]=b.pz[i];
+    }
+    b.vol=1; b.volSlow=1; b.sy=1; b.sx=1; b.contacts=0; b.airborne=false; b.upTilt=0; b.press=0;
+    // Refresh the centre of mass immediately: clearance checks and the AI read
+    // b.cx/cz, and a recycled bear still carried its previous life's COM.
+    bearCOM(b);
+    b.antic=0; b.hopT=HOP_MIN+Math.random()*(HOP_MAX-HOP_MIN);
+    b.grabs=0; b.stretch=1; b.stretchPt=rigCfg.P_HEAD; b.devSlow=0.05; b.wakeCd=0;
+    b.age = Number.isFinite(opts.age) ? Math.max(0, opts.age) : ageForStage(stage);
+    b.sex=(Math.random()<0.5?'F':'M');
+    b.health=100; b.hunger=0.3; b.thirst=0.3; b.energy=1;
+    b.bold=0.25+Math.random()*0.5; b.sleeping=false;
+    b.uid = Number.isFinite(opts.uid) ? opts.uid : nextBearUid++;
+    if (b.uid >= nextBearUid) nextBearUid = b.uid + 1;
+    b.social = 0.28 + Math.random()*0.18;
+    b.affection = 0.18 + Math.random()*0.18;
+    b.bonds = {};
+    b.hopSpeedMin=Number.isFinite(opts.hopSpeedMin) ? opts.hopSpeedMin : 0.70+Math.random()*0.25;
+    b.hopSpeedMax=Number.isFinite(opts.hopSpeedMax) ? opts.hopSpeedMax : 1.45+Math.random()*0.35;
+    b.pregnant=!!opts.pregnant; b.gestation=Number.isFinite(opts.gestation) ? Math.max(0, opts.gestation) : 0;
+    b.mateCooldown=Number.isFinite(opts.mateCooldown) ? Math.max(0, opts.mateCooldown) : 0;
+    b.birthRetryT=0;
+    b.parentUids=Array.isArray(opts.parentUids) ? opts.parentUids.slice() : [];
+    b.fatherUid=Number.isFinite(opts.fatherUid) ? opts.fatherUid : 0;
+    delete b.guardianUid;
+    delete b.lastGiftDay;
+    delete b.carriedFood;
+    delete b.partnerUid;
+    delete b.rivals;
+    b.bedtime=Number.isFinite(opts.bedtime) ? opts.bedtime : 20+Math.random()*2.5;
+    b.wakeTime=Number.isFinite(opts.wakeTime) ? opts.wakeTime : 5+Math.random()*2;
+    b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false; b.pondEscapeT=0;
+    b.ai=null;
+    b.gummyIdleT = 3 + Math.random() * 6;
+    b.gummyPose = null;
+    if (opts.sex) b.sex = opts.sex;
+    b.lat = null; b.deform = 0;
+    b.needsBuild = true;
+    createBearBodies(b);
+    buildBear(b);
+    return b;
+  } catch (error) {
+    try {
+      abortPartialSpawn(b, ownedMaterial);
+    } catch (cleanupFailure) {
+      try {
+        error.cleanupError = cleanupFailure;
+      } catch (attachFailure) {
+        // Preserve the original throw even if it cannot carry cleanup diagnostics.
+      }
+    }
+    throw error;
   }
-  if (materialGene === 'glass') {
-    material.roughness = .03;
-    material.clearcoat = 1;
-    material.envMapIntensity = 1.6;
-    material.needsUpdate = true;
+}
+
+// Unwind only the state acquired by this synchronous spawn attempt. This is not
+// a general removal path: no departure, food, portion, partner or reference
+// callbacks run, and the allocator is deliberately not rewound.
+function abortPartialSpawn(b, ownedMaterial){
+  let cleanupFailed = false;
+  let cleanupError = null;
+  const retainCleanupError = error => {
+    if (!cleanupFailed) {
+      cleanupFailed = true;
+      cleanupError = error;
+    }
+  };
+
+  const index = bears.indexOf(b);
+  if (index >= 0) bears.splice(index, 1);
+  b.ai = null;
+  b.grabs = 0;
+  b.active = false;
+  b.needsBuild = false;
+  b.mesh.visible = false;
+  try {
+    writeEyeInstance(b, true);
+  } catch (error) {
+    retainCleanupError(error);
   }
-  b.material = material;
-  b.sprite = FLAVOR_SPRITES[useMsnMaterial ? speciesDef.spriteFlavor : flavor];
-  b.spriteId = useMsnMaterial ? 'msn' : FLAVORS[flavor].id;
-  b.mesh.material = b.material;
-  b.mesh.visible = true;
-  const stage = opts.stage || 'adult';
-  const sc = Number.isFinite(opts.scale)
-    ? clamp(opts.scale, 0.42, 1.2)
-    : scaleForStage(stage);
-  const genomeSize = opts.applyGenomeSize === false ? 1 : b.phenotype.genes.size;
-  b.scale = clamp(sc * genomeSize, .35, 1.8);
-  b.stage = stage;
-  b.pendingStage = null;
-  if (opts.quat){
-    b.q.copy(opts.quat); b.q.normalize();
-  } else {
-    b.q.setFromAxisAngle(_v3.set(0,1,0), Math.random()*Math.PI*2);
-    if (opts.tilt){ const a=(Math.random()-0.5)*opts.tilt; b.q.multiply(_q.setFromAxisAngle(_v3.set(1,0,0), a)); _q.setFromAxisAngle(_v3.set(0,0,1), (Math.random()-0.5)*opts.tilt); b.q.multiply(_q); b.q.normalize(); }
+  try {
+    destroyBearBodies(b);
+  } catch (error) {
+    retainCleanupError(error);
   }
-  const lift = opts.lift !== undefined ? opts.lift : 0.004;
-  for (let i=0;i<b.np;i++){
-    const xr = rigCfg.REST[i*3] * sc, yr = rigCfg.REST[i*3+1] * sc, zr = rigCfg.REST[i*3+2] * sc;
-    _v3.set(xr,yr,zr).applyQuaternion(b.q);
-    b.px[i] = x + _v3.x; b.py[i] = y + _v3.y + lift + rigCfg.REST_DY * sc; b.pz[i] = z + _v3.z;
-    b.vx[i]=0; b.vy[i]=opts.vy||0; b.vz[i]=0;
-    b.snap[i*3]=b.px[i]; b.snap[i*3+1]=b.py[i]; b.snap[i*3+2]=b.pz[i];
+  if (ownedMaterial) {
+    b.material = null;
+    b.mesh.material = null;
+    try {
+      ownedMaterial.dispose();
+    } catch (error) {
+      retainCleanupError(error);
+    }
   }
-  b.vol=1; b.volSlow=1; b.sy=1; b.sx=1; b.contacts=0; b.airborne=false; b.upTilt=0; b.press=0;
-  // Refresh the centre of mass immediately: clearance checks and the AI read
-  // b.cx/cz, and a recycled bear still carried its previous life's COM.
-  bearCOM(b);
-  b.antic=0; b.hopT=HOP_MIN+Math.random()*(HOP_MAX-HOP_MIN);
-  b.grabs=0; b.stretch=1; b.stretchPt=rigCfg.P_HEAD; b.devSlow=0.05; b.wakeCd=0;
-  b.age = Number.isFinite(opts.age) ? Math.max(0, opts.age) : ageForStage(stage);
-  b.sex=(Math.random()<0.5?'F':'M');
-  b.health=100; b.hunger=0.3; b.thirst=0.3; b.energy=1;
-  b.bold=0.25+Math.random()*0.5; b.sleeping=false;
-  b.uid = Number.isFinite(opts.uid) ? opts.uid : nextBearUid++;
-  if (b.uid >= nextBearUid) nextBearUid = b.uid + 1;
-  b.social = 0.28 + Math.random()*0.18;
-  b.affection = 0.18 + Math.random()*0.18;
-  b.bonds = {};
-  b.hopSpeedMin=Number.isFinite(opts.hopSpeedMin) ? opts.hopSpeedMin : 0.70+Math.random()*0.25;
-  b.hopSpeedMax=Number.isFinite(opts.hopSpeedMax) ? opts.hopSpeedMax : 1.45+Math.random()*0.35;
-  b.pregnant=!!opts.pregnant; b.gestation=Number.isFinite(opts.gestation) ? Math.max(0, opts.gestation) : 0;
-  b.mateCooldown=Number.isFinite(opts.mateCooldown) ? Math.max(0, opts.mateCooldown) : 0;
-  b.birthRetryT=0;
-  b.parentUids=Array.isArray(opts.parentUids) ? opts.parentUids.slice() : [];
-  b.fatherUid=Number.isFinite(opts.fatherUid) ? opts.fatherUid : 0;
-  delete b.guardianUid;
-  delete b.lastGiftDay;
-  delete b.carriedFood;
-  delete b.partnerUid;
-  delete b.rivals;
-  b.bedtime=Number.isFinite(opts.bedtime) ? opts.bedtime : 20+Math.random()*2.5;
-  b.wakeTime=Number.isFinite(opts.wakeTime) ? opts.wakeTime : 5+Math.random()*2;
-  b.name=opts.name || takeBearName(); b.home=opts.home || ''; b.inPond=false; b.pondEscapeT=0;
-  b.ai=null;
-  b.gummyIdleT = 3 + Math.random() * 6;
-  b.gummyPose = null;
-  if (opts.sex) b.sex = opts.sex;
-  b.lat = null; b.deform = 0;
-  b.needsBuild = true;
-  createBearBodies(b);
-  buildBear(b);
-  return b;
+  if (cleanupFailed) throw cleanupError;
 }
 function clearGuardianReferences(uid){
   if (!Number.isFinite(uid)) return;
@@ -1604,7 +1664,9 @@ function createBearBodies(b){
   ensurePhysicsBuffers((bears.length + 1) * n);
   const g = bearGroup(b.slot);
   const sc = b.scale || 1;
-  b.handles = new Int32Array(n);
+  // Mark every slot uncreated before sphere creation. A throw partway through
+  // the loop then leaves later entries safe to skip (-1), not Box3D handle 0.
+  b.handles = new Int32Array(n).fill(-1);
   for (let i=0;i<n;i++){
     b.handles[i] = PHYS.sphere(b.px[i], b.py[i], b.pz[i], rig.RSURF[i] * sc, rig.MASS[i] * sc * sc * sc, g, 0.82, 0.10, true, true);
   }

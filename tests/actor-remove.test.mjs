@@ -188,6 +188,40 @@ test('a throwing host callback leaves a partial, non-atomic removal', () => {
   assert.equal(actor.grabs, 2);
 });
 
+test('a failed removal can be retried after the failing callback recovers', () => {
+  const actor = makeSoft();
+  const roster = [actor];
+  const { events, seen, opts } = harness(actor, { roster });
+  let failDrop = true;
+  opts.onDropCarried = (a) => {
+    events.push('drop');
+    seen.drop = a;
+    if (failDrop) throw new Error('drop failed');
+  };
+
+  assert.throws(() => removeSoftActor(actor, opts), /drop failed/);
+  assert.deepEqual(events, ['drop']);
+  assert.deepEqual(roster, [actor]);
+  assert.deepEqual(actor.ai, { state: 'wander' });
+  assert.equal(actor.active, true);
+  assert.equal(actor.grabs, 2);
+
+  failDrop = false;
+  assert.equal(removeSoftActor(actor, opts), true);
+  assert.deepEqual(events, [
+    'drop', 'drop', 'portions', 'detach', 'food',
+    'farewell', 'bodies', 'refs', 'grabs', 'deactivate',
+  ]);
+  assert.deepEqual(roster, []);
+  assert.equal(seen.inRosterAtRefs, false);
+  assert.equal(seen.activeAtDeactivate, false);
+  assert.equal(seen.grabsAtDeactivate, 0);
+  assert.equal(actor.ai, null);
+  assert.equal(actor.active, false);
+  assert.equal(actor.grabs, 0);
+  assert.equal(events.filter(event => event === 'deactivate').length, 1);
+});
+
 test('removal draws no RNG and leaves unrelated actors and fields alone', () => {
   const actor = makeSoft();
   const other = makeSoft({ uid: 21 });

@@ -362,12 +362,18 @@ What is proven / Inspected:
 
 Not supported / Unverified:
 
-- No rollback or transaction exists for an exception thrown part-way through
-  `spawn()` after `active = true` and `bears.push()` (bodies/mesh build are not
-  wrapped in a compensating cleanup). Such an actor could remain in the roster.
+- `spawn()` now unwinds an exception thrown after `active = true` and
+  `bears.push()` using `abortPartialSpawn()` before rethrowing the original error:
+  the roster entry and live flags are reset, acquired handles are destroyed, the
+  mesh/eyes are hidden, and any material clones created by that spawn are
+  disposed.
+  This is bounded synchronous failure cleanup, not a transaction or rollback; see
+  §11. If cleanup itself throws, the original error is still rethrown with
+  `cleanupError` attached.
 - Removal sequencing is likewise non-atomic: a throwing host callback stops the
   remaining steps and leaves the roster/actor partly mutated
-  (`tests/actor-remove.test.mjs`).
+  (`tests/actor-remove.test.mjs`). A retry repeats the sequence from the start;
+  see the retry contract in §11.
 - `spawn()` evicts the oldest live bear when at `bearCeiling` **before** validating
   the requested species/rig and before acquiring a slot; a rejected spawn can
   therefore still have evicted an actor.
@@ -415,8 +421,10 @@ Not supported / Unverified:
   identity after the live roster and both world snapshots are cleared.
 - **C11. UIDs are scoped to the loaded game.** Loading another save may reuse a UID
   for a different actor; cross-save comparison is not actor identity.
-- **C12. No rollback guarantee.** Partial creation/application paths do not promise
-  transactional cleanup.
+- **C12. Failure cleanup is bounded, not transactional.** `spawn()` unwinds its
+  own post-push partial actor and rethrows the original error (§11);
+  `applySavePayload()` and removal still have no rollback or transaction
+  guarantee.
 - **C13. Growth rules are host-independent; representation stays host-owned.**
   `applyStageGrowth()` performs only portable actor-state mutations and calls
   `represent`/`onStageUp` in that order. It has no app, THREE, DOM or physics
@@ -432,7 +440,9 @@ Not supported / Unverified:
   roster splice/index guard, `ai = null`, `active`/`grabs` reset and the
   `preserveRefs`/colony-result gates. The app supplies arrival/departure snapshots,
   claims, detach, bodies, grabs, reference clearing, mesh/eye work and Glass
-  disposal, and keeps its existing wrapper return behavior.
+  disposal, and keeps its existing wrapper return behavior. A failed soft removal
+  is retryable only by running the sequence again after the throwing callback
+  recovers; earlier callbacks repeat and no rollback occurs.
 
 ## 8. Test coverage map
 
@@ -493,7 +503,7 @@ also passed Glass birth, cross-species birth, family state and Glass save/load
 restore with no page errors. The probe uses existing `__gummy` hooks; no
 production hook was added.
 
-D3 focused removal test: `tests/actor-remove.test.mjs` (12 cases, all pass). It
+D3 focused removal test: `tests/actor-remove.test.mjs` (13 cases, all pass). It
 imports the real `src/actorremove.js` with fake actors/rosters/callbacks and does
 not boot the app.
 
@@ -506,6 +516,7 @@ not boot the app.
 | repeated soft removal after splice is inert | index guard after the first removal, no duplicate callbacks |
 | grab release only touches grabs owned by the removed actor | host-side matching when `onEndGrabs` runs |
 | a throwing host callback leaves a partial, non-atomic removal | no rollback, later callbacks skipped, roster/actor partly mutated |
+| a failed removal can be retried after the failing callback recovers | failed attempt leaves the actor active; retry repeats the earlier callback and completes exactly once |
 | removal draws no RNG and leaves unrelated actors and fields alone | no `Math.random` draw; unrelated actor/field preservation |
 | Glass removal returns false and clears no references when the colony declines | Glass order, false colony result gate |
 | Glass removal returns true and clears references exactly once when the colony removes | Glass order, one ref clear, no detach/cancel/mesh call |
@@ -542,8 +553,9 @@ Gaps:
   wrapper still has no return value by design.
 - D3 host checks cover ceiling-culling removal and Bear/Glass farewell removal, but
   not an arbitrary direct Glass removal caller (there is none) or removal during
-  every map/save overlap. U-003 (pool/spawn/partial cleanup) and U-006 (direct
-  Glass detach decision) remain open.
+  every map/save overlap. U-003's post-physics spawn-failure cleanup is addressed
+  under N1 (§11); broader pool/save/map coverage remains a gap. U-006 (direct Glass
+  detach decision) remains open.
 - No executed browser evidence in M5 for map switch, save/load, stars departure or
   New Game ordering. Those sequences are **Inspected/Unverified**, not host-run.
   D1's host probe covers normal and deferred Bear growth only. D2 host evidence
@@ -564,11 +576,12 @@ Gaps:
 ## 9. Discovered defects
 
 The new focused tests did not reveal a failing current behavior, so none is
-recorded as a defect. The partial-creation, material-lifetime, `physicsSuspended`
-and non-atomic apply items in §6 are stated as Unverified risks, not proven bugs;
-they were not fixed in M5. D3 likewise added no defect: the extraction preserved
-the recorded behavior, and non-atomic callback failure is documented as current
-(unfixed) behavior rather than a regression.
+recorded as a defect. The material-lifetime, `physicsSuspended` and non-atomic
+apply items in §6 remain Unverified risks. The post-physics `spawn()` partial
+actor was an observed N1 defect and is addressed by the bounded cleanup in §11.
+D3 likewise added no defect: the extraction preserved the recorded behavior, and
+non-atomic callback failure remains documented as current behavior rather than a
+regression.
 
 ## 10. N1 U-003 post-physics partial lifecycle evidence (2026-10-24)
 
@@ -644,3 +657,125 @@ idempotence, not a production recovery or rollback guarantee.
 - A bounded implementation would need a separately approved policy decision
   (failure cleanup, quarantine, or explicit non-atomic acceptance). N1 does not
   authorize one.
+
+## 11. N1 U-003 spawn-failure unwind and removal retry (2026-10-24)
+
+Status: implemented under the parent-approved N1 policy at baseline `HEAD
+90dd00b`, superseding the no-cleanup observation in §10. Production changes are
+limited to `src/app.js`, `tests/actor-remove.test.mjs` and this documentation.
+Removal remains explicitly non-transactional. The post-physics spawn-failure gap
+is addressed for the bounded cases below; broader save/map/pool sequencing
+remains out of scope.
+
+### Approved policy and source order
+
+`spawn()` still validates species/rig, requires physics, applies the ceiling,
+acquires a pooled slot, clears farewell state, then sets `active = true` and
+pushes the actor into `bears`. After that push, the remaining initialization
+through `createBearBodies()`, `buildBear()` and `return b` is wrapped in
+`try/catch`. Any throw in that region calls the local
+`abortPartialSpawn(b, ownedMaterial)` helper and then rethrows the original error.
+The helper does not call `removeBear()`; departure, food, portion, partner,
+reference-clearing and other removal callbacks do not run. No persistent
+lifecycle state was added.
+
+The cleanup sequence is:
+
+1. splice the actor from `bears` once, if it is still present;
+2. set `b.ai = null`, `b.grabs = 0`, `b.active = false`,
+   `b.needsBuild = false`;
+3. set `b.mesh.visible = false` and attempt `writeEyeInstance(b, true)`;
+4. attempt `destroyBearBodies(b)` independently;
+5. when this spawn created a material clone, clear `b.material` and
+   `b.mesh.material` and attempt to dispose that exact clone independently;
+6. retain the first cleanup error across those attempts and rethrow it after the
+   remaining safe steps, so the original spawn error can still carry it as
+   `cleanupError`.
+
+`createBearBodies()` now initializes every handle entry to `-1` before creating
+spheres. If sphere creation throws part-way through, cleanup destroys only the
+handles that were actually created; it never treats an uncreated zero-filled
+entry as Box3D handle `0`.
+
+`nextBearUid` is deliberately not rewound. A UID allocated before the throw is
+consumed, so a later spawn may skip that number; a gap is safer than reusing a
+partially published identity.
+
+### Error preservation
+
+The original error object is rethrown, not a wrapper. If cleanup itself throws,
+the original error remains the thrown value and receives a `cleanupError`
+property when it can accept one. If attaching that diagnostic also fails (for
+example a frozen error), the original error is still rethrown; the catch is
+commented rather than silently replacing the failure.
+
+### Material ownership limits
+
+`ownedMaterial` holds the exact material reference created by this spawn, not a
+boolean. The two creation sites are the `MSN_MAT.clone()` path and the
+DNA-color path where `material === baseMaterial` triggers a clone. Shared
+`FLAVOR_MATS`, `MSN_MAT`, toon-cache materials from `toonMaterialFor()` and
+`customMats` are never disposed. If a competing throw occurs before the clone is
+assigned to `b.material`, the helper disposes only the tracked clone and clears
+the slot's material references; it does not dispose a previous-life or shared
+material.
+
+### Removal retry contract
+
+`removeSoftActor()` is unchanged and remains non-atomic. A throwing host callback
+stops the remaining steps and leaves the roster/actor partially mutated. A retry
+runs the sequence again from the start, so earlier callbacks repeat; it completes
+only if the host's callbacks and side effects are repeat-safe. This is retry
+support, not rollback or transaction machinery. `tests/actor-remove.test.mjs`
+keeps the existing non-atomic case and adds a case where a failing drop callback
+leaves the actor active, then a recovered retry completes removal exactly once.
+
+### Evidence (N1 implementation)
+
+- **Host-run, unmodified:** owned `python3 launch.py --no-open --localhost`,
+  committed `scripts/browser-harness.mjs`, headless Chromium, fresh profile,
+  `__gummy.seed(20261024)`. Normal spawn/removal/respawn still produced uid 11 in
+  slot 0 with 24 handles and 2456 verts, cleared to `active:false`,
+  `handles:null`, `ai:null`, hidden mesh, then reused slot 0 as uid 12 with
+  `nan:false`. HTTP smoke passed 68/68.
+- **Instrumented-host:** scratch proxy served the checkout unchanged except a
+  scratch `/src/app.js` response containing dormant snapshots and throws. The
+  on-disk source hash was `0edea7887d071e59f62c5ec55684b0164b98d20255bfb7ae99db2b50277fd6f0`;
+  the instrumented copy hash was
+  `65a71caf1c5955c0b5b5b88e47260afb860dd23de03763a09612d82d02ee5fc6`.
+  The `roster`, `material`, `bodies` and `partialBodies` throws now occur inside
+  the wrapped region, and the probe records the aborted actor explicitly.
+- In each spawn-failure mode the original `N1_INJECT` error surfaced; `bears`
+  returned to the pre-spawn count; the aborted actor was inactive, outside the
+  roster, had no handles and no AI, and its mesh was hidden. A simulation tick
+  did not attach AI or reactivate it. A later spawn reused the cleaned slot with
+  24 handles and a built mesh, `nan` stayed false, and all cleanup calls returned
+  without error. The `bodies` failure consumed uid 23 and the subsequent spawn
+  used uid 24; no allocator rewind was observed.
+- The `partialBodies` throw after six spheres left the aborted actor with
+  `handles:null`, no AI, a hidden mesh and no roster entry; the next spawn created
+  24 handles with `nan:false`. This exercises the `-1` sentinel for entries that
+  were never created, rather than only the completed-body path.
+- Removal `detach` and `destroy` failures still left the target active in the
+  roster with 24 handles and a visible mesh. A retry `clear()` then removed it
+  (`active:false`, out of roster, no handles, hidden mesh) and the page produced
+  zero errors. This confirms retry behavior only; it does not claim rollback.
+- Both normal and instrumented pages reported zero page errors. Focused
+  `node --test tests/actor-remove.test.mjs
+  tests/actor-lifecycle-contract.test.mjs` passed 19/19, full `node --test tests`
+  passed 731/731, `node scripts/check-behavior-contracts.mjs` passed with 17
+  modules/34 states/20 opportunities, and `git diff --check` is clean. Probe
+  assertions passed and the report is `.dev-shots/n1/report.json`.
+
+### Limits
+
+The injected boundaries are synthetic, so this is instrumented-host evidence,
+not an end-to-end unmodified-host failure proof. The default spawn fixture took
+no owned material clone path (`lastAbortedMaterialOwned:false`), so clone disposal
+and `cleanupError` attachment are source-inspected, not host-executed. The probe
+also does not cover pre-physics guard behavior, ceiling eviction, save/load/map
+switching, New Game, Glass, `physicsSuspended`, or per-frame caller behavior
+after a caught spawn error. If `destroyBearBodies()` itself throws after some
+handles were created, the actor is still removed and hidden, but the slot can be
+reused with residual handles; no quarantine state is added by this policy. No
+screenshots were created; this is state evidence.
