@@ -6,7 +6,9 @@ completion matrix are in the C15/C16 closeout section and the
 [unresolved-items register](unresolved-register.md). Open items remain: U-002,
 U-013, U-014, U-024 and U-025. **Batch N** below owns their resolution;
 N1 and N2 are complete, N3 implemented the approved fixture stabilization but
-left U-002 open after a reproduced probe failure, and N4 is next. No push was made.
+left U-002 open after a reproduced probe failure, and N4 reproduced the post-boot
+GL/CDP stall under local forced SwiftShader without reproducing the hosted
+failure-to-boot, so U-013 remains open; N5 is next. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -859,9 +861,9 @@ New behavior decisions and separately gated infrastructure changes still stop.
 ## Batch N — Open-item resolution
 
 Status: approved 2026-10-24. N1 and N2 are complete; N3 implemented the approved
-fixture correction but did not close U-002, and N4 is next. No later step is
-started. It covers the C16 open entries; U-003 and U-007 are resolved, and five
-remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
+fixture correction but did not close U-002; N4 completed the local forced-SwiftShader
+investigation without closing U-013, and N5 is next. No later step is started. It
+covers the C16 open entries; U-003 and U-007 are resolved, and five remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
 coder session with parent review. No Box3D/WASM, dependency, CI, hosted-publication
 or push permission is implied.
 
@@ -913,13 +915,36 @@ greens are not treated as closure. Evidence: `.dev-shots/n3/ledger.md`,
 No threshold, sample budget, solver, production source, dependency or CI change
 was made.
 
+**N4 investigation complete, U-013 remains open (2026-10-24):** the approved local
+equivalent used Brave 156.1.98.60 with `--use-angle=swiftshader --use-gl=angle`
+plus `--enable-unsafe-swiftshader`, a fresh browser/profile per attempt and the
+existing harness, against an owned `launch.py` server. The backend was confirmed
+as `ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)),
+SwiftShader driver)` before each game boot. Ten normal attempts (5 canonical plus
+5 corroborating), one `STALL_DIAGNOSTICS=1` attempt and one independent parent
+probe all reached `booted` after 47.5–53.6 s, then
+`renderer.getContext().getError()` timed out at 5.0 s in 12/12 and the 3 s
+follow-up timed out in 12/12, with empty `pageErrors`, null
+`connectionClosed`/`browserExit` and repeated `GPU stall due to ReadPixels`
+stderr/lifecycle warnings. The hosted 180 s failure-to-boot was not reproduced
+within the approved 60 s local wait, so that mode remains locally unverified;
+local boot was still ~48–54 s and repeatedly hit the 5 s CDP evaluate cap. The
+diagnostic stack attached to a boot poll timed out in `WebGLRenderer.setSize` ←
+`onResize` ← `bootGame`, not at the post-boot readback. Classification: the
+post-boot GL/CDP stall is reproducible under local forced SwiftShader; the hosted
+failure-to-boot and the precise mechanism remain unresolved. No application fix
+is inferred and no harness, source, timeout, retry, assertion, dependency or CI
+change was made. Evidence: `.dev-shots/n4/ledger.md`, `run-clean/summary.json`,
+`run-stalldiag/`. U-013 remains open; N5 is next.
+
 Dependencies and gates:
 
 - N1–N7 are independent; N8 runs last. N3 implemented its approved fixture
   correction but U-002 remains open after a reproduced probe failure, so any
   further N3 work needs a new approved decision; N7 still has a decision gate,
-  N2 is complete, and N4 has an environment/CI gate. N5 and N6 may legitimately
-  end without a reproduction and remain open.
+  N2 is complete, and N4 completed its approved local environment check without
+  closing U-013. N5 and N6 may legitimately end without a reproduction and remain
+  open.
 - No full-acceptance claim for the broader M2 sampling while the remaining
   family/writer coverage is unverified. U-003 is resolved only for the bounded N1
   policy and U-007 only for the bounded N2 family pair-task cancellation policy;
