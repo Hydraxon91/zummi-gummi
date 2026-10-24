@@ -1,18 +1,15 @@
 # System modularity, extensibility and engine portability
 
-**Status: approved closeout executed through C16 (2026-10-24).** The audit and
+**Status: approved closeout executed through C16 and Batch N (2026-10-24).** The audit and
 batch map below are retained; implementation/exclusion evidence and the final
 completion matrix are in the C15/C16 closeout section and the
 [unresolved-items register](unresolved-register.md). Open items remain: U-002,
-U-013 and U-024. **Batch N** below owns their resolution;
-N1 and N2 are complete, N3 implemented the approved fixture stabilization but
-left U-002 open after a reproduced probe failure, and N4 reproduced the post-boot
-GL/CDP stall under local forced SwiftShader without reproducing the hosted
-failure-to-boot, so U-013 remains open; N5's approved 9 s fixture budget resolved
-U-014 after 15/15 coder plus 10/10 parent passes; N6 ran 20 probe attempts plus
-five full Studio regressions without reproducing U-024, which remains open; N7
-resolved U-025 by aligning legacy visit-completion gating with the module engine
-and passing the exact 180/300/600-step browser trace. N8 is next. No push was made.
+U-013 and U-024. **Batch N** is complete through N8; N1–N7 resolved U-003,
+U-007, U-014 and U-025, while N3/N4/N6 recorded the still-open fixture,
+software-rendering and watchdog evidence. N8 final re-acceptance passed full
+Node, contracts, Python pilots, smoke, fresh long parity and sequential
+browser/lifecycle probes; the three open items above are not claimed closed. No
+push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -864,17 +861,17 @@ New behavior decisions and separately gated infrastructure changes still stop.
 
 ## Batch N — Open-item resolution
 
-Status: approved 2026-10-24. N1 and N2 are complete; N3 implemented the approved
+Status: approved 2026-10-24; all N1–N8 steps executed. N3 implemented the approved
 fixture correction but did not close U-002; N4 completed the local forced-SwiftShader
 investigation without closing U-013; N5's approved 9 s fixture budget resolved
 U-014 after 15/15 coder plus 10/10 parent passes; N6 ran 20 fresh-browser
 probe attempts plus five full Studio regressions without reproducing U-024, so
 U-024 remains open; N7 resolved U-025 with legacy visit-completion gating and
-exact 180/300/600-step browser trace parity, and N8 is next. No later step is
-started. It
-covers the C16 open entries; U-003, U-007, U-014 and U-025 are resolved, and three remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
-coder session with parent review. No Box3D/WASM, dependency, CI, hosted-publication
-or push permission is implied.
+exact 180/300/600-step browser trace parity; N8 completed final re-acceptance.
+It covers the C16 open entries; U-003, U-007, U-014 and U-025 are resolved, and
+U-002/U-013/U-024 remain open. Accepted exclusions U-008/U-018 are not reopened.
+Each step had its own coder session with parent review. No Box3D/WASM, dependency,
+CI, hosted-publication or push permission is implied.
 
 | Step | Item | Outcome and acceptance |
 | --- | --- | --- |
@@ -1020,17 +1017,34 @@ targetless no-reward, completed reward on both sides), focused suites 35/35, ful
 fresh long parity 15/15, and exact browser trace parity at 180/300/600 steps
 (transitions 266/266, 532/532, 1470/1470, seed `1234`, 0 page errors) in
 `.dev-shots/n7/`. No harness, assertion, threshold, Box3D/WASM, dependency or CI
-change. N8 is next.
+change.
+
+**N8 complete — final re-acceptance (2026-10-24):** source HEAD `baabdf8`, clean
+tree. Full Node **738/738**; contracts **17 modules/34 states/20 opportunities**;
+all four Python target commands (`validate`, `--self-test`, `genome`, `adapter`)
+`ok:true` with zero errors/failures; owned-server smoke **68/68**; fresh long
+parity **15/15** (`acceptance:true`, 361992 ms, no reuse); full Studio browser
+regression for modules and legacy (`BROWSER OK`, `errors:0`); social all
+**16/16**; gifting all **8/8**; Glass all `phase:"complete"` with no errors/page
+errors; chooser **17/17**; preferences **12/12**; exact 180-step browser trace
+parity **266/266** transitions; all-race comparator validation PASS. Captures
+inspected: `.dev-shots/browser-regression-n8.png`, `browser-regression-n8-legacy.png`,
+`glass_n8-glass_meadow/held/baby/final.png`, `gifting_offer.png`,
+`social_relationships.png`. No source, threshold, CI or dependency change in N8.
+U-002 (Studio collision fixture recurrence), U-013 (hosted SwiftShader boot/GL
+reliability) and U-024 (stationary-seek watchdog recurrence) remain open; no
+full-acceptance claim covers them. Evidence: `.dev-shots/n8/`.
 
 Dependencies and gates:
 
-- N1–N7 are independent; N8 runs last. N3 implemented its approved fixture
-  correction but U-002 remains open after a reproduced probe failure, so any
-  further N3 work needs a new approved decision; N2 and N7 are complete, N4
-  completed its approved local environment check without closing U-013, and N5's
-  approved 9 s fixture budget resolved U-014 after 15/15 coder plus 10/10 parent
-  passes. N6 ended without a reproduction and U-024 remains open; N8 is next.
-  Any further U-014 or U-024 fixture/budget change needs a new decision.
+- N1–N8 are complete; N8 ran last and passed the final deterministic, parity and
+  browser/lifecycle checks. N3 implemented its approved fixture correction but
+  U-002 remains open after a reproduced probe failure, so any further N3 work
+  needs a new approved decision; N4 completed its approved local environment
+  check without closing U-013; N5's approved 9 s fixture budget resolved U-014
+  after 15/15 coder plus 10/10 parent passes; N6 ended without a reproduction and
+  U-024 remains open. Any further U-002/U-013/U-024 fixture, budget or CI change
+  needs a new decision.
 - No full-acceptance claim for the broader M2 sampling while the remaining
   family/writer coverage is unverified. U-003 is resolved only for the bounded N1
   policy and U-007 only for the bounded N2 family pair-task cancellation policy;

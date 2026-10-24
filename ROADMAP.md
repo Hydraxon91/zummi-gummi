@@ -3707,15 +3707,14 @@ remains unverified. U-008 and U-018 are accepted exclusions. The
 [unresolved-items register](docs/unresolved-register.md) owns the evidence and
 dispositions. **Batch N** (N1–N8) in
 [the system-modularity roadmap](docs/system-modularity-roadmap.md#batch-n--open-item-resolution)
-owns these open items; N1 and N2 are complete, N3 implemented its fixture
-correction without closing U-002, N4 reproduced the post-boot GL/CDP stall
-under local forced SwiftShader but not the hosted failure-to-boot, so U-013
-remains open, and N5's approved 9 s fixture budget resolved U-014 after 15/15
-coder passes (10 FAST + 5 non-FAST) plus 10/10 independent parent full-social
-samples, including six mutual `mate` starts. N6 retained 20 fresh-browser
-stationary-seek probe samples plus five full Studio regressions; all passed with
-one recovery at 13.6 s after two `0.081` m drift resets, so U-024 remains open;
-N7 resolved U-025, and N8 is next. No push was made.
+is complete. N8 final re-acceptance at source HEAD `baabdf8` passed full Node
+738/738, contracts, all four Python target commands, smoke 68/68, fresh long
+parity 15/15 (`acceptance:true`), full Studio modules and legacy, social 16/16,
+gifting 8/8, Glass complete, chooser 17/17, preferences 12/12, exact 180-step
+browser trace parity and all-race comparator validation; captures were inspected.
+U-002 (Studio collision fixture recurrence), U-013 (hosted SwiftShader boot/GL
+reliability) and U-024 (stationary-seek watchdog recurrence) remain open, so no
+full-acceptance claim covers them. No push was made.
 
 ## Non-goals / deferred
 
