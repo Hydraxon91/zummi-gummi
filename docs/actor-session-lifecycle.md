@@ -569,3 +569,78 @@ and non-atomic apply items in §6 are stated as Unverified risks, not proven bug
 they were not fixed in M5. D3 likewise added no defect: the extraction preserved
 the recorded behavior, and non-atomic callback failure is documented as current
 (unfixed) behavior rather than a regression.
+
+## 10. N1 U-003 post-physics partial lifecycle evidence (2026-10-24)
+
+Status: bounded investigation only at baseline `HEAD 937aaa6`, with the parent's
+three documentation changes preserved (only the U-003 register row was updated
+under N1's allowed writes). No production source, committed test or committed
+harness changed, and no rollback/cleanup policy is proposed or implemented.
+U-003 remains open.
+
+### Method and evidence labels
+
+- **Source-inspected:** the full `spawn()`, `getFreeBear()`, `removeBear()`,
+  `removeSoftActor()` and relevant callers were read before probing.
+- **Host-run (unmodified):** an owned `python3 launch.py --no-open` server and
+  the committed `scripts/browser-harness.mjs`, headless Chromium, fresh temporary
+  profile, `__gummy.seed(20261024)`, existing `__gummy` hooks only.
+- **Instrumented-host:** a scratch proxy served the checkout unchanged except the
+  `/src/app.js` response, which added dormant `window.__n1` snapshots and explicit
+  throws at five app-level boundaries. The on-disk `src/app.js` was never edited
+  or rewritten. This is not unmodified-host evidence.
+- An instrumented control run with no throw active matched the normal host run on
+  all compared success-path fields (uid, slot, 24 handles, initial verts, removal
+  flags, same-object respawn, grew UID, final zero bears).
+- Both pages reported zero page errors. Source/instrumented hashes, commands and
+  exit codes are in `.dev-shots/n1/ledger.md` and `report.json`.
+
+### Source order
+
+`spawn()` validates species/rig, requires physics, applies the ceiling, acquires a
+pool slot, then performs `clearFarewellRuntime`, `active = true` + `bears.push`,
+material/mesh setup, point/stage/UID/life reset, `createBearBodies` and
+`buildBear`. There is no rollback wrapper. `getFreeBear()` will not reuse a slot
+left `active` by a failed spawn until that partial actor is removed.
+
+`removeBear()` delegates to `removeSoftActor()`, whose callback order is:
+departure, drop carried, release portions, detach, release food, `ai = null`,
+farewell, destroy bodies, roster splice, reference clearing (unless
+`preserveRefs`), end grabs, `active = false`/`grabs = 0`, deactivate. A throwing
+callback stops the rest; the splice and deactivation may not have happened.
+
+### Observed results
+
+| Probe | Immediate state after failure | Later spawn/sim | Later removal |
+| --- | --- | --- | --- |
+| Normal host spawn/remove | — | spawn uid 11, slot 0, active, visible, 24 handles, 2456 verts, `nan:false`; removal clears roster/ai/handles/hide | respawn reuses slot 0 as uid 12, 24 handles, `nan:false` |
+| `roster` throw after push | 2→3 bears; partial active in roster with stale uid 3 (allocator still 15), no handles, mesh hidden, no AI | next spawn uid 15 succeeds; partial gains AI `seekMate`, still in roster; `nan:false` | `clear()` removes it and zeroes pool handles/visibility |
+| `material` throw after mesh/material | 2→3 bears; partial active in roster with stale uid 3 (allocator still 19), no handles, mesh visible, no AI | next spawn uid 19 succeeds; partial gains AI, still visible in roster; `nan:false` | `clear()` removes it cleanly |
+| `bodies` throw after `createBearBodies` | 2→3 bears; partial active in roster with allocated uid 23, 24 positive handles, mesh visible, no AI | next spawn uid 24 succeeds; partial gains AI, retains handles; `nan:false` | `clear()` destroys handles and deactivates |
+| `detach` throw during removal | roster stays at 2; target active/in roster, AI `seekMate`, 24 handles, mesh visible | next spawn uid 28 succeeds; target remains; `nan:false` | second `clear()` removes target, destroys handles, hides mesh |
+| `destroy` throw during removal | roster stays at 2; target active/in roster, `ai:null`, 24 handles, mesh visible | next spawn uid 30 succeeds; target remains; `nan:false` | second `clear()` completes removal |
+
+The two removal retries re-ran earlier callbacks and succeeded in this sample
+because `ai.detach` and `destroyBearBodies` are repeat-safe. That is observed
+idempotence, not a production recovery or rollback guarantee.
+
+### Conclusions and limits
+
+- Normal spawn/remove accounting works: one pooled slot is reused, bodies are
+  created/destroyed, the roster and `active` flag are cleaned, and UIDs advance.
+- A post-physics spawn failure leaves an explicit thrown error but no explicit
+  failure state. The partial actor remains in `bears`, may acquire AI on the next
+  tick, and in the body-stage case already owns live Box3D handles. Roster/material
+  failures keep a stale previous-life UID without consuming the allocator; the
+  body-stage failure consumes its UID. Subsequent spawning is not blocked in this
+  sample, but the roster/identity state is not clean.
+- No automatic cleanup was observed. `clear()` later removes the partial actor,
+  but that is a caller action, not failure recovery.
+- Limits: injected boundaries are synthetic; the instrumented page is not
+  unmodified-host evidence. Removal used `despawnAll()` (`preserveRefs:true`), so
+  reference clearing and ceiling/stars departures are out of scope. Save/load,
+  map switch, New Game, Glass, `physicsSuspended` and the per-spawn material clone
+  path were not exercised. No screenshots were created; this is state evidence.
+- A bounded implementation would need a separately approved policy decision
+  (failure cleanup, quarantine, or explicit non-atomic acceptance). N1 does not
+  authorize one.

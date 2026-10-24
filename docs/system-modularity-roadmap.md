@@ -4,7 +4,8 @@
 batch map below are retained; implementation/exclusion evidence and the final
 completion matrix are in the C15/C16 closeout section and the
 [unresolved-items register](unresolved-register.md). Open items remain: U-002,
-U-003, U-007, U-013, U-014, U-024 and U-025. No push was made.
+U-003, U-007, U-013, U-014, U-024 and U-025. A proposed **Batch N** below owns
+their resolution; it is not started. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -853,6 +854,34 @@ The M3 policy is settled: reject unknown module IDs without mutation/version
 changes, and reject an entire actor-config patch containing any unknown ID.
 Supported admission must remain explicit; species warning/fallback is unchanged.
 New behavior decisions and separately gated infrastructure changes still stop.
+
+## Proposed Batch N — Open-item resolution (not started)
+
+Status: proposed 2026-10-24. No step is approved, started or committed. It covers
+the seven open entries left by C16; accepted exclusions U-008/U-018 are not
+reopened. Each step is its own coder session with parent review. No Box3D/WASM,
+dependency, CI, hosted-publication or push permission is implied.
+
+| Step | Item | Outcome and acceptance |
+| --- | --- | --- |
+| N1 — post-physics lifecycle | U-003 | Trace spawn/body/mesh/pool/remove ownership after physics is ready. Use an owned disposable host and controlled failure injection; prove only acquired resources release, no stale pool/UID/scene entries remain, and a subsequent spawn works. If recovery needs a new semantic policy, stop for a decision. Update U-003 with host evidence. |
+| N2 — family pair-task cancellation | U-007 | Decision first: symmetric cancellation, survivor-owned completion, or defer. After approval, implement only the selected family; no central registry. Test both actors, rewards/history, claims, retry and stall paths. Update U-007. |
+| N3 — Studio separation | U-002 | Predeclare sequential Studio/browser repeats; preserve failing Glass/bear body, contacts, positions, `freeBody` and the `.25` threshold. Distinguish fixture state sensitivity from a real collision defect. No threshold, fixture, solver or Box3D change without a separate decision. Update U-002. |
+| N4 — hosted boot/stall | U-013 | Inspect retained hosted artifacts and reproduce only with an approved equivalent software-rendering environment. Classify failure-to-boot versus post-boot GL/CDP stall; do not infer an app fix, and do not change CI, timeouts, retries or dependencies without separate approval. If unavailable, leave U-013 unverified. |
+| N5 — cuddle recurrence | U-014 | Repeat the unchanged cuddle fixture with diagnostics; classify eligibility, pair loss, approach timeout, path, interruption and completion effect. No budget or assertion change without a decision. If it does not reproduce, keep U-014 open. |
+| N6 — stationary seek watchdog | U-024 | Repeat the watchdog case and retain AI/stall state; distinguish fixture/stall injection from a recovery failure. No watchdog budget or assertion change without a decision. Update U-024. |
+| N7 — browser trace compatibility | U-025 | Decide whether to accept a narrow legacy/module compatibility expectation for interrupted-visit relief (legacy `.22`/`.16`/`.08` versus module no interruption reward, C2-F1) or leave the check non-gating. Do not exclude the whole state. Only after approval, update the harness and add focused visit no-reward coverage. Update U-025. |
+| N8 — final re-acceptance | All | After N1–N7 or explicit deferrals, rerun full Node, contracts, Python pilots, owned-server smoke, fresh long parity and sequential browser/lifecycle probes with inspected captures. Reconcile the register and roadmap; report implemented, verified, blocked and deferred separately. No push. |
+
+Dependencies and gates:
+
+- N1–N7 are independent; N8 runs last. N2, N3 and N7 each have a decision gate;
+  N4 has an environment/CI gate. N5 and N6 may legitimately end without a
+  reproduction and remain open.
+- No full-acceptance claim while U-003 or U-007 remains unresolved. Flakes may
+  remain open with retained evidence; they must not be hidden behind a green run.
+- N1 and N4 must not add a production hook or CI/timeout change as a side effect
+  of investigation. Any such need stops at a separate approval gate.
 
 ## Verification, rollback and release gates
 

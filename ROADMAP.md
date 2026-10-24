@@ -3699,7 +3699,9 @@ unresolved; U-002, U-013, U-014 and U-024 are diagnosed flakes; U-025 records th
 legacy/module browser-trace divergence on interrupted visit relief (C2-F1), which
 predates C12. U-008 and U-018 are accepted exclusions. The
 [unresolved-items register](docs/unresolved-register.md) owns the evidence and
-dispositions. No push was made.
+dispositions. A proposed **Batch N** (N1–N8) in
+[the system-modularity roadmap](docs/system-modularity-roadmap.md#proposed-batch-n--open-item-resolution-not-started)
+owns these open items; it is not started. No push was made.
 
 ## Non-goals / deferred
 
