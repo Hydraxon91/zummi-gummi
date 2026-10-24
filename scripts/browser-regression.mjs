@@ -360,7 +360,7 @@ try {
       candidates.sort((a, b) => (b.stable - a.stable) || (a.speed - b.speed) ||
         (b.contacts - a.contacts) || (a.i - b.i));
       const fallback = !candidates[0].stable;
-      let bi = -1, startDistance = Infinity, chosen = null;
+      let bi = -1, chosen = null;
       const tried = [];
       for (const candidate of candidates) {
         const bear = g.bears[candidate.i];
@@ -368,49 +368,220 @@ try {
         const a = g.glass().actors[gi];
         const d = set ? Math.hypot(a.position[0] - bear.cx, a.position[2] - bear.cz) : null;
         tried.push({ i: candidate.i, set, d: d === null ? null : +d.toFixed(2) });
-        if (set && d <= .2) { bi = candidate.i; startDistance = d; chosen = candidate; break; }
+        if (set && d <= .2) { bi = candidate.i; chosen = candidate; break; }
       }
       if (bi < 0) return { ok: false, note: 'no bear/Glass overlap fixture', tried };
       const bearStart = g.bears[bi];
+      const originalHopT = bearStart.hopT;
+      const originalAntic = bearStart.antic;
+      const originalPossessed = !!bearStart.ai.possessed;
       let dirX = 1, dirZ = 0;
       const velocity = Math.hypot(Number(bearStart.vcx) || 0, Number(bearStart.vcz) || 0);
       if (velocity > .05) {
         dirX = -(Number(bearStart.vcx) || 0) / velocity;
         dirZ = -(Number(bearStart.vcz) || 0) / velocity;
       }
-      const start = g.glass().actors[gi];
-      const vertical = Math.abs(start.position[1] - bearStart.cy);
-      let walking = g.glassWalkTo(gi, bearStart.cx + dirX * 1.5, bearStart.cz + dirZ * 1.5);
-      if (!walking) {
+      const vertical = Math.abs(g.glass().actors[gi].position[1] - bearStart.cy);
+      // Freeze only the fixture bear: suspend its AI target/path/hop decisions and
+      // drop horizontal body velocity. Its real Box3D body, joints and contacts
+      // stay in the sim, so collision remains the authority. Family-task and
+      // directive fields are cleared too: another bear's pair logic can call
+      // startTask on this actor even while possessed, which would otherwise
+      // rewrite state/moving/path inside the sampling window.
+      const freezeBear = () => {
+        const b = g.bears[bi];
+        if (!b || !b.ai) return false;
+        b.ai.possessed = true;
+        b.ai.state = 'wander';
+        b.ai.moving = false;
+        b.ai.arrived = false;
+        b.ai.target = null;
+        b.ai.path = null;
+        b.ai.pathIndex = 0;
+        b.ai.hopState = null;
+        b.ai.hopWait = 0;
+        b.ai.turnWait = 0;
+        b.ai.faceYaw = null;
+        b.ai.source = null;
+        b.ai.waterSpot = null;
+        b.ai.follow = null;
+        b.ai.partner = null;
+        b.ai.familyTask = null;
+        b.ai.familyPlay = false;
+        b.ai.playmateKind = null;
+        b.ai.playdate = false;
+        b.ai.playdateHome = null;
+        b.ai.playdateTarget = null;
+        b.ai.visitHome = null;
+        b.ai.visitRole = null;
+        b.ai.visitPhase = null;
+        b.ai.visitArrived = false;
+        b.ai.waitForPartner = false;
+        b.ai.taskCooldown = 0;
+        b.ai.directive = null;
+        b.ai.directiveStatus = null;
+        b.ai.directiveHome = false;
+        if (Array.isArray(b.ai.directives)) b.ai.directives.length = 0;
+        b.ai.contestBear = null;
+        b.ai.contestSource = null;
+        b.ai.conflictSource = null;
+        b.ai.shove = null;
+        b.ai.progressTargetX = null;
+        b.ai.progressTargetZ = null;
+        b.ai.progressDist = Infinity;
+        b.ai.progressPathIndex = 0;
+        b.ai.nextThink = 999;
+        b.hopT = 999;
+        b.antic = 0;
+        for (let k = 0; k < b.np; k++) { b.vx[k] = 0; b.vz[k] = 0; }
+        b.vcx = 0;
+        b.vcz = 0;
+        return true;
+      };
+      // Start just clear of the bear centre. Spawning exactly at the centre made
+      // the first Box3D depenetration fight the walk request and wedge the Glass
+      // against the frozen body (N9 failure). The starting point remains inside
+      // the .25 separation gate; the walk, force, collision and sampling all
+      // remain the real simulation.
+      const startOffset = .12;
+      const placeGlass = (dx, dz) => g.glassSetPosition(gi,
+        g.bears[bi].cx + dx * startOffset, g.bears[bi].cz + dz * startOffset, true);
+      const distanceFromBear = () => {
+        const a = g.glass().actors[gi], b = g.bears[bi];
+        return Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz);
+      };
+      const restoreFixture = () => {
+        const b = g.bears[bi];
+        if (b && b.ai) {
+          b.ai.possessed = originalPossessed;
+          b.hopT = originalHopT;
+          b.antic = originalAntic;
+        }
+        g.setBearState(bi, 'wander');
+        g.freeze(false);
+        g.glassReset(gi);
+      };
+
+      // Negative control first: same frozen bear and same .12 start offset with
+      // NO walk request. Pause meadow AI/Glass decisions so idle wandering
+      // cannot substitute for the fixture's walk, then run the same Box3D steps.
+      // It measures Glass travel, not final separation: Box3D may legitimately
+      // depenetrate the bear and grow separation while the Glass stays pinned,
+      // so separation alone would not prove that the positive walk moved.
+      g.freeze(true);
+      const controlFrozen = freezeBear();
+      const controlReset = g.glassReset(gi);
+      const controlPlaced = controlReset && placeGlass(dirX, dirZ);
+      const controlActor = g.glass().actors[gi];
+      const controlStartX = controlActor.position[0];
+      const controlStartZ = controlActor.position[2];
+      const controlStartDistance = controlPlaced ? distanceFromBear() : null;
+      let controlDistance = controlStartDistance;
+      let controlTravel = controlPlaced ? 0 : null, controlSteps = 0;
+      const controlSamples = [];
+      for (; controlPlaced && controlSteps < 6; controlSteps++) {
+        freezeBear();
+        g.sim(.5, 0);
+        const a = g.glass().actors[gi];
+        controlDistance = distanceFromBear();
+        controlTravel = Math.hypot(a.position[0] - controlStartX, a.position[2] - controlStartZ);
+        controlSamples.push({
+          separation: +controlDistance.toFixed(3),
+          travel: +controlTravel.toFixed(3),
+        });
+      }
+      const control = {
+        ok: controlPlaced && controlFrozen, reset: !!controlReset,
+        walkRequest: false, placed: !!controlPlaced,
+        startDistance: controlStartDistance === null ? null : +controlStartDistance.toFixed(3),
+        steps: controlSteps, samples: controlSamples,
+        separation: controlDistance === null ? null : +controlDistance.toFixed(3),
+        glassTravel: controlTravel === null ? null : +controlTravel.toFixed(3),
+        freeBody: !!g.glass().actors[gi].freeBody,
+      };
+      restoreFixture();
+
+      // Positive: re-freeze and re-place deterministically, then request the
+      // real walk 1.5 m past the bear along the chosen direction.
+      const positiveFrozen = freezeBear();
+      const positiveReset = g.glassReset(gi);
+      let placed = positiveReset && placeGlass(dirX, dirZ);
+      let walking = placed &&
+        g.glassWalkTo(gi, g.bears[bi].cx + dirX * 1.5, g.bears[bi].cz + dirZ * 1.5);
+      if (placed && !walking) {
         dirX = -dirX;
         dirZ = -dirZ;
-        walking = g.glassWalkTo(gi, bearStart.cx + dirX * 1.5, bearStart.cz + dirZ * 1.5);
+        placed = placeGlass(dirX, dirZ);
+        walking = placed &&
+          g.glassWalkTo(gi, g.bears[bi].cx + dirX * 1.5, g.bears[bi].cz + dirZ * 1.5);
       }
       const walkTarget = [
-        +(bearStart.cx + dirX * 1.5).toFixed(2),
-        +(bearStart.cz + dirZ * 1.5).toFixed(2),
+        +(g.bears[bi].cx + dirX * 1.5).toFixed(2),
+        +(g.bears[bi].cz + dirZ * 1.5).toFixed(2),
       ];
-      let distance = startDistance, steps = 0;
+      const startActor = g.glass().actors[gi];
+      const startX = startActor.position[0], startZ = startActor.position[2];
+      const startDistance = placed ? distanceFromBear() : null;
+      let distance = startDistance, glassTravel = placed ? 0 : null, steps = 0;
       const samples = [];
-      for (; steps < 6; steps++) {
+      while (placed && steps < 6) {
+        // Collision-window reassert: another actor's family-task assignment can
+        // land mid-sample, so restore the frozen fixture before every sample.
+        freezeBear();
         g.sim(.5, 0);
-        const a = g.glass().actors[gi], b = g.bears[bi];
-        distance = Math.hypot(a.position[0] - b.cx, a.position[2] - b.cz);
-        samples.push(+distance.toFixed(3));
-        if (distance >= .25) break;
+        steps++;
+        const a = g.glass().actors[gi];
+        distance = distanceFromBear();
+        glassTravel = Math.hypot(a.position[0] - startX, a.position[2] - startZ);
+        samples.push({
+          separation: +distance.toFixed(3),
+          travel: +glassTravel.toFixed(3),
+        });
+        // Stop only once both collision gates are proven; separation alone can
+        // rise from Box3D depenetration before the Glass has actually walked.
+        if (distance >= .25 && glassTravel >= .25) break;
       }
+      // Reassert once more after the last sim so the captured fixture state
+      // reflects the frozen condition rather than a late external task write.
+      freezeBear();
       const a = g.glass().actors[gi], b = g.bears[bi];
-      return {
-        ok: true, bi, gi, uid: b.uid, state: b.ai.state,
-        moving: !!b.ai.moving, path: b.ai.path ? b.ai.path.length : 0,
+      const frozenState = {
+        possessed: !!b.ai.possessed,
+        state: b.ai.state,
+        moving: !!b.ai.moving,
+        path: b.ai.path ? b.ai.path.length : 0,
         speed: +Math.hypot(Number(b.vcx) || 0, Number(b.vcz) || 0).toFixed(3),
-        contacts: b.contacts | 0, fallback, stable: !!(chosen && chosen.stable),
-        startDistance, vertical, walking, walkTarget, steps, samples, distance,
-        freeBody: !!a.freeBody,
+        hopT: b.hopT,
+        antic: b.antic,
+        contacts: b.contacts | 0,
+      };
+      const freeBody = !!a.freeBody;
+      restoreFixture();
+      return {
+        ok: placed && walking && positiveFrozen, reset: !!positiveReset,
+        bi, gi, uid: b.uid, ...frozenState,
+        fallback, stable: !!(chosen && chosen.stable),
+        startOffset,
+        startDistance: startDistance === null ? null : +startDistance.toFixed(3),
+        glassTravel: glassTravel === null ? null : +glassTravel.toFixed(3),
+        vertical, walking, walkTarget, steps, samples,
+        distance: distance === null ? null : +distance.toFixed(3),
+        frozen: positiveFrozen, control, freeBody,
       };
     })()`, 180000);
-    if (!collisionCheck.ok || !collisionCheck.walking || collisionCheck.vertical > .8 ||
-        collisionCheck.distance < .25 || collisionCheck.freeBody) {
+    console.log('COLLISION', JSON.stringify(collisionCheck));
+    if (!collisionCheck.ok || !collisionCheck.walking ||
+        !(collisionCheck.startDistance < .25) || !(collisionCheck.distance >= .25) ||
+        !(collisionCheck.glassTravel >= .25) || !(collisionCheck.vertical <= .8) ||
+        collisionCheck.freeBody || !collisionCheck.frozen ||
+        collisionCheck.possessed !== true || collisionCheck.moving ||
+        collisionCheck.path !== 0 || collisionCheck.antic !== 0 ||
+        !(collisionCheck.hopT >= 990) ||
+        !collisionCheck.control || !collisionCheck.control.ok ||
+        !collisionCheck.control.reset || collisionCheck.control.walkRequest ||
+        !(collisionCheck.control.startDistance < .25) ||
+        !(collisionCheck.control.glassTravel < .1) ||
+        collisionCheck.control.freeBody) {
       failures.push(`Glass did not collide with a bear: ${JSON.stringify(collisionCheck)}`);
     }
     const doorCheck = await page.evaluate(`(() => {

@@ -3,13 +3,14 @@
 **Status: approved closeout executed through C16 and Batch N (2026-10-24).** The audit and
 batch map below are retained; implementation/exclusion evidence and the final
 completion matrix are in the C15/C16 closeout section and the
-[unresolved-items register](unresolved-register.md). Open items remain: U-002,
-U-013 and U-024. **Batch N** is complete through N8; N1–N7 resolved U-003,
+[unresolved-items register](unresolved-register.md). Open items remain: U-013
+and U-024. **Batch N** is complete through N8; N1–N7 resolved U-003,
 U-007, U-014 and U-025, while N3/N4/N6 recorded the still-open fixture,
 software-rendering and watchdog evidence. N8 final re-acceptance passed full
 Node, contracts, Python pilots, smoke, fresh long parity and sequential
-browser/lifecycle probes; the three open items above are not claimed closed. No
-push was made.
+browser/lifecycle probes; N9 (post-batch follow-up) then closed U-002 with the
+fixture-only collision correction, while U-013/U-024 remain open. No push was
+made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -868,8 +869,9 @@ U-014 after 15/15 coder plus 10/10 parent passes; N6 ran 20 fresh-browser
 probe attempts plus five full Studio regressions without reproducing U-024, so
 U-024 remains open; N7 resolved U-025 with legacy visit-completion gating and
 exact 180/300/600-step browser trace parity; N8 completed final re-acceptance.
-It covers the C16 open entries; U-003, U-007, U-014 and U-025 are resolved, and
-U-002/U-013/U-024 remain open. Accepted exclusions U-008/U-018 are not reopened.
+It covers the C16 open entries; U-003, U-007, U-014 and U-025 are resolved.
+N9 (post-batch, 2026-10-24) closed U-002; U-013/U-024 remain open. Accepted
+exclusions U-008/U-018 are not reopened.
 Each step had its own coder session with parent review. No Box3D/WASM, dependency,
 CI, hosted-publication or push permission is implied.
 
@@ -1035,16 +1037,33 @@ U-002 (Studio collision fixture recurrence), U-013 (hosted SwiftShader boot/GL
 reliability) and U-024 (stationary-seek watchdog recurrence) remain open; no
 full-acceptance claim covers them. Evidence: `.dev-shots/n8/`.
 
+**N9 complete — U-002 fixture closure (2026-10-24):** baseline `8de26df`; only
+`scripts/browser-regression.mjs` changed (plus scratch `.dev-shots/n9/`). The
+approved fixture follow-up runs the no-walk control first at a `.12` shallow
+offset from the frozen bear (control requires Glass travel `<.1`), re-places and
+requests the real 1.5 m walk, requires both final separation `>=.25` and Glass
+travel `>=.25` within the 6 × 0.5 s cap, reasserts the frozen bear state each
+sample, and restores the bear/Glass. Real Box3D, the `.25` gate, solver,
+production source and dependencies are unchanged. Evidence: 20 sequential base
+runs (`TAG=n9-final-1..20`) passed the collision assertion 20/20 (separation
+.412–1.213, travel .273–.720, control travel 0, all
+`state:wander`/`moving:false`/`path:0`/`possessed:true`); 5/5 full Studio module
+and 2/2 legacy runs exited `0` with `BROWSER OK` and zero page errors; inspected
+`.dev-shots/browser-regression-n9-shots.png`. One base run (`n9-final-6`) passed
+collision but exited non-zero on the pre-existing U-024 watchdog. U-002 is
+resolved for this fixture; U-013/U-024 remain open. No push.
+
 Dependencies and gates:
 
 - N1–N8 are complete; N8 ran last and passed the final deterministic, parity and
   browser/lifecycle checks. N3 implemented its approved fixture correction but
-  U-002 remains open after a reproduced probe failure, so any further N3 work
-  needs a new approved decision; N4 completed its approved local environment
-  check without closing U-013; N5's approved 9 s fixture budget resolved U-014
-  after 15/15 coder plus 10/10 parent passes; N6 ended without a reproduction and
-  U-024 remains open. Any further U-002/U-013/U-024 fixture, budget or CI change
-  needs a new decision.
+  U-002 remained open at N8 after a reproduced probe failure; N9 closed it with
+  the fixture-only correction, so any further U-002 fixture change needs a new
+  approved decision. N4 completed its approved local environment check without
+  closing U-013; N5's approved 9 s fixture budget resolved U-014 after 15/15
+  coder plus 10/10 parent passes; N6 ended without a reproduction and U-024
+  remains open. Any further U-013/U-024 fixture, budget or CI change needs a new
+  decision.
 - No full-acceptance claim for the broader M2 sampling while the remaining
   family/writer coverage is unverified. U-003 is resolved only for the bounded N1
   policy and U-007 only for the bounded N2 family pair-task cancellation policy;
@@ -1085,9 +1104,10 @@ batch records and register. Existing
 documented bugs, hosted stalls and intermittent fixtures retain their
 dispositions in ROADMAP and the register; modularization does not repair or waive
 them. C12 resolved the stargaze timer timing as an explicitly approved change;
-U-002, U-013 and U-024 remain open flakes, U-014 is resolved for the cuddle
-fixture condition after the approved 9 s budget passed 15/15 coder plus 10/10
-parent samples, U-003 is resolved for the bounded N1 spawn-failure policy with
+U-013 and U-024 remain open flakes; U-002 was closed by N9, U-014 is resolved
+for the cuddle fixture condition after the approved 9 s budget passed 15/15
+coder plus 10/10 parent samples, U-003 is resolved for the bounded N1
+spawn-failure policy with
 broader pool/save/map sequencing still unverified, and U-007 is resolved for the
 bounded N2 family pair-task cancellation policy with broader M2 sampling still
 unverified. Newly discovered
