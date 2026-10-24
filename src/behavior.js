@@ -940,8 +940,9 @@ export function createBehavior({
       return;
     }
     // Use approach to the target, not raw displacement: a crowd can push a
-    // stationary actor around without making any route progress.
-    if (dist < ai.progressDist - .08) {
+    // stationary actor around without making any route progress. Require .2 m
+    // of cumulative approach so small residual drift cannot reset the timer.
+    if (dist < ai.progressDist - .2) {
       ai.progressDist = dist;
       ai.noProgressT = 0;
       return;

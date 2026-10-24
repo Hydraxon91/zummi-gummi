@@ -3695,10 +3695,11 @@ gifting all **8/8**, Glass all complete, chooser **17/17**, and preferences
 
 This is not a full-acceptance claim for every open item: U-007 (family pair-task
 cancellation asymmetry) is resolved for the bounded N2 family-task policy; broader
-M2 sampling of the other families remains unverified. U-002, U-013 and U-024 are
+M2 sampling of the other families remains unverified. U-002, U-013 and U-024 were
 diagnosed flakes; U-002's N3 fixture correction passed five sequential
 full Studio regressions and its negative control but reproduced 1/12 in the final
-probe, so it remains open. U-014 is resolved for the N5 cuddle fixture condition
+probe, before N9 closed it with the fixture-only follow-up; N10 closed U-024 with
+the approved cumulative watchdog threshold; U-013 remains open. U-014 is resolved for the N5 cuddle fixture condition
 after the approved 9 s budget passed 15/15. U-025 is resolved by the N7 legacy
 visit-completion alignment with the module engine (exact 180/300/600-step browser
 trace parity). U-003 is
@@ -3712,9 +3713,10 @@ is complete. N8 final re-acceptance at source HEAD `baabdf8` passed full Node
 parity 15/15 (`acceptance:true`), full Studio modules and legacy, social 16/16,
 gifting 8/8, Glass complete, chooser 17/17, preferences 12/12, exact 180-step
 browser trace parity and all-race comparator validation; captures were inspected.
-U-002 (Studio collision fixture recurrence), U-013 (hosted SwiftShader boot/GL
-reliability) and U-024 (stationary-seek watchdog recurrence) remain open, so no
-full-acceptance claim covers them. No push was made.
+U-013 (hosted SwiftShader boot/GL reliability) remains open, so no
+full-acceptance claim covers it; U-002 and U-024 were closed by N9/N10. N11's
+forced-SwiftShader full/low-quality matrix did not reproduce the hosted
+failure-to-boot and did not close U-013. No push was made.
 
 ## Non-goals / deferred
 
