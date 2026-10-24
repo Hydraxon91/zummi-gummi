@@ -4,8 +4,8 @@
 batch map below are retained; implementation/exclusion evidence and the final
 completion matrix are in the C15/C16 closeout section and the
 [unresolved-items register](unresolved-register.md). Open items remain: U-002,
-U-003, U-007, U-013, U-014, U-024 and U-025. A proposed **Batch N** below owns
-their resolution; it is not started. No push was made.
+U-007, U-013, U-014, U-024 and U-025. **Batch N** below owns their resolution;
+N1 is complete and N2 is next. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -855,12 +855,13 @@ changes, and reject an entire actor-config patch containing any unknown ID.
 Supported admission must remain explicit; species warning/fallback is unchanged.
 New behavior decisions and separately gated infrastructure changes still stop.
 
-## Proposed Batch N — Open-item resolution (not started)
+## Batch N — Open-item resolution
 
-Status: proposed 2026-10-24. No step is approved, started or committed. It covers
-the seven open entries left by C16; accepted exclusions U-008/U-018 are not
-reopened. Each step is its own coder session with parent review. No Box3D/WASM,
-dependency, CI, hosted-publication or push permission is implied.
+Status: approved 2026-10-24. N1 is complete; N2 is next. No later step is
+started. It covers the C16 open entries; U-003 is resolved, and six remain.
+Accepted exclusions U-008/U-018 are not reopened. Each step is its own coder
+session with parent review. No Box3D/WASM, dependency, CI, hosted-publication or
+push permission is implied.
 
 | Step | Item | Outcome and acceptance |
 | --- | --- | --- |
@@ -873,15 +874,23 @@ dependency, CI, hosted-publication or push permission is implied.
 | N7 — browser trace compatibility | U-025 | Decide whether to accept a narrow legacy/module compatibility expectation for interrupted-visit relief (legacy `.22`/`.16`/`.08` versus module no interruption reward, C2-F1) or leave the check non-gating. Do not exclude the whole state. Only after approval, update the harness and add focused visit no-reward coverage. Update U-025. |
 | N8 — final re-acceptance | All | After N1–N7 or explicit deferrals, rerun full Node, contracts, Python pilots, owned-server smoke, fresh long parity and sequential browser/lifecycle probes with inspected captures. Reconcile the register and roadmap; report implemented, verified, blocked and deferred separately. No push. |
 
+**N1 complete (2026-10-24):** approved spawn-failure unwind plus the explicit
+removal-retry contract. U-003 is resolved for that bounded policy; the evidence
+is in [actor-session-lifecycle.md](actor-session-lifecycle.md#11-n1-u-003-spawn-failure-unwind-and-removal-retry-2026-10-24)
+and `.dev-shots/n1/`. No production hook, Box3D/WASM, dependency or CI change was
+added.
+
 Dependencies and gates:
 
 - N1–N7 are independent; N8 runs last. N2, N3 and N7 each have a decision gate;
   N4 has an environment/CI gate. N5 and N6 may legitimately end without a
   reproduction and remain open.
-- No full-acceptance claim while U-003 or U-007 remains unresolved. Flakes may
-  remain open with retained evidence; they must not be hidden behind a green run.
-- N1 and N4 must not add a production hook or CI/timeout change as a side effect
-  of investigation. Any such need stops at a separate approval gate.
+- No full-acceptance claim while U-007 remains unresolved. U-003 is resolved only
+  for the bounded N1 policy; broader pool/save/map sequencing remains unverified.
+  Flakes may remain open with retained evidence; they must not be hidden behind a
+  green run.
+- N4 must not add a production hook or CI/timeout change as a side effect of
+  investigation. Any such need stops at a separate approval gate.
 
 ## Verification, rollback and release gates
 
@@ -914,9 +923,10 @@ batch records and register. Existing
 documented bugs, hosted stalls and intermittent fixtures retain their
 dispositions in ROADMAP and the register; modularization does not repair or waive
 them. C12 resolved the stargaze timer timing as an explicitly approved change;
-U-002, U-013, U-014 and U-024 remain open flakes, U-003 remains an open
-verification gap and U-007 remains a deferred family-task decision. Newly
-discovered defects must be recorded there before any repair.
+U-002, U-013, U-014 and U-024 remain open flakes, U-003 is resolved for the
+bounded N1 spawn-failure policy with broader pool/save/map sequencing still
+unverified, and U-007 remains a deferred family-task decision. Newly discovered
+defects must be recorded there before any repair.
 
 Do not introduce a universal ECS, dependency-injection container, plugin loader,
 event bus, engine-neutral scene graph, generalized physics facade or framework
