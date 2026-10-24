@@ -1,12 +1,24 @@
 # Gummy Bears
 
+## Project status — Final browser prototype
+
+This repository preserves the final browser-based prototype of Gummy Bears,
+built with three.js and Box3D. Future game development will continue in Godot;
+the Godot repository will be linked here once available.
+
+This version remains available as a playable prototype and a reference for
+gameplay experiments, assets and implementation ideas. It contains known bugs
+and unfinished features; see the [unresolved-items register](docs/unresolved-register.md).
+The Godot version may redesign systems rather than reproduce this prototype
+exactly. No further feature development is planned here.
+
 An interactive bowl of translucent jelly bears: grab, stretch, squash, throw, pour, wobble, set off fireworks — or load one into the little glass cannon and fire it across the table. Rendered with **three.js**; soft-body physics runs on **Box3D** (erincatto/box3d) compiled to WebAssembly.
 
 The meadow chapter is playable: a circular Bliss-style meadow with a continuous full-circle grass carpet, wandered dirt trails, rounded hero trees, branched background trees and bushes, detailed Aero villas and a large Studio portal house, an anime-lite reflective pond, a full day/night sky with clouds, aurora and fireflies, a distant skyline and wind turbines. The bears now act on hunger, thirst, health, company, family and the time of day: they hop to edible flowers and fallen jelly fruit, drink at the pond, raid risky beehives when very hungry, recover when woozy, return to their villa to sleep on their own schedule (bedtime 20:00–22:30, wake 05:00–07:00), and seek out friends. A lonely bear offers a nuzzle; the other bear visibly accepts or declines, friends build a bond, and a bonded pair can visit a villa doorway together. Hungry bears may shove over the same claimed snack. Babies follow a parent and grow through teen to adult; satiated adults court, carry a short pregnancy and give birth when there is food and room. Each bear also has its own heritable hop-pace range, family home and sleep schedule. They resume their task after being grabbed or thrown, and the Studio remains available from the in-app map switch and the diegetic door. All simulation chapters through family life are now in [ROADMAP.md](ROADMAP.md), with selected captures in [screenshots](screenshots/). An optional **Off / Soft / Full** meadow effects stack adds a gentle grade, restrained bloom, SMAA and high-tier contact AO, plus depth-aware screen-space sun/moon god rays and an optional depth-of-field toggle. High quality tiers also get real directional sun/moon shadow maps; lower tiers keep the lightweight blob shadows. The Studio stays on the direct renderer.
 
 ## Launch it
 
-Play the current `main` build in a browser: <https://hydraxon91.github.io/zummi-gummi/>. Or run it locally:
+Play the final browser prototype: <https://hydraxon91.github.io/zummi-gummi/>. Or run it locally:
 
 Double-click the launcher for your system:
 

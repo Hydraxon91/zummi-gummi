@@ -1,5 +1,16 @@
 # Gummy Bears — Roadmap
 
+## Browser prototype closeout (2026-10-24)
+
+The browser prototype is the final reference snapshot; no further feature
+development is planned in this repository. Future development will continue in
+Godot as a prototype-oriented translation, not a strict 1:1 port. The roadmap
+below is retained as design and implementation history, not an active browser
+delivery commitment. Known limitations remain documented in the
+[unresolved-items register](docs/unresolved-register.md); they are not claimed
+fixed by this transition. The playable browser demo and local launch instructions
+remain available in [README.md](README.md).
+
 A cozy, living gummy-bear meadow: soft-body bears with needs and little lives, a
 Bliss-style field, a reflective pond, a full day/night sky, and a Frutiger-Aero /
 MSN presentation. The Box3D jelly physics, grabbing/throwing, metaball surface,
