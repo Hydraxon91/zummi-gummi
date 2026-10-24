@@ -70,6 +70,7 @@ Status values: `open`, `needs-decision`, `blocked`, `resolved`, `superseded`,
 
 | U-023 | H2 purity guard misses imports and template expressions | defect | resolved | Architecture-check confidence | `tests/pure-boundaries.test.mjs` stripping and import matching | Closeout audit at `6023644` reproduced missed side-effect imports, dynamic imports and executable template interpolation while existing boundary/debug tests passed 14/14. See [extension API audit evidence](extension-api.md#closeout-audit-finding-purity-guard-false-negatives-u-023). C01 at `f8db78d` refactors the guard to `boundaryViolations(source, path)`, scans template interpolations (nested braces/strings/templates) and static/dynamic/export-from imports, and adds 8 positive/17 negative fixtures; all three audit probes now reject while the 12 fixed modules pass. Evidence: focused `node --test tests/pure-boundaries.test.mjs tests/debug-api.test.mjs` 39/39, full `node --test tests` 719/719, `node scripts/check-behavior-contracts.mjs` 17 modules, `git diff --check` clean. The guard remains a heuristic scanner, not a parser; unterminated constructs and unusual regex positions fail closed. No shipped runtime violation is alleged. | Closed for the fixed list; scope remains narrow and not a repository-wide import ban. |
 | U-024 | Stationary seek watchdog intermittently reports no recovery | flake | open | Browser regression confidence | `scripts/browser-regression.mjs` `aiStall`/`recoveries` check | C15a at baseline `7993b3a` ran five sequential full `STUDIO=1` browser regressions. `c15a-4` failed this separate check with `{"ok":true,"injected":{"state":"seekFood","source":"flower-0","path":1},"recovery":null,"state":"seekFood","recoveries":0,"stuck":null,"moved":0.18531255981496297}`; the three fully passing runs reached and passed the same check, while `c15a-1` stopped earlier at the collision assertion. No page errors were logged. Cause is unestablished (fixture/stall state versus watchdog recovery); no threshold, fixture, source or budget was changed. Logs: `.dev-shots/c15a/run-4.log`, `ledger.md`. | Reproduce with retained state and diagnose before changing the watchdog budget or assertion; do not infer a runtime recovery defect from one flake. |
+| U-025 | Browser trace parity diverges on interrupted visit relief | verification | open | Legacy/module compatibility evidence | `scripts/behavior-browser-parity.mjs`; legacy `finishVisitPair(actor)` versus module `finishVisitPair(ctx, completed=false)` | C16 at baseline `1a4b011` ran the 180-step seeded browser trace (seed `1234`): legacy and modules both reached 249 transitions, then differed at step 129 actor 4, social `0.0005` (legacy) versus `0.0269` (modules); all other traced fields matched. The actor had just left `visit`; legacy applies `.22` social/`.16` affection relief (and `.08` bond) on every visit end, while the module path applies visit completion rewards only when `completed=true` (C2-F1 approved no-reward interruption behavior). A C11a worktree (`0a4c04f`) passed the same 180-step check but failed a 300-step run at step 189 actor 8, social `0.0433` versus `0.2633`, proving the difference predates C12; C12's longer stargaze timing merely moved the same interrupted visit inside the 180-step window. Node long parity is exact 15/15 and the Node fixture suites pass; this is a browser-trace expectation gap, not a new C12 regression. Artifacts: `.dev-shots/c16/parity-debug.mjs`, `legacy-uid4.json`, `modules-uid4.json`, `c11a-legacy-uid8.json`, `c11a-modules-uid8.json`. | Decide whether to accept a narrow legacy/module compatibility expectation for interrupted visit relief (do not hide the rest of the trace) or leave this check non-gating; no source, threshold or assertion change was made. |
 
 ### C14 accepted policies (2026-10-24)
 
@@ -92,6 +93,32 @@ maps, confirms `validateSave` rejects it and `normalizeSave` throws
 `duplicate actor uid 1`, and a subsequent `applySavePayloadPhases` call is never
 reached; the ten phase callbacks count `0`. These are exclusions/unsupported
 paths, not implemented features.
+
+### C16 final reconciliation (2026-10-24)
+
+Final source/evidence HEAD before this documentation commit: `1a4b011`. C16 ran
+full `node --test tests` **730/730**, contracts **17 modules/34 states/20
+opportunities**, the four Python target commands (`validate`, `--self-test`,
+`genome`, `adapter`; all `ok:true` with zero errors), owned-server smoke
+**68/68**, fresh long parity **15/15** (`tier:long`, `acceptance:true`, no reuse,
+334.5 s), full browser regression with Studio for both modules and legacy
+(`BROWSER OK`), social `all` **16/16**, gifting `all` **8/8**, Glass `all`
+complete with zero errors/page errors, chooser **17/17**, and preferences
+**12/12**. Inspected captures covered Meadow/Studio regression, held Glass,
+Glass baby, Glass final and gifting offer.
+
+C16 also found U-025: the seeded browser trace is not exact on an interrupted
+visit because legacy grants `.22` social relief while the module intentionally
+grants no interruption reward (C2-F1). The same difference reproduces at C11a
+with a longer trace, so it predates C12 and is not hidden by excluding the state.
+It remains an open compatibility expectation; no source or assertion was changed.
+
+Final dispositions: **16 resolved** (U-001, U-004–U-006, U-009–U-012,
+U-015–U-017, U-019–U-023), **2 accepted exclusions** (U-008, U-018), and
+**7 open** (U-002, U-003, U-007, U-013, U-014, U-024, U-025). U-003 (post-physics
+partial lifecycle) and U-007 (family pair-task cancellation asymmetry) still
+block a full M5/M2 claim. U-002/U-013/U-014/U-024 are diagnosed flakes, not
+unexplained failures. No push was made.
 
 ### I3 active-entry reconciliation (2026-10-23)
 

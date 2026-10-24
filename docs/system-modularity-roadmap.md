@@ -1,6 +1,10 @@
 # System modularity, extensibility and engine portability
 
-**Status: source audit and proposed roadmap only. No implementation approved.**
+**Status: approved closeout executed through C16 (2026-10-24).** The audit and
+batch map below are retained; implementation/exclusion evidence and the final
+completion matrix are in the C15/C16 closeout section and the
+[unresolved-items register](unresolved-register.md). Open items remain: U-002,
+U-003, U-007, U-013, U-014, U-024 and U-025. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -819,6 +823,32 @@ are exclusions/unsupported paths, not implemented features. C14 is docs/test-onl
 and added no runtime change; the duplicate-UID negative proof in
 `tests/save.test.mjs` confirms rejection before any apply-phase callback runs.
 
+**C15/C16 closeout (2026-10-24):** C15a ran five sequential Studio browser
+regressions for U-002: 3/5 passed; the collision fixture is state-sensitive
+(teleporting onto a moving bear, nav-snapped walk target, six-sample budget) and
+reproduced the historical `0.2418` near-miss without a Box3D solver indication.
+C15b ran the unchanged cuddle fixture 10× plus one non-FAST sample: 11/11 passed,
+so U-014 remains open without a proven cause. C15c inspected retained local and
+hosted artifacts read-only: hosted boot failures and post-boot GL readback stalls
+are evidenced under SwiftShader, with no app exception; U-013 remains unresolved
+and no CI/timeout change was made.
+
+C16 final evidence at source/evidence HEAD `1a4b011`: full Node **730/730**;
+contracts **17 modules/34 states/20 opportunities**; Python `validate`,
+`--self-test`, `genome` and `adapter` all `ok:true` with zero errors; inherited
+server smoke **68/68**; fresh long parity **15/15** (`acceptance:true`, 334.5 s,
+no reuse); full Studio browser regression for both modules and legacy
+(`BROWSER OK`); social all **16/16**; gifting all **8/8**; Glass all complete
+with zero errors/page errors; chooser **17/17**; preferences **12/12**; inspected
+captures for Meadow/Studio, held/graduated Glass and gifting. The seeded browser
+trace parity differs only on an interrupted visit (`social` relief): legacy
+applies the old `.22` relief while modules intentionally apply no interruption
+reward (C2-F1). The same difference reproduces on the C11a tree with a 300-step
+trace, so it predates C12 and is recorded as U-025 rather than hidden. C16 did
+not change source, thresholds or assertions. Final register status: 16 resolved,
+2 accepted exclusions (U-008/U-018), 7 open (U-002/U-003/U-007/U-013/U-014/U-024/
+U-025). U-003 and U-007 still block a full M5/M2 claim; no push was made.
+
 The M3 policy is settled: reject unknown module IDs without mutation/version
 changes, and reject an entire actor-config patch containing any unknown ID.
 Supported admission must remain explicit; species warning/fallback is unchanged.
@@ -852,9 +882,12 @@ all-system speed, RNG stream separation and native target-engine/solver
 integration. The unknown module setter behavior and concurrent save/map policy
 were settled by B2 and D7 respectively; they are retained as history in the
 batch records and register. Existing
-documented bugs (including stargaze timing), hosted stalls and intermittent
-fixtures retain their dispositions in ROADMAP; modularization does not repair or
-waive them. Newly discovered defects must be recorded there before any repair.
+documented bugs, hosted stalls and intermittent fixtures retain their
+dispositions in ROADMAP and the register; modularization does not repair or waive
+them. C12 resolved the stargaze timer timing as an explicitly approved change;
+U-002, U-013, U-014 and U-024 remain open flakes, U-003 remains an open
+verification gap and U-007 remains a deferred family-task decision. Newly
+discovered defects must be recorded there before any repair.
 
 Do not introduce a universal ECS, dependency-injection container, plugin loader,
 event bus, engine-neutral scene graph, generalized physics facade or framework

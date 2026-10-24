@@ -3676,6 +3676,31 @@ a runtime dependency of the browser game.
 These are must-have Studio requirements. The references are saved locally in
 `inspiration/` and are not shipped assets.
 
+## System modularity closeout (C01–C16, 2026-10-24)
+
+The approved closeout plan (`C01–C16`) is executed. Atomic commits cover the
+purity guard, Studio-safe field diagnostics, game-wide lineage, Glass removal
+detach, pre-physics spawn guard, gift presentation, home routes, real async Glass
+lifetime, cannon landing refusal, pond recovery/eye continuity, pond-entry
+interaction cancellation, the single-owner stargaze timer, Glass obstacle
+release/settle, and the C14 exclusions/duplicate policy. C15 investigated the
+remaining flakes and hosted boot stalls; C16 is the final evidence boundary.
+
+Final source/evidence HEAD `1a4b011` passed full Node **730/730**, contracts
+**17 modules/34 states/20 opportunities**, four Python target commands, inherited
+server smoke **68/68**, fresh long parity **15/15** (`acceptance:true`, no reuse),
+full Studio browser regression for modules and legacy, social all **16/16**,
+gifting all **8/8**, Glass all complete, chooser **17/17**, and preferences
+**12/12**. Captures were inspected.
+
+This is not a full-acceptance claim for every open item: U-003 (post-physics
+partial lifecycle) and U-007 (family pair-task cancellation asymmetry) remain
+unresolved; U-002, U-013, U-014 and U-024 are diagnosed flakes; U-025 records the
+legacy/module browser-trace divergence on interrupted visit relief (C2-F1), which
+predates C12. U-008 and U-018 are accepted exclusions. The
+[unresolved-items register](docs/unresolved-register.md) owns the evidence and
+dispositions. No push was made.
+
 ## Non-goals / deferred
 
 - No death, predation or combat beyond food shoving.

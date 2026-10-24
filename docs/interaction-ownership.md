@@ -472,6 +472,13 @@ and the C11 evidence:
 | Glass grab/reset/debug pair | `glass.js` | `stopGrabTasks` own+reciprocal subset; `resetActor` own side; `forceMateWithBear` debug only | Source inspection |
 | possession/removal/disable | `ai.js`, `app.js`, engine | `setPossessed`/`detach`/`setEnabled` call `cancelPair` + `releaseFood` | Source inspection; existing removal tests |
 
+**Legacy visit relief:** legacy `finishVisitPair(actor)` still grants `.22`
+social/`.16` affection relief and `.08` bond on every visit end, including an
+interrupted/targetless visit. The module path deliberately grants no interruption
+reward (`finishVisitPair(ctx, false)`, C2-F1). This is why the seeded browser
+trace can diverge only on interrupted-visit relief; it is recorded as U-025 and
+is not a pond/C12 regression.
+
 **Next bounded candidate (not selected here): family pair-task cancellation
 symmetry.** `cancelTask` is deliberately own-side, but a surviving pair partner
 keeps `ai.familyTask` and `ai.partner` pointing at the cancelled actor. A scratch
