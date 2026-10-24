@@ -194,10 +194,10 @@ try {
     const before = snapshot();
     const result = g.socialByUid(${setup.a}, ${setup.b}, 'cuddle');
     const admitted = snapshot();
-    g.sim(7, 0);
+    g.sim(9, 0);
     return {
       result,
-      diagnostics: { before, admitted, after: snapshot(), simulatedSeconds: 7 },
+      diagnostics: { before, admitted, after: snapshot(), simulatedSeconds: 9 },
       bond: g.traits().find(a => a.uid === ${setup.a})?.bonds?.[String(${setup.b})],
       history: g.relationships(${setup.a})?.events?.some(e => e.kind === 'cuddle'),
     };

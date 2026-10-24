@@ -4,12 +4,12 @@
 batch map below are retained; implementation/exclusion evidence and the final
 completion matrix are in the C15/C16 closeout section and the
 [unresolved-items register](unresolved-register.md). Open items remain: U-002,
-U-013, U-014, U-024 and U-025. **Batch N** below owns their resolution;
+U-013, U-024 and U-025. **Batch N** below owns their resolution;
 N1 and N2 are complete, N3 implemented the approved fixture stabilization but
 left U-002 open after a reproduced probe failure, and N4 reproduced the post-boot
 GL/CDP stall under local forced SwiftShader without reproducing the hosted
-failure-to-boot, so U-013 remains open; N5 reproduced the U-014 cuddle failure as
-a late-start/approach timeout, so U-014 remains open and N6 is next. No push was made.
+failure-to-boot, so U-013 remains open; N5's approved 9 s fixture budget resolved
+U-014 after 15/15 coder plus 10/10 parent passes, and N6 is next. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -863,10 +863,10 @@ New behavior decisions and separately gated infrastructure changes still stop.
 
 Status: approved 2026-10-24. N1 and N2 are complete; N3 implemented the approved
 fixture correction but did not close U-002; N4 completed the local forced-SwiftShader
-investigation without closing U-013; N5 reproduced the cuddle failure as a
-late-start/approach timeout and did not close U-014; N6 is next. No later step is
+investigation without closing U-013; N5's approved 9 s fixture budget resolved
+U-014 after 15/15 coder plus 10/10 parent passes, and N6 is next. No later step is
 started. It
-covers the C16 open entries; U-003 and U-007 are resolved, and five remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
+covers the C16 open entries; U-003, U-007 and U-014 are resolved, and four remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
 coder session with parent review. No Box3D/WASM, dependency, CI, hosted-publication
 or push permission is implied.
 
@@ -964,15 +964,37 @@ assertion, production source, harness or dependency was changed. Evidence:
 U-014 remains open; any fixture-setup or budget change needs a new decision. N6
 is next.
 
+**N5 correction complete, U-014 resolved (2026-10-24):** after the parent
+reproduction above, the approved fixture-only change raised the cuddle
+simulation budget from `7 s` to `9 s` in `scripts/social-test.mjs`
+(`g.sim(9, 0)` and `simulatedSeconds: 9` only). Setup, the 5 s cuddle duration,
+the `.44` bond assertion, history assertion, roles, diagnostics and every other
+`sim(...)` call stayed unchanged; no production source, harness, CI, dependency
+or timeout was touched. At baseline `c090735` (clean tree), one owned
+`python3 launch.py --no-open --port 8766` server ran 10 sequential FAST samples
+(`TAG=n5fix-1`…`n5fix-10`) plus 5 sequential non-FAST samples
+(`TAG=n5fix-nofast-1`…`n5fix-nofast-5`), no retries. All 15 exited `0`; all 30
+checks passed; every cuddle returned `{ok:true,state:"seekCuddle"}`,
+`bond=0.44`, `history=true`, `simulatedSeconds=9`, before distance 0.813–1.388,
+admitted roles `initiator/receiver` timer `15/15`, exit `wander/wander` timer
+`0/0`, with `diagnostics.before/admitted/after` retained and zero page errors.
+A parent independent sweep of 10 additional non-FAST full-social samples also
+passed the cuddle check 10/10 at 9 s, including six mutual `mate` starts and one
+`mate` pair with different partners. The 7 s late-start/approach-timeout failure
+did not recur. U-014 is therefore resolved for this fixture condition. Evidence: `.dev-shots/n5fix/ledger.md`,
+`results.tsv`, `summary.json`, `run-1.log`…`run-10.log`,
+`run-nofast-1.log`…`run-nofast-5.log`; `node --check scripts/social-test.mjs`
+passed. N6 is next.
+
 Dependencies and gates:
 
 - N1–N7 are independent; N8 runs last. N3 implemented its approved fixture
   correction but U-002 remains open after a reproduced probe failure, so any
   further N3 work needs a new approved decision; N7 still has a decision gate,
   N2 is complete, N4 completed its approved local environment check without
-  closing U-013, and N5 reproduced U-014 without changing the fixture. N6 may
-  legitimately end without a reproduction and remain open; any U-014 fixture or
-  budget change needs a new decision.
+  closing U-013, and N5's approved 9 s fixture budget resolved U-014 after 15/15
+  coder plus 10/10 parent passes. N6 may legitimately end without a reproduction
+  and remain open; any further U-014 fixture or budget change needs a new decision.
 - No full-acceptance claim for the broader M2 sampling while the remaining
   family/writer coverage is unverified. U-003 is resolved only for the bounded N1
   policy and U-007 only for the bounded N2 family pair-task cancellation policy;
@@ -1013,10 +1035,12 @@ batch records and register. Existing
 documented bugs, hosted stalls and intermittent fixtures retain their
 dispositions in ROADMAP and the register; modularization does not repair or waive
 them. C12 resolved the stargaze timer timing as an explicitly approved change;
-U-002, U-013, U-014 and U-024 remain open flakes, U-003 is resolved for the
-bounded N1 spawn-failure policy with broader pool/save/map sequencing still
-unverified, and U-007 is resolved for the bounded N2 family pair-task cancellation
-policy with broader M2 sampling still unverified. Newly discovered
+U-002, U-013 and U-024 remain open flakes, U-014 is resolved for the cuddle
+fixture condition after the approved 9 s budget passed 15/15 coder plus 10/10
+parent samples, U-003 is resolved for the bounded N1 spawn-failure policy with
+broader pool/save/map sequencing still unverified, and U-007 is resolved for the
+bounded N2 family pair-task cancellation policy with broader M2 sampling still
+unverified. Newly discovered
 defects must be recorded there before any repair.
 
 Do not introduce a universal ECS, dependency-injection container, plugin loader,

@@ -3695,10 +3695,11 @@ gifting all **8/8**, Glass all complete, chooser **17/17**, and preferences
 
 This is not a full-acceptance claim for every open item: U-007 (family pair-task
 cancellation asymmetry) is resolved for the bounded N2 family-task policy; broader
-M2 sampling of the other families remains unverified. U-002, U-013, U-014 and
-U-024 are diagnosed flakes; U-002's N3 fixture correction passed five sequential
+M2 sampling of the other families remains unverified. U-002, U-013 and U-024 are
+diagnosed flakes; U-002's N3 fixture correction passed five sequential
 full Studio regressions and its negative control but reproduced 1/12 in the final
-probe, so it remains open. U-025 records the legacy/module browser-trace
+probe, so it remains open. U-014 is resolved for the N5 cuddle fixture condition
+after the approved 9 s budget passed 15/15. U-025 records the legacy/module browser-trace
 divergence on interrupted visit relief (C2-F1), which predates C12. U-003 is
 resolved for the bounded N1 spawn-failure policy; broader pool/save/map sequencing
 remains unverified. U-008 and U-018 are accepted exclusions. The
@@ -3708,10 +3709,9 @@ dispositions. **Batch N** (N1–N8) in
 owns these open items; N1 and N2 are complete, N3 implemented its fixture
 correction without closing U-002, N4 reproduced the post-boot GL/CDP stall
 under local forced SwiftShader but not the hosted failure-to-boot, so U-013
-remains open, and N5's coder repetition passed 11/11 but an independent parent
-sample reproduced the U-014 cuddle failure as a late-start/approach timeout
-(still `cuddle`, timers `0.667`/`5`, bond `.4`, history `false`), so U-014
-remains open; N6 is next. No push was made.
+remains open, and N5's approved 9 s fixture budget resolved U-014 after 15/15
+coder passes (10 FAST + 5 non-FAST) plus 10/10 independent parent full-social
+samples, including six mutual `mate` starts; N6 is next. No push was made.
 
 ## Non-goals / deferred
 
