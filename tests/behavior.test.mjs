@@ -204,6 +204,87 @@ test('critical thirst interrupts a visit and releases both participants', () => 
   assert.equal(b.ai.partner, null);
 });
 
+test('an interrupted visit grants no bond, social or affection relief', () => {
+  const { actors, engine } = setup({ rng: () => 1 });
+  const a = actor(1, { social: 1, affection: 1 });
+  const b = actor(2, { social: 1, affection: 1, cx: .5 });
+  actors.push(a, b);
+  engine.attach(a); engine.attach(b);
+  assert.equal(engine.forceVisit(a, b).ok, true);
+  const before = {
+    bond: Number(a.bonds['2'] || 0),
+    partnerBond: Number(b.bonds['1'] || 0),
+    social: a.social, affection: a.affection,
+    partnerSocial: b.social, partnerAffection: b.affection,
+  };
+  a.thirst = .95;
+  engine.tick(a, .01, { ready: true });
+  assert.equal(a.ai.state, 'seekWater');
+  assert.equal(a.ai.partner, null);
+  assert.equal(b.ai.state, 'wander');
+  assert.equal(b.ai.partner, null);
+  assert.equal(Number(a.bonds['2'] || 0), before.bond);
+  assert.equal(Number(b.bonds['1'] || 0), before.partnerBond);
+  assert.equal(a.social, before.social);
+  assert.equal(a.affection, before.affection);
+  assert.equal(b.social, before.partnerSocial);
+  assert.equal(b.affection, before.partnerAffection);
+});
+
+test('a targetless visit close grants no bond, social or affection relief', () => {
+  const { actors, engine } = setup({ rng: () => 1 });
+  const a = actor(1, { social: 1, affection: 1 });
+  const b = actor(2, { social: 1, affection: 1, cx: .5 });
+  actors.push(a, b);
+  engine.attach(a); engine.attach(b);
+  assert.equal(engine.forceVisit(a, b).ok, true);
+  const before = {
+    bond: Number(a.bonds['2'] || 0),
+    partnerBond: Number(b.bonds['1'] || 0),
+    social: a.social, affection: a.affection,
+    partnerSocial: b.social, partnerAffection: b.affection,
+  };
+  a.ai.target = null;
+  engine.tick(a, .01, { ready: true });
+  assert.notEqual(a.ai.state, 'visit');
+  assert.equal(a.ai.partner, null);
+  assert.equal(b.ai.state, 'wander');
+  assert.equal(b.ai.partner, null);
+  assert.equal(Number(a.bonds['2'] || 0), before.bond);
+  assert.equal(Number(b.bonds['1'] || 0), before.partnerBond);
+  assert.equal(a.social, before.social);
+  assert.equal(a.affection, before.affection);
+  assert.equal(b.social, before.partnerSocial);
+  assert.equal(b.affection, before.partnerAffection);
+});
+
+test('a completed visit grants bond and relief on both sides', () => {
+  const { actors, engine } = setup({ rng: () => 1 });
+  const a = actor(1, { social: 1, affection: 1 });
+  const b = actor(2, { social: 1, affection: 1, cx: .5 });
+  actors.push(a, b);
+  engine.attach(a); engine.attach(b);
+  assert.equal(engine.forceVisit(a, b).ok, true);
+  const before = {
+    bond: Number(a.bonds['2'] || 0),
+    partnerBond: Number(b.bonds['1'] || 0),
+  };
+  for (let i = 0; i < 20; i++) {
+    engine.tick(a, 1, { ready: true });
+    if (a.ai.state !== 'visit') break;
+    engine.tick(b, 1, { ready: true });
+  }
+  assert.notEqual(a.ai.state, 'visit');
+  assert.equal(a.ai.partner, null);
+  assert.equal(b.ai.partner, null);
+  assert.equal(Number(a.bonds['2'] || 0), before.bond + .08);
+  assert.equal(Number(b.bonds['1'] || 0), before.partnerBond + .08);
+  assert.equal(a.social, 1 - .22);
+  assert.equal(a.affection, 1 - .16);
+  assert.equal(b.social, 1 - .22);
+  assert.equal(b.affection, 1 - .16);
+});
+
 test('a visit completes within its bounded interaction window', () => {
   const { actors, engine } = setup({ rng: () => 1 });
   const a = actor(1, { social: .8 });

@@ -1375,15 +1375,17 @@ export function createBehavior({
     emit(actor, 'heart', .95);
   }
 
-  function finishVisitPair(actor) {
+  function finishVisitPair(actor, completed = false) {
     if (!actor || !actor.ai || actor.ai.state !== 'visit') return;
     const partner = actor.ai.partner;
-    addBond(actor, partner, .08);
-    actor.social = Math.max(0, actor.social - .22);
-    actor.affection = Math.max(0, actor.affection - .16);
+    if (completed) {
+      addBond(actor, partner, .08);
+      actor.social = Math.max(0, actor.social - .22);
+      actor.affection = Math.max(0, actor.affection - .16);
+    }
     actor.ai.socialCooldown = 8;
     endPair(actor, { stop, next: 'wander', idleT: .6, taskCooldown: 1.2, socialCooldown: 8 });
-    if (partner && partner.ai) {
+    if (completed && partner && partner.ai) {
       partner.social = Math.max(0, partner.social - .22);
       partner.affection = Math.max(0, partner.affection - .16);
     }
@@ -2116,7 +2118,7 @@ export function createBehavior({
         ai.heartT -= dt;
         ai.visitT -= dt;
         if (ai.heartT <= 0) { ai.heartT = 1.0; emit(actor, 'heart', .95); }
-        if (ai.visitT <= 0) finishVisitPair(actor);
+        if (ai.visitT <= 0) finishVisitPair(actor, true);
       } else {
         ai.animT += dt;
         tickVisit(actor, dt);

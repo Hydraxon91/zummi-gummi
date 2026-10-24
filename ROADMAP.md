@@ -3699,8 +3699,9 @@ M2 sampling of the other families remains unverified. U-002, U-013 and U-024 are
 diagnosed flakes; U-002's N3 fixture correction passed five sequential
 full Studio regressions and its negative control but reproduced 1/12 in the final
 probe, so it remains open. U-014 is resolved for the N5 cuddle fixture condition
-after the approved 9 s budget passed 15/15. U-025 records the legacy/module browser-trace
-divergence on interrupted visit relief (C2-F1), which predates C12. U-003 is
+after the approved 9 s budget passed 15/15. U-025 is resolved by the N7 legacy
+visit-completion alignment with the module engine (exact 180/300/600-step browser
+trace parity). U-003 is
 resolved for the bounded N1 spawn-failure policy; broader pool/save/map sequencing
 remains unverified. U-008 and U-018 are accepted exclusions. The
 [unresolved-items register](docs/unresolved-register.md) owns the evidence and
@@ -3713,8 +3714,8 @@ remains open, and N5's approved 9 s fixture budget resolved U-014 after 15/15
 coder passes (10 FAST + 5 non-FAST) plus 10/10 independent parent full-social
 samples, including six mutual `mate` starts. N6 retained 20 fresh-browser
 stationary-seek probe samples plus five full Studio regressions; all passed with
-one recovery at 13.6 s after two `0.081` m drift resets, so U-024 remains open
-and N7 is next. No push was made.
+one recovery at 13.6 s after two `0.081` m drift resets, so U-024 remains open;
+N7 resolved U-025, and N8 is next. No push was made.
 
 ## Non-goals / deferred
 

@@ -4,14 +4,15 @@
 batch map below are retained; implementation/exclusion evidence and the final
 completion matrix are in the C15/C16 closeout section and the
 [unresolved-items register](unresolved-register.md). Open items remain: U-002,
-U-013, U-024 and U-025. **Batch N** below owns their resolution;
+U-013 and U-024. **Batch N** below owns their resolution;
 N1 and N2 are complete, N3 implemented the approved fixture stabilization but
 left U-002 open after a reproduced probe failure, and N4 reproduced the post-boot
 GL/CDP stall under local forced SwiftShader without reproducing the hosted
 failure-to-boot, so U-013 remains open; N5's approved 9 s fixture budget resolved
 U-014 after 15/15 coder plus 10/10 parent passes; N6 ran 20 probe attempts plus
-five full Studio regressions without reproducing U-024, which remains open; N7 is
-next. No push was made.
+five full Studio regressions without reproducing U-024, which remains open; N7
+resolved U-025 by aligning legacy visit-completion gating with the module engine
+and passing the exact 180/300/600-step browser trace. N8 is next. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -868,9 +869,10 @@ fixture correction but did not close U-002; N4 completed the local forced-SwiftS
 investigation without closing U-013; N5's approved 9 s fixture budget resolved
 U-014 after 15/15 coder plus 10/10 parent passes; N6 ran 20 fresh-browser
 probe attempts plus five full Studio regressions without reproducing U-024, so
-U-024 remains open and N7 is next. No later step is
+U-024 remains open; N7 resolved U-025 with legacy visit-completion gating and
+exact 180/300/600-step browser trace parity, and N8 is next. No later step is
 started. It
-covers the C16 open entries; U-003, U-007 and U-014 are resolved, and four remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
+covers the C16 open entries; U-003, U-007, U-014 and U-025 are resolved, and three remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
 coder session with parent review. No Box3D/WASM, dependency, CI, hosted-publication
 or push permission is implied.
 
@@ -1004,18 +1006,31 @@ rather than a genuine recovery failure, but the cause is not proven. No watchdog
 budget, assertion, fixture, harness, production source, dependency or CI change
 was made. Evidence: `.dev-shots/n6/ledger.md`, `watchdog-probe.mjs`,
 `watchdog-probe.json`, `probe.log`, `full-run-1.log`…`full-run-5.log`,
-`full-exits.tsv`. U-024 remains open; N7 is next.
+`full-exits.tsv`. U-024 remains open.
+
+**N7 complete (2026-10-24):** approved legacy visit-completion alignment.
+`src/behavior.js` `finishVisitPair(actor, completed = false)` grants `.08`
+bond/.22 social/.16 affection relief only for a completed visit; the hangout
+timer branch passes `true`, while interruption/targetless/stall callers grant no
+reward but still set `socialCooldown=8` and close via `endPair`. No completion
+history was added. U-025 is resolved for this bounded alignment. Evidence: three
+new focused tests in `tests/behavior.test.mjs` (interruption no-reward,
+targetless no-reward, completed reward on both sides), focused suites 35/35, full
+`node --test tests` 738/738, contracts 17 modules/34 states/20 opportunities,
+fresh long parity 15/15, and exact browser trace parity at 180/300/600 steps
+(transitions 266/266, 532/532, 1470/1470, seed `1234`, 0 page errors) in
+`.dev-shots/n7/`. No harness, assertion, threshold, Box3D/WASM, dependency or CI
+change. N8 is next.
 
 Dependencies and gates:
 
 - N1–N7 are independent; N8 runs last. N3 implemented its approved fixture
   correction but U-002 remains open after a reproduced probe failure, so any
-  further N3 work needs a new approved decision; N7 still has a decision gate,
-  N2 is complete, N4 completed its approved local environment check without
-  closing U-013, and N5's approved 9 s fixture budget resolved U-014 after 15/15
-  coder plus 10/10 parent passes. N6 ended without a reproduction and U-024
-  remains open; N7 is next. Any further U-014 or U-024 fixture/budget change
-  needs a new decision.
+  further N3 work needs a new approved decision; N2 and N7 are complete, N4
+  completed its approved local environment check without closing U-013, and N5's
+  approved 9 s fixture budget resolved U-014 after 15/15 coder plus 10/10 parent
+  passes. N6 ended without a reproduction and U-024 remains open; N8 is next.
+  Any further U-014 or U-024 fixture/budget change needs a new decision.
 - No full-acceptance claim for the broader M2 sampling while the remaining
   family/writer coverage is unverified. U-003 is resolved only for the bounded N1
   policy and U-007 only for the bounded N2 family pair-task cancellation policy;

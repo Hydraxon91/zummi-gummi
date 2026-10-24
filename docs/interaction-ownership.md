@@ -472,12 +472,15 @@ and the C11 evidence:
 | Glass grab/reset/debug pair | `glass.js` | `stopGrabTasks` own+reciprocal subset; `resetActor` own side; `forceMateWithBear` debug only | Source inspection |
 | possession/removal/disable | `ai.js`, `app.js`, engine | `setPossessed`/`detach`/`setEnabled` call `cancelPair` + `releaseFood` | Source inspection; existing removal tests |
 
-**Legacy visit relief:** legacy `finishVisitPair(actor)` still grants `.22`
-social/`.16` affection relief and `.08` bond on every visit end, including an
-interrupted/targetless visit. The module path deliberately grants no interruption
-reward (`finishVisitPair(ctx, false)`, C2-F1). This is why the seeded browser
-trace can diverge only on interrupted-visit relief; it is recorded as U-025 and
-is not a pond/C12 regression.
+**Legacy visit relief (U-025, resolved N7):** legacy `finishVisitPair(actor, completed = false)`
+now matches the module path: `.22` social/`.16` affection relief and `.08`
+bond are granted only when the visit completes (`completed=true` from the legacy
+hangout timer branch). Interrupted, targetless, day/timer/home/target/replan and
+stall closes grant no reward while still setting `socialCooldown=8` and closing
+the pair through `endPair`. The module path keeps `finishVisitPair(ctx, false)`
+on interruption (C2-F1). This is no longer a legacy/module divergence: the exact
+seeded browser trace passes at 180, 300 and 600 steps (`scripts/behavior-browser-parity.mjs`,
+seed `1234`, `.dev-shots/n7/`), and U-025 is resolved for this bounded alignment.
 
 **Resolved bounded candidate: family pair-task cancellation symmetry (N2).**
 `cancelTask` now cancels both reciprocal participants for pair tasks. It captures
