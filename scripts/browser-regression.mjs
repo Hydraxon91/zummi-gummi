@@ -344,23 +344,52 @@ try {
       const g = window.__gummy;
       const gi = g.glass().actors.findIndex(a => a.ready && !a.inside && !a.grabbing);
       if (gi < 0) return { ok: false, note: 'no free Glass actor' };
-      let bi = -1, startDistance = Infinity;
-      const tried = [];
+      const stableStates = ['wander', 'eat', 'drink', 'stargaze'];
+      const candidates = [];
       for (let i = 0; i < g.bears.length; i++) {
         const bear = g.bears[i];
         if (!bear.active || bear.sleeping || bear.inPond || bear.grabs > 0 ||
             bear.airborne || bear.contacts < 1 || !bear.ai) continue;
+        const speed = Math.hypot(Number(bear.vcx) || 0, Number(bear.vcz) || 0);
+        const path = bear.ai.path ? bear.ai.path.length : 0;
+        const stable = stableStates.includes(bear.ai.state) && !bear.ai.moving &&
+          path === 0 && speed < .15;
+        candidates.push({ i, stable, speed, contacts: bear.contacts | 0, path });
+      }
+      if (!candidates.length) return { ok: false, note: 'no eligible grounded bear' };
+      candidates.sort((a, b) => (b.stable - a.stable) || (a.speed - b.speed) ||
+        (b.contacts - a.contacts) || (a.i - b.i));
+      const fallback = !candidates[0].stable;
+      let bi = -1, startDistance = Infinity, chosen = null;
+      const tried = [];
+      for (const candidate of candidates) {
+        const bear = g.bears[candidate.i];
         const set = g.glassSetPosition(gi, bear.cx, bear.cz, true);
         const a = g.glass().actors[gi];
         const d = set ? Math.hypot(a.position[0] - bear.cx, a.position[2] - bear.cz) : null;
-        tried.push({ i, set, d: d === null ? null : +d.toFixed(2), contacts: bear.contacts });
-        if (set && d <= .2) { bi = i; startDistance = d; break; }
+        tried.push({ i: candidate.i, set, d: d === null ? null : +d.toFixed(2) });
+        if (set && d <= .2) { bi = candidate.i; startDistance = d; chosen = candidate; break; }
       }
       if (bi < 0) return { ok: false, note: 'no bear/Glass overlap fixture', tried };
-      const start = g.glass().actors[gi];
       const bearStart = g.bears[bi];
+      let dirX = 1, dirZ = 0;
+      const velocity = Math.hypot(Number(bearStart.vcx) || 0, Number(bearStart.vcz) || 0);
+      if (velocity > .05) {
+        dirX = -(Number(bearStart.vcx) || 0) / velocity;
+        dirZ = -(Number(bearStart.vcz) || 0) / velocity;
+      }
+      const start = g.glass().actors[gi];
       const vertical = Math.abs(start.position[1] - bearStart.cy);
-      const walking = g.glassWalkTo(gi, bearStart.cx + 1.5, bearStart.cz);
+      let walking = g.glassWalkTo(gi, bearStart.cx + dirX * 1.5, bearStart.cz + dirZ * 1.5);
+      if (!walking) {
+        dirX = -dirX;
+        dirZ = -dirZ;
+        walking = g.glassWalkTo(gi, bearStart.cx + dirX * 1.5, bearStart.cz + dirZ * 1.5);
+      }
+      const walkTarget = [
+        +(bearStart.cx + dirX * 1.5).toFixed(2),
+        +(bearStart.cz + dirZ * 1.5).toFixed(2),
+      ];
       let distance = startDistance, steps = 0;
       const samples = [];
       for (; steps < 6; steps++) {
@@ -370,15 +399,18 @@ try {
         samples.push(+distance.toFixed(3));
         if (distance >= .25) break;
       }
-      const a = g.glass().actors[gi];
+      const a = g.glass().actors[gi], b = g.bears[bi];
       return {
-        ok: true, bi, gi, startDistance, vertical, walking, steps, samples,
-        distance,
-        free: a.freeBody,
+        ok: true, bi, gi, uid: b.uid, state: b.ai.state,
+        moving: !!b.ai.moving, path: b.ai.path ? b.ai.path.length : 0,
+        speed: +Math.hypot(Number(b.vcx) || 0, Number(b.vcz) || 0).toFixed(3),
+        contacts: b.contacts | 0, fallback, stable: !!(chosen && chosen.stable),
+        startDistance, vertical, walking, walkTarget, steps, samples, distance,
+        freeBody: !!a.freeBody,
       };
     })()`, 180000);
     if (!collisionCheck.ok || !collisionCheck.walking || collisionCheck.vertical > .8 ||
-        collisionCheck.distance < .25 || collisionCheck.free) {
+        collisionCheck.distance < .25 || collisionCheck.freeBody) {
       failures.push(`Glass did not collide with a bear: ${JSON.stringify(collisionCheck)}`);
     }
     const doorCheck = await page.evaluate(`(() => {

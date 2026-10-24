@@ -5,7 +5,8 @@ batch map below are retained; implementation/exclusion evidence and the final
 completion matrix are in the C15/C16 closeout section and the
 [unresolved-items register](unresolved-register.md). Open items remain: U-002,
 U-013, U-014, U-024 and U-025. **Batch N** below owns their resolution;
-N1 and N2 are complete and N3 is next. No push was made.
+N1 and N2 are complete, N3 implemented the approved fixture stabilization but
+left U-002 open after a reproduced probe failure, and N4 is next. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -857,7 +858,8 @@ New behavior decisions and separately gated infrastructure changes still stop.
 
 ## Batch N — Open-item resolution
 
-Status: approved 2026-10-24. N1 and N2 are complete; N3 is next. No later step is
+Status: approved 2026-10-24. N1 and N2 are complete; N3 implemented the approved
+fixture correction but did not close U-002, and N4 is next. No later step is
 started. It covers the C16 open entries; U-003 and U-007 are resolved, and five
 remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
 coder session with parent review. No Box3D/WASM, dependency, CI, hosted-publication
@@ -891,9 +893,31 @@ behavior contracts, owned-server smoke and `git diff --check`. Broader M2 sampli
 of the other families remains unverified. No Box3D/WASM, dependency, CI or save
 schema change was made.
 
+**N3 implemented, U-002 remains open (2026-10-24):** the approved fixture-only
+correction in `scripts/browser-regression.mjs` ranks eligible bears by stable
+state (`wander`/`eat`/`drink`/`stargaze`, `!ai.moving`, no path, horizontal speed
+`<.15`), then speed, then contacts, records the slowest-eligible fallback, and
+walks opposite the bear's horizontal velocity (or `+x` when stationary, opposite
+only if `glassWalkTo` refuses). It keeps `glassSetPosition(..., true)`, the real
+`glassWalkTo`/Box3D path, the six 0.5 s samples, the `.25` break and the
+`distance >= .25`/`freeBody:false` assertion, and adds selected-bear diagnostics.
+Five sequential full `STUDIO=1` regressions on one owned server all exited `0`
+with `BROWSER OK` and zero page errors; the no-walk control put the immediate
+teleport distance below `.25` in 12/12 attempts, but 11/12 exceeded `.25` over
+the same 6 × 0.5 s no-walk window from bear/Glass locomotion, so it is not a
+stable 3 s non-separation baseline. The same final fixture still failed
+1/12 probe attempts (`distance 0.0226` after six samples, stable `wander` bear
+travelling with the embedded Glass), so U-002 is **not** resolved and the five
+greens are not treated as closure. Evidence: `.dev-shots/n3/ledger.md`,
+`collision-probe-final.log`, `collision-probe-n3-probe-final.json`, `final-run-{1..5}.log`.
+No threshold, sample budget, solver, production source, dependency or CI change
+was made.
+
 Dependencies and gates:
 
-- N1–N7 are independent; N8 runs last. N3 and N7 still have decision gates;
+- N1–N7 are independent; N8 runs last. N3 implemented its approved fixture
+  correction but U-002 remains open after a reproduced probe failure, so any
+  further N3 work needs a new approved decision; N7 still has a decision gate,
   N2 is complete, and N4 has an environment/CI gate. N5 and N6 may legitimately
   end without a reproduction and remain open.
 - No full-acceptance claim for the broader M2 sampling while the remaining
