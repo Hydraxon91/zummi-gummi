@@ -3706,9 +3706,12 @@ remains unverified. U-008 and U-018 are accepted exclusions. The
 dispositions. **Batch N** (N1–N8) in
 [the system-modularity roadmap](docs/system-modularity-roadmap.md#batch-n--open-item-resolution)
 owns these open items; N1 and N2 are complete, N3 implemented its fixture
-correction without closing U-002, and N4 reproduced the post-boot GL/CDP stall
+correction without closing U-002, N4 reproduced the post-boot GL/CDP stall
 under local forced SwiftShader but not the hosted failure-to-boot, so U-013
-remains open; N5 is next. No push was made.
+remains open, and N5's coder repetition passed 11/11 but an independent parent
+sample reproduced the U-014 cuddle failure as a late-start/approach timeout
+(still `cuddle`, timers `0.667`/`5`, bond `.4`, history `false`), so U-014
+remains open; N6 is next. No push was made.
 
 ## Non-goals / deferred
 
