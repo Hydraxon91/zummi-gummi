@@ -9,7 +9,9 @@ N1 and N2 are complete, N3 implemented the approved fixture stabilization but
 left U-002 open after a reproduced probe failure, and N4 reproduced the post-boot
 GL/CDP stall under local forced SwiftShader without reproducing the hosted
 failure-to-boot, so U-013 remains open; N5's approved 9 s fixture budget resolved
-U-014 after 15/15 coder plus 10/10 parent passes, and N6 is next. No push was made.
+U-014 after 15/15 coder plus 10/10 parent passes; N6 ran 20 probe attempts plus
+five full Studio regressions without reproducing U-024, which remains open; N7 is
+next. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -864,7 +866,9 @@ New behavior decisions and separately gated infrastructure changes still stop.
 Status: approved 2026-10-24. N1 and N2 are complete; N3 implemented the approved
 fixture correction but did not close U-002; N4 completed the local forced-SwiftShader
 investigation without closing U-013; N5's approved 9 s fixture budget resolved
-U-014 after 15/15 coder plus 10/10 parent passes, and N6 is next. No later step is
+U-014 after 15/15 coder plus 10/10 parent passes; N6 ran 20 fresh-browser
+probe attempts plus five full Studio regressions without reproducing U-024, so
+U-024 remains open and N7 is next. No later step is
 started. It
 covers the C16 open entries; U-003, U-007 and U-014 are resolved, and four remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
 coder session with parent review. No Box3D/WASM, dependency, CI, hosted-publication
@@ -984,7 +988,23 @@ passed the cuddle check 10/10 at 9 s, including six mutual `mate` starts and one
 did not recur. U-014 is therefore resolved for this fixture condition. Evidence: `.dev-shots/n5fix/ledger.md`,
 `results.tsv`, `summary.json`, `run-1.log`…`run-10.log`,
 `run-nofast-1.log`…`run-nofast-5.log`; `node --check scripts/social-test.mjs`
-passed. N6 is next.
+passed; N6 followed.
+
+**N6 complete, U-024 remains open (2026-10-24):** at baseline `9b28ee2` (clean
+tree) a scratch probe replicated the browser-regression prelude through the
+unchanged stationary seek watchdog using existing `__gummy` hooks. Twenty
+sequential fresh-browser attempts (one connection attempt each, no retries) all
+passed; 19 recovered at 6.2 s and attempt 16 recovered at 13.6 s after two
+`0.081` m residual-drift resets at 2.8 s/7.6 s, just over the `.08` progress
+threshold. Every injection left `ai.moving=false`; no blocked state, target/source
+loss or page errors occurred. Five separate full `STUDIO=1` regressions also
+passed with `errors:0`. The C15a `recovery:null` did not reproduce. The near-miss
+supports fixture/injection sensitivity (physical drift resetting `noProgressT`)
+rather than a genuine recovery failure, but the cause is not proven. No watchdog
+budget, assertion, fixture, harness, production source, dependency or CI change
+was made. Evidence: `.dev-shots/n6/ledger.md`, `watchdog-probe.mjs`,
+`watchdog-probe.json`, `probe.log`, `full-run-1.log`…`full-run-5.log`,
+`full-exits.tsv`. U-024 remains open; N7 is next.
 
 Dependencies and gates:
 
@@ -993,8 +1013,9 @@ Dependencies and gates:
   further N3 work needs a new approved decision; N7 still has a decision gate,
   N2 is complete, N4 completed its approved local environment check without
   closing U-013, and N5's approved 9 s fixture budget resolved U-014 after 15/15
-  coder plus 10/10 parent passes. N6 may legitimately end without a reproduction
-  and remain open; any further U-014 fixture or budget change needs a new decision.
+  coder plus 10/10 parent passes. N6 ended without a reproduction and U-024
+  remains open; N7 is next. Any further U-014 or U-024 fixture/budget change
+  needs a new decision.
 - No full-acceptance claim for the broader M2 sampling while the remaining
   family/writer coverage is unverified. U-003 is resolved only for the bounded N1
   policy and U-007 only for the bounded N2 family pair-task cancellation policy;
