@@ -3694,15 +3694,16 @@ gifting all **8/8**, Glass all complete, chooser **17/17**, and preferences
 **12/12**. Captures were inspected.
 
 This is not a full-acceptance claim for every open item: U-007 (family pair-task
-cancellation asymmetry) remains unresolved; U-002, U-013, U-014 and U-024 are
-diagnosed flakes; U-025 records the legacy/module browser-trace divergence on
-interrupted visit relief (C2-F1), which predates C12. U-003 is resolved for the
-bounded N1 spawn-failure policy; broader pool/save/map sequencing remains
-unverified. U-008 and U-018 are accepted exclusions. The
+cancellation asymmetry) is resolved for the bounded N2 family-task policy; broader
+M2 sampling of the other families remains unverified. U-002, U-013, U-014 and
+U-024 are diagnosed flakes; U-025 records the legacy/module browser-trace
+divergence on interrupted visit relief (C2-F1), which predates C12. U-003 is
+resolved for the bounded N1 spawn-failure policy; broader pool/save/map sequencing
+remains unverified. U-008 and U-018 are accepted exclusions. The
 [unresolved-items register](docs/unresolved-register.md) owns the evidence and
 dispositions. **Batch N** (N1–N8) in
 [the system-modularity roadmap](docs/system-modularity-roadmap.md#batch-n--open-item-resolution)
-owns these open items; N1 is complete and N2 is next. No push was made.
+owns these open items; N1 and N2 are complete and N3 is next. No push was made.
 
 ## Non-goals / deferred
 

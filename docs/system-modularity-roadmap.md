@@ -4,8 +4,8 @@
 batch map below are retained; implementation/exclusion evidence and the final
 completion matrix are in the C15/C16 closeout section and the
 [unresolved-items register](unresolved-register.md). Open items remain: U-002,
-U-007, U-013, U-014, U-024 and U-025. **Batch N** below owns their resolution;
-N1 is complete and N2 is next. No push was made.
+U-013, U-014, U-024 and U-025. **Batch N** below owns their resolution;
+N1 and N2 are complete and N3 is next. No push was made.
 
 This is the forward-looking continuation of
 [P0–P5](../MODULARITY_PORTABILITY_ROADMAP.md), not a replacement for its evidence.
@@ -857,11 +857,11 @@ New behavior decisions and separately gated infrastructure changes still stop.
 
 ## Batch N — Open-item resolution
 
-Status: approved 2026-10-24. N1 is complete; N2 is next. No later step is
-started. It covers the C16 open entries; U-003 is resolved, and six remain.
-Accepted exclusions U-008/U-018 are not reopened. Each step is its own coder
-session with parent review. No Box3D/WASM, dependency, CI, hosted-publication or
-push permission is implied.
+Status: approved 2026-10-24. N1 and N2 are complete; N3 is next. No later step is
+started. It covers the C16 open entries; U-003 and U-007 are resolved, and five
+remain. Accepted exclusions U-008/U-018 are not reopened. Each step is its own
+coder session with parent review. No Box3D/WASM, dependency, CI, hosted-publication
+or push permission is implied.
 
 | Step | Item | Outcome and acceptance |
 | --- | --- | --- |
@@ -880,13 +880,26 @@ is in [actor-session-lifecycle.md](actor-session-lifecycle.md#11-n1-u-003-spawn-
 and `.dev-shots/n1/`. No production hook, Box3D/WASM, dependency or CI change was
 added.
 
+**N2 complete (2026-10-24):** approved family pair-task cancellation policy.
+`cancelTask` now cancels both reciprocal participants for pair tasks and clears
+their family mirrors; solo tasks and non-reciprocal/different-task partners remain
+own-side; repeated calls are inert and cancellation grants no bond/relief/history.
+U-007 is resolved for this bounded family candidate. Evidence: focused
+`tests/activity-extension.test.mjs` and `tests/behavior-family.test.mjs`, the
+real-modules stall-path test, `.dev-shots/n2/family-cancel.mjs`, full Node suite,
+behavior contracts, owned-server smoke and `git diff --check`. Broader M2 sampling
+of the other families remains unverified. No Box3D/WASM, dependency, CI or save
+schema change was made.
+
 Dependencies and gates:
 
-- N1–N7 are independent; N8 runs last. N2, N3 and N7 each have a decision gate;
-  N4 has an environment/CI gate. N5 and N6 may legitimately end without a
-  reproduction and remain open.
-- No full-acceptance claim while U-007 remains unresolved. U-003 is resolved only
-  for the bounded N1 policy; broader pool/save/map sequencing remains unverified.
+- N1–N7 are independent; N8 runs last. N3 and N7 still have decision gates;
+  N2 is complete, and N4 has an environment/CI gate. N5 and N6 may legitimately
+  end without a reproduction and remain open.
+- No full-acceptance claim for the broader M2 sampling while the remaining
+  family/writer coverage is unverified. U-003 is resolved only for the bounded N1
+  policy and U-007 only for the bounded N2 family pair-task cancellation policy;
+  broader pool/save/map sequencing and other-family sampling remain unverified.
   Flakes may remain open with retained evidence; they must not be hidden behind a
   green run.
 - N4 must not add a production hook or CI/timeout change as a side effect of
@@ -925,7 +938,8 @@ dispositions in ROADMAP and the register; modularization does not repair or waiv
 them. C12 resolved the stargaze timer timing as an explicitly approved change;
 U-002, U-013, U-014 and U-024 remain open flakes, U-003 is resolved for the
 bounded N1 spawn-failure policy with broader pool/save/map sequencing still
-unverified, and U-007 remains a deferred family-task decision. Newly discovered
+unverified, and U-007 is resolved for the bounded N2 family pair-task cancellation
+policy with broader M2 sampling still unverified. Newly discovered
 defects must be recorded there before any repair.
 
 Do not introduce a universal ECS, dependency-injection container, plugin loader,

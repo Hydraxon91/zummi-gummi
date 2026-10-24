@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createBehaviorConfig } from '../src/behaviors/config.js';
 import { familyTaskModule } from '../src/behaviors/family.js';
-import { INTERACTIONS } from '../src/interactions.js';
+import { INTERACTIONS, cancelTask } from '../src/interactions.js';
+import { createPairFixture } from './helpers/behavior-conformance.mjs';
 
 const bear = { uid: 1, species: 'bear', kind: 'bear', stage: 'adult', sex: 'F', home: 'Home 1', skills: { forage: .6, courage: .3, social: .3 } };
 const config = createBehaviorConfig();
@@ -84,4 +85,73 @@ test('family module does not write partner/familyTask directly', () => {
   const source = readFileSync(new URL('../src/behaviors/family.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /\.partner\s*=/);
   assert.doesNotMatch(source, /\.familyTask\s*=/);
+});
+
+test('reciprocal playdate cancellation clears both sides and mirrors without rewards', () => {
+  const a = baseActor(1);
+  const b = baseActor(2, { cx: .5 });
+  for (const actor of [a, b]) {
+    actor.ai.familyPlay = true;
+    actor.ai.playmateKind = 'sibling';
+    actor.ai.playdate = true;
+    actor.ai.playdateHome = 'Home 1';
+    actor.ai.playdateTarget = { x: 1, z: 0 };
+  }
+  a.ai.familyTask = { id: INTERACTIONS.familyPlaydate, mode: 'pair', phase: 'act', role: 'host', t: 5 };
+  b.ai.familyTask = { id: INTERACTIONS.familyPlaydate, mode: 'pair', phase: 'act', role: 'guest', t: 5 };
+  a.ai.partner = b;
+  b.ai.partner = a;
+  const stopped = [];
+  cancelTask(a, { stop: actor => stopped.push(actor.uid) });
+
+  assert.deepEqual(stopped, [1, 2], 'both participants stopped once');
+  for (const actor of [a, b]) {
+    assert.equal(actor.ai.familyTask, null);
+    assert.equal(actor.ai.partner, null);
+    assert.equal(actor.ai.state, 'wander');
+    assert.equal(actor.ai.idleT, .5);
+    assert.equal(actor.ai.familyPlay, false);
+    assert.equal(actor.ai.playmateKind, null);
+    assert.equal(actor.ai.playdate, false);
+    assert.equal(actor.ai.playdateHome, null);
+    assert.equal(actor.ai.playdateTarget, null);
+  }
+  assert.equal(a.bonds['2'], undefined, 'cancelled host gains no bond');
+  assert.equal(b.bonds['1'], undefined, 'cancelled guest gains no bond');
+  assert.deepEqual(a.history, []);
+  assert.deepEqual(b.history, []);
+
+  const before = JSON.stringify([a.ai, b.ai]);
+  cancelTask(b, { stop: actor => stopped.push(actor.uid) });
+  assert.equal(JSON.stringify([a.ai, b.ai]), before, 'a repeated cancel is inert');
+  assert.deepEqual(stopped, [1, 2], 'a repeated cancel does not stop again');
+});
+
+test('stall recovery cancels both playdate participants with no bond or history', () => {
+  const { actors, engine } = createPairFixture();
+  const [a, b] = actors;
+  a.cx = 0; a.cz = 0;
+  b.cx = 10; b.cz = 0;
+  const forced = engine.forcePlaydate(a, b, 'sibling');
+  assert.equal(forced.ok, true);
+  assert.equal(a.ai.familyTask.id, INTERACTIONS.familyPlaydate);
+  assert.equal(b.ai.familyTask.id, INTERACTIONS.familyPlaydate);
+
+  // The host holds still on a travel task long enough to cross the 6 s
+  // no-progress threshold; recovery uses the real modules engine.
+  for (let i = 0; i < 7; i++) engine.tick(a, 1, { ready: true });
+
+  assert.equal(a.ai.recoveries, 1, 'stall recovery ran once');
+  for (const [actor, other] of [[a, b], [b, a]]) {
+    assert.equal(actor.ai.familyTask, null);
+    assert.equal(actor.ai.partner, null);
+    assert.equal(actor.ai.state, 'wander');
+    assert.equal(actor.ai.familyPlay, false);
+    assert.equal(actor.ai.playmateKind, null);
+    assert.equal(actor.ai.playdate, false);
+    assert.equal(actor.ai.playdateHome, null);
+    assert.equal(actor.ai.playdateTarget, null);
+    assert.equal(actor.bonds[String(other.uid)], undefined);
+    assert.deepEqual(actor.history, []);
+  }
 });

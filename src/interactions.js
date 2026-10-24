@@ -199,11 +199,33 @@ export function startTask(actor, id, {
 
 export function cancelTask(actor, { stop } = {}) {
   if (!actor || !actor.ai) return;
-  actor.ai.familyTask = null;
-  actor.ai.partner = null;
-  actor.ai.state = 'wander';
-  actor.ai.idleT = .5;
-  if (stop) stop(actor);
+  const ai = actor.ai;
+  const task = ai.familyTask;
+  const partner = ai.partner;
+  // Nothing to cancel: a repeated call must not re-stop or rewrite the actor.
+  if (!task && !partner) return;
+  const def = task ? interactionFor(task.id) : null;
+  const pair = !!(task && (task.mode === 'pair' || (def && def.mode === 'pair')));
+  // Only a reciprocal partner that is running the same task shares this cancel.
+  const shared = !!(pair && partner && partner !== actor && partner.ai &&
+    partner.ai.partner === actor && partner.ai.familyTask &&
+    partner.ai.familyTask.id === task.id);
+  const clear = (other) => {
+    other.ai.familyTask = null;
+    other.ai.partner = null;
+    other.ai.state = 'wander';
+    other.ai.idleT = .5;
+    if (pair) {
+      other.ai.familyPlay = false;
+      other.ai.playmateKind = null;
+      other.ai.playdate = false;
+      other.ai.playdateHome = null;
+      other.ai.playdateTarget = null;
+    }
+    if (stop) stop(other);
+  };
+  clear(actor);
+  if (shared) clear(partner);
 }
 
 // Advance the small travel/act timer. Movement and arrival checks stay with the

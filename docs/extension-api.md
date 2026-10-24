@@ -321,7 +321,7 @@ newly rerun by H2 unless §7 says so.
 
 | Seam family | Existing proof | Disposition / limit |
 | --- | --- | --- |
-| Behavior module and activity | `tests/behavior-modules.test.mjs`, `behavior-contracts.test.mjs`, `behavior-config.test.mjs`, `behavior-lifecycle.test.mjs`, `tests/activity-extension.test.mjs`, `interaction-entry.test.mjs`, `social-cancellation.test.mjs`; `scripts/check-behavior-contracts.mjs` | Supported through existing definitions/protocol. Not every activity's cancellation path is proven (U-007); no generic module disable. |
+| Behavior module and activity | `tests/behavior-modules.test.mjs`, `behavior-contracts.test.mjs`, `behavior-config.test.mjs`, `behavior-lifecycle.test.mjs`, `tests/activity-extension.test.mjs`, `interaction-entry.test.mjs`, `social-cancellation.test.mjs`; `scripts/check-behavior-contracts.mjs` | Supported through existing definitions/protocol. Family pair-task cancellation is covered by N2/U-007; broader activity cancellation coverage remains sampled, and there is no generic module disable. |
 | Species/representation | `tests/species.test.mjs`, `dna.test.mjs`, `species-admission.test.mjs`, `species-extension.test.mjs`, `behavior-profile-completeness.test.mjs` | Supported for a new soft body reusing the shipped Bear representation and the shipped Glass adapter. New rigs, silhouettes and second skinned adapters are separate decisions. |
 | Food/resource | `tests/food.test.mjs`, `gifting.test.mjs`, `resource-extension.test.mjs`, `content.test.mjs` | Supported only when reusing an existing visual/interaction handler and the existing registries. No new visual, risk action or inventory. |
 | Authored content/home/field | `tests/content.test.mjs`, `field-layout.test.mjs`, `homesim.test.mjs`, `family.test.mjs`; `tests/water-access.test.mjs` | Supported for authored data and numeric layout validation. No runtime lot editing/rebuild, new map IDs or visual pond/terrain split (U-018). |
@@ -419,9 +419,9 @@ design change.
 
 | ID | Boundary relevant to extension work | Disposition |
 | --- | --- | --- |
-| U-003 | App-internal pool/spawn/removal and partial cleanup have no importable host seam | Verification open; do not claim a general actor-lifecycle extension API. |
+| U-003 | App-internal pool/spawn/removal and partial cleanup have no importable host seam | Resolved for the bounded N1 spawn-failure cleanup and removal-retry contract; do not claim a general actor-lifecycle extension API. |
 | U-006 | Direct Glass removal lacks detach/cancel | Decision open; do not copy a removal pattern into a new representation. |
-| U-007 | Interaction-family coverage beyond the social pilot | Deferred; new activities still need their own cancellation evidence. |
+| U-007 | Interaction-family coverage beyond the social pilot | Resolved for the bounded N2 family pair-task cancellation; broader M2 sampling remains, and new activities still need their own cancellation evidence. |
 | U-008 | Editor-time connectivity/rebuild policy | Accepted C14 exclusion/won't-fix; no runtime editor connectivity or rebuild contract. Authored-layout validation is not an editor contract. |
 | U-011 | Real Glass late completion and effects teardown | Resolved for late completion. Effects are app-lifetime with no public `dispose`/recreation; no effects teardown or second skinned adapter is supported. |
 | U-016 | Cannon landing-refusal host proof | Verification open; pure cannon fixtures do not prove host refusal. |

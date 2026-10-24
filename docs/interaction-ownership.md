@@ -180,12 +180,12 @@ until the next conflict acquisition overwrites them.
 | State | Owner / primitive | File / symbol | Writes | Reciprocity / cleanup | Callers / triggers | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | `ai.familyTask`, partner, state, target | Shared task entry | `interactions.js` `startTask` | Builds `{ id, mode, role, partnerUid, anchor, phase, t, data }`, sets state/partner/movement | Own side only; partner call is the caller's responsibility | `family.js` meals, lessons, playdates; debug/forced paths | Inspected |
-| `ai.familyTask`, partner, state | Shared task cancel | `interactions.js` `cancelTask` | Clears own task and partner, state `wander`, idle | Own side only; leaves reciprocated partner and playdate mirrors | Family task fallbacks, engine recover/hangup paths | Inspected |
+| `ai.familyTask`, partner, state | Shared task cancel | `interactions.js` `cancelTask` | Acting task/partner cleared, state `wander`, idle, stop; a reciprocal same-task partner is cleared the same way and stopped | Pair tasks clear both reciprocal participants plus family mirrors on each cleared side; solo tasks and non-reciprocal/different-task partners remain own-side; repeated calls are inert | Family task fallbacks, engine recover/hangup paths | Inspected; N2 tests and probe |
 | task phase/timer | Shared task tick | `interactions.js` `tickTask` | Mutates `phase`, `t`; returns cancel when a pair partner/task is missing | Does not clear anything | Tests and any adapter using the primitive | Inspected |
 | task phase/timer | Family state machine | `behaviors/family.js` `tick`, `startFamilyMeal`, `startLesson` | Directly sets `familyTask.phase`, `task.t`, targets | Completion routes to `finish`, which clears via `endPair` or `cancelTask` | Family opportunity/tick | Inspected |
 | playdate flags/home/target | Family playdate entry | `behaviors/family.js` `startPlaydate` | Writes both actors' `playdate`, `playdateHome`, `playdateTarget`, family play/kind, then both tasks | Both sides at entry; `releaseFood` both | Playdate candidate/due playdate, `forcePlaydate` | Inspected |
-| playdate flags/home/target | Family playdate completion | `behaviors/family.js` `finish` | Clears acting actor's playdate mirrors after `endPair` | **Partner mirrors are not cleared** because `endPair` does not own these fields | Family task completion | Inspected |
-| playdate/task fields | Family task finish | `behaviors/family.js` `finish` | Lesson/meal clear or cancel; all branches clear own family play flags | Partner task cleared through `endPair` only on playdate/lesson success | Family tick | Inspected |
+| playdate flags/home/target | Family playdate completion | `behaviors/family.js` `finish` | Clears acting actor's playdate mirrors after `endPair` | **Partner mirrors are not cleared on completion** because `endPair` does not own these fields; cancellation through `cancelTask` clears both sides' mirrors | Family task completion | Inspected; N2 cancellation tests |
+| playdate/task fields | Family task finish | `behaviors/family.js` `finish` | Lesson/meal clear or cancel; all branches clear own family play flags | Partner task cleared through `endPair` only on playdate/lesson success; pair-task cancellation clears both sides through `cancelTask` | Family tick | Inspected; N2 tests |
 | task field | Group admission | `behaviors/groups.js` `startGroup` | Clears `familyTask` on all members | See group admission above | Group acquire | Inspected |
 | task field | Glass reset | `glass.js` `resetActor` | Clears own `familyTask` and playdate mirrors | Own side | Debug reset | Inspected |
 
@@ -226,7 +226,7 @@ Existing shared primitives:
 | `breakPair` | Reciprocal partner plus shared flags; no acting-state reset | `engine.cancelPair`, legacy `behavior.js` `cancelPair` |
 | `cancelPair` (engine) | Module interrupt, food release, `breakPair`, pair/seek state reset | Grab, detach, disable, directives, rest/flee, debug/forced operations |
 | `startTask` | Task object, state/partner/movement | `family.js` only in production modules; debug/forced paths |
-| `cancelTask` | Acting task/partner/state/idle | `family.js`, engine stall recovery, legacy `behavior.js` |
+| `cancelTask` | Acting task/partner/state/idle; for pair tasks, reciprocal partner and family mirrors on both cleared sides | `family.js`, engine stall recovery, legacy `behavior.js` |
 | `tickTask` | Task phase/timer | Tests and primitive consumers; the family module currently advances its own copy of the timer |
 
 Direct writers outside the protocol that change pair/task/group state:
@@ -365,7 +365,7 @@ Coverage ledger:
 | Two actors enter with host/guest roles, `partnerUid`, anchor and target | `representative activity enters with host/guest roles, partnerUid and anchor target` checks both task records, reciprocal live partners, role strings, `partnerUid`, anchor copy and target | `tests/interaction-entry.test.mjs` covers shipped invite/visit entry; `tests/behavior.test.mjs` covers primitive pair/task state |
 | Travel -> act -> done through `tickTask`, exactly-once completion | `travel -> act -> done runs through tickTask and completes exactly once` drives travel, arrival, act and terminal tick, then repeats the terminal tick with no extra completion | `tests/behavior.test.mjs` primitive tick; C2 social/visit completion tests use real modules |
 | Reciprocal live cleanup through `endPair`, no stale partner/task | The completion case asserts both partners, both tasks, states and `ai.source`; `endPair` is the only cleanup on completion | C2 completion and decline cover shipped `endPair` paths |
-| Interruption via `cancelPair`/`cancelTask`/detach/disable, no stale links/claims | `engine.cancelPair interrupts both sides...`, `cancelTask clears the acting side...` and `engine.detach and setEnabled(false) clear...`; the cancelTask case records its documented own-side behavior and then cleans the guest through the engine | C2 `tests/social-cancellation.test.mjs` covers grab, needs, disable, detach, pond and save records on shipped social/visit pairs |
+| Interruption via `cancelPair`/`cancelTask`/detach/disable, no stale links/claims | `engine.cancelPair interrupts both sides...`, `cancelTask clears both reciprocal participants...` and `engine.detach and setEnabled(false) clear...`; the cancelTask case asserts both sides and the repeated-cancel inert path | C2 `tests/social-cancellation.test.mjs` covers grab, needs, disable, detach, pond and save records on shipped social/visit pairs |
 | Save record excludes runtime task/pair state | `save records exclude runtime task and pair state` checks the snapshot omits `ai`, task, partner, persistent `partnerUid`, visit/group fields, target/anchor and the runtime fixture id/label | C2 save-record cases cover shipped social/visit runtime state and `partnerUid` exclusion |
 | No unrelated owner writes | Only the new test, this section, the small `src/behaviors/README.md` proof note and `.dev-shots/c3/` scratch evidence changed | C2 source/test delta remains the prior step |
 
@@ -467,7 +467,7 @@ and the C11 evidence:
 | conflict seek/pair/claim | `behaviors/conflict.js` | `beginPair` entry; `finishConflict` direct both-side clear and claim transfer; generic cancel leaves `conflictSource`/`contestSource`/`contestBear`/`conflictT` | C11 matrix; source inspection |
 | gifting reserve/carry/handover | `behaviors/gifting.js` | `beginPair`; `cancelGift` release/drop and both roles; `finishGift` clears both roles; module `interrupt` | C11 matrix; existing gifting tests |
 | group admission/lifecycle | `behaviors/groups.js` | `startGroup` clears partner/task on all members; `cancelGroup`/`dissolve`/`completeGroup` clear member fields; module `interrupt` | C11 matrix; existing group tests |
-| family meal/lesson/playdate | `behaviors/family.js` + `interactions.js` | `startTask`/`cancelTask`/`endPair`; playdate mirrors cleared only on the finishing actor | C11 matrix; existing family tests |
+| family meal/lesson/playdate | `behaviors/family.js` + `interactions.js` | `startTask`/`cancelTask`/`endPair`; pair cancellation clears both reciprocal participants and their family mirrors; playdate mirrors on completion are cleared only on the finishing actor; meals remain solo/own-side | C11 matrix; N2 tests and probe; existing family tests |
 | directives | `behaviors/directives.js` | `applyDirective` calls `cancelPair` before replacing an existing pair/task; `cancel`/`releaseToNormal` clear own directive state | Source inspection |
 | Glass grab/reset/debug pair | `glass.js` | `stopGrabTasks` own+reciprocal subset; `resetActor` own side; `forceMateWithBear` debug only | Source inspection |
 | possession/removal/disable | `ai.js`, `app.js`, engine | `setPossessed`/`detach`/`setEnabled` call `cancelPair` + `releaseFood` | Source inspection; existing removal tests |
@@ -479,17 +479,26 @@ reward (`finishVisitPair(ctx, false)`, C2-F1). This is why the seeded browser
 trace can diverge only on interrupted-visit relief; it is recorded as U-025 and
 is not a pond/C12 regression.
 
-**Next bounded candidate (not selected here): family pair-task cancellation
-symmetry.** `cancelTask` is deliberately own-side, but a surviving pair partner
-keeps `ai.familyTask` and `ai.partner` pointing at the cancelled actor. A scratch
-probe cancelled one side of a forced playdate, then let the survivor finish: the
-survivor's `finish` granted `.18` bond, relief and `playdate` history to **both**
-actors, including the cancelled side, and `endPair` cleared only the survivor.
-Reachable triggers include `family.js` tick path failure and the engine stall
-recovery path. This is a concrete lifecycle gap distinct from the pond policy and
-would be the next bounded family; it requires a separate decision/brief and is not
-implemented here. No broad central registry is proposed: each family can keep its
-existing cleanup primitive.
+**Resolved bounded candidate: family pair-task cancellation symmetry (N2).**
+`cancelTask` now cancels both reciprocal participants for pair tasks. It captures
+the acting task and partner first, treats a task as pair mode when the task says
+`mode: 'pair'` or the registry definition does, and requires a reciprocal partner
+(`partner.ai.partner === actor`) running the same task id. The acting side is
+always cleared (`familyTask`, `partner`, state `wander`, idle `.5`, `stop`); a
+shared partner is cleared the same way and stopped. Pair tasks also clear
+`familyPlay`, `playmateKind`, `playdate`, `playdateHome` and `playdateTarget` on
+each cleared side. Solo tasks (family meal) and non-reciprocal or different-task
+partners remain own-side, and a repeated cancel is inert. No bond, relief or
+history is written by cancellation, so the previous survivor-completion defect
+(scratch probe `.dev-shots/c11/family-cancel-asymmetry.mjs`) can no longer grant
+`.18` bond, relief and `playdate` history to a cancelled actor. Reachable
+triggers include the `family.js` tick path failure and the engine stall
+recovery; both now clear both sides. Evidence: `tests/activity-extension.test.mjs`
+(pair, solo, non-reciprocal, repeated), `tests/behavior-family.test.mjs`
+(reciprocal playdate cancellation and real-modules stall path), and the post-fix
+probe `.dev-shots/n2/family-cancel.mjs`. U-007 is resolved for this bounded
+family task; broader M2 sampling of the other families remains outside this
+change, and no central registry was added: each family keeps its primitive.
 
 ### U-004 recommendation (implemented in C11a)
 
@@ -528,7 +537,7 @@ needed; runtime state is already excluded from `snapshotActor`.
 
 | Outcome | Partner / familyTask / group / claims | Evidence |
 | --- | --- | --- |
-| Completion | Social/visit/mate/conflict/gift use `endPair` or explicit cleanup. Family playdate and lesson use `endPair`; meal uses `cancelTask`. Group completion clears every member. Conflict transfers or releases the food claim. Gifting consumes the carried portion once. Playdate mirrors remain set on the non-finishing partner. | Inspected; modules tests cover social/visit, playdate, group, gift, conflict completion (see coverage map). |
+| Completion | Social/visit/mate/conflict/gift use `endPair` or explicit cleanup. Family playdate and lesson use `endPair`; meal uses `cancelTask`. Group completion clears every member. Conflict transfers or releases the food claim. Gifting consumes the carried portion once. Playdate mirrors remain set on the non-finishing partner on completion; cancellation through `cancelTask` clears both sides symmetrically. | Inspected; modules tests cover social/visit, playdate, group, gift, conflict completion and family cancellation (see coverage map). |
 | Refusal / decline | Social decline uses `startDeclinePair` (`beginPair` + `declineT`) then `endPair`; bonds are unchanged. Gifting refuses by cancelling and dropping/releasing the reservation. Conflict rejects an unhealthy claimant in `findContest` with `coverConflictOutcome('healthFloor')`. There is no generic refusal primitive. | Inspected; tested for social decline, gift refusal, conflict health floor. |
 | Grab | App `makeGrab` calls `ai.onGrab`; Glass `beginDrag` calls `shared.onGrab` and then `stopGrabTasks`. Engine `cancelPair` runs module interrupts (gift/chat/cuddle/reconcile/partner/group), releases food, breaks reciprocal links and resets pair states. `ai.onGrab` also clears social timers. | Inspected; tested for a shared social pair (legacy and modules chooser), gifting, group detach. |
 | Throw | Same grab-time cancellation as grab; `endGrab` changes physics only and does not re-pair. A thrown actor resumes normal decisions after grounding. | Inspected for grab path; throw-specific pair cleanup is unverified. |
@@ -555,14 +564,14 @@ disable or critical-need reasons.
 
 | Label | Trigger(s) | Owner / source | Cleared state and claims | Reason/history persisted | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| `completed` | Module timer, task or counter reaches its end: social, visit, mate, chat/cuddle, reconcile/partner, gift handover, conflict resolution, group completion, family task or hive raid. | `social.endSocialPair`, `finishVisitPair(true)`, `mate.finishMatePair`, `affection.finishActivity`, `relationships.finishReconcile`/`finishPartnership`, `gifting.finishGift`, `conflict.finishConflict`, `groups.completeGroup`, `family.finish`, `hive.finish`. | Per family: `endPair`/`cancelTask` clears pair/task/visit fields; gift roles and carried food; conflict pointers with claim transfer or release; group member fields; hive `ai.source`. | `actor.history` stores the completion kind when `interactionHistory` is enabled (`social`, `visit`/`hosted`, `mated`, `chat`/`cuddle`, `partnered`/`reconcile`, `gift`/`receivedGift`, `conflict`, group kind, `playdate`/`taught`/`lesson`/`meal`). No outcome or reason string is stored. | Inspected. |
+| `completed` | Module timer, task or counter reaches its end: social, visit, mate, chat/cuddle, reconcile/partner, gift handover, conflict resolution, group completion, family task or hive raid. | `social.endSocialPair`, `finishVisitPair(true)`, `mate.finishMatePair`, `affection.finishActivity`, `relationships.finishReconcile`/`finishPartnership`, `gifting.finishGift`, `conflict.finishConflict`, `groups.completeGroup`, `family.finish`, `hive.finish`. | Per family: `endPair`/`cancelTask` clears pair/task/visit fields; `cancelTask` also clears family mirrors on both sides for pair tasks; gift roles and carried food; conflict pointers with claim transfer or release; group member fields; hive `ai.source`. | `actor.history` stores the completion kind when `interactionHistory` is enabled (`social`, `visit`/`hosted`, `mated`, `chat`/`cuddle`, `partnered`/`reconcile`, `gift`/`receivedGift`, `conflict`, group kind, `playdate`/`taught`/`lesson`/`meal`). No outcome or reason string is stored. | Inspected. |
 | `refused` | Social invite rejected; gift offer cannot start or is declined/cancelled; conflict candidate is skipped at the health floor; pairing/reconcile preconditions fail. | `social.startDeclinePair`/`finishDeclinePair`, `gifting.cancelGift`, `conflict.findContest`, `relationships.cancellation`, `affection.cancelActivity`. | Social decline ends through `endPair`; gift cancellation releases the origin, drops carried food, clears roles/retry and `endPair`; conflict health-floor skip changes no state or claim; relationship/affection cancellation ends the pair and timers. | Social decline persists `decline`/`declined` when `interactionHistory` is enabled; gift, conflict and relationship refusals persist no interaction history. Conflict health-floor is a runtime coverage counter only. | Inspected. |
 | `interrupted-grab` | App pointer/debug grab, or Glass `beginDrag`. | App `makeGrab` -> `ai.onGrab` -> engine `onGrab`; Glass `beginDrag` -> `shared.onGrab` + `stopGrabTasks`. | `cancelPair` runs module interrupts (gift/chat/cuddle/reconcile/partner/group), releases food on both sides, breaks reciprocal pair/task/visit fields and resets pair state; sets `ai.interrupted`; adapter clears social/invite/decline/conflict/mate timers. Glass `stopGrabTasks` additionally clears its own and reciprocal pair subset. Conflict pointers, playdate mirrors and social/mate-specific fields are not cleared. | None. | Inspected. |
 | `interrupted-throw` | Throw release after a grab. | App `endGrab(g, true)`; Glass `endDrag(a, true)`. | No additional interaction cleanup: grab-time cancellation already ran. The app and Glass throw branches change physics/velocity only. | None. | Inspected for the throw branch; throw-specific residual cleanup is unverified. |
 | `interrupted-pond` | Bear enters the pond. | `ai.js` `update`. | On the first interruption tick, sets `ai.interrupted`, stops hop/movement, calls `releaseFood(b)` and `cancelPair(b)` (module interrupts, both-side food release, reciprocal pair/task/visit clear, state reset). Later pond ticks only freeze (`ready:false`). A grounded actor cancels a pair whose partner is in the pond before deciding. Exiting the pond calls `resumeTask`. | None. | `tests/social-cancellation.test.mjs` covers social/visit/mate/gifting/group/partner-in-pond. |
 | `interrupted-disable` | `setEnabled(false)` for the AI. | Engine `setEnabled` plus `ai.setEnabled`. | `cancelPair` for every actor (module interrupts, both-side food release, reciprocal pair/task clear, state reset), then `releaseFood`, movement/target reset; the bear adapter also clears invite/social/decline/conflict/mate timers, follow/shove and sleeping. It does not set `ai.interrupted`; playdate mirrors and conflict pointers are not specifically cleared. | None. | Inspected. |
 | `interrupted-critical-need` | Thirst or hunger reaches its critical threshold while the actor is in the engine's optional-state list. | Engine tick. | `cancelPair`, then acquire water, food or a contest. Pair/task/claim handling is the same as generic cancellation. Conflict and `seekConflict` are not in the critical-need state list. | None. | Inspected. |
-| `interrupted-stall` | No-progress recovery. | Engine `recoverStall`. | Chat/cuddle/reconcile/partner/group/gift states call `interruptActor(actor, 'no-progress')` and end through the module interrupt; visit calls `finishVisitPair(false)`; `familyTask` calls own-side `cancelTask`; food/hive/conflict recovery releases the source and clears contest pointers. | None. | Inspected. |
+| `interrupted-stall` | No-progress recovery. | Engine `recoverStall`. | Chat/cuddle/reconcile/partner/group/gift states call `interruptActor(actor, 'no-progress')` and end through the module interrupt; visit calls `finishVisitPair(false)`; `familyTask` calls `cancelTask`, which clears both reciprocal participants and family mirrors for pair tasks and only the acting side for solo tasks; food/hive/conflict recovery releases the source and clears contest pointers. See the N2 note above. | None. | Inspected; N2 stall-path test drives the real modules engine. |
 | `removed-ceiling` | Population ceiling trim. | App `removeBear(..., { departure: 'removed' })`. | Captures a departure snapshot, drops carried food, releases portion claims, `ai.detach` (release food and `cancelPair`), `food.releaseBear`, nulls `ai`, clears persistent references unless `preserveRefs`, and ends any active grab. | Departure `cause: 'removed'` is runtime-only; no actor history entry. | Inspected. |
 | `removed-stars` | Stars farewell commits for `oldAge`, `starvation` or `sting`, then the fade completes. | `stars.start`/`onFarewell` -> app `startFarewell`/`commitFarewell` -> `removeBear` or `removeGlassActor`. | `commitFarewell` ends a partnership as `departed`, calls `cancelPair`, releases food and resets movement. Final removal drops carried food, releases portion/food claims, detaches (Bear and now Glass after successful colony removal) or disposes, and clears persistent references. | Departure `cause: 'stars'` and the star reason are runtime-only. A `separated` history entry is persisted if a partnership existed; the star reason is not written to actor history. | Inspected; `stars-test.mjs` covers Bear and Glass removal. |
 | `despawn-map-switch` | `requestMapSwitch`, after saving the current world. | App `saveCurrentWorld({ dropCarried: true })` -> `activateMap`. | Save drops carried food for live actors. `activateMap` releases grabs, `despawnAll` removes Bears through `removeBear(..., { preserveRefs: true })` (detach/`cancelPair`/claim release), and `glassColony.clear()` disposes Glass. Persistent cross-map references are preserved. | Saved world snapshot only; no departure record and no interaction reason. Glass claim cleanup through `clear()` is unverified. | Inspected; no dedicated test. |
@@ -587,6 +596,7 @@ has no reason record.
 | Grab cancellation | `tests/behavior.test.mjs` "grab cancels a shared pair and leaves both actors idle"; `tests/behavior-chooser.test.mjs` "interrupting a chooser-started pairing cleans both sides without reward" | Legacy and modules |
 | Visit interruption by critical thirst | `tests/behavior.test.mjs` "critical thirst interrupts a visit and releases both participants" | Legacy engine |
 | Playdate completion | `tests/behavior-family.test.mjs` "playdate completion grants .18 bond and history"; `tests/behavior.test.mjs` "playdate sets a paired task, raises the bond and schedules the next day" | Family module and legacy |
+| Family pair-task cancellation | `tests/activity-extension.test.mjs` pair/solo/non-reciprocal/repeated cases; `tests/behavior-family.test.mjs` reciprocal playdate cancellation and real-modules stall recovery; `.dev-shots/n2/family-cancel.mjs` | Direct primitive and modules engine |
 | Family module write discipline | `tests/behavior-family.test.mjs` "family module does not write partner/familyTask directly" | Source-text assertion for `behaviors/family.js` |
 | Conflict resolution | `tests/behavior-conflict.test.mjs` tie/order cases; `tests/behavior-world-resources.test.mjs` "conflict finish skips registry writes and still cleans up with a null provider" | Modules and module isolation |
 | Gifting completion/refusal | `tests/gifting.test.mjs` accepted gift, hungry-receiver refusal, daily cap, critical thirst, unreachable timeout, two-giver reservation | Modules engine |
@@ -598,7 +608,7 @@ has no reason record.
 | Map switch and New Game live cleanup | No dedicated case found | Gap |
 | Save/load live pair/task cleanup | No case; saved records are covered, runtime `ai` is excluded | Gap |
 | Actor removal via Glass `removeGlassActor` | `tests/actor-remove.test.mjs` covers successful detach/reference order, refusal/no-remover with no detach, and unchanged departure/farewell/drop/portion/food order; `stars-test.mjs` covers live Glass farewell removal | App wrapper and portable ordering |
-| Playdate partner mirrors after interruption/completion | No case | Gap |
+| Playdate partner mirrors after completion | Completion still clears mirrors only on the finishing actor; pair cancellation clears both sides (N2 tests) | Partial gap: completion mirror asymmetry remains by design |
 | Conflict pointers after generic cancel | No case | Gap |
 | Direct-write coverage outside `behaviors/family.js` | No equivalent source assertion for social/conflict/mate/groups/glass | Gap |
 | Pair-entry own-side link | `tests/interaction-entry.test.mjs` primitive one-side writes/rejections; invite/visit entry order, RNG and incidental state | Modules source and social module isolation |
@@ -622,13 +632,16 @@ broad rewrite.
 - Whether every pair entry path should require a reciprocal write is unresolved;
   `startTask`, `startInvite`/`startVisit` and several recovery branches currently
   write directly.
-- `cancelTask` is own-side only. Pair-task callers compensate by starting both
-  sides and finishing through `endPair`, but a partial start failure was not
-  exercised.
+- `cancelTask` now clears both reciprocal pair-task participants and their family
+  mirrors (N2), while solo tasks and non-reciprocal/different-task partners stay
+  own-side. A partial pair start failure was still not exercised: if only one side
+  has the task, cancellation clears the acting side and leaves the other untouched.
 - Pond interruption now invokes `cancelPair` on entry and cancels a grounded
   actor's pair when its partner is in the pond; the C11a tests cover social,
-  visit, mate, carried gifting and group. Family pair-task cancellation asymmetry
-  (U-007) remains open and is not changed here.
+  visit, mate, carried gifting and group. The C11a policy did not change
+  `cancelTask`; N2 later resolved the family pair-task cancellation asymmetry
+  (U-007) separately. Broader M2 sampling of the remaining families is still
+  open.
 - Glass removal (`removeGlassActor`) now detaches behavior after a successful
   colony removal, before reference clearing. The stars path still calls
   `commitFarewell` first; map-clear/`glassColony.clear()` does not use this

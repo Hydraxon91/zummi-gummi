@@ -28,6 +28,16 @@ const FIXTURE_DEFINITION = {
 // Registered once for this file. The id is intentionally test-only and unique.
 const FIXTURE = registerInteraction(FIXTURE_DEFINITION);
 
+const FIXTURE_SOLO_ID = 'c3RepresentativeSolo';
+const FIXTURE_SOLO = registerInteraction({
+  id: FIXTURE_SOLO_ID,
+  mode: 'solo',
+  duration: 2,
+  cooldown: 0,
+  arriveDist: 1.2,
+  label: 'representative solo task',
+});
+
 // The representative activity is a thin caller of the shared protocol. Effects
 // are applied only on the first terminal tick, and cleanup is the existing
 // endPair primitive.
@@ -161,21 +171,55 @@ test('engine.cancelPair interrupts both sides without a completion effect', () =
   assert.equal(activity.completions(), 0, 'a repeated cancel is inert');
 });
 
-test('cancelTask clears the acting side, then reciprocal cleanup leaves no stale links', () => {
+test('cancelTask clears both reciprocal participants without a completion effect', () => {
   const fixture = createPairFixture();
   const [host, guest] = fixture.actors;
   const activity = createFixtureActivity();
   activity.start(host, guest);
+  activity.advance(host, .5);
 
   cancelTask(host, { stop: () => {} });
+
+  assertPairCleared(host, guest);
+  assert.equal(activity.completions(), 0, 'cancellation is not completion');
+
+  guest.cx = FIXTURE_ANCHOR.x;
+  guest.cz = FIXTURE_ANCHOR.z;
+  assert.deepEqual(activity.advance(guest, 10), { ok: false, phase: null, done: true },
+    'the cancelled partner has no task left to finish');
+  assert.equal(cancelTask(guest, { stop: () => {} }), undefined);
+  assertPairCleared(host, guest);
+  assert.equal(activity.completions(), 0, 'a repeated cancel is inert');
+});
+
+test('cancelTask on a solo task clears only the acting side', () => {
+  const { actors } = createPairFixture();
+  const [host, guest] = actors;
+  startTask(host, FIXTURE_SOLO_ID, { role: 'host', partner: guest, anchor: FIXTURE_ANCHOR });
+  startTask(guest, FIXTURE_SOLO_ID, { role: 'guest', partner: host, anchor: FIXTURE_ANCHOR });
+
+  cancelTask(host, { stop: () => {} });
+
   assert.equal(host.ai.familyTask, null);
   assert.equal(host.ai.partner, null);
   assert.equal(host.ai.state, 'wander');
-  assert.equal(guest.ai.familyTask?.id, FIXTURE_ID, 'cancelTask is own-side only');
+  assert.equal(guest.ai.familyTask?.id, FIXTURE_SOLO_ID, 'solo cancellation is own-side');
   assert.equal(guest.ai.partner, host);
+});
 
-  fixture.engine.cancelPair(guest);
-  assertPairCleared(host, guest);
+test('cancelTask leaves a non-reciprocal partner task untouched', () => {
+  const { actors } = createPairFixture();
+  const [host, guest] = actors;
+  const activity = createFixtureActivity();
+  activity.start(host, guest);
+  guest.ai.partner = null;
+
+  cancelTask(host, { stop: () => {} });
+
+  assert.equal(host.ai.familyTask, null);
+  assert.equal(host.ai.partner, null);
+  assert.equal(guest.ai.familyTask?.id, FIXTURE_ID, 'only the acting task is cancelled');
+  assert.equal(guest.ai.partner, null);
   assert.equal(activity.completions(), 0);
 });
 
