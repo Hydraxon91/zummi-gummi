@@ -137,6 +137,13 @@ changes global models or permits work excluded by the current mode or approvals.
    read-only research is allowed. Parallel coding requires a separate plan and
    explicit approval; this workflow defaults to one coder. The coder cannot
    delegate further or stage/commit/push. Git work waits until the worker stops.
+   Background delegation is the default for approved coder work: launch the
+   `subagent` tool with `background: true` so the parent stays available for
+   conversation. While it runs, the parent may chat, plan and do independent
+   read-only research, but not edit, mutate Git or launch competing verification.
+   Do not poll for completion; start independent review from the completion
+   notification. Discussion does not change an active worker's scope without a
+   coordinated handoff.
 5. **Inspect the return.** Compare the actual staged/unstaged/untracked delta
    against the baseline and allowed paths, including additions/deletions/renames.
    Stop on unexpected changes; preserve them rather than automatically reverting.

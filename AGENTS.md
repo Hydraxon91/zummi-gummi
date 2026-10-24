@@ -74,7 +74,10 @@ The parent/reviewer session owns planning and independent review; the project
 Approve scope and `coder` ownership before delegation. The coder implements/tests
 assigned files; the parent reviews the actual diff and evidence, not just the
 child's summary. Keep one writer at a time and preserve a pre-delegation
-HEAD/working-tree baseline. Delegation grants no extra approval, Plan-mode
+HEAD/working-tree baseline. Launch approved coder work in the background
+(`background: true`) so the parent stays available for conversation; while it
+runs the parent acts read-only and starts review from the completion
+notification (procedures §3.4). Delegation grants no extra approval, Plan-mode
 exception, commit or push permission.
 
 **One step per coder run.** Do not batch adjacent roadmap steps (for example
